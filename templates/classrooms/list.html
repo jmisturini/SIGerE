@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Classrooms{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Classrooms</h2>
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('admin.create_room') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Add Classroom
+    </a>
+    {% endif %}
+</div>
+
+<!-- New Availability Filter -->
+<form method="GET" class="card card-body shadow-sm mb-4">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label small fw-bold">Available Date</label>
+            <input type="date" name="available_date" class="form-control" value="{{ request.args.get('available_date', '') }}" required>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-bold">Available Period</label>
+            <select name="available_period" class="form-select" required>
+                <option value="">Select Period...</option>
+                <option value="morning" {{ 'selected' if request.args.get('available_period') == 'morning' }}>Morning</option>
+                <option value="afternoon" {{ 'selected' if request.args.get('available_period') == 'afternoon' }}>Afternoon</option>
+                <option value="night" {{ 'selected' if request.args.get('available_period') == 'night' }}>Night</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search"></i> Filter</button>
+        </div>
+        <div class="col-md-3 text-end">
+            <a href="{{ url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary w-100">Clear Filters</a>
+        </div>
+    </div>
+</form>
+
+{% if is_filtered %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Showing rooms available on <strong>{{ available_date }}</strong> during the <strong class="text-capitalize">{{ available_period }}</strong>.
+</div>
+{% endif %}
+
+<div class="row g-3">
+{% for c in classrooms %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <h5 class="card-title">{{ c.code }}</h5>
+                    <span class="badge bg-primary">Cap. {{ c.capacity }}</span>
+                </div>
+                <p class="text-muted small mb-2">{{ c.name }} · Floor {{ c.floor or '-' }}</p>
+                
+                <div class="mb-2">
+                    {% if c.category == 'computer_lab' %}
+                    <span class="amenity-icon on"><i class="bi bi-pc-display"></i> Computer Lab ({{ c.computer_count }} PCs)</span>
+                    {% elif c.category == 'health_lab' %}
+                    <span class="amenity-icon on"><i class="bi bi-heart-pulse"></i> Health Lab</span>
+                    {% elif c.category == 'kitchen' %}
+                    <span class="amenity-icon on"><i class="bi bi-cup-hot"></i> Kitchen</span>
+                    {% elif c.category == 'auditorium' %}
+                    <span class="amenity-icon on"><i class="bi bi-buildings"></i> Auditorium</span>
+                    {% else %}
+                    <span class="amenity-icon on"><i class="bi bi-square"></i> Standard Room</span>
+                    {% endif %}
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('classrooms.detail', classroom_id=c.id) }}" class="btn btn-sm btn-outline-primary">Details</a>
+                    <a href="{{ url_for('classrooms.availability', classroom_id=c.id) }}" class="btn btn-sm btn-outline-secondary">Availability</a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="col-12 text-center text-muted py-5">
+        <i class="bi bi-emoji-frown fs-1 d-block mb-2"></i>
+        <h5>No rooms match your filter.</h5>
+        {% if is_filtered %}
+        <p>All rooms might be occupied during the selected period.</p>
+        {% else %}
+        <p>There are no active classrooms in the system.</p>
+        {% endif %}
+    </div>
+{% endfor %}
+</div>
+{% endblock %}

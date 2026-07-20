@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h3 class="mb-3">{{ title }}</h3>
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    {% for field in [form.name, form.code, form.floor, form.capacity] %}
+                    <div class="mb-3">
+                        {{ field.label(class="form-label") }}
+                        {{ field(class="form-control") }}
+                        {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                    </div>
+                    {% endfor %}
+                    <div class="row mb-3">
+                        <div class="col"><div class="form-check">{{ form.has_projector(class="form-check-input") }} {{ form.has_projector.label(class="form-check-label") }}</div></div>
+                        <div class="col"><div class="form-check">{{ form.has_whiteboard(class="form-check-input") }} {{ form.has_whiteboard.label(class="form-check-label") }}</div></div>
+                        <div class="col"><div class="form-check">{{ form.has_computers(class="form-check-input") }} {{ form.has_computers.label(class="form-check-label") }}</div></div>
+                        <div class="col"><div class="form-check">{{ form.has_air_conditioning(class="form-check-input") }} {{ form.has_air_conditioning.label(class="form-check-label") }}</div></div>
+                    </div>
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control", rows=3) }}
+                    </div>
+                    <div class="mb-3 form-check">
+                        {{ form.is_active(class="form-check-input") }}
+                        {{ form.is_active.label(class="form-check-label") }}
+                    </div>
+                    <div class="d-flex gap-2">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h3 class="mb-3">{{ title }}</h3>
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    {% for field in [form.name, form.code, form.floor, form.capacity] %}
+                    <div class="mb-3">
+                        {{ field.label(class="form-label") }}
+                        {{ field(class="form-control") }}
+                        {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                    </div>
+                    {% endfor %}
+                    <div class="mb-3">
+                        {{ form.category.label(class="form-label") }}
+                        {{ form.category(class="form-select") }}
+                    </div>
+                  <div class="mb-3" id="compCountDiv" style="display: none;">
+                    {{ form.computer_count.label(class="form-label") }}
+                    {{ form.computer_count(class="form-control", min="0") }}
+                </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                    const categorySelect = document.getElementById('category');
+                    const compCountDiv = document.getElementById('compCountDiv');
+
+                    function toggleCompCount() {
+                        if (categorySelect.value === 'computer_lab') {
+                            compCountDiv.style.display = 'block';
+                        } else {
+                            compCountDiv.style.display = 'none';
+                        }
+                    }
+
+                    // Run on page load
+                    toggleCompCount();
+                    // Run on change
+                    categorySelect.addEventListener('change', toggleCompCount);
+                    });
+                </script>
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control", rows=3) }}
+                    </div>
+                    <div class="mb-3 form-check">
+                        {{ form.is_active(class="form-check-input") }}
+                        {{ form.is_active.label(class="form-check-label") }}
+                    </div>
+                    <div class="d-flex gap-2">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('admin.list_rooms') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

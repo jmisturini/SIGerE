@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}New Reservation{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h3 class="mb-3"><i class="bi bi-calendar-plus"></i> New Reservation</h3>
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.classroom.label(class="form-label") }}
+                        {{ form.classroom(class="form-select") }}
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            {{ form.course.label(class="form-label") }}
+                            {{ form.course(class="form-select") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.subject.label(class="form-label") }}
+                            {{ form.subject(class="form-select") }}
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            {{ form.teacher.label(class="form-label") }}
+                            {{ form.teacher(class="form-select") }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        {{ form.acknowledge_teacher_conflict(class="form-check-input") }}
+                        {{ form.acknowledge_teacher_conflict.label(class="form-check-label") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.title.label(class="form-label") }}
+                        {{ form.title(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control", rows=3) }}
+                    </div>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            {{ form.date.label(class="form-label") }}
+                            {{ form.date(class="form-control") }}
+                        </div>
+                        <div class="col-md-4">
+                            {{ form.start_time.label(class="form-label") }}
+                            {{ form.start_time(class="form-control") }}
+                        </div>
+                        <div class="col-md-4">
+                            {{ form.end_time.label(class="form-label") }}
+                            {{ form.end_time(class="form-control") }}
+                        </div>
+                    </div>
+                    {% for field in [form.classroom, form.title, form.date, form.start_time, form.end_time, form.course, form.subject] %}
+                        {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                    {% endfor %}
+                    <div class="d-flex gap-2">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
