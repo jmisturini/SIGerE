@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block content %}
+<h1 class="mb-4">Admin Panel</h1>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total Users</div>
+                <div class="display-6 fw-bold text-primary">{{ users_count }}</div>
+                <a href="{{ url_for('admin.list_users') }}" class="small">Manage →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total Rooms</div>
+                <div class="display-6 fw-bold text-primary">{{ rooms_count }}</div>
+                <a href="{{ url_for('admin.list_rooms') }}" class="small">Manage →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total Courses</div>
+                <div class="display-6 fw-bold text-primary">{{ courses_count }}</div>
+                <a href="{{ url_for('admin.list_courses') }}" class="small">Manage →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total Subjects</div>
+                <div class="display-6 fw-bold text-primary">{{ subjects_count }}</div>
+                <a href="{{ url_for('admin.list_subjects') }}" class="small">Manage →</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% block title %}Availability - {{ classroom.code }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-0">{{ classroom.code }} Availability</h2>
+        <p class="text-muted mb-0">{{ classroom.name }}</p>
+    </div>
+    <div>
+        <a href="{{ url_for('classrooms.detail', classroom_id=classroom.id) }}" class="btn btn-outline-secondary">Back to Details</a>
+        {% if current_user.can_book %}
+        <a href="{{ url_for('reservations.create', classroom_id=classroom.id) }}" class="btn btn-primary">Reserve this Room</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <!-- Previous Month Button -->
+        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, year=prev_year, month=prev_month) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-chevron-left"></i> Prev
+        </a>
+        
+        <h4 class="mb-0">{{ month_name }} {{ year }}</h4>
+        
+        <!-- Next Month Button -->
+        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, year=next_year, month=next_month) }}" class="btn btn-sm btn-outline-secondary">
+            Next <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+    
+    <div class="card-body">
+        <!-- Weekday Headers -->
+        <div class="calendar-grid mb-2">
+            <div class="calendar-weekday">Sun</div>
+            <div class="calendar-weekday">Mon</div>
+            <div class="calendar-weekday">Tue</div>
+            <div class="calendar-weekday">Wed</div>
+            <div class="calendar-weekday">Thu</div>
+            <div class="calendar-weekday">Fri</div>
+            <div class="calendar-weekday">Sat</div>
+        </div>
+
+        <!-- Calendar Days -->
+        <div class="calendar-grid">
+            {% for week in month_days %}
+                {% for day in week %}
+                    {% if day == 0 %}
+                    <!-- Empty day placeholder -->
+                    <div class="calendar-day empty"></div>
+                    {% else %}
+                    <!-- Actual day -->
+                    <div class="calendar-day {% if day == today.day and month == today.month and year == today.year %}today{% endif %}">
+                        <div class="day-number">{{ day }}</div>
+                        
+                        {% if day in reservations_by_day %}
+                        <div class="events-container">
+                            {% for ev in reservations_by_day[day] %}
+                            <div class="event-pill" title="{{ ev.title }}">
+                                <strong>{{ ev.start_time.strftime('%H:%M') }}</strong> 
+                                {{ ev.title | truncate(15, true) }}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 8px;
+    }
+    .calendar-weekday {
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        padding-bottom: 8px;
+        border-bottom: 2px solid var(--border-color);
+    }
+    .calendar-day {
+        min-height: 110px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 8px;
+        background-color: var(--card-bg);
+        transition: background-color 0.2s;
+    }
+    .calendar-day.empty {
+        background-color: transparent;
+        border: none;
+    }
+    .calendar-day.today {
+        border: 2px solid var(--primary-color);
+        background-color: rgba(37, 99, 235, 0.05);
+    }
+    .day-number {
+        font-weight: 700;
+        margin-bottom: 5px;
+        color: var(--text-muted);
+    }
+    .calendar-day.today .day-number {
+        color: var(--primary-color);
+    }
+    .events-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .event-pill {
+        font-size: 0.75rem;
+        background: var(--table-bg);
+        color: var(--text-main);
+        padding: 3px 6px;
+        border-radius: 4px;
+        border-left: 3px solid var(--primary-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* Dark mode specific tweaks for event pills */
+    [data-theme="dark"] .event-pill {
+        background: #334155;
+    }
+</style>
+{% endblock %}

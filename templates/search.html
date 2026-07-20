@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}Search{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <h2 class="mb-4 text-center"><i class="bi bi-search"></i> Search Classrooms & Teachers</h2>
+        
+        <!-- Search Form -->
+        <form method="GET" class="card card-body shadow-sm mb-4">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Search Type</label>
+                    <select name="type" class="form-select" id="searchType" onchange="togglePlaceholder()">
+                        <option value="classroom" {{ 'selected' if search_type == 'classroom' }}>Classroom</option>
+                        <option value="teacher" {{ 'selected' if search_type == 'teacher' }}>Teacher</option>
+                    </select>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label small fw-bold">Query</label>
+                    <input type="text" name="q" id="searchInput" class="form-control" value="{{ query }}" placeholder="Enter name or room code...">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Search</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Results -->
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                {% if query %}
+                    {% if search_type == 'classroom' %}
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr><th>Code</th><th>Name</th><th>Building</th><th>Floor</th><th>Capacity</th></tr>
+                            </thead>
+                            <tbody>
+                            {% for r in results_rooms %}
+                                <tr>
+                                    <td><span class="badge bg-primary">{{ r.code }}</span></td>
+                                    <td>{{ r.name }}</td>
+                                    <td>{{ r.building or 'N/A' }}</td>
+                                    <td>{{ r.floor or 'N/A' }}</td>
+                                    <td>{{ r.capacity }}</td>
+                                </tr>
+                            {% else %}
+                                <tr><td colspan="5" class="text-center text-muted p-4">No active classrooms found matching "{{ query }}".</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    {% elif search_type == 'teacher' %}
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr><th>Name</th><th>Department</th><th>Registration ID</th></tr>
+                            </thead>
+                            <tbody>
+                            {% for t in results_teachers %}
+                                <tr>
+                                    <td>{{ t.full_name }}</td>
+                                    <td>{{ t.department or 'N/A' }}</td>
+                                    <td>{{ t.registration or 'N/A' }}</td>
+                                </tr>
+                            {% else %}
+                                <tr><td colspan="3" class="text-center text-muted p-4">No active teachers found matching "{{ query }}".</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center text-muted p-5">
+                        <i class="bi bi-search fs-1 d-block mb-2"></i>
+                        <h5>Start your search above</h5>
+                        <p>Select a type and enter a name or keyword to find active rooms or staff.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function togglePlaceholder() {
+        const type = document.getElementById('searchType').value;
+        const input = document.getElementById('searchInput');
+        if (type === 'classroom') {
+            input.placeholder = "Enter room code or name...";
+        } else {
+            input.placeholder = "Enter teacher's name...";
+        }
+    }
+    togglePlaceholder(); // Set initial state
+</script>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Welcome, {{ current_user.full_name }} 👋</h1>
+    {% if current_user.can_book %}
+    <a href="{{ url_for('reservations.create') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> New Reservation
+    </a>
+    {% endif %}
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-calendar-week"></i> Reserved Rooms for {{ current_period }}</strong>
+        <span class="text-muted small">{{ today_date.strftime('%A, %B %d, %Y') }}</span>
+    </div>
+    <div class="card-body p-0">
+        {% if today_reservations %}
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Time</th>
+                    <th>Classroom</th>
+                    <th>Title / Subject</th>
+                    <th>Reserved by</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in today_reservations %}
+                <tr>
+                    <td class="fw-bold">
+                        {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}
+                    </td>
+                    <td>
+                        <span class="badge bg-primary">{{ r.classroom.code }}</span> 
+                        {{ r.classroom.name }}
+                    </td>
+                    <td>{{ r.title }}</td>
+                    <td>{{ r.user.full_name }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted p-5">
+            <i class="bi bi-emoji-smile fs-1 d-block mb-2"></i>
+            <h5>No rooms reserved for the {{ current_period|lower }} period!</h5>
+            <p>All rooms are currently free.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
