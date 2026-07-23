@@ -1,5 +1,4 @@
-# SIGERE
-🏫 School Classroom Reservation System
+🏫 SIGERE
 
 A comprehensive, web-based reservation system designed for educational institutions to manage classrooms, auditoriums, laboratories, and teacher schedules efficiently. Built with Flask, it features a role-based access control system, a public kiosk/totem display for hallway TVs, a full calendar view, and automated schedule restriction enforcement.
 ✨ Key Features & Capabilities
@@ -178,5 +177,4 @@ classroom_reservation/
 📝 License
 
 This project is open-source and available for educational and internal use.
-
-
+```
