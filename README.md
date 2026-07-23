@@ -75,7 +75,7 @@ A comprehensive, web-based reservation system designed for educational instituti
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/your-username/classroom-reservation.git
+   git clone https://github.com/jmisturni/SIGERE.git
    cd classroom-reservation
    ```
 
