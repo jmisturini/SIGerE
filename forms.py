@@ -37,7 +37,7 @@ class RegistrationForm(FlaskForm):
 
 class ClassroomForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired(), Length(max=64)])
-    code = StringField('Code', validators=[DataRequired(), Length(max=20)])
+    room_number = StringField('Room Number', validators=[DataRequired(), Length(max=20)])
     floor = StringField('Floor', validators=[Optional(), Length(max=20)])
     capacity = IntegerField('Capacity', validators=[DataRequired()])
     category = SelectField('Category', choices=[
@@ -49,15 +49,10 @@ class ClassroomForm(FlaskForm):
     ], default='classroom')
 
     computer_count = IntegerField('Number of Computers', validators=[Optional()])
-    
+    building = StringField('Building', validators=[Optional(), Length(max=120)])
     description = TextAreaField('Description', validators=[Optional()])
     is_active = BooleanField('Active', default=True)
     submit = SubmitField('Save')
-
-    def validate_code(self, field):
-        existing = Classroom.query.filter_by(code=field.data).first()
-        if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Classroom code already exists.')
         
 class ReservationForm(FlaskForm):
     classroom = SelectField('Classroom', coerce=int, validators=[DataRequired()])
@@ -174,3 +169,9 @@ class SubjectForm(FlaskForm):
         existing = Subject.query.filter_by(code=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
             raise ValidationError('Subject code already exists.')
+
+class HolidayForm(FlaskForm):
+    name = StringField('Holiday Name', validators=[DataRequired(), Length(max=120)])
+    date = DateField('Date', validators=[DataRequired()])
+    is_active = BooleanField('Active (Block Reservations)', default=True)
+    submit = SubmitField('Save Holiday')

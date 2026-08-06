@@ -3,41 +3,88 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">Classrooms</h2>
-    {% if current_user.is_admin %}
-    <a href="{{ url_for('admin.create_room') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> Add Classroom
-    </a>
-    {% endif %}
+    <div class="d-flex gap-2">
+        <!-- Export Dropdown -->
+        <div class="dropdown">
+            <button class="btn btn-outline-success dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download"></i> Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="exportDropdown">
+                <li>
+                    <a class="dropdown-item" href="{{ url_for('classrooms.export_classrooms') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+                        <i class="bi bi-filetype-csv"></i> Export to CSV
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{{ url_for('classrooms.export_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+                        <i class="bi bi-filetype-pdf"></i> Export to PDF
+                    </a>
+                </li>
+            </ul>
+        </div>
+        
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('admin.create_room') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Add Classroom
+        </a>
+        {% endif %}
+    </div>
 </div>
 
-<!-- New Availability Filter -->
-<form method="GET" class="card card-body shadow-sm mb-4">
+<!-- Availability & Type Filter -->
+<form method="GET" id="filterForm" class="card card-body shadow-sm mb-4">
     <div class="row g-2 align-items-end">
-        <div class="col-md-4">
-            <label class="form-label small fw-bold">Available Date</label>
-            <input type="date" name="available_date" class="form-control" value="{{ request.args.get('available_date', '') }}" required>
-        </div>
         <div class="col-md-3">
+            <label class="form-label small fw-bold">Available Date</label>
+            <input type="date" id="available_date" name="available_date" class="form-control" value="{{ request.args.get('available_date', '') }}">
+        </div>
+        <div class="col-md-2">
             <label class="form-label small fw-bold">Available Period</label>
-            <select name="available_period" class="form-select" required>
-                <option value="">Select Period...</option>
+            <select id="available_period" name="available_period" class="form-select">
+                <option value="">Any</option>
                 <option value="morning" {{ 'selected' if request.args.get('available_period') == 'morning' }}>Morning</option>
                 <option value="afternoon" {{ 'selected' if request.args.get('available_period') == 'afternoon' }}>Afternoon</option>
                 <option value="night" {{ 'selected' if request.args.get('available_period') == 'night' }}>Night</option>
             </select>
         </div>
-        <div class="col-md-2">
-            <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search"></i> Filter</button>
+        
+        <!-- Room Type Filter -->
+        <div class="col-md-3">
+            <label class="form-label small fw-bold">Room Type</label>
+            <select id="category_select" name="category" class="form-select">
+                <option value="">All Types</option>
+                <option value="classroom" {{ 'selected' if selected_category == 'classroom' }}>Classroom</option>
+                <option value="auditorium" {{ 'selected' if selected_category == 'auditorium' }}>Auditorium</option>
+                <option value="computer_lab" {{ 'selected' if selected_category == 'computer_lab' }}>Computer Lab</option>
+                <option value="health_lab" {{ 'selected' if selected_category == 'health_lab' }}>Health Lab</option>
+                <option value="kitchen" {{ 'selected' if selected_category == 'kitchen' }}>Kitchen</option>
+            </select>
         </div>
-        <div class="col-md-3 text-end">
-            <a href="{{ url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary w-100">Clear Filters</a>
+        
+        <div class="col-md-2">
+            <button type="submit" id="filterBtn" class="btn btn-outline-primary w-100" disabled>
+                <i class="bi bi-funnel"></i> Filter
+            </button>
+        </div>
+        <div class="col-md-2 text-end">
+            <a href="{{ url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary w-100">Clear</a>
+        </div>
+    </div>
+    
+    <!-- Available Now Checkbox -->
+    <div class="row mt-3 border-top pt-3">
+        <div class="col-12">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="available_now" name="available_now" value="true" {{ 'checked' if request.args.get('available_now') }}>
+                <label class="form-check-label fw-bold" for="available_now">Only show rooms available RIGHT NOW</label>
+            </div>
         </div>
     </div>
 </form>
 
 {% if is_filtered %}
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Showing rooms available on <strong>{{ available_date }}</strong> during the <strong class="text-capitalize">{{ available_period }}</strong>.
+    <i class="bi bi-info-circle"></i> {{ filter_message | safe }}
 </div>
 {% endif %}
 
@@ -46,13 +93,13 @@
     <div class="col-md-6 col-lg-4">
         <div class="card shadow-sm h-100">
             <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <h5 class="card-title">{{ c.code }}</h5>
-                    <span class="badge bg-primary">Cap. {{ c.capacity }}</span>
+                <div class="d-flex justify-content-between align-items-start">
+                    <h5 class="card-title mb-1">{{ c.name }}</h5>
+                    <span class="badge bg-secondary">{{ c.code }}</span>
                 </div>
-                <p class="text-muted small mb-2">{{ c.name }} · Floor {{ c.floor or '-' }}</p>
+                <p class="text-muted small mb-3">{{ c.building or 'N/A' }} · Floor {{ c.floor or '-' }} · Cap. {{ c.capacity }}</p>
                 
-                <div class="mb-2">
+                <div class="mb-3">
                     {% if c.category == 'computer_lab' %}
                     <span class="amenity-icon on"><i class="bi bi-pc-display"></i> Computer Lab ({{ c.computer_count }} PCs)</span>
                     {% elif c.category == 'health_lab' %}
@@ -85,4 +132,46 @@
     </div>
 {% endfor %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('available_date');
+    const periodSelect = document.getElementById('available_period');
+    const categorySelect = document.getElementById('category_select');
+    const nowCheckbox = document.getElementById('available_now');
+    const filterBtn = document.getElementById('filterBtn');
+    const filterForm = document.getElementById('filterForm');
+
+    function updateFilterBtn() {
+        // Check if at least one filter has a value
+        const hasDatePeriod = dateInput.value && periodSelect.value;
+        const hasCategory = categorySelect.value !== '';
+        const hasNow = nowCheckbox.checked;
+        
+        if (hasDatePeriod || hasCategory || hasNow) {
+            filterBtn.disabled = false;
+        } else {
+            filterBtn.disabled = true;
+        }
+    }
+
+    // Run on page load to set initial state (e.g., if page reloads with filters)
+    updateFilterBtn();
+
+    // Listen for changes to toggle the button
+    dateInput.addEventListener('input', updateFilterBtn);
+    periodSelect.addEventListener('change', updateFilterBtn);
+    categorySelect.addEventListener('change', updateFilterBtn);
+    nowCheckbox.addEventListener('change', updateFilterBtn);
+
+    // Auto-submit form when "Available Now" is checked
+    nowCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            filterForm.submit();
+        }
+    });
+});
+</script>
 {% endblock %}

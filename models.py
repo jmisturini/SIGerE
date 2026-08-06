@@ -10,15 +10,19 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     full_name = db.Column(db.String(120), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), nullable=False, default='student')  # admin, teacher, student
+    role = db.Column(db.String(20), nullable=False, default='viewer') # admin, room, viewer
     department = db.Column(db.String(120))
+    
+    # New fields added in previous steps:
     registration = db.Column(db.String(50), unique=True, nullable=True, index=True)
     sector = db.Column(db.String(120), nullable=True)
+    function = db.Column(db.String(120), nullable=True)
     profile_type = db.Column(db.String(20), default='employee') # 'teacher' or 'employee'
     is_teacher = db.Column(db.Boolean, default=False) # Allows an employee to also act as a teacher
+    force_password_change = db.Column(db.Boolean, default=True)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active_user = db.Column(db.Boolean, default=True)
-    force_password_change = db.Column(db.Boolean, default=True)
 
     reservations = db.relationship(
         'Reservation', backref='user', lazy=True,
@@ -49,7 +53,6 @@ class User(UserMixin, db.Model):
         """Users who can create and manage their own reservations."""
         return self.role in ['admin', 'room']
 
-    # Flask-Login uses this property to check if the user is allowed to log in
     @property
     def is_active(self):
         return self.is_active_user
@@ -67,10 +70,11 @@ class Classroom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), nullable=False)
     code = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    room_number = db.Column(db.String(20), nullable=True)
     building = db.Column(db.String(120))
     floor = db.Column(db.String(20))
     capacity = db.Column(db.Integer, nullable=False, default=30)
-    category = db.Column(db.String(30), nullable=False, default='classroom') # Increased length for new categories
+    category = db.Column(db.String(30), nullable=False, default='classroom')
     computer_count = db.Column(db.Integer, default=0)
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
@@ -142,3 +146,13 @@ class Subject(db.Model):
 
     def __repr__(self):
         return f'<Subject {self.code}>'
+    
+class Holiday(db.Model):
+    __tablename__ = 'holidays'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    date = db.Column(db.Date, unique=True, nullable=False, index=True)
+    is_active = db.Column(db.Boolean, default=True)
+
+    def __repr__(self):
+        return f'<Holiday {self.name} on {self.date}>'

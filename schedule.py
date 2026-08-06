@@ -1,18 +1,32 @@
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required
-from models import Reservation
-from datetime import datetime
+from models import Reservation, Classroom, User, Course, Subject
+from datetime import datetime, time
 
 bp = Blueprint('schedule', __name__, url_prefix='/calendar')
 
 @bp.route('/')
 def view():
-    return render_template('calendar.html')
+    classrooms = Classroom.query.filter_by(is_active=True).order_by(Classroom.code).all()
+    teachers = User.query.filter(
+        User.is_active_user == True,
+        ((User.profile_type == 'teacher') | (User.is_teacher == True))
+    ).order_by(User.full_name).all()
+    courses = Course.query.filter_by(is_active=True).order_by(Course.name).all()
+    subjects = Subject.query.filter_by(is_active=True).order_by(Subject.name).all()
+    
+    return render_template(
+        'calendar.html', 
+        classrooms=classrooms, 
+        teachers=teachers, 
+        courses=courses, 
+        subjects=subjects
+    )
 
 @bp.route('/api/events')
 def events():
-    start_str = request.args.get('start')
-    end_str = request.args.get('end')
+    start_str = request.args.get('initialDate') or request.args.get('start')
+    end_str = request.args.get('finalDate') or request.args.get('end')
 
     query = Reservation.query.filter_by(status='approved')
 
@@ -27,6 +41,39 @@ def events():
         except ValueError:
             pass
 
+    # Apply Dropdown Filters
+    room_id = request.args.get('room_id', type=int)
+    teacher_id = request.args.get('teacher_id', type=int)
+    course_id = request.args.get('course_id', type=int)
+    subject_id = request.args.get('subject_id', type=int)
+    period = request.args.get('period')
+
+    if room_id:
+        query = query.filter_by(classroom_id=room_id)
+    if teacher_id:
+        query = query.filter_by(teacher_id=teacher_id)
+    if course_id:
+        query = query.filter_by(course_id=course_id)
+    if subject_id:
+        query = query.filter_by(subject_id=subject_id)
+        
+    # NEW: Apply Period Filter
+    if period:
+        if period == 'morning':
+            p_start, p_end = time(0, 0), time(12, 0)
+        elif period == 'afternoon':
+            p_start, p_end = time(12, 0), time(18, 0)
+        elif period == 'night':
+            p_start, p_end = time(18, 0), time(23, 59)
+        else:
+            p_start, p_end = None, None
+            
+        if p_start and p_end:
+            query = query.filter(
+                Reservation.start_time < p_end,
+                Reservation.end_time > p_start
+            )
+
     reservations = query.all()
     events = []
     for r in reservations:
@@ -35,12 +82,14 @@ def events():
         
         events.append({
             'id': r.id,
-            'title': f"{r.classroom.code} - {r.title}",
+            'title': r.title,
             'start': start_dt.isoformat(),
             'end': end_dt.isoformat(),
             'url': f"/reservations/{r.id}",
-            'backgroundColor': '#2563eb', 
-            'borderColor': '#2563eb'
+            'classroom_code': r.classroom.code,
+            'classroom_name': r.classroom.name,
+            'teacher': r.teacher.full_name if r.teacher else 'N/A',
+            'course': r.course.name if r.course else 'N/A'
         })
     
     return jsonify(events)

@@ -157,3 +157,13 @@ body {
 /* Footer */
 footer { border-color: var(--border-color) !important; }
 footer.text-muted { color: var(--text-muted) !important; }
+
+/* Fix for highlighted card headers */
+.card-header.bg-primary {
+    background-color: var(--primary-color) !important;
+    color: #ffffff !important;
+    border-bottom: none;
+}
+.card-header.bg-primary .text-white-50 {
+    color: rgba(255, 255, 255, 0.8) !important;
+}

@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
+<a href="{{ request.referrer or url_for('main.index') }}" class="btn btn-outline-secondary btn-sm mb-3" onclick="history.back(); return false;">
+    <i class="bi bi-arrow-left"></i> Back
+</a>
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card shadow-sm">

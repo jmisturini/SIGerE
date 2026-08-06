@@ -5,7 +5,7 @@
     <i class="bi bi-arrow-left"></i> Back
 </a>
 <div class="row justify-content-center">
-    <div class="col-md-7">
+    <div class="col-md-6">
         <div class="card shadow-sm">
             <div class="card-body p-4">
                 <h3 class="mb-3">{{ title }}</h3>
@@ -16,23 +16,19 @@
                         {{ form.name(class="form-control") }}
                     </div>
                     <div class="mb-3">
-                        {{ form.code.label(class="form-label") }}
-                        {{ form.code(class="form-control") }}
-                    </div>
-                    <div class="mb-3">
-                        {{ form.description.label(class="form-label") }}
-                        {{ form.description(class="form-control", rows=3) }}
+                        {{ form.date.label(class="form-label") }}
+                        {{ form.date(class="form-control") }}
                     </div>
                     <div class="mb-3 form-check">
                         {{ form.is_active(class="form-check-input") }}
                         {{ form.is_active.label(class="form-check-label") }}
                     </div>
-                    {% for field in [form.name, form.code] %}
+                    {% for field in [form.name, form.date] %}
                         {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
                     {% endfor %}
                     <div class="d-flex gap-2">
                         {{ form.submit(class="btn btn-primary") }}
-                        <a href="{{ url_for('admin.list_courses') }}" class="btn btn-outline-secondary">Cancel</a>
+                        <a href="{{ url_for('admin.list_holidays') }}" class="btn btn-outline-secondary">Cancel</a>
                     </div>
                 </form>
             </div>

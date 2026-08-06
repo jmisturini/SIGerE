@@ -40,5 +40,14 @@
             </div>
         </div>
     </div>
+        <div class="col-md-3">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Manage Holidays</div>
+                <div class="display-6 fw-bold text-primary"><i class="bi bi-calendar-x"></i></div>
+                <a href="{{ url_for('admin.list_holidays') }}" class="small">Manage →</a>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
