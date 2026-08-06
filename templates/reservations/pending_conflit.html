@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Pending Reservation{% endblock %}
+{% block content %}
+<a href="{{ request.referrer or url_for('main.index') }}" class="btn btn-outline-secondary btn-sm mb-3" onclick="history.back(); return false;">
+    <i class="bi bi-arrow-left"></i> Back
+</a>
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm border-warning" style="border-width: 2px;">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Pending Reservation</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <strong>Warning!</strong> The selected teacher (<strong>{{ reservation.teacher.full_name }}</strong>) is already scheduled in another reservation during this time period.
+                    <br>This reservation has been created as <strong>PENDING</strong> and requires administrator approval.
+                </div>
+                
+                <h5>Reservation Details:</h5>
+                <ul class="list-group mb-4">
+                    <li class="list-group-item"><strong>Classroom:</strong> {{ reservation.classroom.code }} - {{ reservation.classroom.name }}</li>
+                    <li class="list-group-item"><strong>Teacher:</strong> {{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</li>
+                    <li class="list-group-item"><strong>Date:</strong> {{ reservation.date }}</li>
+                    <li class="list-group-item"><strong>Time:</strong> {{ reservation.start_time.strftime('%H:%M') }} - {{ reservation.end_time.strftime('%H:%M') }}</li>
+                    <li class="list-group-item"><strong>Title:</strong> {{ reservation.title }}</li>
+                </ul>
+                
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-primary">View My Reservations</a>
+                    <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">View Details</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -2,162 +2,281 @@
 {% block title %}Schedule Calendar{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm">
-    <div class="card-body p-3 p-md-4">
-        <div id='calendar'></div>
+
+<!-- Filter Form -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form id="filterForm" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Initial Date</label>
+                <input type="date" id="initialDate" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Final Date</label>
+                <input type="date" id="finalDate" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Period</label>
+                <select id="filterPeriod" class="form-select">
+                    <option value="">All Periods</option>
+                    <option value="morning">Morning</option>
+                    <option value="afternoon">Afternoon</option>
+                    <option value="night">Night</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Room</label>
+                <select id="filterRoom" class="form-select">
+                    <option value="">All Rooms</option>
+                    {% for c in classrooms %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Teacher</label>
+                <select id="filterTeacher" class="form-select">
+                    <option value="">All Teachers</option>
+                    {% for t in teachers %}
+                    <option value="{{ t.id }}">{{ t.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Course</label>
+                <select id="filterCourse" class="form-select">
+                    <option value="">All Courses</option>
+                    {% for c in courses %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Subject</label>
+                <select id="filterSubject" class="form-select">
+                    <option value="">All Subjects</option>
+                    {% for s in subjects %}
+                    <option value="{{ s.id }}">{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 mt-3">
+                <button type="button" id="applyFilters" class="btn btn-primary" disabled>
+                    <i class="bi bi-funnel"></i> Apply Filters
+                </button>
+                <button type="button" id="clearFilters" class="btn btn-outline-secondary">Clear</button>
+            </div>
+        </form>
     </div>
 </div>
+
+<!-- Card Container -->
+<div id="card-container" class="mt-4">
+    <div class="text-center text-muted p-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Loading schedule...</p>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
-<!-- FullCalendar CDN -->
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const calendarEl = document.getElementById('calendar');
+    const container = document.getElementById('card-container');
+    const applyBtn = document.getElementById('applyFilters');
+    const clearBtn = document.getElementById('clearFilters');
     
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek', // Default to Week view
-        headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'timeGridDay,timeGridWeek,dayGridMonth' // Day, Week, Month buttons
-        },
-        height: '80vh', // Make calendar tall
-        events: '{{ url_for("schedule.events") }}', // Fetch events from our API
-        eventTimeFormat: { // Format time as 24h HH:mm
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        },
-        slotMinTime: '07:00:00', // Calendar starts at 7 AM
-        slotMaxTime: '23:00:00', // Calendar ends at 11 PM
-        nowIndicator: true, // Show a red line for current time
-        buttonText: {
-            today: 'Today',
-            day: 'Day',
-            week: 'Week',
-            month: 'Month'
-        },
-        eventClick: function(info) {
-            // Prevent default navigation, open in same tab
-            info.jsEvent.preventDefault();
-            if (info.event.url) {
-                window.location.href = info.event.url;
-            }
-        }
-    });
-    
-    calendar.render();
-    
-    // Fix for Dark Mode initialization
-    function applyCalendarTheme() {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const bg = isDark ? '#1e293b' : '#ffffff';
-        const text = isDark ? '#f8fafc' : '#1e293b';
-        const border = isDark ? '#334155' : '#e2e8f0';
-        const muted = isDark ? '#94a3b8' : '#64748b';
-        
-        const root = document.documentElement;
-        root.style.setProperty('--fc-page-bg-color', bg);
-        root.style.setProperty('--fc-neutral-bg-color', isDark ? '#1e293b' : '#f8fafc');
-        root.style.setProperty('--fc-border-color', border);
-        root.style.setProperty('--fc-today-bg-color', isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(37, 99, 235, 0.05)');
-        
-        // Force re-render of calendar to apply styles
-        calendar.setOption('dayHeaderFormat', { weekday: 'short', month: 'numeric', day: 'numeric' });
-        setTimeout(() => calendar.updateSize(), 50);
+    const initDateInput = document.getElementById('initialDate');
+    const finDateInput = document.getElementById('finalDate');
+    const periodSelect = document.getElementById('filterPeriod');
+    const roomSelect = document.getElementById('filterRoom');
+    const teacherSelect = document.getElementById('filterTeacher');
+    const courseSelect = document.getElementById('filterCourse');
+    const subjectSelect = document.getElementById('filterSubject');
+
+    // Helper: Get current period based on time
+    function getCurrentPeriod() {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'morning';
+        if (hour < 18) return 'afternoon';
+        return 'night';
     }
 
-    applyCalendarTheme();
+    // Helper: Update Filter Button State
+    function updateFilterBtn() {
+        const hasFilter = initDateInput.value || finDateInput.value || periodSelect.value || 
+                          roomSelect.value || teacherSelect.value || courseSelect.value || subjectSelect.value;
+        applyBtn.disabled = !hasFilter;
+    }
 
-    // Listen for theme toggle button clicks
-    document.getElementById('theme-toggle').addEventListener('click', function() {
-        setTimeout(applyCalendarTheme, 50);
+    function fetchData() {
+        let url = '{{ url_for("schedule.events") }}';
+        let params = new URLSearchParams();
+        
+        const initDate = initDateInput.value;
+        const finDate = finDateInput.value;
+        
+        if (initDate) params.append('initialDate', initDate);
+        if (finDate) params.append('finalDate', finDate);
+        
+        const period = periodSelect.value;
+        const room = roomSelect.value;
+        const teacher = teacherSelect.value;
+        const course = courseSelect.value;
+        const subject = subjectSelect.value;
+        
+        if (period) params.append('period', period);
+        if (room) params.append('room_id', room);
+        if (teacher) params.append('teacher_id', teacher);
+        if (course) params.append('course_id', course);
+        if (subject) params.append('subject_id', subject);
+
+        container.innerHTML = '<div class="text-center text-muted p-5"><div class="spinner-border"></div><p class="mt-2">Loading...</p></div>';
+
+        fetch(`${url}?${params.toString()}`)
+            .then(response => response.json())
+            .then(data => renderCards(data))
+            .catch(error => {
+                container.innerHTML = '<p class="text-center text-danger p-5">Error loading schedule.</p>';
+            });
+    }
+
+    function renderCards(data) {
+        if (data.length === 0) {
+            container.innerHTML = `
+                <div class="card shadow-sm text-center text-muted p-5">
+                    <i class="bi bi-emoji-smile fs-1 d-block mb-2"></i>
+                    <h5>No reservations found for the selected filters.</h5>
+                </div>
+            `;
+            return;
+        }
+
+        const grouped = {};
+        data.forEach(event => {
+            const dateStr = event.start.split('T')[0];
+            if (!grouped[dateStr]) grouped[dateStr] = [];
+            grouped[dateStr].push(event);
+        });
+
+        const sortedDates = Object.keys(grouped).sort();
+
+        let html = '';
+        sortedDates.forEach(dateStr => {
+            const dateObj = new Date(dateStr + 'T00:00:00');
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const formattedDate = dateObj.toLocaleDateString('en-US', options);
+
+            html += `
+                <div class="mb-5">
+                    <h4 class="mb-3 border-bottom pb-2"><i class="bi bi-calendar3"></i> ${formattedDate}</h4>
+                    <div class="row g-3">
+            `;
+
+            grouped[dateStr].sort((a, b) => new Date(a.start) - new Date(b.start));
+
+            grouped[dateStr].forEach(event => {
+                const startTime = new Date(event.start).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+                const endTime = new Date(event.end).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+                
+                html += `
+                    <div class="col-md-6 col-xl-4">
+                        <a href="${event.url}" class="text-decoration-none text-reset">
+                            <div class="card shadow-sm h-100 border-primary border-2 hover-shadow">
+                                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
+                                    <span class="fs-5 fw-bold"><i class="bi bi-door-closed"></i> ${event.classroom_code}</span>
+                                    <small style="color: rgba(255, 255, 255, 0.8);">${event.classroom_name}</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <span class="text-muted small text-uppercase fw-bold">Event</span>
+                                        <p class="mb-0 fw-bold">${event.title}</p>
+                                    </div>
+                                    <div class="mb-2">
+                                        <span class="text-muted small text-uppercase fw-bold">Course</span>
+                                        <p class="mb-0">${event.course}</p>
+                                    </div>
+                                    <div class="mb-2">
+                                        <span class="text-muted small text-uppercase fw-bold">Teacher</span>
+                                        <p class="mb-0">${event.teacher}</p>
+                                    </div>
+                                    <div class="mt-3 pt-2 border-top">
+                                        <span class="text-muted small text-uppercase fw-bold">Time</span>
+                                        <p class="mb-0 fw-bold text-primary">
+                                            <i class="bi bi-clock"></i> ${startTime} - ${endTime}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                `;
+            });
+
+            html += `</div></div>`;
+        });
+
+        container.innerHTML = html;
+    }
+
+    // --- Event Listeners ---
+    
+    // Listen for changes to toggle the Apply button
+    [initDateInput, finDateInput, periodSelect, roomSelect, teacherSelect, courseSelect, subjectSelect].forEach(element => {
+        element.addEventListener('input', updateFilterBtn);
+        element.addEventListener('change', updateFilterBtn);
     });
+
+    applyBtn.addEventListener('click', fetchData);
+
+    clearBtn.addEventListener('click', function() {
+        initDateInput.value = '';
+        finDateInput.value = '';
+        periodSelect.value = '';
+        roomSelect.value = '';
+        teacherSelect.value = '';
+        courseSelect.value = '';
+        subjectSelect.value = '';
+        updateFilterBtn(); // Disable button
+        
+        // Show empty state message
+        container.innerHTML = `
+            <div class="card shadow-sm text-center text-muted p-5">
+                <i class="bi bi-funnel fs-1 d-block mb-2"></i>
+                <h5>No filters applied.</h5>
+                <p>Select a filter above and click "Apply Filters" to view the schedule.</p>
+            </div>
+        `;
+    });
+
+    // --- Initial Load Setup ---
+    
+    // 1. Set default dates to Today
+    const todayStr = new Date().toISOString().split('T')[0];
+    initDateInput.value = todayStr;
+    finDateInput.value = todayStr;
+    
+    // 2. Set default period to current period
+    periodSelect.value = getCurrentPeriod();
+    
+    // 3. Enable button since we pre-filled fields
+    updateFilterBtn();
+    
+    // 4. Fetch data for today's current period immediately
+    fetchData();
 });
 </script>
 
-<!-- Custom CSS to integrate FullCalendar with our CSS Variables -->
 <style>
-    :root {
-        --fc-page-bg-color: #ffffff;
-        --fc-neutral-bg-color: #f8fafc;
-        --fc-border-color: #e2e8f0;
-        --fc-today-bg-color: rgba(37, 99, 235, 0.05);
-        --fc-text: #1e293b;
-        --fc-muted: #64748b;
+    .hover-shadow {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    
-    .fc {
-        color: var(--fc-text);
-    }
-    
-    .fc .fc-toolbar-title {
-        font-size: 1.5rem;
-        font-weight: 700;
-    }
-    
-    .fc .fc-button {
-        background-color: var(--card-bg);
-        color: var(--text-main);
-        border: 1px solid var(--border-color);
-        border-radius: 8px !important;
-        font-weight: 500;
-        text-transform: capitalize;
-    }
-    
-    .fc .fc-button:hover {
-        background-color: var(--table-bg);
-    }
-    
-    .fc .fc-button-primary:not(:disabled).fc-button-active {
-        background-color: var(--primary-color);
-        color: #fff;
-        border-color: var(--primary-color);
-    }
-    
-    .fc .fc-button:disabled {
-        opacity: 0.5;
-        background-color: var(--card-bg);
-        color: var(--text-muted);
-    }
-    
-    .fc .fc-col-header-cell-cushion, 
-    .fc .fc-daygrid-day-number {
-        color: var(--text-main);
-        text-decoration: none;
-        font-weight: 600;
-    }
-    
-    .fc .fc-time {
-        color: var(--text-muted);
-    }
-    
-    .fc .fc-event {
-        border: none;
-        padding: 2px 4px;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-    
-    .fc .fc-day-today {
-        background-color: var(--fc-today-bg-color) !important;
-    }
-    
-    .fc-theme-standard td, 
-    .fc-theme-standard th {
-        border-color: var(--border-color);
-    }
-    
-    .fc-scrollgrid, .fc-scrollgrid-section > td {
-        border-color: var(--border-color) !important;
-        background-color: var(--card-bg);
-    }
-    
-    .fc .fc-timegrid-slot-lane {
-        background-color: var(--card-bg);
+    .hover-shadow:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.15) !important;
     }
 </style>
 {% endblock %}

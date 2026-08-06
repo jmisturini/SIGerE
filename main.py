@@ -31,9 +31,14 @@ def index():
         Reservation.end_time > period_start
     ).order_by(Reservation.start_time).all()
 
+    # Split into Classrooms and Auditoriums
+    aud_res = [r for r in today_reservations if r.classroom.category == 'auditorium']
+    cls_res = [r for r in today_reservations if r.classroom.category != 'auditorium']
+
     return render_template(
         'index.html',
-        today_reservations=today_reservations,
+        auditorium_reservations=aud_res,
+        classroom_reservations=cls_res,
         current_period=current_period,
         today_date=today
     )
