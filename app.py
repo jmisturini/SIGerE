@@ -6,12 +6,15 @@ from datetime import datetime, date, time, timedelta
 import random
 
 def create_app(config_class=Config):
+    """Factory function to create and configure the Flask app."""
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # Initialize Flask extensions
     db.init_app(app)
     login_manager.init_app(app)
 
+    # Register all Blueprints
     from auth import bp as auth_bp
     from main import bp as main_bp
     from classrooms import bp as classrooms_bp
@@ -30,6 +33,7 @@ def create_app(config_class=Config):
     app.register_blueprint(schedule_bp)
     app.register_blueprint(public_bp)
 
+    # Custom Error Handlers
     @app.errorhandler(403)
     def forbidden(_):
         return render_template('errors/403.html'), 403
@@ -42,18 +46,22 @@ def create_app(config_class=Config):
     def server_error(_):
         return render_template('errors/500.html'), 500
 
+    # Context processor to inject current datetime into all templates
     @app.context_processor
     def inject_now():
         return {'now': datetime.now()}
 
+    # Security Hook: Force password change on first login or admin reset
     @app.before_request
     def require_password_change():
         from flask_login import current_user
+        # If user is logged in and the flag is True, restrict access
         if current_user.is_authenticated and current_user.force_password_change:
             allowed_endpoints = ['auth.change_password', 'auth.logout', 'static']
             if request.endpoint not in allowed_endpoints:
                 return redirect(url_for('auth.change_password'))
 
+    # Create database tables and seed initial data
     with app.app_context():
         db.create_all()
         seed_data()
@@ -62,14 +70,14 @@ def create_app(config_class=Config):
 
 
 def seed_data():
-    """Seed initial demo data if DB is empty."""
+    """Seed initial demo data if the database is empty."""
     if User.query.count() == 0:
-        print("Database is empty. Seeding data...")
+        print("O banco de dados está vazio. Populando dados...")
         
         # 1. Create Admin
         admin = User(
             username='admin', email='admin@school.edu',
-            full_name='System Administrator', role='admin',
+            full_name='Administrador do Sistema', role='admin',
             department='Administration', profile_type='employee',
             force_password_change=False
         )
@@ -125,68 +133,66 @@ def seed_data():
             users_created += 1
             
         db.session.commit()
-        print(f"Seeded {users_created} Users (20 Employees, 80 Teachers).")
+        print(f"{users_created} Usuários criados (20 Funcionários, 80 Professores).")
 
-        # 3. Create Rooms
+        # 3. Create Rooms (Strict layout requested by user)
         abbr_map = {'classroom': 'CR', 'auditorium': 'AU', 'kitchen': 'KI', 'computer_lab': 'CP', 'health_lab': 'HL'}
         
-        # 1st Floor: 1 Auditorium, 2 Kitchens, 1 Classroom, 2 Computer Labs (6 rooms)
-        # 2nd Floor: 5 Computer Labs, 8 Classrooms (13 rooms)
-        # 3rd Floor: 3 Health Labs, 6 Classrooms (9 rooms)
         room_data = [
-            # 1st Floor
-            {"name": "Grand Auditorium", "category": "auditorium", "capacity": 150, "floor": "1st Floor", "computer_count": 0, "room_number": "101"},
-            {"name": "Culinary Kitchen A", "category": "kitchen", "capacity": 15, "floor": "1st Floor", "computer_count": 0, "room_number": "102"},
-            {"name": "Culinary Kitchen B", "category": "kitchen", "capacity": 15, "floor": "1st Floor", "computer_count": 0, "room_number": "103"},
-            {"name": "Intro Classroom", "category": "classroom", "capacity": 30, "floor": "1st Floor", "computer_count": 0, "room_number": "104"},
-            {"name": "Computer Lab A", "category": "computer_lab", "capacity": 40, "floor": "1st Floor", "computer_count": 40, "room_number": "105"},
-            {"name": "Computer Lab B", "category": "computer_lab", "capacity": 40, "floor": "1st Floor", "computer_count": 40, "room_number": "106"},
+            # 1st Floor: 1 Aud, 2 Kitchens, 1 Classroom, 2 Comp Labs
+            {"name": "Auditório Principal", "category": "auditorium", "capacity": 150, "floor": "1º Andar", "computer_count": 0, "room_number": "101"},
+            {"name": "Cozinha Experimental A", "category": "kitchen", "capacity": 15, "floor": "1º Andar", "computer_count": 0, "room_number": "102"},
+            {"name": "Cozinha Experimental B", "category": "kitchen", "capacity": 15, "floor": "1º Andar", "computer_count": 0, "room_number": "103"},
+            {"name": "Sala de Aula 104", "category": "classroom", "capacity": 30, "floor": "1º Andar", "computer_count": 0, "room_number": "104"},
+            {"name": "Lab de Informática A", "category": "computer_lab", "capacity": 40, "floor": "1º Andar", "computer_count": 40, "room_number": "105"},
+            {"name": "Lab de Informática B", "category": "computer_lab", "capacity": 40, "floor": "1º Andar", "computer_count": 40, "room_number": "106"},
             
-            # 2nd Floor
-            {"name": "Computer Lab C", "category": "computer_lab", "capacity": 35, "floor": "2nd Floor", "computer_count": 35, "room_number": "201"},
-            {"name": "Computer Lab D", "category": "computer_lab", "capacity": 35, "floor": "2nd Floor", "computer_count": 35, "room_number": "202"},
-            {"name": "Computer Lab E", "category": "computer_lab", "capacity": 35, "floor": "2nd Floor", "computer_count": 35, "room_number": "203"},
-            {"name": "Computer Lab F", "category": "computer_lab", "capacity": 35, "floor": "2nd Floor", "computer_count": 35, "room_number": "204"},
-            {"name": "Computer Lab G", "category": "computer_lab", "capacity": 35, "floor": "2nd Floor", "computer_count": 35, "room_number": "205"},
-            {"name": "Classroom 206", "category": "classroom", "capacity": 30, "floor": "2nd Floor", "computer_count": 0, "room_number": "206"},
-            {"name": "Classroom 207", "category": "classroom", "capacity": 30, "floor": "2nd Floor", "computer_count": 0, "room_number": "207"},
-            {"name": "Classroom 208", "category": "classroom", "capacity": 30, "floor": "2nd Floor", "computer_count": 0, "room_number": "208"},
-            {"name": "Classroom 209", "category": "classroom", "capacity": 30, "floor": "2nd Floor", "computer_count": 0, "room_number": "209"},
-            {"name": "Classroom 210", "category": "classroom", "capacity": 30, "floor": "2nd Floor", "computer_count": 0, "room_number": "210"},
-            {"name": "Classroom 211", "category": "classroom", "capacity": 30, "floor": "2nd Floor", "computer_count": 0, "room_number": "211"},
-            {"name": "Classroom 212", "category": "classroom", "capacity": 30, "floor": "2nd Floor", "computer_count": 0, "room_number": "212"},
-            {"name": "Classroom 213", "category": "classroom", "capacity": 30, "floor": "2nd Floor", "computer_count": 0, "room_number": "213"},
+            # 2nd Floor: 5 Comp Labs, 8 Classrooms
+            {"name": "Lab de Informática C", "category": "computer_lab", "capacity": 35, "floor": "2º Andar", "computer_count": 35, "room_number": "201"},
+            {"name": "Lab de Informática D", "category": "computer_lab", "capacity": 35, "floor": "2º Andar", "computer_count": 35, "room_number": "202"},
+            {"name": "Lab de Informática E", "category": "computer_lab", "capacity": 35, "floor": "2º Andar", "computer_count": 35, "room_number": "203"},
+            {"name": "Lab de Informática F", "category": "computer_lab", "capacity": 35, "floor": "2º Andar", "computer_count": 35, "room_number": "204"},
+            {"name": "Lab de Informática G", "category": "computer_lab", "capacity": 35, "floor": "2º Andar", "computer_count": 35, "room_number": "205"},
+            {"name": "Sala de Aula 206", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "206"},
+            {"name": "Sala de Aula 207", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "207"},
+            {"name": "Sala de Aula 208", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "208"},
+            {"name": "Sala de Aula 209", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "209"},
+            {"name": "Sala de Aula 210", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "210"},
+            {"name": "Sala de Aula 211", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "211"},
+            {"name": "Sala de Aula 212", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "212"},
+            {"name": "Sala de Aula 213", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "213"},
             
-            # 3rd Floor
-            {"name": "Health Lab A", "category": "health_lab", "capacity": 20, "floor": "3rd Floor", "computer_count": 0, "room_number": "301"},
-            {"name": "Health Lab B", "category": "health_lab", "capacity": 20, "floor": "3rd Floor", "computer_count": 0, "room_number": "302"},
-            {"name": "Health Lab C", "category": "health_lab", "capacity": 20, "floor": "3rd Floor", "computer_count": 0, "room_number": "303"},
-            {"name": "Classroom 304", "category": "classroom", "capacity": 30, "floor": "3rd Floor", "computer_count": 0, "room_number": "304"},
-            {"name": "Classroom 305", "category": "classroom", "capacity": 30, "floor": "3rd Floor", "computer_count": 0, "room_number": "305"},
-            {"name": "Classroom 306", "category": "classroom", "capacity": 30, "floor": "3rd Floor", "computer_count": 0, "room_number": "306"},
-            {"name": "Classroom 307", "category": "classroom", "capacity": 30, "floor": "3rd Floor", "computer_count": 0, "room_number": "307"},
-            {"name": "Classroom 308", "category": "classroom", "capacity": 30, "floor": "3rd Floor", "computer_count": 0, "room_number": "308"},
-            {"name": "Classroom 309", "category": "classroom", "capacity": 30, "floor": "3rd Floor", "computer_count": 0, "room_number": "309"},
+            # 3rd Floor: 3 Health Labs, 6 Classrooms
+            {"name": "Lab de Saúde A", "category": "health_lab", "capacity": 20, "floor": "3º Andar", "computer_count": 0, "room_number": "301"},
+            {"name": "Lab de Saúde B", "category": "health_lab", "capacity": 20, "floor": "3º Andar", "computer_count": 0, "room_number": "302"},
+            {"name": "Lab de Saúde C", "category": "health_lab", "capacity": 20, "floor": "3º Andar", "computer_count": 0, "room_number": "303"},
+            {"name": "Sala de Aula 304", "category": "classroom", "capacity": 30, "floor": "3º Andar", "computer_count": 0, "room_number": "304"},
+            {"name": "Sala de Aula 305", "category": "classroom", "capacity": 30, "floor": "3º Andar", "computer_count": 0, "room_number": "305"},
+            {"name": "Sala de Aula 306", "category": "classroom", "capacity": 30, "floor": "3º Andar", "computer_count": 0, "room_number": "306"},
+            {"name": "Sala de Aula 307", "category": "classroom", "capacity": 30, "floor": "3º Andar", "computer_count": 0, "room_number": "307"},
+            {"name": "Sala de Aula 308", "category": "classroom", "capacity": 30, "floor": "3º Andar", "computer_count": 0, "room_number": "308"},
+            {"name": "Sala de Aula 309", "category": "classroom", "capacity": 30, "floor": "3º Andar", "computer_count": 0, "room_number": "309"},
         ]
         
         rooms = []
         for r_data in room_data:
+            # Auto-generate code (e.g., CR101)
             code = f"{abbr_map[r_data['category']]}{r_data['room_number']}"
             room = Classroom(
                 code=code, name=r_data["name"], category=r_data["category"],
-                capacity=r_data["capacity"], floor=r_data["floor"], building="Main Building",
+                capacity=r_data["capacity"], floor=r_data["floor"], building="Bloco Principal",
                 room_number=r_data["room_number"], computer_count=r_data["computer_count"], is_active=True
             )
             db.session.add(room)
             rooms.append(room)
             
         db.session.commit()
-        print(f"Seeded {len(rooms)} Rooms (1 Aud, 2 Kitchens, 7 Comp Labs, 3 Health Labs, 15 Classrooms).")
+        print(f"{len(rooms)} Salas criadas.")
 
         # 4. Create 50 Courses and 50 Subjects
         courses_list = []
         for i in range(1, 51):
-            c = Course(name=f"Course {i}", code=f"C{i:03d}", is_active=True)
+            c = Course(name=f"Curso {i}", code=f"C{i:03d}", is_active=True)
             db.session.add(c)
             courses_list.append(c)
             
@@ -194,14 +200,13 @@ def seed_data():
         
         subjects_list = []
         for i in range(1, 51):
-            # Assign random course to subject
             random_course = random.choice(courses_list)
-            s = Subject(name=f"Subject {i}", code=f"S{i:03d}", course_id=random_course.id, is_active=True)
+            s = Subject(name=f"Disciplina {i}", code=f"S{i:03d}", course_id=random_course.id, is_active=True)
             db.session.add(s)
             subjects_list.append(s)
             
         db.session.commit()
-        print(f"Seeded 50 Courses and 50 Subjects.")
+        print("50 Cursos e 50 Disciplinas criados.")
 
         # 5. Create 20 Reservations (Some happening today)
         all_bookers = teachers_list + [admin]
@@ -246,8 +251,8 @@ def seed_data():
                 teacher_id=teacher.id if teacher else None,
                 course_id=course.id,
                 subject_id=subject.id,
-                title=f"Class Event {i}",
-                description="Scheduled class for students.",
+                title=f"Aula/Evento {i}",
+                description="Aula agendada para alunos.",
                 date=res_date,
                 start_time=start,
                 end_time=end,
@@ -256,11 +261,11 @@ def seed_data():
             db.session.add(res)
             
         db.session.commit()
-        print("Seeded 20 Reservations.")
-        print("Seeding complete! Login: admin/admin123, teacher1/teacher123, employee1/employee123")
+        print("20 Reservas criadas.")
+        print("População concluída! Logins: admin/admin123, teacher1/teacher123, employee1/employee123")
 
     else:
-        print("Database already contains data. Skipping seed.")
+        print("O banco de dados já contém dados. Pulando população.")
 
 
 app = create_app()

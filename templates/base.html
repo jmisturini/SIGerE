@@ -3,15 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Classroom Reservation{% endblock %}</title>
-    
-    <!-- Prevent Dark Mode Flash -->
     <script>
+        // Check localStorage to prevent dark mode flash on page load
         if (localStorage.getItem('theme') === 'dark') {
             document.documentElement.setAttribute('data-theme', 'dark');
         }
     </script>
-
+    <title>{% block title %}Reserva de Salas{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -22,51 +20,50 @@
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container">
-        <a class="navbar-brand" href="{{ url_for('public.home') if not current_user.is_authenticated else url_for('main.index') }}">
-            <i class="bi bi-building"></i> Classroom Reservation
+        <a class="navbar-brand" href="{{ url_for('main.index') if current_user.is_authenticated else url_for('public.home') }}">
+            <i class="bi bi-building"></i> Reserva de Salas
         </a>
         <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbar">
-    <ul class="navbar-nav me-auto">
-        {% if current_user.is_authenticated %}
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.index') }}">Dashboard</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('schedule.view') }}">Calendar</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('classrooms.list_classrooms') }}">Classrooms</a></li>
-        {% if current_user.can_book or current_user.is_admin %}
-        <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" id="reservationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-calendar2-week"></i> Reservations
-            </a>
-            <ul class="dropdown-menu" aria-labelledby="reservationsDropdown">
-                {% if current_user.can_book %}
-                <li><a class="dropdown-item" href="{{ url_for('reservations.create') }}"><i class="bi bi-plus-circle"></i> New Reservation</a></li>
-                <li><a class="dropdown-item" href="{{ url_for('reservations.my_reservations') }}"><i class="bi bi-calendar-check"></i> My Reservations</a></li>
-                {% endif %}
-                {% if current_user.is_admin and current_user.can_book %}
-                <li><hr class="dropdown-divider"></li>
+            <ul class="navbar-nav me-auto">
+                {% if current_user.is_authenticated %}
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.index') }}">Painel</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('schedule.view') }}">Calendário</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('classrooms.list_classrooms') }}">Salas</a></li>
+                {% if current_user.can_book or current_user.is_admin %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="reservationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-calendar2-week"></i> Reservas
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="reservationsDropdown">
+                        {% if current_user.can_book %}
+                        <li><a class="dropdown-item" href="{{ url_for('reservations.create') }}"><i class="bi bi-plus-circle"></i> Nova Reserva</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('reservations.my_reservations') }}"><i class="bi bi-calendar-check"></i> Minhas Reservas</a></li>
+                        {% endif %}
+                        {% if current_user.is_admin and current_user.can_book %}
+                        <li><hr class="dropdown-divider"></li>
+                        {% endif %}
+                        {% if current_user.is_admin %}
+                        <li><a class="dropdown-item" href="{{ url_for('reservations.all_reservations') }}"><i class="bi bi-people"></i> Todas as Reservas</a></li>
+                        {% endif %}
+                    </ul>
+                </li>
                 {% endif %}
                 {% if current_user.is_admin %}
-                <li><a class="dropdown-item" href="{{ url_for('reservations.all_reservations') }}"><i class="bi bi-people"></i> All Reservations</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.dashboard') }}">Painel Admin</a></li>
+                {% endif %}
+                {% else %}
+                <!-- Public links for unauthenticated users -->
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('public.home') }}">Início</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('schedule.view') }}">Calendário</a></li>
+                <!-- Search link removed -->
                 {% endif %}
             </ul>
-        </li>
-        {% endif %}
-        {% if current_user.is_admin %}
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.dashboard') }}">Admin Panel</a></li>
-        {% endif %}
-        
-        {% else %}
-        <!-- PUBLIC LINKS -->
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('public.home') }}">Home</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('schedule.view') }}">Calendar</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('public.search') }}">Search</a></li>
-        {% endif %}
-    </ul>
             
             <ul class="navbar-nav align-items-center">
-                <!-- THEME TOGGLE BUTTON -->
+                <!-- Theme Toggle Button -->
                 <li class="nav-item me-3">
                     <button id="theme-toggle" class="btn btn-sm btn-outline-light rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
                         <i class="bi bi-sun-fill" id="theme-icon"></i>
@@ -81,14 +78,15 @@
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><span class="dropdown-item-text small text-muted text-capitalize">{{ current_user.role }}</span></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
                     </ul>
                 </li>
                 {% else %}
+                <!-- Public Clock & Weather Widget -->
                 <div class="d-flex align-items-center text-white py-2">
                     <div class="me-4 text-end">
                         <div id="nav-clock" style="font-size: 1.1rem; font-weight: 600; line-height: 1;">--:--:--</div>
-                        <div id="nav-date" style="font-size: 0.8rem; opacity: 0.8;">Loading...</div>
+                        <div id="nav-date" style="font-size: 0.8rem; opacity: 0.8;">Carregando...</div>
                     </div>
                     <div class="d-flex align-items-center">
                         <i id="nav-weather-icon" class="bi bi-cloud-sun fs-4 me-2"></i>
@@ -120,13 +118,13 @@
 
 <footer class="py-3 mt-5 border-top" style="border-color: var(--border-color) !important;">
     <div class="container text-center text-muted small">
-        &copy; {{ now.year }} Classroom Reservation System
+        &copy; {{ now.year }} Sistema de Reserva de Salas
     </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- THEME TOGGLE SCRIPT -->
+<!-- Theme Toggle Script -->
 <script>
     const themeToggle = document.getElementById('theme-toggle');
     const themeIcon = document.getElementById('theme-icon');
@@ -138,7 +136,7 @@
             themeIcon.className = 'bi bi-moon-stars-fill';
         }
     }
-    updateIcon(); // Set initial icon
+    updateIcon();
 
     themeToggle.addEventListener('click', () => {
         if (document.documentElement.getAttribute('data-theme') === 'dark') {
@@ -152,14 +150,14 @@
     });
 </script>
 
-<!-- CLOCK AND WEATHER SCRIPT (Only runs if user is NOT logged in) -->
+<!-- Clock and Weather Script (Only runs if user is NOT logged in) -->
 {% if not current_user.is_authenticated %}
 <script>
     function updateNavClock() {
         const now = new Date();
         const options = { weekday: 'short', month: 'short', day: 'numeric' };
-        const dateStr = now.toLocaleDateString('en-US', options);
-        const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+        const dateStr = now.toLocaleDateString('pt-BR', options);
+        const timeStr = now.toLocaleTimeString('pt-BR', { hour12: false });
         
         const dateEl = document.getElementById('nav-date');
         const timeEl = document.getElementById('nav-clock');
@@ -169,8 +167,9 @@
     setInterval(updateNavClock, 1000);
     updateNavClock();
 
-    const lat = 40.7128; 
-    const lon = -74.0060;
+    // Open-Meteo API for weather
+    const lat = -23.5505; // Update with your school coordinates
+    const lon = -46.6333;
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
 
     fetch(weatherUrl)
@@ -194,7 +193,7 @@
         })
         .catch(err => {
             const cityEl = document.getElementById('nav-weather-city');
-            if(cityEl) cityEl.textContent = 'N/A';
+            if(cityEl) cityEl.textContent = 'Indisponível';
         });
 </script>
 {% endif %}

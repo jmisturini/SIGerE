@@ -1,19 +1,17 @@
 {% extends 'base.html' %}
-{% block title %}New Reservation{% endblock %}
+{% block title %}Nova Reserva{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card shadow-sm">
             <div class="card-body p-4">
-                <h3 class="mb-3"><i class="bi bi-calendar-plus"></i> New Reservation</h3>
+                <h3 class="mb-3"><i class="bi bi-calendar-plus"></i> Nova Reserva</h3>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
-                    
                     <div class="mb-3">
                         {{ form.classroom.label(class="form-label") }}
                         {{ form.classroom(class="form-select") }}
                     </div>
-                    
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             {{ form.course.label(class="form-label") }}
@@ -24,14 +22,12 @@
                             {{ form.subject(class="form-select") }}
                         </div>
                     </div>
-                    
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             {{ form.teacher.label(class="form-label") }}
                             {{ form.teacher(class="form-select") }}
                         </div>
                     </div>
-                    
                     <div class="mb-3">
                         {{ form.title.label(class="form-label") }}
                         {{ form.title(class="form-control") }}
@@ -40,7 +36,6 @@
                         {{ form.description.label(class="form-label") }}
                         {{ form.description(class="form-control", rows=3) }}
                     </div>
-                    
                     <div class="row g-3 mb-3">
                         <div class="col-md-4">
                             {{ form.date.label(class="form-label") }}
@@ -56,14 +51,12 @@
                             {{ form.end_time(class="form-control") }}
                         </div>
                     </div>
-                    
                     {% for field in [form.classroom, form.title, form.date, form.start_time, form.end_time] %}
                         {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
                     {% endfor %}
-                    
                     <div class="d-flex gap-2">
                         {{ form.submit(class="btn btn-primary") }}
-                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">Cancelar</a>
                     </div>
                 </form>
             </div>
@@ -81,55 +74,36 @@
 
         function updateWarnings() {
             let messages = [];
-            
             if (dateInput.value) {
-                // 1. Check Saturday Night locally
                 const dateObj = new Date(dateInput.value + 'T00:00:00');
                 const day = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-                
                 if (day === 6 && startInput.value) {
                     const startHour = parseInt(startInput.value.split(':')[0]);
                     if (startHour >= 18) {
-                        messages.push("On Saturdays, reservations are only allowed until 18:00.");
+                        messages.push("Aos sábados, as reservas são permitidas apenas até 18:00.");
                     }
                 }
             }
 
-            // 2. Check Holiday/Sunday via AJAX
             if (dateInput.value) {
                 fetch(`{{ url_for('reservations.check_holiday') }}?date=${dateInput.value}`)
                     .then(response => response.json())
                     .then(data => {
-                        if (data.has_warning) {
-                            messages.push(data.message);
-                        }
-                        
-                        // Render all collected messages
+                        if (data.has_warning) { messages.push(data.message); }
                         if (messages.length > 0) {
                             warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${messages.join('<br>')}`;
                             warningBox.style.display = 'block';
-                        } else {
-                            warningBox.style.display = 'none';
-                        }
+                        } else { warningBox.style.display = 'none'; }
                     })
                     .catch(err => {
-                        // If AJAX fails, just show local messages
                         if (messages.length > 0) {
                             warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${messages.join('<br>')}`;
                             warningBox.style.display = 'block';
-                        } else {
-                            warningBox.style.display = 'none';
-                        }
+                        } else { warningBox.style.display = 'none'; }
                     });
-            } else {
-                warningBox.style.display = 'none';
-            }
+            } else { warningBox.style.display = 'none'; }
         }
-
-        // Run on page load (in case of form errors reloading the page)
         updateWarnings();
-        
-        // Run every time the user changes the date or start time
         dateInput.addEventListener('change', updateWarnings);
         startInput.addEventListener('change', updateWarnings);
     });

@@ -1,24 +1,24 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Painel de Controle{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <h1 class="mb-0">Welcome, {{ current_user.full_name }} 👋</h1>
+    <h1 class="mb-0">Bem-vindo, {{ current_user.full_name }} 👋</h1>
     
     <div class="d-flex gap-2">
         <!-- View Toggle Dropdown -->
         <div class="dropdown">
             <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="viewDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-layout-three-columns"></i> <span id="viewModeText">List View</span>
+                <i class="bi bi-layout-three-columns"></i> <span id="viewModeText">Visão em Lista</span>
             </button>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="viewDropdown">
-                <li><a class="dropdown-item view-toggle" href="#" data-view="list"><i class="bi bi-list-ul"></i> List View</a></li>
-                <li><a class="dropdown-item view-toggle" href="#" data-view="card"><i class="bi bi-grid-3x3-gap"></i> Card View</a></li>
+                <li><a class="dropdown-item view-toggle" href="#" data-view="list"><i class="bi bi-list-ul"></i> Visão em Lista</a></li>
+                <li><a class="dropdown-item view-toggle" href="#" data-view="card"><i class="bi bi-grid-3x3-gap"></i> Visão em Cartões</a></li>
             </ul>
         </div>
 
         {% if current_user.can_book %}
         <a href="{{ url_for('reservations.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> New Reservation
+            <i class="bi bi-plus-circle"></i> Nova Reserva
         </a>
         {% endif %}
     </div>
@@ -30,8 +30,8 @@
     <!-- Auditoriums List (Top) -->
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-            <strong><i class="bi bi-buildings"></i> Auditoriums Schedule</strong>
-            <span class="text-muted small">{{ current_period }} - {{ today_date.strftime('%A, %B %d') }}</span>
+            <strong><i class="bi bi-buildings"></i> Agenda de Auditórios</strong>
+            <span class="text-muted small">{{ current_period }} - {{ formatted_today }}</span>
         </div>
         <div class="card-body p-0">
             {% if auditorium_reservations %}
@@ -39,7 +39,7 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Time</th><th>Auditorium</th><th>Course</th><th>Teacher</th>
+                            <th>Horário</th><th>Auditório</th><th>Curso</th><th>Professor</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -57,7 +57,7 @@
             {% else %}
             <div class="text-center text-muted p-4">
                 <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
-                No auditoriums scheduled for the {{ current_period|lower }} period.
+                Nenhum auditório agendado para o período {{ current_period|lower }}.
             </div>
             {% endif %}
         </div>
@@ -66,8 +66,8 @@
     <!-- Classrooms List -->
     <div class="card shadow-sm">
         <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-            <strong><i class="bi bi-door-closed"></i> Classrooms Schedule</strong>
-            <span class="text-muted small">{{ current_period }} - {{ today_date.strftime('%A, %B %d') }}</span>
+            <strong><i class="bi bi-door-closed"></i> Agenda de Salas de Aula</strong>
+            <span class="text-muted small">{{ current_period }} - {{ formatted_today }}</span>
         </div>
         <div class="card-body p-0">
             {% if classroom_reservations %}
@@ -75,7 +75,7 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Time</th><th>Classroom</th><th>Course</th><th>Teacher</th>
+                            <th>Horário</th><th>Sala</th><th>Curso</th><th>Professor</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -93,7 +93,7 @@
             {% else %}
             <div class="text-center text-muted p-4">
                 <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
-                No classrooms scheduled for the {{ current_period|lower }} period.
+                Nenhuma sala de aula agendada para o período {{ current_period|lower }}.
             </div>
             {% endif %}
         </div>
@@ -105,8 +105,8 @@
     
     <!-- Auditoriums Cards (Top) -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <strong><i class="bi bi-buildings"></i> Auditoriums Schedule</strong>
-        <span class="text-muted small">{{ current_period }} - {{ today_date.strftime('%A, %B %d') }}</span>
+        <strong><i class="bi bi-buildings"></i> Agenda de Auditórios</strong>
+        <span class="text-muted small">{{ current_period }} - {{ formatted_today }}</span>
     </div>
     
     {% if auditorium_reservations %}
@@ -120,15 +120,15 @@
                 </div>
                 <div class="card-body">
                     <div class="mb-2">
-                        <span class="text-muted small text-uppercase fw-bold">Course</span>
+                        <span class="text-muted small text-uppercase fw-bold">Curso</span>
                         <p class="mb-0 fw-bold">{{ r.course.name if r.course else 'N/A' }}</p>
                     </div>
                     <div class="mb-2">
-                        <span class="text-muted small text-uppercase fw-bold">Teacher</span>
+                        <span class="text-muted small text-uppercase fw-bold">Professor</span>
                         <p class="mb-0">{{ r.teacher.full_name if r.teacher else 'N/A' }}</p>
                     </div>
                     <div class="mt-3 pt-2 border-top">
-                        <span class="text-muted small text-uppercase fw-bold">Time</span>
+                        <span class="text-muted small text-uppercase fw-bold">Horário</span>
                         <p class="mb-0 fw-bold text-primary">
                             <i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}
                         </p>
@@ -141,14 +141,14 @@
     {% else %}
     <div class="card shadow-sm text-center text-muted p-4 mb-5">
         <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
-        No auditoriums scheduled for the {{ current_period|lower }} period.
+        Nenhum auditório agendado para o período {{ current_period|lower }}.
     </div>
     {% endif %}
 
     <!-- Classrooms Cards -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <strong><i class="bi bi-door-closed"></i> Classrooms Schedule</strong>
-        <span class="text-muted small">{{ current_period }} - {{ today_date.strftime('%A, %B %d') }}</span>
+        <strong><i class="bi bi-door-closed"></i> Agenda de Salas de Aula</strong>
+        <span class="text-muted small">{{ current_period }} - {{ formatted_today }}</span>
     </div>
     
     {% if classroom_reservations %}
@@ -162,15 +162,15 @@
                 </div>
                 <div class="card-body">
                     <div class="mb-2">
-                        <span class="text-muted small text-uppercase fw-bold">Course</span>
+                        <span class="text-muted small text-uppercase fw-bold">Curso</span>
                         <p class="mb-0 fw-bold">{{ r.course.name if r.course else 'N/A' }}</p>
                     </div>
                     <div class="mb-2">
-                        <span class="text-muted small text-uppercase fw-bold">Teacher</span>
+                        <span class="text-muted small text-uppercase fw-bold">Professor</span>
                         <p class="mb-0">{{ r.teacher.full_name if r.teacher else 'N/A' }}</p>
                     </div>
                     <div class="mt-3 pt-2 border-top">
-                        <span class="text-muted small text-uppercase fw-bold">Time</span>
+                        <span class="text-muted small text-uppercase fw-bold">Horário</span>
                         <p class="mb-0 fw-bold text-primary">
                             <i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}
                         </p>
@@ -183,7 +183,7 @@
     {% else %}
     <div class="card shadow-sm text-center text-muted p-4">
         <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
-        No classrooms scheduled for the {{ current_period|lower }} period.
+        Nenhuma sala de aula agendada para o período {{ current_period|lower }}.
     </div>
     {% endif %}
 </div>
@@ -198,15 +198,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const viewText = document.getElementById('viewModeText');
     const toggleLinks = document.querySelectorAll('.view-toggle');
 
+    // Function to switch views and save preference to localStorage
     function setView(view) {
         if (view === 'card') {
             listView.style.display = 'none';
             cardView.style.display = 'block';
-            viewText.textContent = 'Card View';
+            viewText.textContent = 'Visão em Cartões';
         } else {
             listView.style.display = 'block';
             cardView.style.display = 'none';
-            viewText.textContent = 'List View';
+            viewText.textContent = 'Visão em Lista';
         }
         localStorage.setItem('dashboardView', view);
     }

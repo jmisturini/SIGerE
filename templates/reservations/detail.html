@@ -1,9 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Reservation #{{ reservation.id }}{% endblock %}
+{% block title %}Reserva #{{ reservation.id }}{% endblock %}
 {% block content %}
-<a href="{{ request.referrer or url_for('main.index') }}" class="btn btn-outline-secondary btn-sm mb-3" onclick="history.back(); return false;">
-    <i class="bi bi-arrow-left"></i> Back
-</a>
 <div class="card shadow-sm">
     <div class="card-body p-4">
         <div class="d-flex justify-content-between align-items-start mb-4">
@@ -12,83 +9,71 @@
                 <span class="badge status-{{ reservation.status }} status-badge text-capitalize">{{ reservation.status }}</span>
             </div>
             <a href="{{ url_for('reservations.my_reservations') if not current_user.is_admin else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-arrow-left"></i> Back
+                <i class="bi bi-arrow-left"></i> Voltar
             </a>
         </div>
         
         <div class="row">
             <div class="col-md-6">
                 <table class="table table-borderless">
-                    <tr><th style="width: 150px;">Classroom</th><td>{{ reservation.classroom.code }} - {{ reservation.classroom.name }}</td></tr>
-                    <tr><th>Course</th><td>{{ reservation.course.name if reservation.course else 'N/A' }}</td></tr>
-                    <tr><th>Subject</th><td>{{ reservation.subject.name if reservation.subject else 'N/A' }}</td></tr>
-                    <tr><th>Teacher</th><td>{{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</td></tr>
+                    <tr><th style="width: 150px;">Sala</th><td>{{ reservation.classroom.code }} - {{ reservation.classroom.name }}</td></tr>
+                    <tr><th>Curso</th><td>{{ reservation.course.name if reservation.course else 'N/A' }}</td></tr>
+                    <tr><th>Disciplina</th><td>{{ reservation.subject.name if reservation.subject else 'N/A' }}</td></tr>
+                    <tr><th>Professor</th><td>{{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</td></tr>
                 </table>
             </div>
             <div class="col-md-6">
                 <table class="table table-borderless">
-                    <tr><th style="width: 150px;">Date</th><td>{{ reservation.date }}</td></tr>
-                    <tr><th>Time</th><td>{{ reservation.start_time.strftime('%H:%M') }} - {{ reservation.end_time.strftime('%H:%M') }}</td></tr>
-                    <tr><th>Booked by</th><td>{{ reservation.user.full_name }} <small class="text-muted text-capitalize">({{ reservation.user.role }})</small></td></tr>
-                    <tr><th>Submitted</th><td>{{ reservation.created_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
+                    <tr><th style="width: 150px;">Data</th><td>{{ reservation.date.strftime('%d/%m/%Y') }}</td></tr>
+                    <tr><th>Horário</th><td>{{ reservation.start_time.strftime('%H:%M') }} - {{ reservation.end_time.strftime('%H:%M') }}</td></tr>
+                    <tr><th>Reservado por</th><td>{{ reservation.user.full_name }} <small class="text-muted text-capitalize">({{ reservation.user.role }})</small></td></tr>
+                    <tr><th>Registrado em</th><td>{{ reservation.created_at.strftime('%d/%m/%Y %H:%M') }}</td></tr>
                 </table>
             </div>
         </div>
 
         {% if reservation.description %}
         <div class="mt-3">
-            <h6>Description / Purpose</h6>
+            <h6>Descrição / Finalidade</h6>
             <p class="text-muted">{{ reservation.description }}</p>
         </div>
         {% endif %}
 
-        {% if reservation.review_note %}
-        <div class="mt-3 alert alert-warning">
-            <h6 class="alert-heading">Admin Note</h6>
-            <p class="mb-0">{{ reservation.review_note }}</p>
-        </div>
-        {% endif %}
-
-                <!-- Action Buttons -->
+        <!-- Action Buttons -->
         <div class="mt-4 d-flex gap-2 flex-wrap">
-            
-            <!-- NEW: Repeat Button -->
+            <!-- Repeat Button -->
             {% if reservation.status == 'approved' and (reservation.user_id == current_user.id or current_user.is_admin) %}
             <a href="{{ url_for('reservations.repeat_view', reservation_id=reservation.id) }}" class="btn btn-info">
-                <i class="bi bi-arrow-repeat"></i> Repeat
+                <i class="bi bi-arrow-repeat"></i> Repetir
             </a>
             {% endif %}
 
             <!-- Cancel Button -->
             {% if reservation.status == 'approved' and (reservation.date >= now.date() or current_user.is_admin) %}
-            <form method="POST" action="{{ url_for('reservations.cancel', reservation_id=reservation.id) }}"
-                  onsubmit="return confirm('Cancel this reservation? The room will become free.');">
-                <button class="btn btn-warning"><i class="bi bi-x-circle"></i> Cancel Reservation</button>
+            <form method="POST" action="{{ url_for('reservations.cancel', reservation_id=reservation.id) }}" onsubmit="return confirm('Cancelar esta reserva? A sala ficará livre.');">
+                <button class="btn btn-warning"><i class="bi bi-x-circle"></i> Cancelar Reserva</button>
             </form>
             {% endif %}
 
             <!-- Admin Only Buttons for Approved Reservations -->
             {% if current_user.is_admin and reservation.status == 'approved' %}
             <a href="{{ url_for('reservations.edit', reservation_id=reservation.id) }}" class="btn btn-primary">
-                <i class="bi bi-pencil"></i> Edit Details
+                <i class="bi bi-pencil"></i> Editar
             </a>
-            <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}"
-                  onsubmit="return confirm('PERMANENTLY DELETE this reservation? This cannot be undone.');">
-                <button class="btn btn-danger"><i class="bi bi-trash"></i> Delete Permanently</button>
+            <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva? Isso não pode ser desfeito.');">
+                <button class="btn btn-danger"><i class="bi bi-trash"></i> Excluir Permanentemente</button>
             </form>
             {% endif %}
 
             <!-- Admin Only Buttons for Pending Reservations -->
             {% if current_user.is_admin and reservation.status == 'pending' %}
             <form method="POST" action="{{ url_for('reservations.approve', reservation_id=reservation.id) }}">
-                <button class="btn btn-success"><i class="bi bi-check-circle"></i> Approve Reservation</button>
+                <button class="btn btn-success"><i class="bi bi-check-circle"></i> Aprovar Reserva</button>
             </form>
-            <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}"
-                  onsubmit="return confirm('PERMANENTLY DELETE this pending reservation?');">
-                <button class="btn btn-danger"><i class="bi bi-trash"></i> Delete Permanently</button>
+            <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva pendente?');">
+                <button class="btn btn-danger"><i class="bi bi-trash"></i> Excluir Permanentemente</button>
             </form>
             {% endif %}
-
         </div>
     </div>
 </div>

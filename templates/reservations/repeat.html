@@ -1,79 +1,87 @@
 {% extends 'base.html' %}
-{% block title %}Repeat Reservation{% endblock %}
+{% block title %}Repetir Reserva{% endblock %}
 {% block content %}
 <div class="card shadow-sm">
     <div class="card-body p-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="mb-0"><i class="bi bi-arrow-repeat"></i> Repeat Reservation</h3>
-            <a href="{{ url_for('reservations.detail', reservation_id=res.id) }}" class="btn btn-outline-secondary btn-sm">Back to Details</a>
+            <h3 class="mb-0"><i class="bi bi-arrow-repeat"></i> Repetir Reserva</h3>
+            <a href="{{ url_for('reservations.detail', reservation_id=res.id) }}" class="btn btn-outline-secondary btn-sm">Voltar aos Detalhes</a>
         </div>
         
         <div class="alert alert-info">
-            <strong>Original Event:</strong> {{ res.title }} <br>
-            <strong>Room:</strong> {{ res.classroom.code }} ({{ res.classroom.name }}) <br>
-            <strong>Time:</strong> {{ res.start_time.strftime('%H:%M') }} - {{ res.end_time.strftime('%H:%M') }}
+            <strong>Evento Original:</strong> {{ res.title }} <br>
+            <strong>Sala:</strong> {{ res.classroom.code }} ({{ res.classroom.name }}) <br>
+            <strong>Data Original:</strong> {{ res.date.strftime('%d/%m/%Y') }} <br>
+            <strong>Horário:</strong> {{ res.start_time.strftime('%H:%M') }} - {{ res.end_time.strftime('%H:%M') }}
         </div>
-
         <hr>
-
         {% if not days %}
-        <!-- Step 1: Choose Final Date -->
         <form method="POST">
             <div class="row g-2 align-items-end justify-content-center">
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold">Start Date</label>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Data Inicial</label>
                     <input type="date" class="form-control" value="{{ start_date.strftime('%Y-%m-%d') }}" disabled>
                     <input type="hidden" name="start_date" value="{{ start_date.strftime('%Y-%m-%d') }}">
                 </div>
-                <div class="col-md-1 text-center pb-2">
-                    <i class="bi bi-arrow-right fs-4"></i>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold">Select Final Date</label>
+                <div class="col-md-1 text-center pb-2"><i class="bi bi-arrow-right fs-4"></i></div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Selecione a Data Final</label>
                     <input type="date" name="end_date" class="form-control" min="{{ start_date.strftime('%Y-%m-%d') }}" required>
                 </div>
+                <div class="col-md-3">
+                    <div class="form-check mb-2">
+                        <input type="checkbox" class="form-check-input" id="same_day" name="same_day" value="true">
+                        <label class="form-check-label" for="same_day">Apenas {{ res_weekday_str }}s</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="skip_weekend" name="skip_weekend" value="true">
+                        <label class="form-check-label" for="skip_weekend">Pular Finais de Semana</label>
+                    </div>
+                </div>
                 <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Check Days</button>
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Verificar Dias</button>
                 </div>
             </div>
         </form>
-        
         {% else %}
-        <!-- Step 2: Show Days -->
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <h5 class="mb-0">Availability: {{ start_date.strftime('%b %d') }} to {{ end_date.strftime('%b %d') }}</h5>
-            
-            <!-- Schedule All Button -->
-            <form method="POST" action="{{ url_for('reservations.repeat_schedule_all', reservation_id=res.id) }}" onsubmit="return confirm('Schedule all AVAILABLE days at once?');">
+            <h5 class="mb-0">Disponibilidade: {{ start_date.strftime('%d/%m') }} a {{ end_date.strftime('%d/%m') }}</h5>
+            <form method="POST" action="{{ url_for('reservations.repeat_schedule_all', reservation_id=res.id) }}" onsubmit="return confirm('Agendar TODOS os dias DISPONÍVEIS de uma vez?');">
                 <input type="hidden" name="start_date" value="{{ start_date.strftime('%Y-%m-%d') }}">
                 <input type="hidden" name="end_date" value="{{ end_date.strftime('%Y-%m-%d') }}">
-                <button type="submit" class="btn btn-success"><i class="bi bi-calendar-check"></i> Schedule All Available</button>
-                <a href="{{ url_for('reservations.repeat_view', reservation_id=res.id) }}" class="btn btn-outline-secondary">Reset</a>
+                <input type="hidden" name="same_day" value="{{ 'true' if same_day else '' }}">
+                <input type="hidden" name="skip_weekend" value="{{ 'true' if skip_weekend else '' }}">
+                <button type="submit" class="btn btn-success"><i class="bi bi-calendar-check"></i> Agendar Todos Disponíveis</button>
+                <a href="{{ url_for('reservations.repeat_view', reservation_id=res.id) }}" class="btn btn-outline-secondary">Resetar</a>
             </form>
         </div>
-
         <div class="row g-3">
             {% for day in days %}
             <div class="col-md-4 col-lg-3">
                 <div class="card shadow-sm h-100 {{ 'border-success border-2' if day.is_available else 'border-danger border-2 opacity-50' }}">
                     <div class="card-body text-center d-flex flex-column">
-                        <h6 class="card-title mb-0">{{ day.date.strftime('%a, %b %d') }}</h6>
+                        <h6 class="card-title mb-0">{{ day.formatted_date }}</h6>
                         <p class="small mb-3 mt-1 {{ 'text-success' if day.is_available else 'text-danger' }}">{{ day.message }}</p>
-                        
                         <div class="mt-auto">
                             {% if day.is_available %}
                             <form method="POST" action="{{ url_for('reservations.repeat_schedule', reservation_id=res.id) }}">
                                 <input type="hidden" name="new_date" value="{{ day.date.strftime('%Y-%m-%d') }}">
-                                <!-- ADD THIS HIDDEN INPUT -->
                                 <input type="hidden" name="end_date" value="{{ end_date.strftime('%Y-%m-%d') }}">
-                                <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus-lg"></i> Schedule</button>
+                                <input type="hidden" name="same_day" value="{{ 'true' if same_day else '' }}">
+                                <input type="hidden" name="skip_weekend" value="{{ 'true' if skip_weekend else '' }}">
+                                <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-plus-lg"></i> Agendar</button>
                             </form>
                             {% else %}
-                            <button class="btn btn-sm btn-outline-secondary w-100" disabled>Unavailable</button>
+                            <button class="btn btn-sm btn-outline-secondary w-100" disabled>Indisponível</button>
                             {% endif %}
                         </div>
                     </div>
                 </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center text-muted py-5">
+                <i class="bi bi-emoji-frown fs-1 d-block mb-2"></i>
+                <h5>Nenhum dia corresponde aos seus critérios de filtro.</h5>
             </div>
             {% endfor %}
         </div>

@@ -4,174 +4,156 @@ from wtforms import (StringField, PasswordField, SubmitField, IntegerField,
 from wtforms.validators import (DataRequired, Email, EqualTo, Length,
                                 ValidationError, Optional)
 from datetime import date
-from models import User, Classroom
+from models import User, Classroom, Course, Subject
 
-
+# Form for user login
 class LoginForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(max=64)])
-    password = PasswordField('Password', validators=[DataRequired()])
-    submit = SubmitField('Login')
+    username = StringField('Nome de Usuário', validators=[DataRequired(), Length(max=64)])
+    password = PasswordField('Senha', validators=[DataRequired()])
+    submit = SubmitField('Entrar')
 
-class RegistrationForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(min=3, max=64)])
-    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
-    full_name = StringField('Full Name', validators=[DataRequired(), Length(max=120)])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
-    confirm_password = PasswordField(
-        'Confirm Password', validators=[DataRequired(), EqualTo('password')]
-    )
-    role = SelectField(
-        'Role', choices=[('student', 'Student'), ('teacher', 'Teacher')],
-        default='student'
-    )
-    department = StringField('Department', validators=[Optional(), Length(max=120)])
-    submit = SubmitField('Register')
+# Form for changing password on first login
+class ChangePasswordForm(FlaskForm):
+    password = PasswordField('Nova Senha', validators=[DataRequired(), Length(min=6)])
+    confirm_password = PasswordField('Confirmar Nova Senha', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Atualizar Senha')
+
+# Form for creating/editing Teachers
+class TeacherForm(FlaskForm):
+    username = StringField('Nome de Usuário', validators=[DataRequired(), Length(min=3, max=64)])
+    email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
+    full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
+    registration = StringField('Matrícula / ID do Professor', validators=[Optional(), Length(max=50)])
+    department = StringField('Departamento', validators=[Optional(), Length(max=120)])
+    role = SelectField('Nível de Acesso', choices=[
+        ('room', 'Agendador (Room Booker)'), 
+        ('admin', 'Administrador')
+    ], default='room')
+    password = PasswordField('Senha', validators=[DataRequired(), Length(min=6)])
+    is_active_user = BooleanField('Ativo', default=True)
+    submit = SubmitField('Salvar Professor')
+
+    # Validate username uniqueness
+    def validate_username(self, field):
+        existing = User.query.filter_by(username=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Este nome de usuário já está em uso.')
+
+    # Validate email uniqueness
+    def validate_email(self, field):
+        existing = User.query.filter_by(email=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Este e-mail já está cadastrado.')
+
+    # Validate registration ID uniqueness
+    def validate_registration(self, field):
+        if field.data:
+            existing = User.query.filter_by(registration=field.data).first()
+            if existing and existing.id != getattr(self, '_obj_id', None):
+                raise ValidationError('Esta Matrícula já está em uso.')
+
+# Form for creating/editing Employees
+class EmployeeForm(FlaskForm):
+    username = StringField('Nome de Usuário', validators=[DataRequired(), Length(min=3, max=64)])
+    email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
+    full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
+    registration = StringField('Matrícula / ID do Funcionário', validators=[Optional(), Length(max=50)])
+    sector = StringField('Setor', validators=[Optional(), Length(max=120)])
+    function = StringField('Função', validators=[Optional(), Length(max=120)])
+    role = SelectField('Nível de Acesso', choices=[
+        ('viewer', 'Visualizador (Somente Leitura)'),
+        ('room', 'Agendador (Room Booker)'), 
+        ('admin', 'Administrador')
+    ], default='viewer')
+    is_teacher = BooleanField('Também cadastrar como Professor (pode ser designado para reservas)')
+    password = PasswordField('Senha', validators=[DataRequired(), Length(min=6)])
+    is_active_user = BooleanField('Ativo', default=True)
+    submit = SubmitField('Salvar Funcionário')
 
     def validate_username(self, field):
-        if User.query.filter_by(username=field.data).first():
-            raise ValidationError('Username already taken.')
+        existing = User.query.filter_by(username=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Este nome de usuário já está em uso.')
 
     def validate_email(self, field):
-        if User.query.filter_by(email=field.data).first():
-            raise ValidationError('Email already registered.')
+        existing = User.query.filter_by(email=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Este e-mail já está cadastrado.')
 
+    def validate_registration(self, field):
+        if field.data:
+            existing = User.query.filter_by(registration=field.data).first()
+            if existing and existing.id != getattr(self, '_obj_id', None):
+                raise ValidationError('Esta Matrícula já está em uso.')
+
+# Form for creating/editing Classrooms
 class ClassroomForm(FlaskForm):
-    name = StringField('Name', validators=[DataRequired(), Length(max=64)])
-    room_number = StringField('Room Number', validators=[DataRequired(), Length(max=20)])
-    floor = StringField('Floor', validators=[Optional(), Length(max=20)])
-    capacity = IntegerField('Capacity', validators=[DataRequired()])
-    category = SelectField('Category', choices=[
-        ('classroom', 'Classroom'), 
-        ('auditorium', 'Auditorium'),
-        ('kitchen', 'Kitchen'),
-        ('computer_lab', 'Computer Laboratory'),
-        ('health_lab', 'Health Laboratory')
+    name = StringField('Nome da Sala', validators=[DataRequired(), Length(max=64)])
+    room_number = StringField('Número da Sala', validators=[DataRequired(), Length(max=20)])
+    building = StringField('Prédio', validators=[Optional(), Length(max=120)])
+    floor = StringField('Andar', validators=[Optional(), Length(max=20)])
+    capacity = IntegerField('Capacidade', validators=[DataRequired()])
+    category = SelectField('Categoria', choices=[
+        ('classroom', 'Sala de Aula'), 
+        ('auditorium', 'Auditório'),
+        ('kitchen', 'Cozinha'),
+        ('computer_lab', 'Laboratório de Informática'),
+        ('health_lab', 'Laboratório de Saúde')
     ], default='classroom')
+    computer_count = IntegerField('Número de Computadores', validators=[Optional()])
+    description = TextAreaField('Descrição', validators=[Optional()])
+    is_active = BooleanField('Ativo', default=True)
+    submit = SubmitField('Salvar Sala')
 
-    computer_count = IntegerField('Number of Computers', validators=[Optional()])
-    building = StringField('Building', validators=[Optional(), Length(max=120)])
-    description = TextAreaField('Description', validators=[Optional()])
-    is_active = BooleanField('Active', default=True)
-    submit = SubmitField('Save')
-        
+# Form for creating/editing Reservations
 class ReservationForm(FlaskForm):
-    classroom = SelectField('Classroom', coerce=int, validators=[DataRequired()])
-    course = SelectField('Course', coerce=int, validators=[Optional()])
-    subject = SelectField('Subject', coerce=int, validators=[Optional()])
-    
-    # These are the missing fields:
-    teacher = SelectField('Teacher', coerce=int, validators=[Optional()])
-    acknowledge_teacher_conflict = BooleanField('I acknowledge this teacher is already booked in another reservation at this time.', validators=[Optional()])
-    
-    title = StringField('Title / Subject', validators=[DataRequired(), Length(max=200)])
-    description = TextAreaField('Description / Purpose', validators=[Optional()])
-    date = DateField('Date', validators=[DataRequired()])
-    start_time = TimeField('Start Time', validators=[DataRequired()])
-    end_time = TimeField('End Time', validators=[DataRequired()])
-    submit = SubmitField('Request Reservation')
+    classroom = SelectField('Sala', coerce=int, validators=[DataRequired()])
+    course = SelectField('Curso', coerce=int, validators=[Optional()])
+    subject = SelectField('Disciplina', coerce=int, validators=[Optional()])
+    teacher = SelectField('Professor', coerce=int, validators=[Optional()])
+    title = StringField('Título / Assunto', validators=[DataRequired(), Length(max=200)])
+    description = TextAreaField('Descrição / Finalidade', validators=[Optional()])
+    date = DateField('Data', validators=[DataRequired()])
+    start_time = TimeField('Horário de Início', validators=[DataRequired()])
+    end_time = TimeField('Horário de Término', validators=[DataRequired()])
+    submit = SubmitField('Solicitar Reserva')
 
+    # Validate that end time is after start time
     def validate_end_time(self, field):
         if self.start_time.data and field.data:
             if field.data <= self.start_time.data:
-                raise ValidationError('End time must be after start time.')
+                raise ValidationError('O horário de término deve ser após o horário de início.')
 
-class TeacherForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(min=3, max=64)])
-    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
-    full_name = StringField('Full Name', validators=[DataRequired(), Length(max=120)])
-    registration = StringField('Teacher ID / Registration', validators=[Optional(), Length(max=50)])
-    department = StringField('Department', validators=[Optional(), Length(max=120)])
-    role = SelectField('Access Level', choices=[
-        ('room', 'Room Booker'), 
-        ('admin', 'Administrator')
-    ], default='room')
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
-    is_active_user = BooleanField('Active', default=True)
-    submit = SubmitField('Save Teacher')
-
-    def validate_username(self, field):
-        existing = User.query.filter_by(username=field.data).first()
-        if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Username already taken.')
-
-    def validate_email(self, field):
-        existing = User.query.filter_by(email=field.data).first()
-        if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Email already registered.')
-
-    def validate_registration(self, field):
-        if field.data:
-            existing = User.query.filter_by(registration=field.data).first()
-            if existing and existing.id != getattr(self, '_obj_id', None):
-                raise ValidationError('This Registration ID is already in use.')
-
-class EmployeeForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(min=3, max=64)])
-    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
-    full_name = StringField('Full Name', validators=[DataRequired(), Length(max=120)])
-    registration = StringField('Employee ID / Registration', validators=[Optional(), Length(max=50)])
-    sector = StringField('Sector', validators=[Optional(), Length(max=120)])
-    function = StringField('Function', validators=[Optional(), Length(max=120)])
-    role = SelectField('Access Level', choices=[
-        ('viewer', 'Viewer (Read Only)'),
-        ('room', 'Room Booker'), 
-        ('admin', 'Administrator')
-    ], default='viewer')
-    is_teacher = BooleanField('Also register as Teacher (can be assigned to reservations)')
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
-    is_active_user = BooleanField('Active', default=True)
-    submit = SubmitField('Save Employee')
-
-    def validate_username(self, field):
-        existing = User.query.filter_by(username=field.data).first()
-        if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Username already taken.')
-
-    def validate_email(self, field):
-        existing = User.query.filter_by(email=field.data).first()
-        if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Email already registered.')
-
-    def validate_registration(self, field):
-        if field.data:
-            existing = User.query.filter_by(registration=field.data).first()
-            if existing and existing.id != getattr(self, '_obj_id', None):
-                raise ValidationError('This Registration ID is already in use.')
-
-class ChangePasswordForm(FlaskForm):
-    password = PasswordField('New Password', validators=[DataRequired(), Length(min=6)])
-    confirm_password = PasswordField('Confirm New Password', validators=[DataRequired(), EqualTo('password')])
-    submit = SubmitField('Update Password')
-    
+# Form for creating/editing Courses
 class CourseForm(FlaskForm):
-    name = StringField('Course Name', validators=[DataRequired(), Length(max=120)])
-    code = StringField('Course Code', validators=[DataRequired(), Length(max=20)])
-    description = TextAreaField('Description', validators=[Optional()])
-    is_active = BooleanField('Active', default=True)
-    submit = SubmitField('Save Course')
+    name = StringField('Nome do Curso', validators=[DataRequired(), Length(max=120)])
+    code = StringField('Código do Curso', validators=[DataRequired(), Length(max=20)])
+    description = TextAreaField('Descrição', validators=[Optional()])
+    is_active = BooleanField('Ativo', default=True)
+    submit = SubmitField('Salvar Curso')
 
     def validate_code(self, field):
-        from models import Course
         existing = Course.query.filter_by(code=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Course code already exists.')
+            raise ValidationError('Este código de curso já existe.')
 
+# Form for creating/editing Subjects
 class SubjectForm(FlaskForm):
-    name = StringField('Subject Name', validators=[DataRequired(), Length(max=120)])
-    code = StringField('Subject Code', validators=[DataRequired(), Length(max=20)])
-    course_id = SelectField('Belongs to Course', coerce=int, validators=[Optional()])
-    description = TextAreaField('Description', validators=[Optional()])
-    is_active = BooleanField('Active', default=True)
-    submit = SubmitField('Save Subject')
+    name = StringField('Nome da Disciplina', validators=[DataRequired(), Length(max=120)])
+    code = StringField('Código da Disciplina', validators=[DataRequired(), Length(max=20)])
+    course_id = SelectField('Pertence ao Curso', coerce=int, validators=[Optional()])
+    description = TextAreaField('Descrição', validators=[Optional()])
+    is_active = BooleanField('Ativo', default=True)
+    submit = SubmitField('Salvar Disciplina')
 
     def validate_code(self, field):
-        from models import Subject
         existing = Subject.query.filter_by(code=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Subject code already exists.')
+            raise ValidationError('Este código de disciplina já existe.')
 
+# Form for creating/editing Holidays
 class HolidayForm(FlaskForm):
-    name = StringField('Holiday Name', validators=[DataRequired(), Length(max=120)])
-    date = DateField('Date', validators=[DataRequired()])
-    is_active = BooleanField('Active (Block Reservations)', default=True)
-    submit = SubmitField('Save Holiday')
+    name = StringField('Nome do Feriado', validators=[DataRequired(), Length(max=120)])
+    date = DateField('Data', validators=[DataRequired()])
+    is_active = BooleanField('Ativo (Bloquear Reservas)', default=True)
+    submit = SubmitField('Salvar Feriado')
