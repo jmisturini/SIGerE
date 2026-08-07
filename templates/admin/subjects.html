@@ -1,48 +1,16 @@
 {% extends 'base.html' %}
-{% block title %}Manage Subjects{% endblock %}
+{% block title %}Gerenciar Disciplinas{% endblock %}
 {% block content %}
-<a href="{{ request.referrer or url_for('main.index') }}" class="btn btn-outline-secondary btn-sm mb-3" onclick="history.back(); return false;">
-    <i class="bi bi-arrow-left"></i> Back
-</a>
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Manage Subjects</h2>
-    <a href="{{ url_for('admin.create_subject') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Register Subject</a>
+    <h2 class="mb-0">Gerenciar Disciplinas</h2><a href="{{ url_for('admin.create_subject') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Cadastrar Disciplina</a>
 </div>
-
-<div class="card shadow-sm">
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Name</th><th>Code</th><th>Belongs to Course</th><th>Status</th><th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for s in subjects %}
-                <tr>
-                    <td>{{ s.name }}</td>
-                    <td>{{ s.code }}</td>
-                    <td>{{ s.course.name if s.course else '-' }}</td>
-                    <td>
-                        {% if s.is_active %}<span class="badge bg-success">Active</span>
-                        {% else %}<span class="badge bg-danger">Inactive</span>{% endif %}
-                    </td>
-                    <td>
-                        <a href="{{ url_for('admin.edit_subject', subject_id=s.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
-                        <form method="POST" action="{{ url_for('admin.toggle_subject', subject_id=s.id) }}" class="d-inline">
-                            {% if s.is_active %}
-                            <button class="btn btn-sm btn-outline-danger">Deactivate</button>
-                            {% else %}
-                            <button class="btn btn-sm btn-outline-success">Activate</button>
-                            {% endif %}
-                        </form>
-                    </td>
-                </tr>
-            {% else %}
-                <tr><td colspan="5" class="text-muted text-center p-3">No subjects found.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+<div class="card shadow-sm"><div class="card-body p-0">
+    <table class="table table-hover mb-0">
+        <thead class="table-light"><tr><th>Nome</th><th>Código</th><th>Curso</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody>
+        {% for s in subjects %}<tr><td>{{ s.name }}</td><td>{{ s.code }}</td><td>{{ s.course.name if s.course else '-' }}</td><td>{% if s.is_active %}<span class="badge bg-success">Ativo</span>{% else %}<span class="badge bg-danger">Inativo</span>{% endif %}</td><td><a href="{{ url_for('admin.edit_subject', subject_id=s.id) }}" class="btn btn-sm btn-outline-primary">Editar</a><form method="POST" action="{{ url_for('admin.toggle_subject', subject_id=s.id) }}" class="d-inline">{% if s.is_active %}<button class="btn btn-sm btn-outline-danger">Desativar</button>{% else %}<button class="btn btn-sm btn-outline-success">Ativar</button>{% endif %}</form></td></tr>
+        {% else %}<tr><td colspan="5" class="text-muted text-center p-3">Nenhuma disciplina encontrada.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div></div>
 {% endblock %}

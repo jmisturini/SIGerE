@@ -1,51 +1,71 @@
 {% extends 'base.html' %}
-{% block title %}Admin Dashboard{% endblock %}
+{% block title %}Painel Administrativo{% endblock %}
 {% block content %}
-<h1 class="mb-4">Admin Panel</h1>
+<h1 class="mb-4">Painel Administrativo</h1>
 
+<!-- Adjusted grid to accommodate 5 cards (lg-2 means 6 cards per row on large screens) -->
 <div class="row g-3 mb-4">
-    <div class="col-md-3">
+    <!-- Users Card -->
+    <div class="col-lg-2 col-md-4 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
-                <div class="text-muted small">Total Users</div>
+                <div class="text-muted small">Total de Usuários</div>
                 <div class="display-6 fw-bold text-primary">{{ users_count }}</div>
-                <a href="{{ url_for('admin.list_users') }}" class="small">Manage →</a>
+                <a href="{{ url_for('admin.list_users') }}" class="small">Gerenciar →</a>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    
+    <!-- Rooms Card -->
+    <div class="col-lg-2 col-md-4 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
-                <div class="text-muted small">Total Rooms</div>
+                <div class="text-muted small">Total de Salas</div>
                 <div class="display-6 fw-bold text-primary">{{ rooms_count }}</div>
-                <a href="{{ url_for('admin.list_rooms') }}" class="small">Manage →</a>
+                <a href="{{ url_for('admin.list_rooms') }}" class="small">Gerenciar →</a>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    
+    <!-- Courses Card (Separated) -->
+    <div class="col-lg-2 col-md-4 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
-                <div class="text-muted small">Total Courses</div>
+                <div class="text-muted small">Total de Cursos</div>
                 <div class="display-6 fw-bold text-primary">{{ courses_count }}</div>
-                <a href="{{ url_for('admin.list_courses') }}" class="small">Manage →</a>
+                <a href="{{ url_for('admin.list_courses') }}" class="small">Gerenciar →</a>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    
+    <!-- Subjects Card (Separated) -->
+    <div class="col-lg-2 col-md-4 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
-                <div class="text-muted small">Total Subjects</div>
+                <div class="text-muted small">Total de Disciplinas</div>
                 <div class="display-6 fw-bold text-primary">{{ subjects_count }}</div>
-                <a href="{{ url_for('admin.list_subjects') }}" class="small">Manage →</a>
+                <a href="{{ url_for('admin.list_subjects') }}" class="small">Gerenciar →</a>
             </div>
         </div>
     </div>
-        <div class="col-md-3">
+    
+    <!-- Holidays Card -->
+    <div class="col-lg-2 col-md-4 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
-                <div class="text-muted small">Manage Holidays</div>
+                <div class="text-muted small">Gerenciar Feriados</div>
                 <div class="display-6 fw-bold text-primary"><i class="bi bi-calendar-x"></i></div>
-                <a href="{{ url_for('admin.list_holidays') }}" class="small">Manage →</a>
+                <a href="{{ url_for('admin.list_holidays') }}" class="small">Gerenciar →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Rooms Card -->
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Salas Ativas</div>
+                <div class="display-6 fw-bold text-success">{{ active_rooms }}</div>
             </div>
         </div>
     </div>

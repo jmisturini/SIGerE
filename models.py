@@ -3,6 +3,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db, login_manager
 
+# Model representing the application users (Admins, Teachers, Employees)
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -13,7 +14,7 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), nullable=False, default='viewer') # admin, room, viewer
     department = db.Column(db.String(120))
     
-    # New fields added in previous steps:
+    # New fields added in previous steps
     registration = db.Column(db.String(50), unique=True, nullable=True, index=True)
     sector = db.Column(db.String(120), nullable=True)
     function = db.Column(db.String(120), nullable=True)
@@ -24,18 +25,22 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active_user = db.Column(db.Boolean, default=True)
 
+    # Relationship for reservations made by this user
     reservations = db.relationship(
         'Reservation', backref='user', lazy=True,
         cascade='all, delete-orphan',
         foreign_keys='Reservation.user_id'
     )
 
+    # Method to hash the password before saving to DB
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
+    # Method to verify the password during login
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+    # Helper properties for role checking
     @property
     def is_admin(self):
         return self.role == 'admin'
@@ -48,11 +53,12 @@ class User(UserMixin, db.Model):
     def is_viewer(self):
         return self.role == 'viewer'
 
+    # Property to check if user can book rooms (Admins and Room Bookers)
     @property
     def can_book(self):
-        """Users who can create and manage their own reservations."""
         return self.role in ['admin', 'room']
 
+    # Flask-Login property to check if the user account is active
     @property
     def is_active(self):
         return self.is_active_user
@@ -60,11 +66,12 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
+# Flask-Login loader to fetch user by ID for session management
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-
+# Model representing the physical rooms (Classrooms, Auditoriums, Labs)
 class Classroom(db.Model):
     __tablename__ = 'classrooms'
     id = db.Column(db.Integer, primary_key=True)
@@ -80,12 +87,13 @@ class Classroom(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Relationship for reservations in this room
     reservations = db.relationship('Reservation', backref='classroom', lazy=True)
 
     def __repr__(self):
         return f'<Classroom {self.code}>'
 
-
+# Model representing a reservation event
 class Reservation(db.Model):
     __tablename__ = 'reservations'
     id = db.Column(db.Integer, primary_key=True)
@@ -94,20 +102,25 @@ class Reservation(db.Model):
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
     subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     date = db.Column(db.Date, nullable=False, index=True)
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='approved')
+    status = db.Column(db.String(20), nullable=False, default='approved') # approved, pending, cancelled
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     review_note = db.Column(db.Text)
-    
-    reviewer = db.relationship('User', foreign_keys=[reviewed_by], backref='reviewed_reservations')
+
+    # Relationship for the teacher assigned to this reservation
     teacher = db.relationship('User', foreign_keys=[teacher_id], backref='teaching_reservations')
+    # Relationship for the admin who reviewed the reservation (if pending)
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by], backref='reviewed_reservations')
+    # Relationship for the course linked to this reservation
     course = db.relationship('Course', backref='reservations')
+    # Relationship for the subject linked to this reservation
     subject = db.relationship('Subject', backref='reservations')
 
     def __repr__(self):
@@ -117,10 +130,7 @@ class Reservation(db.Model):
     def is_active(self):
         return self.status in ('pending', 'approved')
 
-    def conflicts_with(self, other_start, other_end):
-        """Return True if this reservation's time overlaps with the given window."""
-        return self.start_time < other_end and other_start < self.end_time
-    
+# Model representing academic courses
 class Course(db.Model):
     __tablename__ = 'courses'
     id = db.Column(db.Integer, primary_key=True)
@@ -134,7 +144,7 @@ class Course(db.Model):
     def __repr__(self):
         return f'<Course {self.code}>'
 
-
+# Model representing subjects within courses
 class Subject(db.Model):
     __tablename__ = 'subjects'
     id = db.Column(db.Integer, primary_key=True)
@@ -146,7 +156,8 @@ class Subject(db.Model):
 
     def __repr__(self):
         return f'<Subject {self.code}>'
-    
+
+# Model representing holidays to block scheduling
 class Holiday(db.Model):
     __tablename__ = 'holidays'
     id = db.Column(db.Integer, primary_key=True)

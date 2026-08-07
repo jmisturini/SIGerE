@@ -12,64 +12,40 @@ def display():
 
     # Determine current period
     if now.hour < 12:
-        p_start, p_end = time(0, 0), time(12, 0)
-        current_period = "Morning"
+        p_start, p_end, current_period = time(0, 0), time(12, 0), "Manhã"
     elif now.hour < 18:
-        p_start, p_end = time(12, 0), time(18, 0)
-        current_period = "Afternoon"
+        p_start, p_end, current_period = time(12, 0), time(18, 0), "Tarde"
     else:
-        p_start, p_end = time(18, 0), time(23, 59)
-        current_period = "Night"
+        p_start, p_end, current_period = time(18, 0), time(23, 59), "Noite"
 
     # 1. Fetch Auditoriums for the next 7 days
     week_end = today + timedelta(days=7)
     aud_reservations = Reservation.query.join(Classroom).filter(
         Classroom.category == 'auditorium',
-        Reservation.date >= today,
-        Reservation.date <= week_end,
+        Reservation.date >= today, Reservation.date <= week_end,
         Reservation.status == 'approved'
     ).order_by(Reservation.date, Reservation.start_time).all()
 
     # 2. Fetch Classrooms for today's current period
     cls_reservations = Reservation.query.join(Classroom).filter(
         Classroom.category != 'auditorium',
-        Reservation.date == today,
-        Reservation.status == 'approved',
-        Reservation.start_time < p_end,
-        Reservation.end_time > p_start
+        Reservation.date == today, Reservation.status == 'approved',
+        Reservation.start_time < p_end, Reservation.end_time > p_start
     ).order_by(Classroom.code).all()
 
-    # Group classrooms by the first number in the room code (e.g., "CR101" -> "1st Floor")
+    # Group classrooms by the first number in the room code
     grouped_classrooms = {}
     for r in cls_reservations:
-        code = r.classroom.code
-        match = re.search(r'\d', code)
+        match = re.search(r'\d', r.classroom.code)
         if match:
-            floor_digit = match.group()
-            if floor_digit == '0':
-                floor_name = "Ground Floor"
-            elif floor_digit == '1':
-                floor_name = "1st Floor"
-            elif floor_digit == '2':
-                floor_name = "2nd Floor"
-            elif floor_digit == '3':
-                floor_name = "3rd Floor"
-            else:
-                floor_name = f"{floor_digit}th Floor"
-        else:
-            floor_name = "General Floor"
+            d = match.group()
+            floor_name = {"0": "Térreo", "1": "1º Andar", "2": "2º Andar", "3": "3º Andar"}.get(d, f"{d}º Andar")
+        else: floor_name = "Outros"
         
-        if floor_name not in grouped_classrooms:
-            grouped_classrooms[floor_name] = []
+        if floor_name not in grouped_classrooms: grouped_classrooms[floor_name] = []
         grouped_classrooms[floor_name].append(r)
 
-    # Sort floors logically
-    floor_order = {"Ground Floor": 0, "1st Floor": 1, "2nd Floor": 2, "3rd Floor": 3, "4th Floor": 4, "5th Floor": 5}
+    floor_order = {"Térreo": 0, "1º Andar": 1, "2º Andar": 2, "3º Andar": 3, "4º Andar": 4, "5º Andar": 5}
     sorted_floors = dict(sorted(grouped_classrooms.items(), key=lambda item: floor_order.get(item[0], 99)))
 
-    return render_template(
-        'totem.html',
-        aud_reservations=aud_reservations,
-        classroom_floors=sorted_floors,
-        current_period=current_period
-    )
+    return render_template('totem.html', aud_reservations=aud_reservations, classroom_floors=sorted_floors, current_period=current_period)

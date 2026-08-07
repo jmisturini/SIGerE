@@ -1,85 +1,67 @@
 {% extends 'base.html' %}
-{% block title %}Schedule Calendar{% endblock %}
-
+{% block title %}Calendário{% endblock %}
 {% block content %}
-
-<!-- Filter Form -->
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <form id="filterForm" class="row g-2 align-items-end">
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Initial Date</label>
+                <label class="form-label small fw-bold">Data Inicial</label>
                 <input type="date" id="initialDate" class="form-control">
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Final Date</label>
+                <label class="form-label small fw-bold">Data Final</label>
                 <input type="date" id="finalDate" class="form-control">
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Period</label>
+                <label class="form-label small fw-bold">Período</label>
                 <select id="filterPeriod" class="form-select">
-                    <option value="">All Periods</option>
-                    <option value="morning">Morning</option>
-                    <option value="afternoon">Afternoon</option>
-                    <option value="night">Night</option>
+                    <option value="">Todos</option>
+                    <option value="morning">Manhã</option>
+                    <option value="afternoon">Tarde</option>
+                    <option value="night">Noite</option>
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Room</label>
+                <label class="form-label small fw-bold">Sala</label>
                 <select id="filterRoom" class="form-select">
-                    <option value="">All Rooms</option>
-                    {% for c in classrooms %}
-                    <option value="{{ c.id }}">{{ c.name }}</option>
-                    {% endfor %}
+                    <option value="">Todas</option>
+                    {% for c in classrooms %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Teacher</label>
+                <label class="form-label small fw-bold">Professor</label>
                 <select id="filterTeacher" class="form-select">
-                    <option value="">All Teachers</option>
-                    {% for t in teachers %}
-                    <option value="{{ t.id }}">{{ t.full_name }}</option>
-                    {% endfor %}
+                    <option value="">Todos</option>
+                    {% for t in teachers %}<option value="{{ t.id }}">{{ t.full_name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Course</label>
+                <label class="form-label small fw-bold">Curso</label>
                 <select id="filterCourse" class="form-select">
-                    <option value="">All Courses</option>
-                    {% for c in courses %}
-                    <option value="{{ c.id }}">{{ c.name }}</option>
-                    {% endfor %}
+                    <option value="">Todos</option>
+                    {% for c in courses %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Subject</label>
+                <label class="form-label small fw-bold">Disciplina</label>
                 <select id="filterSubject" class="form-select">
-                    <option value="">All Subjects</option>
-                    {% for s in subjects %}
-                    <option value="{{ s.id }}">{{ s.name }}</option>
-                    {% endfor %}
+                    <option value="">Todas</option>
+                    {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-12 mt-3">
-                <button type="button" id="applyFilters" class="btn btn-primary" disabled>
-                    <i class="bi bi-funnel"></i> Apply Filters
-                </button>
-                <button type="button" id="clearFilters" class="btn btn-outline-secondary">Clear</button>
+                <button type="button" id="applyFilters" class="btn btn-primary" disabled><i class="bi bi-funnel"></i> Aplicar Filtros</button>
+                <button type="button" id="clearFilters" class="btn btn-outline-secondary">Limpar</button>
             </div>
         </form>
     </div>
 </div>
-
-<!-- Card Container -->
 <div id="card-container" class="mt-4">
     <div class="text-center text-muted p-5">
-        <div class="spinner-border" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
-        <p class="mt-2">Loading schedule...</p>
+        <div class="spinner-border" role="status"><span class="visually-hidden">Carregando...</span></div>
+        <p class="mt-2">Carregando calendário...</p>
     </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
@@ -88,7 +70,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('card-container');
     const applyBtn = document.getElementById('applyFilters');
     const clearBtn = document.getElementById('clearFilters');
-    
     const initDateInput = document.getElementById('initialDate');
     const finDateInput = document.getElementById('finalDate');
     const periodSelect = document.getElementById('filterPeriod');
@@ -97,7 +78,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const courseSelect = document.getElementById('filterCourse');
     const subjectSelect = document.getElementById('filterSubject');
 
-    // Helper: Get current period based on time
+    // Determine current period based on time
     function getCurrentPeriod() {
         const hour = new Date().getHours();
         if (hour < 12) return 'morning';
@@ -105,83 +86,62 @@ document.addEventListener('DOMContentLoaded', function() {
         return 'night';
     }
 
-    // Helper: Update Filter Button State
+    // Enable/disable apply button
     function updateFilterBtn() {
-        const hasFilter = initDateInput.value || finDateInput.value || periodSelect.value || 
-                          roomSelect.value || teacherSelect.value || courseSelect.value || subjectSelect.value;
+        const hasFilter = initDateInput.value || finDateInput.value || periodSelect.value || roomSelect.value || teacherSelect.value || courseSelect.value || subjectSelect.value;
         applyBtn.disabled = !hasFilter;
     }
 
+    // Fetch data from API
     function fetchData() {
         let url = '{{ url_for("schedule.events") }}';
         let params = new URLSearchParams();
-        
         const initDate = initDateInput.value;
         const finDate = finDateInput.value;
-        
         if (initDate) params.append('initialDate', initDate);
         if (finDate) params.append('finalDate', finDate);
-        
         const period = periodSelect.value;
         const room = roomSelect.value;
         const teacher = teacherSelect.value;
         const course = courseSelect.value;
         const subject = subjectSelect.value;
-        
         if (period) params.append('period', period);
         if (room) params.append('room_id', room);
         if (teacher) params.append('teacher_id', teacher);
         if (course) params.append('course_id', course);
         if (subject) params.append('subject_id', subject);
 
-        container.innerHTML = '<div class="text-center text-muted p-5"><div class="spinner-border"></div><p class="mt-2">Loading...</p></div>';
+        container.innerHTML = '<div class="text-center text-muted p-5"><div class="spinner-border"></div><p class="mt-2">Carregando...</p></div>';
 
         fetch(`${url}?${params.toString()}`)
             .then(response => response.json())
             .then(data => renderCards(data))
-            .catch(error => {
-                container.innerHTML = '<p class="text-center text-danger p-5">Error loading schedule.</p>';
-            });
+            .catch(error => { container.innerHTML = '<p class="text-center text-danger p-5">Erro ao carregar.</p>'; });
     }
 
+    // Render Bootstrap cards grouped by date
     function renderCards(data) {
         if (data.length === 0) {
-            container.innerHTML = `
-                <div class="card shadow-sm text-center text-muted p-5">
-                    <i class="bi bi-emoji-smile fs-1 d-block mb-2"></i>
-                    <h5>No reservations found for the selected filters.</h5>
-                </div>
-            `;
+            container.innerHTML = `<div class="card shadow-sm text-center text-muted p-5"><i class="bi bi-emoji-smile fs-1 d-block mb-2"></i><h5>Nenhuma reserva encontrada para os filtros selecionados.</h5></div>`;
             return;
         }
-
         const grouped = {};
         data.forEach(event => {
             const dateStr = event.start.split('T')[0];
             if (!grouped[dateStr]) grouped[dateStr] = [];
             grouped[dateStr].push(event);
         });
-
         const sortedDates = Object.keys(grouped).sort();
-
         let html = '';
         sortedDates.forEach(dateStr => {
             const dateObj = new Date(dateStr + 'T00:00:00');
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            const formattedDate = dateObj.toLocaleDateString('en-US', options);
-
-            html += `
-                <div class="mb-5">
-                    <h4 class="mb-3 border-bottom pb-2"><i class="bi bi-calendar3"></i> ${formattedDate}</h4>
-                    <div class="row g-3">
-            `;
-
+            const formattedDate = dateObj.toLocaleDateString('pt-BR', options);
+            html += `<div class="mb-5"><h4 class="mb-3 border-bottom pb-2"><i class="bi bi-calendar3"></i> ${formattedDate}</h4><div class="row g-3">`;
             grouped[dateStr].sort((a, b) => new Date(a.start) - new Date(b.start));
-
             grouped[dateStr].forEach(event => {
-                const startTime = new Date(event.start).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-                const endTime = new Date(event.end).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-                
+                const startTime = new Date(event.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
+                const endTime = new Date(event.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
                 html += `
                     <div class="col-md-6 col-xl-4">
                         <a href="${event.url}" class="text-decoration-none text-reset">
@@ -191,92 +151,43 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <small style="color: rgba(255, 255, 255, 0.8);">${event.classroom_name}</small>
                                 </div>
                                 <div class="card-body">
-                                    <div class="mb-2">
-                                        <span class="text-muted small text-uppercase fw-bold">Event</span>
-                                        <p class="mb-0 fw-bold">${event.title}</p>
-                                    </div>
-                                    <div class="mb-2">
-                                        <span class="text-muted small text-uppercase fw-bold">Course</span>
-                                        <p class="mb-0">${event.course}</p>
-                                    </div>
-                                    <div class="mb-2">
-                                        <span class="text-muted small text-uppercase fw-bold">Teacher</span>
-                                        <p class="mb-0">${event.teacher}</p>
-                                    </div>
-                                    <div class="mt-3 pt-2 border-top">
-                                        <span class="text-muted small text-uppercase fw-bold">Time</span>
-                                        <p class="mb-0 fw-bold text-primary">
-                                            <i class="bi bi-clock"></i> ${startTime} - ${endTime}
-                                        </p>
-                                    </div>
+                                    <div class="mb-2"><span class="text-muted small text-uppercase fw-bold">Evento</span><p class="mb-0 fw-bold">${event.title}</p></div>
+                                    <div class="mb-2"><span class="text-muted small text-uppercase fw-bold">Curso</span><p class="mb-0">${event.course}</p></div>
+                                    <div class="mb-2"><span class="text-muted small text-uppercase fw-bold">Professor</span><p class="mb-0">${event.teacher}</p></div>
+                                    <div class="mt-3 pt-2 border-top"><span class="text-muted small text-uppercase fw-bold">Horário</span><p class="mb-0 fw-bold text-primary"><i class="bi bi-clock"></i> ${startTime} - ${endTime}</p></div>
                                 </div>
                             </div>
                         </a>
-                    </div>
-                `;
+                    </div>`;
             });
-
             html += `</div></div>`;
         });
-
         container.innerHTML = html;
     }
 
-    // --- Event Listeners ---
-    
-    // Listen for changes to toggle the Apply button
+    // Event Listeners
     [initDateInput, finDateInput, periodSelect, roomSelect, teacherSelect, courseSelect, subjectSelect].forEach(element => {
         element.addEventListener('input', updateFilterBtn);
         element.addEventListener('change', updateFilterBtn);
     });
-
     applyBtn.addEventListener('click', fetchData);
-
     clearBtn.addEventListener('click', function() {
-        initDateInput.value = '';
-        finDateInput.value = '';
-        periodSelect.value = '';
-        roomSelect.value = '';
-        teacherSelect.value = '';
-        courseSelect.value = '';
-        subjectSelect.value = '';
-        updateFilterBtn(); // Disable button
-        
-        // Show empty state message
-        container.innerHTML = `
-            <div class="card shadow-sm text-center text-muted p-5">
-                <i class="bi bi-funnel fs-1 d-block mb-2"></i>
-                <h5>No filters applied.</h5>
-                <p>Select a filter above and click "Apply Filters" to view the schedule.</p>
-            </div>
-        `;
+        initDateInput.value = ''; finDateInput.value = ''; periodSelect.value = ''; roomSelect.value = ''; teacherSelect.value = ''; courseSelect.value = ''; subjectSelect.value = '';
+        updateFilterBtn();
+        container.innerHTML = `<div class="card shadow-sm text-center text-muted p-5"><i class="bi bi-funnel fs-1 d-block mb-2"></i><h5>Nenhum filtro aplicado.</h5><p>Selecione um filtro acima e clique em "Aplicar Filtros".</p></div>`;
     });
 
-    // --- Initial Load Setup ---
-    
-    // 1. Set default dates to Today
+    // Initial Load Setup
     const todayStr = new Date().toISOString().split('T')[0];
     initDateInput.value = todayStr;
     finDateInput.value = todayStr;
-    
-    // 2. Set default period to current period
     periodSelect.value = getCurrentPeriod();
-    
-    // 3. Enable button since we pre-filled fields
     updateFilterBtn();
-    
-    // 4. Fetch data for today's current period immediately
     fetchData();
 });
 </script>
-
 <style>
-    .hover-shadow {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .hover-shadow:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.15) !important;
-    }
+    .hover-shadow { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .hover-shadow:hover { transform: translateY(-4px); box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.15) !important; }
 </style>
 {% endblock %}

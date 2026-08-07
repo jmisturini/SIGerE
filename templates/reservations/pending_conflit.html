@@ -1,33 +1,28 @@
 {% extends 'base.html' %}
-{% block title %}Pending Reservation{% endblock %}
+{% block title %}Reserva Pendente{% endblock %}
 {% block content %}
-<a href="{{ request.referrer or url_for('main.index') }}" class="btn btn-outline-secondary btn-sm mb-3" onclick="history.back(); return false;">
-    <i class="bi bi-arrow-left"></i> Back
-</a>
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card shadow-sm border-warning" style="border-width: 2px;">
             <div class="card-header bg-warning text-dark">
-                <h4 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Pending Reservation</h4>
+                <h4 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Reserva Pendente</h4>
             </div>
             <div class="card-body">
                 <div class="alert alert-danger">
-                    <strong>Warning!</strong> The selected teacher (<strong>{{ reservation.teacher.full_name }}</strong>) is already scheduled in another reservation during this time period.
-                    <br>This reservation has been created as <strong>PENDING</strong> and requires administrator approval.
+                    <strong>Atenção!</strong> O professor selecionado (<strong>{{ reservation.teacher.full_name }}</strong>) já está agendado em outra reserva neste horário.
+                    <br>Esta reserva foi criada como <strong>PENDENTE</strong> e requer aprovação do administrador.
                 </div>
-                
-                <h5>Reservation Details:</h5>
+                <h5>Detalhes da Reserva:</h5>
                 <ul class="list-group mb-4">
-                    <li class="list-group-item"><strong>Classroom:</strong> {{ reservation.classroom.code }} - {{ reservation.classroom.name }}</li>
-                    <li class="list-group-item"><strong>Teacher:</strong> {{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</li>
-                    <li class="list-group-item"><strong>Date:</strong> {{ reservation.date }}</li>
-                    <li class="list-group-item"><strong>Time:</strong> {{ reservation.start_time.strftime('%H:%M') }} - {{ reservation.end_time.strftime('%H:%M') }}</li>
-                    <li class="list-group-item"><strong>Title:</strong> {{ reservation.title }}</li>
+                    <li class="list-group-item"><strong>Sala:</strong> {{ reservation.classroom.code }} - {{ reservation.classroom.name }}</li>
+                    <li class="list-group-item"><strong>Professor:</strong> {{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</li>
+                    <li class="list-group-item"><strong>Data:</strong> {{ reservation.date.strftime('%d/%m/%Y') }}</li>
+                    <li class="list-group-item"><strong>Horário:</strong> {{ reservation.start_time.strftime('%H:%M') }} - {{ reservation.end_time.strftime('%H:%M') }}</li>
+                    <li class="list-group-item"><strong>Título:</strong> {{ reservation.title }}</li>
                 </ul>
-                
                 <div class="d-flex gap-2">
-                    <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-primary">View My Reservations</a>
-                    <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">View Details</a>
+                    <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-primary">Ver Minhas Reservas</a>
+                    <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">Ver Detalhes</a>
                 </div>
             </div>
         </div>

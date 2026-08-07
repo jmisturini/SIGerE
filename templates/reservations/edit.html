@@ -1,21 +1,18 @@
 {% extends 'base.html' %}
-{% block title %}Edit Reservation{% endblock %}
+{% block title %}Editar Reserva{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card shadow-sm">
             <div class="card-body p-4">
-                <h3 class="mb-3"><i class="bi bi-pencil"></i> Edit Reservation</h3>
-                <p class="text-muted small">Editing: <strong>{{ reservation.title }}</strong> (Room: {{ reservation.classroom.code }})</p>
-                
+                <h3 class="mb-3"><i class="bi bi-pencil"></i> Editar Reserva</h3>
+                <p class="text-muted small">Editando: <strong>{{ reservation.title }}</strong> (Sala: {{ reservation.classroom.code }})</p>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
-                    
                     <div class="mb-3">
                         {{ form.classroom.label(class="form-label") }}
                         {{ form.classroom(class="form-select") }}
                     </div>
-
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             {{ form.course.label(class="form-label") }}
@@ -26,14 +23,12 @@
                             {{ form.subject(class="form-select") }}
                         </div>
                     </div>
-
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             {{ form.teacher.label(class="form-label") }}
                             {{ form.teacher(class="form-select") }}
                         </div>
                     </div>
-
                     <div class="mb-3">
                         {{ form.title.label(class="form-label") }}
                         {{ form.title(class="form-control") }}
@@ -42,7 +37,6 @@
                         {{ form.description.label(class="form-label") }}
                         {{ form.description(class="form-control", rows=3) }}
                     </div>
-                    
                     <div class="row g-3 mb-3">
                         <div class="col-md-4">
                             {{ form.date.label(class="form-label") }}
@@ -58,14 +52,12 @@
                             {{ form.end_time(class="form-control") }}
                         </div>
                     </div>
-                    
                     {% for field in [form.classroom, form.title, form.date, form.start_time, form.end_time] %}
                         {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
                     {% endfor %}
-                    
                     <div class="d-flex gap-2">
                         {{ form.submit(class="btn btn-primary") }}
-                        <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">Cancel</a>
+                        <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">Cancelar</a>
                     </div>
                 </form>
             </div>
@@ -83,47 +75,34 @@
 
         function updateWarnings() {
             let messages = [];
-            
             if (dateInput.value) {
                 const dateObj = new Date(dateInput.value + 'T00:00:00');
                 const day = dateObj.getDay();
-                
                 if (day === 6 && startInput.value) {
                     const startHour = parseInt(startInput.value.split(':')[0]);
                     if (startHour >= 18) {
-                        messages.push("On Saturdays, reservations are only allowed until 18:00.");
+                        messages.push("Aos sábados, as reservas são permitidas apenas até 18:00.");
                     }
                 }
             }
-
             if (dateInput.value) {
                 fetch(`{{ url_for('reservations.check_holiday') }}?date=${dateInput.value}`)
                     .then(response => response.json())
                     .then(data => {
-                        if (data.has_warning) {
-                            messages.push(data.message);
-                        }
-                        
+                        if (data.has_warning) { messages.push(data.message); }
                         if (messages.length > 0) {
                             warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${messages.join('<br>')}`;
                             warningBox.style.display = 'block';
-                        } else {
-                            warningBox.style.display = 'none';
-                        }
+                        } else { warningBox.style.display = 'none'; }
                     })
                     .catch(err => {
                         if (messages.length > 0) {
                             warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${messages.join('<br>')}`;
                             warningBox.style.display = 'block';
-                        } else {
-                            warningBox.style.display = 'none';
-                        }
+                        } else { warningBox.style.display = 'none'; }
                     });
-            } else {
-                warningBox.style.display = 'none';
-            }
+            } else { warningBox.style.display = 'none'; }
         }
-
         updateWarnings();
         dateInput.addEventListener('change', updateWarnings);
         startInput.addEventListener('change', updateWarnings);
