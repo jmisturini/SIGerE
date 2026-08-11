@@ -58,7 +58,7 @@ def create_teacher():
         user = User(
             username=form.username.data, email=form.email.data, full_name=form.full_name.data,
             role=form.role.data, department=form.department.data, registration=form.registration.data,
-            profile_type='teacher', is_active_user=form.is_active_user.data
+            profile_type='teacher', is_active_user=form.is_active_user.data, unity=form.unity.data
         )
         user.set_password(form.password.data)
         user.force_password_change = True
@@ -79,7 +79,7 @@ def create_employee():
             username=form.username.data, email=form.email.data, full_name=form.full_name.data,
             role=form.role.data, sector=form.sector.data, function=form.function.data,
             registration=form.registration.data, profile_type='employee', is_teacher=form.is_teacher.data,
-            is_active_user=form.is_active_user.data
+            is_active_user=form.is_active_user.data, unity=form.unity.data
         )
         user.set_password(form.password.data)
         user.force_password_change = True
@@ -116,6 +116,7 @@ def edit_user(user_id):
             user.role = form.role.data
             user.registration = form.registration.data
             user.is_active_user = form.is_active_user.data
+            user.unity = form.unity.data
             
             if user.profile_type == 'teacher':
                 user.department = form.department.data
@@ -195,11 +196,16 @@ def edit_room(room_id):
         if Classroom.query.filter(Classroom.code == generated_code, Classroom.id != classroom.id).first():
             flash('Uma sala com este tipo e número já existe.', 'danger')
             return render_template('admin/room_form.html', form=form, title='Editar Sala')
-        classroom.name = form.name.data; classroom.code = generated_code; classroom.room_number = form.room_number.data
-        classroom.building = form.building.data; classroom.floor = form.floor.data; classroom.capacity = form.capacity.data
+        classroom.name = form.name.data
+        classroom.code = generated_code
+        classroom.room_number = form.room_number.data
+        classroom.building = form.building.data
+        classroom.floor = form.floor.data
+        classroom.capacity = form.capacity.data
         classroom.category = form.category.data
         classroom.computer_count = form.computer_count.data if form.category.data == 'computer_lab' else 0
-        classroom.description = form.description.data; classroom.is_active = form.is_active.data
+        classroom.description = form.description.data
+        classroom.is_active = form.is_active.data
         db.session.commit()
         flash('Sala atualizada.', 'success')
         return redirect(url_for('admin.list_rooms'))

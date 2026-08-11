@@ -36,7 +36,8 @@ def events():
             end_date = datetime.fromisoformat(end_str.replace('Z', '+00:00')).date()
             query = query.filter(Reservation.date >= start_date, Reservation.date <= end_date)
         except ValueError:
-            pass
+            # CORREÇÃO: Retornar lista vazia em vez de ignorar o erro e buscar tudo
+            return jsonify([])
 
     # Apply specific dropdown filters
     room_id = request.args.get('room_id', type=int)
@@ -73,6 +74,8 @@ def events():
             'id': r.id, 'title': r.title, 'start': start_dt.isoformat(), 'end': end_dt.isoformat(),
             'url': f"/reservations/{r.id}", 'classroom_code': r.classroom.code,
             'classroom_name': r.classroom.name, 'teacher': r.teacher.full_name if r.teacher else 'N/A',
-            'course': r.course.name if r.course else 'N/A'
+            'course': r.course.name if r.course else 'N/A',
+            'floor': r.classroom.floor or 'Outros', # NOVO
+            'room_number': r.classroom.room_number or '9999' # NOVO
         })
     return jsonify(events)

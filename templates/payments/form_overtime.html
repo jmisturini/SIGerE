@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h3 class="mb-3">{{ title }}</h3>
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.teacher.label(class="form-label") }} 
+                        {{ form.teacher(class="form-select") }}
+                        {% for err in form.teacher.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.teaching_level.label(class="form-label") }} 
+                            {{ form.teaching_level(class="form-select") }}
+                            {% for err in form.teaching_level.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.shift.label(class="form-label") }} 
+                            {{ form.shift(class="form-select") }}
+                            {% for err in form.shift.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.weekly_workload.label(class="form-label") }} 
+                            {{ form.weekly_workload(class="form-control") }}
+                            {% for err in form.weekly_workload.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.hourly_value.label(class="form-label") }} 
+                            {{ form.hourly_value(class="form-control") }}
+                            {% for err in form.hourly_value.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.month_base.label(class="form-label") }} 
+                            {{ form.month_base(class="form-control") }}
+                            {% for err in form.month_base.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.budget_code.label(class="form-label") }} 
+                            {{ form.budget_code(class="form-control") }}
+                            {% for err in form.budget_code.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.multiple_dates.label(class="form-label") }} 
+                        {{ form.multiple_dates(class="form-control", placeholder="Clique aqui para abrir o calendário") }}
+                        <small class="text-muted">O calendário se adaptará automaticamente ao Mês Base selecionado.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.justification.label(class="form-label") }} 
+                        {{ form.justification(class="form-control") }}
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                    <a href="{{ url_for('payments.list_overtime') }}" class="btn btn-outline-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/pt.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const monthBaseInput = document.getElementById('month_base');
+    const datesInput = document.getElementById('multiple_dates');
+
+    // Inicializa o calendário Flatpickr
+    const fp = flatpickr(datesInput, {
+        mode: "multiple",
+        dateFormat: "d/m/Y",
+        locale: "pt",
+        disableMobile: "true",
+        onOpen: function() {
+            syncCalendarMonth();
+        },
+        onChange: function() {
+            // Toda vez que uma data é selecionada ou removida, ajusta a altura
+            setTimeout(autoResize, 50);
+        }
+    });
+
+    // Função para travar o calendário no mês selecionado
+    function syncCalendarMonth() {
+        if (monthBaseInput.value) {
+            let [year, month] = monthBaseInput.value.split('-');
+            let minDate = new Date(year, month - 1, 1);
+            let maxDate = new Date(year, month, 0);
+            fp.set('minDate', minDate);
+            fp.set('maxDate', maxDate);
+            fp.jumpToDate(minDate, true);
+        } else {
+            fp.set('minDate', null);
+            fp.set('maxDate', null);
+        }
+    }
+
+    // Se o usuário mudar o mês base, limpamos as datas antigas
+    monthBaseInput.addEventListener('input', function() {
+        fp.clear();
+        autoResize();
+    });
+
+    // Ajusta o tamanho ao carregar a página (útil se vier de um formulário inválido)
+    autoResize();
+});
+</script>
+{% endblock %}

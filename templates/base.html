@@ -51,6 +51,22 @@
                     </ul>
                 </li>
                 {% endif %}
+                {% if current_user.can_book or current_user.is_admin %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="paymentsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-cash-coin"></i> Pagamentos
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="paymentsDropdown">
+                        <li><h6 class="dropdown-header">Lançamentos Base</h6></li>
+                        <li><a class="dropdown-item" href="{{ url_for('payments.list_base_pays') }}"><i class="bi bi-list-ul"></i> Consultar</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('payments.create_base_pay') }}"><i class="bi bi-plus-circle"></i> Novo Base</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">Horas Extras</h6></li>
+                        <li><a class="dropdown-item" href="{{ url_for('payments.list_overtime') }}"><i class="bi bi-list-ul"></i> Consultar</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('payments.create_overtime') }}"><i class="bi bi-plus-circle"></i> Nova Hora Extra</a></li>
+                    </ul>
+                </li>
+                {% endif %}
                 {% if current_user.is_admin %}
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.dashboard') }}">Painel Admin</a></li>
                 {% endif %}

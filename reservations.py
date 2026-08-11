@@ -209,6 +209,7 @@ def detail(reservation_id):
     return render_template('reservations/detail.html', reservation=reservation)
 
 # Route to edit a reservation (Admin only, blocks past dates)
+# Route to edit a reservation (Admin only, blocks past dates)
 @bp.route('/<int:reservation_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(reservation_id):
@@ -220,14 +221,27 @@ def edit(reservation_id):
         flash('Reservas passadas não podem ser editadas.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
 
-    form = ReservationForm(obj=reservation)
+    form = ReservationForm()
     
+    # Populate dropdown choices
     classrooms = Classroom.query.filter_by(is_active=True).order_by(Classroom.code).all()
     form.classroom.choices = [(c.id, f"{c.name} ({c.code}) - Cap {c.capacity}") for c in classrooms]
     form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
-    form.subject.choices = [(0, '-- Nenhum --')] + [(s.id, f"{s.name}") for s in Subject.query.filter_by(is_active=True).order_by(Subject.name).all()]
+    form.subject.choices = [(0, '-- Nenhum --')] + [(s.id, s.name) for s in Subject.query.filter_by(is_active=True).order_by(Subject.name).all()]
     teachers = User.query.filter(User.is_active_user == True, ((User.profile_type == 'teacher') | (User.is_teacher == True))).order_by(User.full_name).all()
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
+
+    # If GET request, manually populate form fields with reservation data
+    if request.method == 'GET':
+        form.classroom.data = reservation.classroom_id
+        form.course.data = reservation.course_id if reservation.course_id else 0
+        form.subject.data = reservation.subject_id if reservation.subject_id else 0
+        form.teacher.data = reservation.teacher_id if reservation.teacher_id else 0
+        form.title.data = reservation.title
+        form.description.data = reservation.description
+        form.date.data = reservation.date
+        form.start_time.data = reservation.start_time
+        form.end_time.data = reservation.end_time
 
     if form.validate_on_submit():
         allowed, restriction_msg = check_schedule_restrictions(form.date.data, form.start_time.data)
@@ -454,18 +468,23 @@ def repeat_schedule_all(reservation_id):
             if current_date.weekday() == 6: current_date += timedelta(days=1); continue
             if current_date.weekday() == 5 and original_weekday != 5: current_date += timedelta(days=1); continue
         
-        allowed, _ = check_schedule_restrictions(current_date, res.start_time)
+                allowed, _ = check_schedule_restrictions(current_date, res.start_time)
         if allowed:
             conflict = check_conflict(res.classroom_id, current_date, res.start_time, res.end_time)
             if not conflict:
+                # CORREÇÃO: Verificar conflito de professor antes de agendar
                 teacher_conflict = False
                 if res.teacher_id:
                     tc = Reservation.query.filter(
-                        Reservation.teacher_id == res.teacher_id, Reservation.date == current_date,
+                        Reservation.teacher_id == res.teacher_id, 
+                        Reservation.date == current_date,
                         Reservation.status.in_(['approved', 'pending']),
-                        Reservation.start_time < res.end_time, Reservation.end_time > res.start_time
+                        Reservation.start_time < res.end_time, 
+                        Reservation.end_time > res.start_time
                     ).first()
-                    if tc: teacher_conflict = True
+                    if tc: 
+                        teacher_conflict = True
+                
                 if not teacher_conflict:
                     new_res = Reservation(
                         user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,

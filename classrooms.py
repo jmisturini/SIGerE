@@ -340,7 +340,7 @@ def export_availability(classroom_id):
         
     # Output PDF
     pdf_output = pdf.output()
-    response = make_response(bytes(pdf_output))
+    response = make_response(pdf_output) # fpdf2 já retorna bytes em versões modernas
     response.headers['Content-Type'] = 'application/pdf'
     response.headers['Content-Disposition'] = f'attachment; filename=reservas_{classroom.code}_{month}-{year}.pdf'
     return response

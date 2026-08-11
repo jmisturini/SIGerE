@@ -36,9 +36,9 @@ def display():
     # Group classrooms by the first number in the room code
     grouped_classrooms = {}
     for r in cls_reservations:
-        match = re.search(r'\d', r.classroom.code)
+        match = re.search(r'^(?:CR|AU|KI|CP|HL)(\d)', r.classroom.code)
         if match:
-            d = match.group()
+            d = match.group(1)
             floor_name = {"0": "Térreo", "1": "1º Andar", "2": "2º Andar", "3": "3º Andar"}.get(d, f"{d}º Andar")
         else: floor_name = "Outros"
         

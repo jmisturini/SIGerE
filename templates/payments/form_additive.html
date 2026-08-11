@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h3 class="mb-3">{{ title }}</h3>
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">{{ form.base_release.label(class="form-label") }} {{ form.base_release(class="form-select") }}</div>
+                    <div class="mb-3">{{ form.course.label(class="form-label") }} {{ form.course(class="form-select") }}</div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">{{ form.month_start.label(class="form-label") }} {{ form.month_start(class="form-control") }}</div>
+                        <div class="col-md-6 mb-3">{{ form.month_end.label(class="form-label") }} {{ form.month_end(class="form-control") }}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">{{ form.additional_hour.label(class="form-label") }} {{ form.additional_hour(class="form-control") }}</div>
+                        <div class="col-md-6 mb-3">{{ form.complement.label(class="form-label") }} {{ form.complement(class="form-control") }}</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                    <a href="{{ url_for('payments.list_base_pays') }}" class="btn btn-outline-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
