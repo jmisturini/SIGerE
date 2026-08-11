@@ -1,181 +1,324 @@
-# SIGERE 🏫
+<div align="center">
 
-A comprehensive, web-based reservation system designed for educational institutions to manage classrooms, auditoriums, laboratories, and teacher schedules efficiently. Built with Flask, it features a role-based access control system, a public kiosk/totem display for hallway TVs, a full calendar view, and automated schedule restriction enforcement.
+# 🏫 SIGERE — Sistema Integrado de Gerenciamento Educacional
+
+[![Python](https://img.shields.io/badge/Python-3.8+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-2.x-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com)
+[![Bootstrap](https://img.shields.io/badge/Bootstrap-5-7952B3?logo=bootstrap&logoColor=white)](https://getbootstrap.com)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+**Plataforma web completa para gestão de reservas de salas, cronogramas acadêmicos e pagamento de professores em instituições de ensino.**
+
+</div>
 
 ---
 
-## ✨ Key Features & Capabilities
+## 📋 Índice
 
-### 📅 Reservation Management
+- [Visão Geral](#-visão-geral)
+- [Funcionalidades](#-funcionalidades)
+- [Capturas de Tela](#-capturas-de-tela)
+- [Tecnologias](#-tecnologias)
+- [Instalação](#-instalação)
+- [Configuração](#-configuração)
+- [Uso](#-uso)
+- [Estrutura do Projeto](#-estrutura-do-projeto)
+- [APIs Externas](#-apis-externas)
+- [Contas de Demonstração](#-contas-de-demonstração)
+- [Segurança](#-segurança)
+- [Licença](#-licença)
 
-- **Smart Conflict Detection:** Automatically blocks double-booking of rooms.
-- **Teacher Overlap Handling:** If a teacher is already booked in another room, the reservation is created as Pending and requires Admin approval.
-- **Schedule Restrictions:** Hard-blocks reservations on Sundays and Holidays. On Saturdays, bookings are restricted to Morning and Afternoon only.
-- **Auto-Approval:** Reservations are approved instantly if there are no teacher conflicts.
-- **Admin Tools:** Admins can edit, cancel, or permanently delete any reservation.
+---
 
-### 🏛️ Room & Category Management
+## 🎯 Visão Geral
 
-- **Room Categories:** Standard Classrooms, Auditoriums, Computer Laboratories, Health Laboratories, and Kitchens.
-- **Dynamic Attributes:** Computer labs prompt for a "Number of Computers" field.
-- **Availability Filters:** Users can filter rooms by a specific date/period or check a box to "Show only rooms available RIGHT NOW".
+O **SIGERE** é um sistema web desenvolvido em **Flask** para instituições educacionais que precisam gerenciar:
 
-### 👥 User & Role Management (Admin Panel)
+- 🏛️ **Reservas de espaços físicos** (salas de aula, auditórios, laboratórios de informática/saúde, cozinhas experimentais)
+- 👨‍🏫 **Cronogramas de professores** com detecção automática de conflitos
+- 💰 **Pagamentos docentes** (remuneração base, aditivos e horas extras)
+- 📺 **Totens digitais** para corredores com exibição em tempo real de ocupação
+- 📆 **Calendário interativo** com filtros avançados
 
-- **Profile Types:** Separate registration forms for Teachers and Employees.
-- **Dual-Role Support:** Employees can be flagged as "Also a Teacher," allowing them to be assigned to reservations while retaining employee attributes (sector, function).
-- **Access Groups:**
-  - **Admin:** Full system access, user/room/course/holiday management.
-  - **Room Booker:** Can create and manage their own reservations.
-  - **Viewer:** Read-only access to schedules and rooms.
-- **Security:** Forced password change on first login or after an admin resets a password.
-- **User Search & Filters:** Filter users by name or profile type.
+O sistema possui **controle de acesso baseado em papéis (RBAC)**, tema claro/escuro persistente, exportação de relatórios em PDF/CSV/Excel e seed automático de dados de demonstração.
 
-### 📆 Academic Structure
+---
 
-- Link reservations to specific Courses and Subjects.
-- Admin CRUD interfaces for managing the academic curriculum.
+## ✨ Funcionalidades
 
-### 🖥️ Public Kiosk / Totem Display (`/totem`)
+### 📅 Gestão de Reservas
+- **Detecção inteligente de conflitos:** bloqueio automático de double-booking de salas
+- **Conflito de professor:** se um professor já está alocado em outra sala no mesmo horário, a reserva é criada como **PENDENTE** e aguarda aprovação administrativa
+- **Restrições de calendário:**
+  - ❌ Domingos bloqueados
+  - ❌ Feriados nacionais bloqueados (importados via BrasilAPI)
+  - ⚠️ Sábados: apenas manhã e tarde (até 18h)
+- **Repetição de reservas:** crie séries de aulas com opções de "mesmo dia da semana" e "pular fins de semana"
+- **Auto-aprovação:** reservas sem conflitos são aprovadas instantaneamente
 
-- **TV-Friendly UI:** Clean, large-text interface designed for hallway displays.
-- **Dynamic Theming:** Automatically switches to a dark theme at night and a light theme during the day.
-- **Live Data:** Displays current time, date, and local weather (via Open-Meteo API).
-- **Floor Grouping:** Groups occupied rooms by floor for the current time period (Morning, Afternoon, Night).
-- **Occupied Only:** Only displays rooms that are actively in use, hiding empty rooms to reduce clutter.
+### 🏛️ Gestão de Salas
+- **Categorias dinâmicas:** Sala de Aula, Auditório, Laboratório de Informática, Laboratório de Saúde, Cozinha
+- **Código automático:** geração de códigos no formato `CR101`, `AU101`, `CP105`, etc.
+- **Filtros de disponibilidade:**
+  - Salas disponíveis **AGORA**
+  - Salas disponíveis em uma **data e período específicos**
+  - Filtro por categoria
+- **Visualização mensal:** calendário de ocupação por sala com navegação entre meses
+- **Exportação:** CSV, PDF (landscape A4) e Excel
 
-### 🗓️ Interactive Calendar (`/calendar`)
+### 👥 Gestão de Usuários (Painel Admin)
+- **Perfis distintos:**
+  - **Professor:** departamento, matrícula, unidade
+  - **Funcionário:** setor, função, unidade, com opção de "também atuar como professor"
+- **Níveis de acesso:**
+  - 🔴 **Administrador:** acesso total ao sistema
+  - 🟡 **Agendador (Room Booker):** cria e gerencia próprias reservas
+  - 🔵 **Visualizador:** acesso somente leitura
+- **Busca e filtros:** filtrar usuários por nome ou tipo de perfil
+- **Segurança:** forçar troca de senha no primeiro login ou após reset administrativo
 
-- FullCalendar integration with Day, Week, and Month views.
-- Color-coded events that adapt to the system's Light/Dark mode toggle.
-- Click-and-view event details.
+### 📚 Estrutura Acadêmica
+- CRUD completo de **Cursos** e **Disciplinas**
+- Vinculação de reservas a curso, disciplina e professor específicos
+- Ativação/desativação de registros sem exclusão
 
-### 🌐 Public Portal
+### 🌤️ Totem / Quiosque Digital (`/totem`)
+- Interface otimizada para **TVs de corredor**
+- **Tema automático:** claro durante o dia, escuro à noite
+- **Clima em tempo real** via Open-Meteo API
+- Agrupamento de salas ocupadas por **andar**
+- Exibição de reservas de auditórios para os próximos 7 dias
 
-- **Landing Page:** Public home page with links to Login, View Calendar, and Search.
-- **Search Page:** Public search tool to find active classrooms or teachers by name/code.
+### 🗓️ Calendário Interativo (`/calendar`)
+- Integração com **FullCalendar** (visões: dia, semana, mês)
+- Filtros por sala, professor, curso, disciplina e período
+- Eventos coloridos com detalhes ao clicar
+- Adaptação automática ao tema claro/escuro
+
+### 💰 Gestão de Pagamentos Docentes
+- **Remuneração Base (Semestral):** lançamento por professor, curso, carga horária semanal e código orçamentário
+- **Aditivos:** horas adicionais vinculadas a um lançamento base
+- **Horas Extras:** com nível de ensino, valor hora, turno e múltiplas datas
+- **Regras de negócio:**
+  - Bloqueio de lançamentos em meses anteriores
+  - Bloqueio de edição após 30 dias
+  - Bloqueio de exclusão após 180 dias
+  - Horas extras só até o dia 25 do mês corrente
+- **Exportação Excel:** planilhas formatadas com modelo pré-definido (base e horas extras)
+
+### 🌐 Portal Público
+- Página inicial pública com links para login, calendário e busca
+- Busca por salas (nome/código) e professores (nome)
 
 ### 🎨 UI/UX
-
-- **Dark/Light Mode:** System-wide theme toggle with localStorage persistence (no flashing on reload).
-- **Responsive Design:** Built with Bootstrap 5, fully functional on mobile, tablet, and desktop.
-- **Modern Styling:** Clean, card-based layout using custom CSS variables.
+- **Tema Claro/Escuro:** alternância global com persistência no `localStorage`
+- **Design responsivo:** Bootstrap 5, funcional em mobile, tablet e desktop
+- **Interface em Português:** todo o sistema localizado para pt-BR
 
 ---
 
-## 🚀 Getting Started
+## 🖼️ Capturas de Tela
 
-### Prerequisites
+> *Adicione aqui screenshots do dashboard, calendário, totem e painel admin.*
 
-- Python 3.8+
+---
+
+## 🛠️ Tecnologias
+
+| Camada | Tecnologia |
+|--------|-----------|
+| **Backend** | Python 3.8+, Flask, Flask-SQLAlchemy, Flask-Login, Flask-WTF |
+| **Banco de Dados** | SQLite (padrão), compatível com PostgreSQL/MySQL |
+| **Frontend** | Bootstrap 5, Bootstrap Icons, Jinja2, FullCalendar |
+| **Relatórios** | FPDF2, OpenPyXL, CSV |
+| **APIs Externas** | [Open-Meteo](https://open-meteo.com/) (clima), [BrasilAPI](https://brasilapi.com.br/) (feriados) |
+
+---
+
+## 🚀 Instalação
+
+### Pré-requisitos
+- Python 3.8 ou superior
 - pip
 
-### Installation
+### Passo a passo
 
-1. **Clone the repository**
+```bash
+# 1. Clone o repositório
+git clone https://github.com/seu-usuario/SIGERE.git
+cd SIGERE
 
-   ```bash
-   git clone https://github.com/jmisturni/SIGERE.git
-   cd classroom-reservation
-   ```
+# 2. Crie e ative um ambiente virtual
+python -m venv venv
 
-2. **Create and activate a virtual environment**
+# Linux/macOS:
+source venv/bin/activate
 
-   ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
-   source venv/bin/activate
-   ```
+# Windows:
+venv\Scripts\activate
 
-3. **Install dependencies**
+# 3. Instale as dependências
+pip install -r requirements.txt
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+# 4. Execute a aplicação
+python app.py
+```
 
-   *(Note: Ensure `requests` is in your `requirements.txt` for the Weather and Holiday APIs).*
+A aplicação estará disponível em: **http://localhost:5000**
 
-4. **Run the application**
-
-   ```bash
-   python app.py
-   ```
-
-5. **Access the app**
-
-   Open your browser and navigate to `http://localhost:5000`
+> **Nota:** Na primeira execução, o banco de dados é criado automaticamente e populado com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
 
 ---
 
-## 👤 Demo Accounts (Auto-Seeded)
+## ⚙️ Configuração
 
-On the first run, the database will automatically populate with 10 rooms, 30 users (teachers/employees), and 20 random reservations so you can see the system in action immediately.
+Edite o arquivo `config.py` ou utilize variáveis de ambiente:
 
-| Role / Profile | Username | Password | Capabilities |
-|---|---|---|---|
-| Administrator | `admin` | `admin123` | Full access, Admin Panel, manage all reservations |
-| Teacher | `teacher1` | `teacher123` | Create/manage own reservations |
-| Employee | `employee1` | `employee123` | View-only access (unless promoted to Room Booker) |
+```python
+# config.py
+import os
 
-> **Note:** Due to the "Force Password Change" feature, you may be prompted to change these passwords on your first login. To disable this for testing, set `force_password_change=False` in the `seed_data()` function in `app.py`.
+class Config:
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        'DATABASE_URL',
+        'sqlite:///reservation.db'
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+```
 
----
+### Variáveis de ambiente recomendadas (produção)
 
-## 🛠️ Tech Stack
+```bash
+export SECRET_KEY="sua-chave-secreta-forte-aqui"
+export DATABASE_URL="postgresql://user:pass@localhost/sigere"
+```
 
-- **Backend:** Python, Flask, Flask-SQLAlchemy, Flask-Login, Flask-WTF
-- **Database:** SQLite (Default, easily swappable to PostgreSQL/MySQL)
-- **Frontend:** Bootstrap 5, Bootstrap Icons, Jinja2 Templates
-- **JavaScript Libraries:** FullCalendar (Calendar UI)
-- **External APIs:**
-  - [Open-Meteo](https://open-meteo.com/) (Weather widget for Totem)
-  - [Nager.Date](https://date.nager.at/) (Public Holiday API import)
+### Configurar localização do Totem (Clima)
 
----
+Edite `templates/totem.html` e ajuste as coordenadas geográficas:
 
-## 📁 Project Structure
-
-```text
-classroom_reservation/
-├── app.py                 # App factory, DB seeding, before_request hooks
-├── config.py              # Flask configuration
-├── extensions.py          # SQLAlchemy & LoginManager instances
-├── models.py              # Database models (User, Classroom, Reservation, etc.)
-├── forms.py               # WTForms definitions
-├── requirements.txt
-├── admin.py               # Admin blueprint (Users, Rooms, Courses, Holidays)
-├── auth.py                # Auth blueprint (Login, Logout, Change Password)
-├── classrooms.py          # Classrooms blueprint (List, Details, Availability)
-├── reservations.py        # Reservations blueprint (Create, Edit, Approve)
-├── schedule.py            # Calendar blueprint (JSON API for FullCalendar)
-├── public.py              # Public blueprint (Home, Search)
-├── totem.py               # Totem blueprint (Kiosk display)
-├── static/
-│   └── css/style.css      # Global styles, Dark/Light theme variables
-└── templates/             # Jinja2 HTML templates
-    ├── base.html          # Main layout, Navbar, Theme Toggle
-    ├── admin/             # Admin panel templates
-    ├── auth/              # Login & Password templates
-    ├── classrooms/        # Room list & monthly calendar grid
-    ├── reservations/      # Create, Edit, Detail, Pending Conflict warning
-    ├── errors/            # 403, 404, 500 pages
-    ├── calendar.html      # FullCalendar integration
-    ├── home.html          # Public landing page
-    ├── totem.html         # TV Kiosk display
-    └── search.html        # Public search tool
+```javascript
+const lat = -23.5505;   // Latitude da sua instituição
+const lon = -46.6333;   // Longitude da sua instituição
 ```
 
 ---
 
-## 🌍 API Integrations Setup
+## 📖 Uso
 
-- **Weather (Totem):** The Totem page fetches weather based on latitude/longitude. To set your school's location, edit the `const lat` and `const lon` variables in `templates/totem.html`.
-- **Holidays:** Go to Admin Panel → Manage Holidays → Import from API. Enter your Country Code (e.g., US, BR, DE) and Year, and the system will automatically fetch and block public holidays.
+### Fluxo típico de reserva
+
+1. **Login** com uma conta de Agendador ou Administrador
+2. Acesse **Salas** e filtre por disponibilidade
+3. Clique em **Reservar** ou acesse **Minhas Reservas → Nova Reserva**
+4. Preencha sala, data, horário, curso, disciplina e professor
+5. O sistema verifica conflitos automaticamente:
+   - ✅ Sem conflitos → reserva **aprovada**
+   - ⚠️ Professor ocupado → reserva **pendente** (requer aprovação admin)
+   - ❌ Sala ocupada → **bloqueado**
+
+### Importar feriados nacionais
+
+1. Acesse o **Painel Administrativo → Feriados**
+2. Clique em **Importar da BrasilAPI**
+3. Informe o ano desejado
+4. Os feriados nacionais brasileiros serão importados automaticamente
+
+### Exportar relatórios
+
+- **Salas:** `/classrooms/export` (CSV) ou `/classrooms/export_pdf` (PDF)
+- **Disponibilidade mensal:** `/classrooms/<id>/export_availability` (PDF)
+- **Pagamentos base:** `/payments/export/base` (Excel)
+- **Horas extras:** `/payments/export/overtime` (Excel)
 
 ---
 
-## 📝 License
+## 📁 Estrutura do Projeto
 
-This project is open-source and available for educational and internal use.
+```
+SIGERE/
+│
+├── app.py                 # Factory da aplicação, seed de dados, hooks de segurança
+├── config.py              # Configurações do Flask
+├── extensions.py          # Instâncias do SQLAlchemy e LoginManager
+├── models.py              # Modelos do banco de dados (User, Classroom, Reservation, etc.)
+├── forms.py               # Definições de formulários WTForms
+├── requirements.txt       # Dependências Python
+│
+├── auth.py                # Autenticação (login, logout, troca de senha)
+├── admin.py               # Painel administrativo (usuários, salas, cursos, feriados)
+├── classrooms.py          # Listagem, detalhes e disponibilidade de salas
+├── reservations.py        # CRUD de reservas, aprovações, repetição
+├── schedule.py            # API JSON para o FullCalendar
+├── totem.py               # Display de quiosque para TVs
+├── public.py              # Portal público (home, busca)
+├── main.py                # Dashboard principal
+├── payments.py            # Gestão de pagamentos docentes (base, aditivo, extra)
+│
+├── static/
+│   ├── css/style.css      # Estilos globais e variáveis de tema
+│   └── templates_excel/   # Modelos .xlsx para exportação
+│
+└── templates/
+    ├── base.html            # Layout principal, navbar, toggle de tema
+    ├── index.html           # Dashboard
+    ├── home.html            # Página pública
+    ├── search.html          # Busca pública
+    ├── calendar.html        # Calendário FullCalendar
+    ├── totem.html           # Interface do quiosque
+    ├── auth/                # Login, troca de senha
+    ├── admin/               # Dashboard admin, usuários, salas, cursos, disciplinas, feriados
+    ├── classrooms/          # Listagem, detalhes, disponibilidade mensal
+    ├── reservations/        # Criar, editar, detalhes, minhas reservas, conflitos
+    ├── payments/            # Formulários e listagens de pagamentos
+    └── errors/              # Páginas 403, 404, 500
+```
+
+---
+
+## 🌍 APIs Externas
+
+| Serviço | Uso | Endpoint utilizado |
+|---------|-----|-------------------|
+| **Open-Meteo** | Clima em tempo real no totem | `https://api.open-meteo.com/v1/forecast` |
+| **BrasilAPI** | Importação de feriados nacionais | `https://brasilapi.com.br/api/feriados/v1/{ano}` |
+
+---
+
+## 👤 Contas de Demonstração
+
+Após a primeira execução, os seguintes logins estarão disponíveis:
+
+| Perfil | Usuário | Senha | Permissões |
+|--------|---------|-------|------------|
+| **Administrador** | `admin` | `admin123` | Acesso total ao sistema |
+| **Professor** | `teacher1` | `teacher123` | Criar e gerenciar reservas |
+| **Funcionário** | `employee1` | `employee123` | Visualização (pode ser promovido) |
+
+> ⚠️ **Atenção:** Por padrão, o sistema força a troca de senha no primeiro login. Para testes, defina `force_password_change=False` no seed de dados em `app.py`.
+
+---
+
+## 🔒 Segurança
+
+- **Hash de senhas** com Werkzeug (`generate_password_hash`)
+- **Proteção CSRF** em todos os formulários via Flask-WTF
+- **Controle de acesso por papel** (Admin, Room Booker, Viewer)
+- **Proteção contra auto-desativação:** administradores não podem desativar sua própria conta nem remover seu próprio privilégio de admin
+- **Troca de senha forçada** no primeiro login ou após reset administrativo
+- **Bloqueio de edição/exclusão** de reservas passadas (exceto para administradores)
+
+---
+
+## 📝 Licença
+
+Este projeto está licenciado sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+---
+
+<div align="center">
+
+**Desenvolvido para instituições de ensino** 🎓
+
+</div>
