@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Lançamentos Base{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Lançamentos Base e Aditivos</h2>
+    <div class="dropdown">
+        <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="bi bi-plus-lg"></i> Novo
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{{ url_for('payments.create_base_pay') }}">Lançamento Base</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('payments.create_additive') }}">Aditivo</a></li>
+        </ul>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('payments.export_excel_base') }}" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small">Ano</label>
+                <input type="number" name="year_base" class="form-control" value="{{ now.year }}" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Semestre</label>
+                <select name="semester_base" class="form-select" required>
+                    <option value="1">1º Semestre</option>
+                    <option value="2">2º Semestre</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-success w-100"><i class="bi bi-file-excel"></i> Exportar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr><th>Professor</th><th>Mês Início</th><th>Mês Fim</th><th>Horas Mensais</th><th>Aditivos</th><th>Ações</th></tr>
+            </thead>
+            <tbody>
+            {% for p in infos %}
+                <tr>
+                    <td>{{ p.teacher.full_name }}</td>
+                    <td>{{ p.month_start }}</td>
+                    <td>{{ p.month_end }}</td>
+                    <td>{{ p.monthly_hour }}</td>
+                    <td>
+                        {% for a in p.additives %}
+                            <span class="badge bg-warning text-dark">{{ a.month_start }}: {{ a.monthly_hour }}h</span>
+                            <form method="POST" action="{{ url_for('payments.delete_additive', additive_id=a.id) }}" class="d-inline" onsubmit="return confirm('Excluir aditivo?');">
+                                <button class="btn btn-sm btn-outline-danger btn-sm"><i class="bi bi-x"></i></button>
+                            </form>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('payments.edit_base_pay', pay_id=p.id) }}" class="btn btn-sm btn-outline-primary">Editar</a>
+                        <form method="POST" action="{{ url_for('payments.delete_base_pay', pay_id=p.id) }}" class="d-inline" onsubmit="return confirm('Excluir lançamento base?');">
+                            <button class="btn btn-sm btn-outline-danger">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="text-muted text-center p-4">Nenhum lançamento encontrado.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

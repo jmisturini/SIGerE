@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Novo Lançamento{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-5">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-4">
+                <h3 class="mb-3"><i class="bi bi-cash-coin"></i> Lançamento de Pagamento</h3>
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">{{ form.teacher.label(class="form-label") }} {{ form.teacher(class="form-select") }}</div>
+                    <div class="mb-3">{{ form.level.label(class="form-label") }} {{ form.level(class="form-select") }}</div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">{{ form.month_start.label(class="form-label") }} {{ form.month_start(class="form-control") }}</div>
+                        <div class="col-md-6 mb-3">{{ form.month_end.label(class="form-label") }} {{ form.month_end(class="form-control") }}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">{{ form.weekly_hours.label(class="form-label") }} {{ form.weekly_hours(class="form-control") }}</div>
+                        <div class="col-md-6 mb-3">{{ form.overtime.label(class="form-label") }} {{ form.overtime(class="form-control") }}</div>
+                    </div>
+                    <div class="mb-3">{{ form.payment_code.label(class="form-label") }} {{ form.payment_code(class="form-control") }}</div>
+                    <button type="submit" class="btn btn-primary">Lançar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent"><strong>Lançamentos de Hoje</strong></div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light"><tr><th>Professor</th><th>Código</th><th>Início</th><th>Fim</th><th>Horas Totais</th></tr></thead>
+                    <tbody>
+                    {% for p in pay_list %}
+                        <tr>
+                            <td>{{ p.teacher.full_name }}</td>
+                            <td>{{ p.payment_code or '-' }}</td>
+                            <td>{{ p.month_start }}</td>
+                            <td>{{ p.month_end }}</td>
+                            <td>{{ p.total_hours_final }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5" class="text-muted text-center p-4">Nenhum lançamento hoje.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

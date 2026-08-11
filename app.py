@@ -1,7 +1,7 @@
 from flask import Flask, render_template, redirect, url_for, request
 from config import Config
 from extensions import db, login_manager
-from models import User, Classroom, Reservation, Course, Subject, Holiday
+from models import User, Classroom, Reservation, Course, Subject, Holiday, TeacherBasePay
 from datetime import datetime, date, time, timedelta
 import random
 
@@ -23,6 +23,7 @@ def create_app(config_class=Config):
     from totem import bp as totem_bp
     from schedule import bp as schedule_bp
     from public import bp as public_bp
+    from payments import bp as payments_bp # NEW: Payments blueprint
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -32,6 +33,7 @@ def create_app(config_class=Config):
     app.register_blueprint(totem_bp)
     app.register_blueprint(schedule_bp)
     app.register_blueprint(public_bp)
+    app.register_blueprint(payments_bp) # NEW: Register payments
 
     # Custom Error Handlers
     @app.errorhandler(403)
@@ -55,7 +57,6 @@ def create_app(config_class=Config):
     @app.before_request
     def require_password_change():
         from flask_login import current_user
-        # If user is logged in and the flag is True, restrict access
         if current_user.is_authenticated and current_user.force_password_change:
             allowed_endpoints = ['auth.change_password', 'auth.logout', 'static']
             if request.endpoint not in allowed_endpoints:
@@ -106,6 +107,7 @@ def seed_data():
                 function=random.choice(["Coordinator", "Secretary", "Technician", "Director"]),
                 profile_type='employee',
                 is_teacher=is_teacher_flag,
+                unity=random.choice(["Unidade Centro", "Unidade Norte", "Unidade Sul"]),
                 force_password_change=False
             )
             e.set_password('employee123')
@@ -125,12 +127,13 @@ def seed_data():
                 role='room',
                 department=random.choice(["Science", "Math", "History", "Arts", "Languages", "Physical Ed"]),
                 profile_type='teacher',
+                unity=random.choice(["Unidade Centro", "Unidade Norte", "Unidade Sul"]),
+                registration=f"REG-{i:04d}", # ADICIONADO: Gera matrícula
                 force_password_change=False
             )
             t.set_password('teacher123')
             db.session.add(t)
             teachers_list.append(t)
-            users_created += 1
             
         db.session.commit()
         print(f"{users_created} Usuários criados (20 Funcionários, 80 Professores).")
@@ -139,7 +142,7 @@ def seed_data():
         abbr_map = {'classroom': 'CR', 'auditorium': 'AU', 'kitchen': 'KI', 'computer_lab': 'CP', 'health_lab': 'HL'}
         
         room_data = [
-            # 1st Floor: 1 Aud, 2 Kitchens, 1 Classroom, 2 Comp Labs
+            # 1st Floor
             {"name": "Auditório Principal", "category": "auditorium", "capacity": 150, "floor": "1º Andar", "computer_count": 0, "room_number": "101"},
             {"name": "Cozinha Experimental A", "category": "kitchen", "capacity": 15, "floor": "1º Andar", "computer_count": 0, "room_number": "102"},
             {"name": "Cozinha Experimental B", "category": "kitchen", "capacity": 15, "floor": "1º Andar", "computer_count": 0, "room_number": "103"},
@@ -147,7 +150,7 @@ def seed_data():
             {"name": "Lab de Informática A", "category": "computer_lab", "capacity": 40, "floor": "1º Andar", "computer_count": 40, "room_number": "105"},
             {"name": "Lab de Informática B", "category": "computer_lab", "capacity": 40, "floor": "1º Andar", "computer_count": 40, "room_number": "106"},
             
-            # 2nd Floor: 5 Comp Labs, 8 Classrooms
+            # 2nd Floor
             {"name": "Lab de Informática C", "category": "computer_lab", "capacity": 35, "floor": "2º Andar", "computer_count": 35, "room_number": "201"},
             {"name": "Lab de Informática D", "category": "computer_lab", "capacity": 35, "floor": "2º Andar", "computer_count": 35, "room_number": "202"},
             {"name": "Lab de Informática E", "category": "computer_lab", "capacity": 35, "floor": "2º Andar", "computer_count": 35, "room_number": "203"},
@@ -162,7 +165,7 @@ def seed_data():
             {"name": "Sala de Aula 212", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "212"},
             {"name": "Sala de Aula 213", "category": "classroom", "capacity": 30, "floor": "2º Andar", "computer_count": 0, "room_number": "213"},
             
-            # 3rd Floor: 3 Health Labs, 6 Classrooms
+            # 3rd Floor
             {"name": "Lab de Saúde A", "category": "health_lab", "capacity": 20, "floor": "3º Andar", "computer_count": 0, "room_number": "301"},
             {"name": "Lab de Saúde B", "category": "health_lab", "capacity": 20, "floor": "3º Andar", "computer_count": 0, "room_number": "302"},
             {"name": "Lab de Saúde C", "category": "health_lab", "capacity": 20, "floor": "3º Andar", "computer_count": 0, "room_number": "303"},
@@ -176,7 +179,6 @@ def seed_data():
         
         rooms = []
         for r_data in room_data:
-            # Auto-generate code (e.g., CR101)
             code = f"{abbr_map[r_data['category']]}{r_data['room_number']}"
             room = Classroom(
                 code=code, name=r_data["name"], category=r_data["category"],
@@ -218,22 +220,17 @@ def seed_data():
 
         for i in range(1, 21):
             if i <= 5:
-                # Force the first 5 reservations to be TODAY and overlapping NOW
-                res_date = date.today()
-                if res_date.weekday() == 6: # Skip Sunday
-                    res_date += timedelta(days=1)
-                    
-                now_hour = datetime.now().hour
-                start_hour = max(8, now_hour - 1) # Start 1 hour ago
-                end_hour = min(20, now_hour + 2)  # End 2 hours from now
-                start = time(start_hour, 0)
-                end = time(end_hour, 0)
-            else:
-                # Spread the rest over the next 10 days
-                res_date = date.today() + timedelta(days=random.randint(1, 10))
-                if res_date.weekday() == 6: 
-                    res_date += timedelta(days=1)
-                start, end = random.choice(time_slots)
+            # Force the first 5 reservations to be TODAY and overlapping NOW
+            res_date = date.today()
+            if res_date.weekday() == 6: # Skip Sunday
+                res_date += timedelta(days=1)
+                
+            now_hour = datetime.now().hour
+            # CORREÇÃO: Garantir janela mínima de 1h e respeitar o limite do dia
+            start_hour = min(now_hour, 19)  # máximo 19h para caber até 20h
+            end_hour = min(start_hour + 1, 20)
+            start = time(start_hour, 0)
+            end = time(end_hour, 0)
                 
             room = random.choice(rooms)
             booker = random.choice(all_bookers)
@@ -242,26 +239,35 @@ def seed_data():
             subject = random.choice(subjects_list)
             
             status = 'approved'
-            if i in [10, 15]:
-                status = 'pending'
+            if i in [10, 15]: status = 'pending'
                 
             res = Reservation(
-                user_id=booker.id,
-                classroom_id=room.id,
-                teacher_id=teacher.id if teacher else None,
-                course_id=course.id,
-                subject_id=subject.id,
-                title=f"Aula/Evento {i}",
-                description="Aula agendada para alunos.",
-                date=res_date,
-                start_time=start,
-                end_time=end,
-                status=status
+                user_id=booker.id, classroom_id=room.id, teacher_id=teacher.id if teacher else None,
+                course_id=course.id, subject_id=subject.id, title=f"Aula/Evento {i}",
+                description="Aula agendada para alunos.", date=res_date, start_time=start, end_time=end, status=status
             )
             db.session.add(res)
             
         db.session.commit()
         print("20 Reservas criadas.")
+
+        # 6. Create Sample Base Payment (Using new Django migrated model)
+        sample_teachers = teachers_list[:3]
+        for i, teacher in enumerate(sample_teachers):
+            base_pay = TeacherBasePay(
+                teacher_id=teacher.id,
+                course_id=courses_list[i].id,
+                month_start='2024-02',
+                month_end='2024-07',
+                budget_code=95000,
+                complement='Contrato Inicial',
+                weekly_workload=20,
+                accountable_id=admin.id
+            )
+            db.session.add(base_pay)
+            
+        db.session.commit()
+        print("Lançamentos de pagamento base de exemplo criados.")
         print("População concluída! Logins: admin/admin123, teacher1/teacher123, employee1/employee123")
 
     else:
