@@ -39,7 +39,11 @@ def login():
 def change_password():
     form = ChangePasswordForm()
     if form.validate_on_submit():
-        # Update password hash and remove the force flag
+        # CORREÇÃO: Verificar se a senha atual está correta
+        if not current_user.check_password(form.current_password.data):
+            flash('Senha atual incorreta.', 'danger')
+            return render_template('auth/change_password.html', form=form)
+            
         current_user.set_password(form.password.data)
         current_user.force_password_change = False
         db.session.commit()

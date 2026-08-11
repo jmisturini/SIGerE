@@ -12,6 +12,7 @@ class LoginForm(FlaskForm):
 
 # Form for changing password on first login
 class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField('Senha Atual', validators=[DataRequired()])
     password = PasswordField('Nova Senha', validators=[DataRequired(), Length(min=6)])
     confirm_password = PasswordField('Confirmar Nova Senha', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Atualizar Senha')
@@ -123,6 +124,13 @@ class ReservationForm(FlaskForm):
     def validate_date(self, field):
         if field.data < date.today():
             raise ValidationError('Não é possível reservar uma data no passado.')
+    
+    # CORREÇÃO: Validar se o horário de término é posterior ao de início
+    def validate_end_time(self, field):
+        if self.start_time.data and field.data:
+            if field.data <= self.start_time.data:
+                raise ValidationError('O horário de término deve ser posterior ao horário de início.')
+    
 
 # Form for creating/editing Courses
 class CourseForm(FlaskForm):
@@ -164,10 +172,21 @@ class FormTeacherBasePay(FlaskForm):
     course = SelectField('Curso', coerce=int, validators=[Optional()])
     month_start = StringField('Mês Início (YYYY-MM)', validators=[DataRequired()])
     month_end = StringField('Mês Fim (YYYY-MM)', validators=[DataRequired()])
-    budget_code = IntegerField('Código Orçamentário (90000-100000)', validators=[DataRequired()])
+    budget_code = IntegerField('Código Orçamentário (90000-100000)', validators=[DataRequired(), NumberRange(min=90000, max=100000)])
     complement = StringField('Complemento', validators=[Optional(), Length(max=100)])
-    weekly_workload = IntegerField('Carga Horária Semanal (1-40)', validators=[DataRequired()])
+    weekly_workload = IntegerField('Carga Horária Semanal (1-40)', validators=[DataRequired(), NumberRange(min=1, max=40)])
     submit = SubmitField('Lançar')
+
+    # CORREÇÃO: Validação de formato YYYY-MM
+    def validate_month_start(self, field):
+        import re
+        if not re.match(r'^\d{4}-(0[1-9]|1[0-2])$', field.data):
+            raise ValidationError('Formato inválido. Use YYYY-MM (ex: 2024-01).')
+
+    def validate_month_end(self, field):
+        import re
+        if not re.match(r'^\d{4}-(0[1-9]|1[0-2])$', field.data):
+            raise ValidationError('Formato inválido. Use YYYY-MM (ex: 2024-06).')
 
 class FormTeacherAdditivePay(FlaskForm):
     base_release = SelectField('Lançamento Base', coerce=int, validators=[DataRequired()])

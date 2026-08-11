@@ -331,6 +331,9 @@ def teacher_conflict_warning(reservation_id):
 @bp.route('/<int:reservation_id>/repeat', methods=['GET', 'POST'])
 @login_required
 def repeat_view(reservation_id):
+    # CORREÇÃO: Bloquear visualizadores de acessar a rota
+    if not current_user.can_book:
+        abort(403)
     res = Reservation.query.get_or_404(reservation_id)
     if res.user_id != current_user.id and not current_user.is_admin:
         abort(403)
@@ -401,6 +404,9 @@ def repeat_view(reservation_id):
 @bp.route('/<int:reservation_id>/repeat_schedule', methods=['POST'])
 @login_required
 def repeat_schedule(reservation_id):
+    # CORREÇÃO: Bloquear visualizadores de acessar a rota
+    if not current_user.can_book:
+        abort(403)
     res = Reservation.query.get_or_404(reservation_id)
     if res.user_id != current_user.id and not current_user.is_admin:
         abort(403)
@@ -440,6 +446,9 @@ def repeat_schedule(reservation_id):
 @bp.route('/<int:reservation_id>/repeat_schedule_all', methods=['POST'])
 @login_required
 def repeat_schedule_all(reservation_id):
+    # CORREÇÃO: Bloquear visualizadores de acessar a rota
+    if not current_user.can_book:
+        abort(403)
     res = Reservation.query.get_or_404(reservation_id)
     if res.user_id != current_user.id and not current_user.is_admin:
         abort(403)
@@ -461,28 +470,34 @@ def repeat_schedule_all(reservation_id):
     original_weekday = res.date.weekday()
     
     while current_date <= end_date:
+                # Apply same filters to the "Schedule All" logic
         if same_day and current_date.weekday() != original_weekday:
             current_date += timedelta(days=1)
             continue
+            
         if skip_weekend:
-            if current_date.weekday() == 6: current_date += timedelta(days=1); continue
-            if current_date.weekday() == 5 and original_weekday != 5: current_date += timedelta(days=1); continue
+            if current_date.weekday() == 6: 
+                current_date += timedelta(days=1)
+                continue
+            if current_date.weekday() == 5 and original_weekday != 5: 
+                current_date += timedelta(days=1)
+                continue
         
-                allowed, _ = check_schedule_restrictions(current_date, res.start_time)
+        allowed, _ = check_schedule_restrictions(current_date, res.start_time)
         if allowed:
             conflict = check_conflict(res.classroom_id, current_date, res.start_time, res.end_time)
             if not conflict:
-                # CORREÇÃO: Verificar conflito de professor antes de agendar
+                # Check teacher conflict
                 teacher_conflict = False
                 if res.teacher_id:
                     tc = Reservation.query.filter(
-                        Reservation.teacher_id == res.teacher_id, 
+                        Reservation.teacher_id == res.teacher_id,
                         Reservation.date == current_date,
                         Reservation.status.in_(['approved', 'pending']),
-                        Reservation.start_time < res.end_time, 
+                        Reservation.start_time < res.end_time,
                         Reservation.end_time > res.start_time
                     ).first()
-                    if tc: 
+                    if tc:
                         teacher_conflict = True
                 
                 if not teacher_conflict:

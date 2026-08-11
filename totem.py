@@ -36,11 +36,8 @@ def display():
     # Group classrooms by the first number in the room code
     grouped_classrooms = {}
     for r in cls_reservations:
-        match = re.search(r'^(?:CR|AU|KI|CP|HL)(\d)', r.classroom.code)
-        if match:
-            d = match.group(1)
-            floor_name = {"0": "Térreo", "1": "1º Andar", "2": "2º Andar", "3": "3º Andar"}.get(d, f"{d}º Andar")
-        else: floor_name = "Outros"
+        # CORREÇÃO: Usar o campo 'floor' do banco de dados em vez de regex
+        floor_name = r.classroom.floor or "Outros"
         
         if floor_name not in grouped_classrooms: grouped_classrooms[floor_name] = []
         grouped_classrooms[floor_name].append(r)
