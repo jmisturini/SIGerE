@@ -291,6 +291,8 @@ def export_availability(classroom_id):
     # Table Rows
     pdf.set_font("Helvetica", '', 9)
     
+    # CORREÇÃO: Definir as variáveis de data e hora atuais
+    today = date.today()
     now = datetime.now()
     
     for index, r in enumerate(reservations):
@@ -340,7 +342,8 @@ def export_availability(classroom_id):
         
     # Output PDF
     pdf_output = pdf.output()
-    response = make_response(pdf_output) # fpdf2 já retorna bytes em versões modernas
+    # CORREÇÃO: Garantir consistência entre diferentes versões do fpdf2
+    response = make_response(pdf_output if isinstance(pdf_output, bytes) else pdf_output.encode('latin-1'))
     response.headers['Content-Type'] = 'application/pdf'
     response.headers['Content-Disposition'] = f'attachment; filename=reservas_{classroom.code}_{month}-{year}.pdf'
     return response

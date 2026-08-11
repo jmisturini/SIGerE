@@ -134,6 +134,7 @@ def seed_data():
             t.set_password('teacher123')
             db.session.add(t)
             teachers_list.append(t)
+            users_created += 1  # CORREÇÃO: Adicionar contagem
             
         db.session.commit()
         print(f"{users_created} Usuários criados (20 Funcionários, 80 Professores).")
@@ -220,17 +221,23 @@ def seed_data():
 
         for i in range(1, 21):
             if i <= 5:
-            # Force the first 5 reservations to be TODAY and overlapping NOW
-            res_date = date.today()
-            if res_date.weekday() == 6: # Skip Sunday
-                res_date += timedelta(days=1)
-                
-            now_hour = datetime.now().hour
-            # CORREÇÃO: Garantir janela mínima de 1h e respeitar o limite do dia
-            start_hour = min(now_hour, 19)  # máximo 19h para caber até 20h
-            end_hour = min(start_hour + 1, 20)
-            start = time(start_hour, 0)
-            end = time(end_hour, 0)
+                # Force the first 5 reservations to be TODAY and overlapping NOW
+                res_date = date.today()
+                if res_date.weekday() == 6: # Skip Sunday
+                    res_date += timedelta(days=1)
+                    
+                now_hour = datetime.now().hour
+                # Garantir janela mínima de 1h e respeitar o limite do dia
+                start_hour = min(now_hour, 19)  # máximo 19h para caber até 20h
+                end_hour = min(start_hour + 1, 20)
+                start = time(start_hour, 0)
+                end = time(end_hour, 0)
+            else:
+                # Reservas futuras aleatórias
+                res_date = date.today() + timedelta(days=random.randint(1, 30))
+                if res_date.weekday() == 6: 
+                    res_date += timedelta(days=1)
+                start, end = random.choice(time_slots)
                 
             room = random.choice(rooms)
             booker = random.choice(all_bookers)
@@ -239,7 +246,8 @@ def seed_data():
             subject = random.choice(subjects_list)
             
             status = 'approved'
-            if i in [10, 15]: status = 'pending'
+            if i in [10, 15]:
+                status = 'pending'
                 
             res = Reservation(
                 user_id=booker.id, classroom_id=room.id, teacher_id=teacher.id if teacher else None,

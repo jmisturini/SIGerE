@@ -20,12 +20,15 @@ def get_remaining_months(month_base):
     month = int(month_base.split('-')[1])
     first_semester = [2, 3, 4, 5, 6, 7]
     second_semester = [8, 9, 10, 11, 12, 1]
-    
+
     if month in first_semester:
         return len([m for m in first_semester if m >= month])
     else:
-        if month == 1: return 1
-        return len([m for m in second_semester if m >= month])
+        if month == 1:
+            return 1
+        # CORREÇÃO: Usar o índice na lista para contar corretamente os meses restantes (incluindo janeiro)
+        idx = second_semester.index(month)
+        return len(second_semester) - idx
 
 def calculate_base_hours(pay_obj):
     """Pre-save logic for Base and Additive payments."""
@@ -44,7 +47,7 @@ def calculate_base_hours(pay_obj):
 
 # ================= VALIDATIONS (Decorators Logic) =================
 
-def validate_base_pay_create(form, teacher_id, month_start, month_end):
+def validate_base_pay_create(teacher_id, month_start, month_end):
     # Check duplicates
     exists = TeacherBasePay.query.filter(
         TeacherBasePay.month_start >= month_start,
@@ -55,16 +58,22 @@ def validate_base_pay_create(form, teacher_id, month_start, month_end):
         flash('Erro: Lançamento duplicado para esse semestre.', 'danger')
         return False
     
-    # Check past month
-    month_val = int(month_start.split('-')[1])
-    if month_val < datetime.now().month:
-        flash('Erro: Esse mês não pode ser lançado!', 'danger')
+    # Check past month (CORRIGIDO para considerar o ano)
+    try:
+        start_dt = datetime.strptime(month_start, '%Y-%m')
+        now_dt = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if start_dt < now_dt:
+            flash('Erro: Esse mês não pode ser lançado!', 'danger')
+            return False
+    except ValueError:
+        flash('Erro: Formato de mês inválido.', 'danger')
         return False
         
     return True
 
 def validate_30_days_rule(created_at):
-    if created_at.month < datetime.now().month or (datetime.now().date() - created_at.date() > timedelta(days=30)):
+    # CORRIGIDO: Usar diferença absoluta de dias em vez de comparar apenas o mês
+    if (datetime.now().date() - created_at.date() > timedelta(days=30)):
         flash('Erro: Registros com mais de 30 dias não podem ser alterados!', 'danger')
         return False
     return True
@@ -91,7 +100,7 @@ def create_base_pay():
     form.course.choices = [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
     
     if form.validate_on_submit():
-        if not validate_base_pay_create(form, form.teacher.data, form.month_start.data, form.month_end.data):
+        if not validate_base_pay_create(form.teacher.data, form.month_start.data, form.month_end.data):
             return redirect(url_for('payments.create_base_pay'))
             
         pay = TeacherBasePay(
@@ -310,21 +319,6 @@ def edit_overtime(overtime_id):
         except ValueError:
             flash('Erro: Insira um valor válido para "Valor H/a"', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
-
-        overtime.teacher_id = form.teacher.data
-        overtime.teaching_level = form.teaching_level.data
-        overtime.weekly_workload = form.weekly_workload.data
-        overtime.hourly_value = hourly_value
-        overtime.budget_code = form.budget_code.data
-        overtime.shift = form.shift.data
-        overtime.multiple_dates = form.multiple_dates.data
-        overtime.justification = form.justification.data
-        overtime.month_base = form.month_base.data
-        overtime.accountable_id = current_user.id
-
-        db.session.commit()
-        flash('Alteração realizada!', 'success')
-        return redirect(url_for('payments.list_overtime'))
 
         overtime.teacher_id = form.teacher.data
         overtime.teaching_level = form.teaching_level.data

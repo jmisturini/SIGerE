@@ -99,11 +99,12 @@ class Reservation(db.Model):
         db.Index('idx_reservation_teacher_date', 'teacher_id', 'date', 'status'),
     )
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    classroom_id = db.Column(db.Integer, db.ForeignKey('classrooms.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
-    subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    # CORREÇÃO: Adicionar regras ondelete para evitar registros órfãos
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    classroom_id = db.Column(db.Integer, db.ForeignKey('classrooms.id', ondelete='CASCADE'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id', ondelete='SET NULL'), nullable=True)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id', ondelete='SET NULL'), nullable=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     date = db.Column(db.Date, nullable=False, index=True)
@@ -161,6 +162,9 @@ class Subject(db.Model):
 # Model representing holidays to block scheduling
 class Holiday(db.Model):
     __tablename__ = 'holidays'
+    __table_args__ = (
+        db.Index('idx_holiday_active', 'date', 'is_active'), # CORREÇÃO: Índice para queries rápidas
+    )
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     date = db.Column(db.Date, unique=True, nullable=False, index=True)
@@ -201,20 +205,22 @@ class TeacherBasePay(db.Model):
 class TeacherAdditivePayment(db.Model):
     __tablename__ = 'teacher_additive_payment'
     id = db.Column(db.Integer, primary_key=True)
-    base_release_id = db.Column(db.Integer, db.ForeignKey('teacher_base_pay.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
+    # CORREÇÃO: Adicionar ondelete='CASCADE' para excluir aditivos se o lançamento base for excluído
+    base_release_id = db.Column(db.Integer, db.ForeignKey('teacher_base_pay.id', ondelete='CASCADE'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id', ondelete='SET NULL'), nullable=True)
     month_start = db.Column(db.String(7), nullable=False)
     month_end = db.Column(db.String(7), nullable=False)
     additional_hour = db.Column(db.Integer, nullable=False)
     monthly_hour = db.Column(db.Integer, default=0)
     semester_hour = db.Column(db.Integer, default=0)
     complement = db.Column(db.String(100))
-    accountable_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    accountable_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     term_generated = db.Column(db.Integer, default=1)
 
-    base_release = db.relationship('TeacherBasePay', backref='additives')
+    # CORREÇÃO: Adicionar cascade no relacionamento
+    base_release = db.relationship('TeacherBasePay', backref=db.backref('additives', cascade='all, delete-orphan'))
     course = db.relationship('Course')
     accountable = db.relationship('User', foreign_keys=[accountable_id])
 
@@ -225,7 +231,7 @@ class TeacherOvertimePay(db.Model):
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     teaching_level = db.Column(db.String(50), nullable=False) # E.g., 'Técnico', 'Superior'
     weekly_workload = db.Column(db.Integer, nullable=False)
-    hourly_value = db.Column(db.Float, nullable=False)
+    hourly_value = db.Column(db.Numeric(10, 2), nullable=False) # 10 dígitos no total, 2 decimais
     budget_code = db.Column(db.String(18), nullable=False)
     shift = db.Column(db.String(50), nullable=False) # E.g., 'Matutino', 'Vespertino', 'Noturno'
     multiple_dates = db.Column(db.String(255))
