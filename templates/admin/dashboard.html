@@ -3,10 +3,10 @@
 {% block content %}
 <h1 class="mb-4">Painel Administrativo</h1>
 
-<!-- Adjusted grid to accommodate 5 cards (lg-2 means 6 cards per row on large screens) -->
-<div class="row g-3 mb-4">
-    <!-- Users Card -->
-    <div class="col-lg-2 col-md-4 col-sm-6">
+<!-- Grupo 1: Usuários -->
+<h4 class="mb-3 border-bottom pb-2"><i class="bi bi-people-fill"></i> Usuários</h4>
+<div class="row g-3 mb-5">
+    <div class="col-lg-3 col-md-6 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Total de Usuários</div>
@@ -15,9 +15,12 @@
             </div>
         </div>
     </div>
-    
-    <!-- Rooms Card -->
-    <div class="col-lg-2 col-md-4 col-sm-6">
+</div>
+
+<!-- Grupo 2: Salas -->
+<h4 class="mb-3 border-bottom pb-2"><i class="bi bi-door-closed"></i> Salas e Espaços</h4>
+<div class="row g-3 mb-5">
+    <div class="col-lg-3 col-md-6 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Total de Salas</div>
@@ -26,9 +29,21 @@
             </div>
         </div>
     </div>
-    
-    <!-- Courses Card (Separated) -->
-    <div class="col-lg-2 col-md-4 col-sm-6">
+    <div class="col-lg-3 col-md-6 col-sm-6">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Categorias de Sala</div>
+                <div class="display-6 fw-bold text-primary"><i class="bi bi-tags"></i></div>
+                <a href="{{ url_for('admin.list_categories') }}" class="small">Gerenciar →</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Grupo 3: Cursos e Disciplinas -->
+<h4 class="mb-3 border-bottom pb-2"><i class="bi bi-book"></i> Cursos e Disciplinas</h4>
+<div class="row g-3 mb-5">
+    <div class="col-lg-3 col-md-6 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Total de Cursos</div>
@@ -37,9 +52,7 @@
             </div>
         </div>
     </div>
-    
-    <!-- Subjects Card (Separated) -->
-    <div class="col-lg-2 col-md-4 col-sm-6">
+    <div class="col-lg-3 col-md-6 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Total de Disciplinas</div>
@@ -48,9 +61,12 @@
             </div>
         </div>
     </div>
-    
-    <!-- Holidays Card -->
-    <div class="col-lg-2 col-md-4 col-sm-6">
+</div>
+
+<!-- Grupo 4: Feriados e Permissões -->
+<h4 class="mb-3 border-bottom pb-2"><i class="bi bi-gear-fill"></i> Feriados e Permissões</h4>
+<div class="row g-3 mb-5">
+    <div class="col-lg-3 col-md-6 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
                 <div class="text-muted small">Gerenciar Feriados</div>
@@ -59,13 +75,12 @@
             </div>
         </div>
     </div>
-
-    <!-- Active Rooms Card -->
-    <div class="col-lg-2 col-md-4 col-sm-6">
+    <div class="col-lg-3 col-md-6 col-sm-6">
         <div class="card stat-card shadow-sm h-100">
             <div class="card-body">
-                <div class="text-muted small">Salas Ativas</div>
-                <div class="display-6 fw-bold text-success">{{ active_rooms }}</div>
+                <div class="text-muted small">Gerenciar Papéis</div>
+                <div class="display-6 fw-bold text-primary"><i class="bi bi-shield-lock"></i></div>
+                <a href="{{ url_for('admin.list_roles') }}" class="small">Gerenciar →</a>
             </div>
         </div>
     </div>

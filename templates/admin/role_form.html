@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h3 class="mb-3"><i class="bi bi-shield-lock"></i> {{ title }}</h3>
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.label.label(class="form-label") }}
+                        {{ form.label(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                        <small class="text-muted">Nome interno sem espaços (ex: financial_admin).</small>
+                    </div>
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control", rows=2) }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.permissions.label(class="form-label") }}
+                        {{ form.permissions(class="form-select", size="15") }}
+                        <small class="text-muted">Segure CTRL (Windows) ou CMD (Mac) para selecionar múltiplas permissões.</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                    <a href="{{ url_for('admin.list_roles') }}" class="btn btn-outline-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

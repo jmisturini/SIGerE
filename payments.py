@@ -9,29 +9,25 @@ from datetime import datetime, timedelta
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
 from io import BytesIO
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from permissions import require_permission
 
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 
-# ================= HELPER FUNCTIONS (Signals Logic) =================
+# ================= HELPER FUNCTIONS =================
 
 def get_remaining_months(month_base):
-    """Calculate remaining months in the semester."""
-    month = int(month_base.split('-')[1])
+    year, month = map(int, month_base.split('-'))
     first_semester = [2, 3, 4, 5, 6, 7]
     second_semester = [8, 9, 10, 11, 12, 1]
-
     if month in first_semester:
         return len([m for m in first_semester if m >= month])
     else:
-        if month == 1:
-            return 1
-        # CORREÇÃO: Usar o índice na lista para contar corretamente os meses restantes (incluindo janeiro)
+        if month == 1: return 1
         idx = second_semester.index(month)
         return len(second_semester) - idx
 
 def calculate_base_hours(pay_obj):
-    """Pre-save logic for Base and Additive payments."""
     if isinstance(pay_obj, TeacherBasePay):
         base_hour = int(pay_obj.weekly_workload)
     else:
@@ -45,34 +41,7 @@ def calculate_base_hours(pay_obj):
     pay_obj.semester_hour = math.ceil(semester)
     pay_obj.accountable_id = current_user.id
 
-# ================= VALIDATIONS (Decorators Logic) =================
-
-def validate_base_pay_create(teacher_id, month_start, month_end):
-    # Check duplicates
-    exists = TeacherBasePay.query.filter(
-        TeacherBasePay.month_start >= month_start,
-        TeacherBasePay.month_end <= month_end,
-        TeacherBasePay.teacher_id == teacher_id
-    ).first()
-    if exists:
-        flash('Erro: Lançamento duplicado para esse semestre.', 'danger')
-        return False
-    
-    # Check past month (CORRIGIDO para considerar o ano)
-    try:
-        start_dt = datetime.strptime(month_start, '%Y-%m')
-        now_dt = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        if start_dt < now_dt:
-            flash('Erro: Esse mês não pode ser lançado!', 'danger')
-            return False
-    except ValueError:
-        flash('Erro: Formato de mês inválido.', 'danger')
-        return False
-        
-    return True
-
 def validate_30_days_rule(created_at):
-    # CORRIGIDO: Usar diferença absoluta de dias em vez de comparar apenas o mês
     if (datetime.now().date() - created_at.date() > timedelta(days=30)):
         flash('Erro: Registros com mais de 30 dias não podem ser alterados!', 'danger')
         return False
@@ -84,23 +53,53 @@ def validate_180_days_rule(created_at):
         return False
     return True
 
+def parse_currency(value_str):
+    if not value_str: return None
+    cleaned = value_str.strip().replace('.', '').replace(',', '.')
+    try:
+        return Decimal(cleaned)
+    except InvalidOperation:
+        return None
+
 # ================= BASE PAY ROUTES =================
 
 @bp.route('/list')
 @login_required
+@require_permission('payment:read')
 def list_base_pays():
-    infos = TeacherBasePay.query.order_by(TeacherBasePay.created_at.desc()).all()
+    # Se for professor (apenas read_own), filtra por ele mesmo
+    if not current_user.has_permission('payment:read') and current_user.has_permission('payment:read_own'):
+        infos = TeacherBasePay.query.filter_by(teacher_id=current_user.id).order_by(TeacherBasePay.created_at.desc()).all()
+    else:
+        infos = TeacherBasePay.query.order_by(TeacherBasePay.created_at.desc()).all()
     return render_template('payments/list_base.html', infos=infos)
 
 @bp.route('/create', methods=['GET', 'POST'])
 @login_required
+@require_permission('payment:create')
 def create_base_pay():
     form = FormTeacherBasePay()
     form.teacher.choices = [(t.id, t.full_name) for t in User.query.filter_by(profile_type='teacher', is_active_user=True).order_by(User.full_name).all()]
     form.course.choices = [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
     
     if form.validate_on_submit():
-        if not validate_base_pay_create(form.teacher.data, form.month_start.data, form.month_end.data):
+        try:
+            start_dt = datetime.strptime(form.month_start.data, '%Y-%m')
+            now_dt = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if start_dt < now_dt:
+                flash('Erro: Esse mês não pode ser lançado!', 'danger')
+                return redirect(url_for('payments.create_base_pay'))
+        except ValueError:
+            flash('Erro: Formato de mês inválido.', 'danger')
+            return redirect(url_for('payments.create_base_pay'))
+            
+        exists = TeacherBasePay.query.filter(
+            TeacherBasePay.month_start >= form.month_start.data,
+            TeacherBasePay.month_end <= form.month_end.data,
+            TeacherBasePay.teacher_id == form.teacher.data
+        ).first()
+        if exists:
+            flash('Erro: Lançamento duplicado para esse semestre.', 'danger')
             return redirect(url_for('payments.create_base_pay'))
             
         pay = TeacherBasePay(
@@ -119,6 +118,7 @@ def create_base_pay():
 
 @bp.route('/edit/<int:pay_id>', methods=['GET', 'POST'])
 @login_required
+@require_permission('payment:edit')
 def edit_base_pay(pay_id):
     pay = TeacherBasePay.query.get_or_404(pay_id)
     if not validate_30_days_rule(pay.created_at):
@@ -145,6 +145,7 @@ def edit_base_pay(pay_id):
 
 @bp.route('/delete/<int:pay_id>', methods=['POST'])
 @login_required
+@require_permission('payment:delete')
 def delete_base_pay(pay_id):
     pay = TeacherBasePay.query.get_or_404(pay_id)
     if not validate_180_days_rule(pay.created_at):
@@ -159,6 +160,7 @@ def delete_base_pay(pay_id):
 
 @bp.route('/additive/create', methods=['GET', 'POST'])
 @login_required
+@require_permission('payment:create')
 def create_additive():
     form = FormTeacherAdditivePay()
     bases = TeacherBasePay.query.order_by(TeacherBasePay.created_at.desc()).all()
@@ -170,7 +172,6 @@ def create_additive():
         if not validate_180_days_rule(base.created_at):
             return redirect(url_for('payments.list_base_pays'))
             
-        # Check duplicate month
         exists = TeacherAdditivePayment.query.filter_by(base_release_id=base.id, month_start=form.month_start.data).first()
         if exists:
             flash('Erro: Professor já tem aditivo para esse mês.', 'danger')
@@ -191,6 +192,7 @@ def create_additive():
 
 @bp.route('/additive/delete/<int:additive_id>', methods=['POST'])
 @login_required
+@require_permission('payment:delete')
 def delete_additive(additive_id):
     additive = TeacherAdditivePayment.query.get_or_404(additive_id)
     if not validate_180_days_rule(additive.created_at):
@@ -205,36 +207,33 @@ def delete_additive(additive_id):
 
 @bp.route('/overtime/list')
 @login_required
+@require_permission('payment:read')
 def list_overtime():
     filter_month = request.args.get('month_base', '')
     filter_teacher = request.args.get('teacher_filter', type=int)
     
-    query = TeacherOvertimePay.query
-    
-    # Aplica os filtros se forem fornecidos
-    if filter_month:
-        query = query.filter_by(month_base=filter_month)
-    if filter_teacher:
-        query = query.filter_by(teacher_id=filter_teacher)
+    # Se for professor (apenas read_own), filtra por ele mesmo
+    if not current_user.has_permission('payment:read') and current_user.has_permission('payment:read_own'):
+        query = TeacherOvertimePay.query.filter_by(teacher_id=current_user.id)
+    else:
+        query = TeacherOvertimePay.query
+        if filter_month:
+            query = query.filter_by(month_base=filter_month)
+        if filter_teacher:
+            query = query.filter_by(teacher_id=filter_teacher)
         
     infos = query.order_by(TeacherOvertimePay.created_at.desc()).all()
-    
-    # Busca professores ativos para popular o dropdown
     list_teachers = User.query.filter_by(profile_type='teacher', is_active_user=True).order_by(User.full_name).all()
     
-    return render_template('payments/list_overtime.html', 
-                           infos=infos, 
-                           list_teachers=list_teachers,
-                           filter_month=filter_month,
-                           filter_teacher=filter_teacher)
+    return render_template('payments/list_overtime.html', infos=infos, list_teachers=list_teachers, filter_month=filter_month, filter_teacher=filter_teacher)
 
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required
+@require_permission('payment:create')
 def create_overtime():
     form = FormTeacherOvertimePay()
     form.teacher.choices = [(t.id, t.full_name) for t in User.query.filter_by(profile_type='teacher', is_active_user=True).order_by(User.full_name).all()]
     
-    # Pré-preenche o mês base com o mês e ano atuais
     if request.method == 'GET':
         form.month_base.data = datetime.now().strftime('%Y-%m')
     
@@ -257,14 +256,9 @@ def create_overtime():
             flash('Erro: Lançamentos do mês atual só podem ser feitos até o dia 25.', 'danger')
             return redirect(url_for('payments.create_overtime'))
             
-        try:
-            hourly_value = float(form.hourly_value.data.replace('.', '').replace(',', '.'))
-            # Validação: Valor H/a deve ser maior que 0
-            if hourly_value <= 0:
-                flash('Erro: O Valor H/a deve ser maior que 0.', 'danger')
-                return redirect(url_for('payments.create_overtime'))
-        except ValueError:
-            flash('Erro: Insira um valor válido para "Valor H/a"', 'danger')
+        hourly_value = parse_currency(form.hourly_value.data)
+        if hourly_value is None or hourly_value <= 0:
+            flash('Erro: O Valor H/a deve ser maior que 0.', 'danger')
             return redirect(url_for('payments.create_overtime'))
             
         overtime = TeacherOvertimePay(
@@ -283,6 +277,7 @@ def create_overtime():
 
 @bp.route('/overtime/edit/<int:overtime_id>', methods=['GET', 'POST'])
 @login_required
+@require_permission('payment:edit')
 def edit_overtime(overtime_id):
     overtime = TeacherOvertimePay.query.get_or_404(overtime_id)
     
@@ -310,14 +305,9 @@ def edit_overtime(overtime_id):
             flash('Erro: O Mês Base inserido não é uma data válida.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
-        try:
-            hourly_value = float(form.hourly_value.data.replace('.', '').replace(',', '.'))
-            # Validação: Valor H/a deve ser maior que 0
-            if hourly_value <= 0:
-                flash('Erro: O Valor H/a deve ser maior que 0.', 'danger')
-                return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
-        except ValueError:
-            flash('Erro: Insira um valor válido para "Valor H/a"', 'danger')
+        hourly_value = parse_currency(form.hourly_value.data)
+        if hourly_value is None or hourly_value <= 0:
+            flash('Erro: O Valor H/a deve ser maior que 0.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
         overtime.teacher_id = form.teacher.data
@@ -339,9 +329,9 @@ def edit_overtime(overtime_id):
 
 @bp.route('/overtime/delete/<int:overtime_id>', methods=['POST'])
 @login_required
+@require_permission('payment:delete')
 def delete_overtime(overtime_id):
     overtime = TeacherOvertimePay.query.get_or_404(overtime_id)
-    # Validate 30 days or past month
     if overtime.created_at.month < datetime.now().month or (datetime.now().date() - overtime.created_at.date() > timedelta(days=30)):
         flash('Erro: Registros dos meses anteriores não podem ser excluídos.', 'danger')
         return redirect(url_for('payments.list_overtime'))
@@ -351,10 +341,11 @@ def delete_overtime(overtime_id):
     flash('Registro de Hora Extra excluído', 'success')
     return redirect(url_for('payments.list_overtime'))
 
-# ================= EXCEL EXPORT ROUTES (USANDO MODELOS ORIGINAIS) =================
+# ================= EXCEL EXPORT ROUTES =================
 
 @bp.route('/export/base')
 @login_required
+@require_permission('payment:export')
 def export_excel_base():
     semester_base = request.args.get('semester_base', type=int)
     year_base = request.args.get('year_base')
@@ -377,7 +368,6 @@ def export_excel_base():
         flash('Informações não encontradas.', 'danger')
         return redirect(url_for('payments.list_base_pays'))
 
-    # Caminho para o arquivo modelo
     template_path = os.path.join(current_app.root_path, 'static', 'templates_excel', 'base_planilha_CH_semestral_professores.xlsx')
     
     if not os.path.exists(template_path):
@@ -389,7 +379,6 @@ def export_excel_base():
     
     list_table = []
 
-    # Prepara os dados e verifica aditivos
     for pay in pays:
         dic_info = {
             'id_teacher': pay.teacher.registration or 'N/A',
@@ -398,7 +387,6 @@ def export_excel_base():
             'additive': False
         }
         
-        # Soma as horas do aditivo se existir no semestre
         additives = TeacherAdditivePayment.query.filter_by(base_release_id=pay.id).all()
         for additive in additives:
             dic_info['monthly_hour_query'] += additive.monthly_hour
@@ -406,7 +394,6 @@ def export_excel_base():
             
         list_table.append(dic_info)
 
-    # Preenche a planilha a partir da linha 4
     for baseline, data in enumerate(list_table, start=4):
         if data['additive']:
             yellow_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
@@ -430,11 +417,11 @@ def export_excel_base():
 
 @bp.route('/export/overtime')
 @login_required
+@require_permission('payment:export')
 def export_excel_overtime():
     month_base = request.args.get('month_base', '')
     teacher_id = request.args.get('teacher_filter', type=int)
     
-    # Regra: Se os dois estiverem vazios, não exporta
     if not month_base and not teacher_id:
         flash('Selecione pelo menos o Mês Base ou o Professor para exportar.', 'danger')
         return redirect(url_for('payments.list_overtime'))
@@ -460,7 +447,6 @@ def export_excel_overtime():
     workbook = load_workbook(filename=template_path)
     ws = workbook['Extra NEB']
     
-    # Preenche a data do mês base na célula D4 (apenas se o filtro de mês estiver ativo)
     if month_base:
         try:
             base_date = datetime.strptime(month_base, "%Y-%m").date()
@@ -485,7 +471,7 @@ def export_excel_overtime():
             (1, data.teacher.full_name),
             (2, data.teaching_level),
             (3, data.weekly_workload),
-            (4, data.hourly_value),
+            (4, float(data.hourly_value) if data.hourly_value else 0),
             (5, data.multiple_dates or ''),
             (6, data.shift),
             (7, data.budget_code),

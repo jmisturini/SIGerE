@@ -2,12 +2,13 @@ import csv
 import io
 from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, make_response
 from flask_login import login_required, current_user
-from models import Classroom, Reservation
+from models import Classroom, Reservation, RoomCategory
 from forms import ClassroomForm
 from extensions import db
 from datetime import datetime, date, time
 import calendar
 from fpdf import FPDF
+from permissions import require_permission
 
 bp = Blueprint('classrooms', __name__, url_prefix='/classrooms')
 
@@ -21,7 +22,7 @@ def get_filtered_classrooms(args):
     selected_category = args.get('category', '')
     
     if selected_category:
-        query = query.filter(Classroom.category == selected_category)
+        query = query.filter(Classroom.category_id == selected_category)
         
     if available_now:
         now = datetime.now()
@@ -69,6 +70,9 @@ def list_classrooms():
     # Get filtered rooms from helper function
     classrooms = get_filtered_classrooms(request.args)
     
+    categories = RoomCategory.query.filter_by(is_active=True).order_by(RoomCategory.name).all()
+
+    
     # Group by floor and sort by room number
     grouped_rooms = {}
     for c in classrooms:
@@ -96,11 +100,15 @@ def list_classrooms():
         filter_message = f"Mostrando salas disponíveis em <strong>{request.args.get('available_date')}</strong> durante a <strong class='text-capitalize'>{request.args.get('available_period')}</strong>."
     elif request.args.get('category'):
         is_filtered = True
-        filter_message = f"Mostrando apenas <strong class='text-capitalize'>{request.args.get('category').replace('_', ' ')}</strong>."
+        cat_id = request.args.get('category', type=int)
+        cat_obj = RoomCategory.query.get(cat_id) if cat_id else None
+        cat_name = cat_obj.name if cat_obj else "Categoria"
+        filter_message = f"Mostrando apenas <strong>{cat_name}</strong>."
 
     return render_template(
         'classrooms/list.html', 
         grouped_rooms=sorted_floors, # Pass the grouped dictionary instead of flat list
+        categories=categories,
         is_filtered=is_filtered,
         filter_message=filter_message,
         selected_category=request.args.get('category', '')
@@ -109,6 +117,7 @@ def list_classrooms():
 # Route to export filtered classrooms to CSV
 @bp.route('/export')
 @login_required
+@require_permission('system:export')
 def export_classrooms():
     classrooms = get_filtered_classrooms(request.args)
     output = io.StringIO()
@@ -117,9 +126,9 @@ def export_classrooms():
     for c in classrooms:
         writer.writerow([
             c.name, c.code, c.room_number or 'N/A',
-            c.category.replace('_', ' ').title(),
+            c.category.name.title(),
             c.building or 'N/A', c.floor or 'N/A', c.capacity,
-            c.computer_count if c.category == 'computer_lab' else 0,
+            c.computer_count if c.category.code == 'computer_lab' else 0,
             'Ativo' if c.is_active else 'Inativo'
         ])
     output.seek(0)
@@ -132,6 +141,7 @@ def export_classrooms():
 # Route to export filtered classrooms to PDF
 @bp.route('/export_pdf')
 @login_required
+@require_permission('system:export')
 def export_pdf():
     classrooms = get_filtered_classrooms(request.args)
     pdf = FPDF(orientation='L', unit='mm', format='A4')
@@ -157,9 +167,9 @@ def export_pdf():
         else:
             pdf.set_fill_color(255, 255, 255)
         row_data = [
-            c.name[:35], c.code, c.category.replace('_', ' ').title(),
+            c.name[:35], c.code, c.category.name.title(),
             c.building or 'N/A', c.floor or 'N/A', str(c.capacity),
-            str(c.computer_count) if c.category == 'computer_lab' else '0'
+            str(c.computer_count) if c.category.code == 'computer_lab' else '0'
         ]
         for i, data in enumerate(row_data):
             pdf.cell(col_widths[i], 7, data, border=1, align='C', fill=True)
@@ -219,10 +229,10 @@ def availability(classroom_id):
 
     if month == 1:
         prev_month, prev_year = 12, year - 1
-        next_month, next_year = 2, year + 1
+        next_month, next_year = 2, year      # CORRIGIDO: Fevereiro é do mesmo ano
     elif month == 12:
         prev_month, prev_year = 11, year
-        next_month, next_year = 1, year + 1
+        next_month, next_year = 1, year + 1  # Janeiro é do ano seguinte
     else:
         prev_month, prev_year = month - 1, year
         next_month, next_year = month + 1, year
@@ -237,6 +247,7 @@ def availability(classroom_id):
 # Route to export a specific classroom's monthly reservations to PDF
 @bp.route('/<int:classroom_id>/export_availability')
 @login_required
+@require_permission('system:export')
 def export_availability(classroom_id):
     classroom = Classroom.query.get_or_404(classroom_id)
     
@@ -342,8 +353,8 @@ def export_availability(classroom_id):
         
     # Output PDF
     pdf_output = pdf.output()
-    # CORREÇÃO: Garantir consistência entre diferentes versões do fpdf2
-    response = make_response(pdf_output if isinstance(pdf_output, bytes) else pdf_output.encode('latin-1'))
+    # CORREÇÃO: Converter para bytes explicitamente (resolve o erro do bytearray)
+    response = make_response(bytes(pdf_output))
     response.headers['Content-Type'] = 'application/pdf'
     response.headers['Content-Disposition'] = f'attachment; filename=reservas_{classroom.code}_{month}-{year}.pdf'
     return response

@@ -13,7 +13,7 @@
             {% for r in rooms %}
                 <tr>
                     <td>{{ r.name }}</td><td><span class="badge bg-primary">{{ r.code }}</span></td><td>{{ r.room_number }}</td>
-                    <td class="text-capitalize">{{ r.category.replace('_', ' ') }}</td><td>{{ r.building or '-' }}</td><td>{{ r.capacity }}</td>
+                    <td>{{ r.category.name if r.category else 'N/A' }}</td><td>{{ r.building or '-' }}</td><td>{{ r.capacity }}</td>
                     <td>{% if r.is_active %}<span class="badge bg-success">Ativo</span>{% else %}<span class="badge bg-danger">Inativo</span>{% endif %}</td>
                     <td>
                         <a href="{{ url_for('admin.edit_room', room_id=r.id) }}" class="btn btn-sm btn-outline-primary">Editar</a>
