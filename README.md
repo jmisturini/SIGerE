@@ -17,7 +17,6 @@
 
 - [Visão Geral](#-visão-geral)
 - [Funcionalidades](#-funcionalidades)
-- [Capturas de Tela](#-capturas-de-tela)
 - [Tecnologias](#-tecnologias)
 - [Instalação](#-instalação)
 - [Configuração](#-configuração)
@@ -25,6 +24,7 @@
 - [Estrutura do Projeto](#-estrutura-do-projeto)
 - [APIs Externas](#-apis-externas)
 - [Contas de Demonstração](#-contas-de-demonstração)
+- [Permissões e Papéis](#-permissões-e-papéis)
 - [Segurança](#-segurança)
 - [Licença](#-licença)
 
@@ -32,15 +32,15 @@
 
 ## 🎯 Visão Geral
 
-O **SIGERE** é um sistema web desenvolvido em **Flask** para instituições educacionais que precisam gerenciar:
+O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições educacionais que precisam gerenciar de forma integrada:
 
-- 🏛️ **Reservas de espaços físicos** (salas de aula, auditórios, laboratórios de informática/saúde, cozinhas experimentais)
-- 👨‍🏫 **Cronogramas de professores** com detecção automática de conflitos
-- 💰 **Pagamentos docentes** (remuneração base, aditivos e horas extras)
-- 📺 **Totens digitais** para corredores com exibição em tempo real de ocupação
-- 📆 **Calendário interativo** com filtros avançados
+- 🏛️ **Reservas de espaços físicos** — salas de aula, auditórios, laboratórios de informática/saúde, cozinhas experimentais
+- 👨‍🏫 **Cronogramas de professores** com detecção automática de conflitos de horário
+- 💰 **Pagamentos docentes** — remuneração base semestral, aditivos e horas extras
+- 📺 **Totens digitais** para corredores com exibição em tempo real de ocupação de salas
+- 📆 **Calendário interativo** com filtros avançados e visualização mensal
 
-O sistema possui **controle de acesso baseado em papéis (RBAC)**, tema claro/escuro persistente, exportação de relatórios em PDF/CSV/Excel e seed automático de dados de demonstração.
+O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissões granulares, tema claro/escuro persistente, exportação de relatórios em PDF/CSV/Excel e seed automático de dados de demonstração.
 
 ---
 
@@ -55,14 +55,11 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)**, tema claro/es
   - ⚠️ Sábados: apenas manhã e tarde (até 18h)
 - **Repetição de reservas:** crie séries de aulas com opções de "mesmo dia da semana" e "pular fins de semana"
 - **Auto-aprovação:** reservas sem conflitos são aprovadas instantaneamente
+- **Filtros de disponibilidade:** salas disponíveis agora, em data/período específico ou por categoria
 
-### 🏛️ Gestão de Salas
-- **Categorias dinâmicas:** Sala de Aula, Auditório, Laboratório de Informática, Laboratório de Saúde, Cozinha
-- **Código automático:** geração de códigos no formato `CR101`, `AU101`, `CP105`, etc.
-- **Filtros de disponibilidade:**
-  - Salas disponíveis **AGORA**
-  - Salas disponíveis em uma **data e período específicos**
-  - Filtro por categoria
+### 🏛️ Gestão de Salas e Categorias
+- **Categorias dinâmicas:** Sala de Aula, Auditório, Laboratório de Informática, Laboratório de Saúde, Cozinha Experimental
+- **Código automático:** geração de códigos no formato `SA101`, `AU101`, `LI105`, `LS301`, etc.
 - **Visualização mensal:** calendário de ocupação por sala com navegação entre meses
 - **Exportação:** CSV, PDF (landscape A4) e Excel
 
@@ -70,12 +67,9 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)**, tema claro/es
 - **Perfis distintos:**
   - **Professor:** departamento, matrícula, unidade
   - **Funcionário:** setor, função, unidade, com opção de "também atuar como professor"
-- **Níveis de acesso:**
-  - 🔴 **Administrador:** acesso total ao sistema
-  - 🟡 **Agendador (Room Booker):** cria e gerencia próprias reservas
-  - 🔵 **Visualizador:** acesso somente leitura
 - **Busca e filtros:** filtrar usuários por nome ou tipo de perfil
 - **Segurança:** forçar troca de senha no primeiro login ou após reset administrativo
+- **Ativação/desativação:** controle de status do usuário sem exclusão de dados
 
 ### 📚 Estrutura Acadêmica
 - CRUD completo de **Cursos** e **Disciplinas**
@@ -91,13 +85,13 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)**, tema claro/es
 
 ### 🗓️ Calendário Interativo (`/calendar`)
 - Integração com **FullCalendar** (visões: dia, semana, mês)
-- Filtros por sala, professor, curso, disciplina e período
+- Filtros por sala, professor, curso, disciplina e período (manhã/tarde/noite)
 - Eventos coloridos com detalhes ao clicar
 - Adaptação automática ao tema claro/escuro
 
 ### 💰 Gestão de Pagamentos Docentes
 - **Remuneração Base (Semestral):** lançamento por professor, curso, carga horária semanal e código orçamentário
-- **Aditivos:** horas adicionais vinculadas a um lançamento base
+- **Aditivos:** horas adicionais vinculadas a um lançamento base existente
 - **Horas Extras:** com nível de ensino, valor hora, turno e múltiplas datas
 - **Regras de negócio:**
   - Bloqueio de lançamentos em meses anteriores
@@ -114,12 +108,6 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)**, tema claro/es
 - **Tema Claro/Escuro:** alternância global com persistência no `localStorage`
 - **Design responsivo:** Bootstrap 5, funcional em mobile, tablet e desktop
 - **Interface em Português:** todo o sistema localizado para pt-BR
-
----
-
-## 🖼️ Capturas de Tela
-
-> *Adicione aqui screenshots do dashboard, calendário, totem e painel admin.*
 
 ---
 
@@ -166,7 +154,7 @@ python app.py
 
 A aplicação estará disponível em: **http://localhost:5000**
 
-> **Nota:** Na primeira execução, o banco de dados é criado automaticamente e populado com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
+> **Nota:** Na primeira execução, o banco de dados é criado automaticamente. Execute `flask seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
 
 ---
 
@@ -209,7 +197,7 @@ const lon = -46.6333;   // Longitude da sua instituição
 
 ### Fluxo típico de reserva
 
-1. **Login** com uma conta de Agendador ou Administrador
+1. **Login** com uma conta de Professor ou Administrador
 2. Acesse **Salas** e filtre por disponibilidade
 3. Clique em **Reservar** ou acesse **Minhas Reservas → Nova Reserva**
 4. Preencha sala, data, horário, curso, disciplina e professor
@@ -239,7 +227,7 @@ const lon = -46.6333;   // Longitude da sua instituição
 ```
 SIGERE/
 │
-├── app.py                 # Factory da aplicação, seed de dados, hooks de segurança
+├── app.py                 # Factory da aplicação, registro de blueprints e hooks de segurança
 ├── config.py              # Configurações do Flask
 ├── extensions.py          # Instâncias do SQLAlchemy e LoginManager
 ├── models.py              # Modelos do banco de dados (User, Classroom, Reservation, etc.)
@@ -247,14 +235,16 @@ SIGERE/
 ├── requirements.txt       # Dependências Python
 │
 ├── auth.py                # Autenticação (login, logout, troca de senha)
-├── admin.py               # Painel administrativo (usuários, salas, cursos, feriados)
-├── classrooms.py          # Listagem, detalhes e disponibilidade de salas
-├── reservations.py        # CRUD de reservas, aprovações, repetição
+├── admin.py               # Painel administrativo (usuários, salas, cursos, feriados, papéis)
+├── classrooms.py          # Listagem, detalhes, disponibilidade e exportação de salas
+├── reservations.py        # CRUD de reservas, aprovações, repetição e conflitos
 ├── schedule.py            # API JSON para o FullCalendar
 ├── totem.py               # Display de quiosque para TVs
 ├── public.py              # Portal público (home, busca)
 ├── main.py                # Dashboard principal
 ├── payments.py            # Gestão de pagamentos docentes (base, aditivo, extra)
+├── permissions.py         # Decoradores de controle de acesso baseado em permissões
+├── commands.py            # Comandos CLI customizados (seed de dados)
 │
 ├── static/
 │   ├── css/style.css      # Estilos globais e variáveis de tema
@@ -288,15 +278,32 @@ SIGERE/
 
 ## 👤 Contas de Demonstração
 
-Após a primeira execução, os seguintes logins estarão disponíveis:
+Após executar `flask seed`, os seguintes logins estarão disponíveis:
 
 | Perfil | Usuário | Senha | Permissões |
 |--------|---------|-------|------------|
-| **Administrador** | `admin` | `admin123` | Acesso total ao sistema |
-| **Professor** | `teacher1` | `teacher123` | Criar e gerenciar reservas |
-| **Funcionário** | `employee1` | `employee123` | Visualização (pode ser promovido) |
+| **Super Administrador** | `admin` | `admin123` | Acesso total ao sistema |
+| **Professor** | `teacher1` | `teacher123` | Criar e gerenciar reservas, ver próprios pagamentos |
+| **Funcionário** | `employee1` | `employee123` | Visualização de salas e cursos |
 
-> ⚠️ **Atenção:** Por padrão, o sistema força a troca de senha no primeiro login. Para testes, defina `force_password_change=False` no seed de dados em `app.py`.
+> ⚠️ **Atenção:** Por padrão, o sistema força a troca de senha no primeiro login. Para testes, as contas de demonstração já vêm com `force_password_change=False`.
+
+---
+
+## 🔐 Permissões e Papéis
+
+O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permissões granulares. Os papéis padrão são:
+
+| Papel | Descrição |
+|-------|-----------|
+| **Super Administrador** | Acesso irrestrito a todas as funcionalidades |
+| **Administrador** | Gestão completa de usuários, salas, cursos, feriados e papéis |
+| **Administrador Financeiro** | Gestão de pagamentos, lançamentos e exportações |
+| **Coordenador Pedagógico** | Aprovação de reservas, gestão de cursos e disciplinas |
+| **Gestor de Salas** | Criação e gestão de salas, todas as reservas |
+| **Professor** | Criar reservas, editar/cancelar próprias reservas, ver pagamentos |
+| **Funcionário** | Visualização de salas e cursos |
+| **Visualizador** | Acesso somente leitura a salas e cursos |
 
 ---
 
@@ -304,10 +311,11 @@ Após a primeira execução, os seguintes logins estarão disponíveis:
 
 - **Hash de senhas** com Werkzeug (`generate_password_hash`)
 - **Proteção CSRF** em todos os formulários via Flask-WTF
-- **Controle de acesso por papel** (Admin, Room Booker, Viewer)
-- **Proteção contra auto-desativação:** administradores não podem desativar sua própria conta nem remover seu próprio privilégio de admin
+- **Controle de acesso por permissões granulares** (ex: `reservation:create`, `payment:read`)
+- **Proteção contra auto-desativação:** administradores não podem desativar sua própria conta
 - **Troca de senha forçada** no primeiro login ou após reset administrativo
 - **Bloqueio de edição/exclusão** de reservas passadas (exceto para administradores)
+- **Regras temporais** em pagamentos: edição até 30 dias, exclusão até 180 dias
 
 ---
 

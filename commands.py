@@ -279,11 +279,11 @@ def _seed_data():
 
     # 3. Categorias
     categories = [
-        RoomCategory(name="Sala de Aula", code="classroom", abbr="CR"),
+        RoomCategory(name="Sala de Aula", code="classroom", abbr="SA"),
         RoomCategory(name="Auditório", code="auditorium", abbr="AU"),
-        RoomCategory(name="Cozinha", code="kitchen", abbr="KI"),
-        RoomCategory(name="Laboratório de Informática", code="computer_lab", abbr="CP"),
-        RoomCategory(name="Laboratório de Saúde", code="health_lab", abbr="HL")
+        RoomCategory(name="Cozinha", code="kitchen", abbr="CO"),
+        RoomCategory(name="Laboratório de Informática", code="computer_lab", abbr="LI"),
+        RoomCategory(name="Laboratório de Saúde", code="health_lab", abbr="LS")
     ]
     db.session.add_all(categories)
     db.session.flush()
