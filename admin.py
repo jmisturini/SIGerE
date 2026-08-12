@@ -2,19 +2,19 @@ import requests
 from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request
 from flask_login import login_required, current_user
-from models import User, Classroom, Reservation, Course, Subject, Holiday
-from forms import ClassroomForm, CourseForm, SubjectForm, TeacherForm, EmployeeForm, HolidayForm
+from models import User, Classroom, Reservation, Course, Subject, Holiday, Role, Permission, RoomCategory
+from forms import ClassroomForm, CourseForm, SubjectForm, TeacherForm, EmployeeForm, HolidayForm, RoleForm, RoomCategoryForm
 from extensions import db
 from wtforms.validators import Optional
+from permissions import require_permission
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
-# Admin dashboard route showing system stats
+# Admin dashboard route
 @bp.route('/')
 @login_required
+@require_permission('system:dashboard')
 def dashboard():
-    if not current_user.is_admin:
-        abort(403)
     users_count = User.query.count()
     rooms_count = Classroom.query.count()
     active_rooms = Classroom.query.filter_by(is_active=True).count()
@@ -32,10 +32,8 @@ def dashboard():
 
 @bp.route('/users')
 @login_required
+@require_permission('user:read')
 def list_users():
-    if not current_user.is_admin:
-        abort(403)
-        
     search_name = request.args.get('name', '')
     filter_type = request.args.get('type', '')
     
@@ -50,15 +48,17 @@ def list_users():
 
 @bp.route('/users/create-teacher', methods=['GET', 'POST'])
 @login_required
+@require_permission('user:create')
 def create_teacher():
-    if not current_user.is_admin:
-        abort(403)
     form = TeacherForm()
+    form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
     if form.validate_on_submit():
+        teacher_role = Role.query.filter_by(name='teacher').first()
         user = User(
             username=form.username.data, email=form.email.data, full_name=form.full_name.data,
-            role=form.role.data, department=form.department.data, registration=form.registration.data,
-            profile_type='teacher', is_active_user=form.is_active_user.data, unity=form.unity.data
+            role='room', department=form.department.data, registration=form.registration.data,
+            profile_type='teacher', is_active_user=form.is_active_user.data,
+            unity=form.unity.data, role_id=form.role_id.data
         )
         user.set_password(form.password.data)
         user.force_password_change = True
@@ -70,16 +70,18 @@ def create_teacher():
 
 @bp.route('/users/create-employee', methods=['GET', 'POST'])
 @login_required
+@require_permission('user:create')
 def create_employee():
-    if not current_user.is_admin:
-        abort(403)
     form = EmployeeForm()
+    form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
     if form.validate_on_submit():
+        employee_role = Role.query.filter_by(name='employee').first()
         user = User(
             username=form.username.data, email=form.email.data, full_name=form.full_name.data,
-            role=form.role.data, sector=form.sector.data, function=form.function.data,
+            role='viewer', sector=form.sector.data, function=form.function.data,
             registration=form.registration.data, profile_type='employee', is_teacher=form.is_teacher.data,
-            is_active_user=form.is_active_user.data, unity=form.unity.data
+            is_active_user=form.is_active_user.data,
+            unity=form.unity.data, role_id=form.role_id.data
         )
         user.set_password(form.password.data)
         user.force_password_change = True
@@ -91,33 +93,29 @@ def create_employee():
 
 @bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_permission('user:edit')
 def edit_user(user_id):
-    if not current_user.is_admin:
-        abort(403)
     user = User.query.get_or_404(user_id)
     
     FormClass = TeacherForm if user.profile_type == 'teacher' else EmployeeForm
     form = FormClass(obj=user)
     form._obj_id = user.id
-    
-    # Make password optional on edit
     form.password.validators = [Optional()]
     form.password.flags.required = False
     
+    form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
     if form.validate_on_submit():
         if user.id == current_user.id and form.is_active_user.data == False:
             flash('Você não pode desativar sua própria conta.', 'danger')
-        elif user.id == current_user.id and form.role.data != 'admin':
-            flash('Você não pode alterar seu próprio papel de administrador.', 'danger')
         else:
             user.username = form.username.data
             user.email = form.email.data
             user.full_name = form.full_name.data
-            user.role = form.role.data
             user.registration = form.registration.data
             user.is_active_user = form.is_active_user.data
             user.unity = form.unity.data
-            
+            user.role_id = form.role_id.data
+                        
             if user.profile_type == 'teacher':
                 user.department = form.department.data
             else:
@@ -135,9 +133,8 @@ def edit_user(user_id):
 
 @bp.route('/users/<int:user_id>/toggle', methods=['POST'])
 @login_required
+@require_permission('user:toggle')
 def toggle_user(user_id):
-    if not current_user.is_admin:
-        abort(403)
     user = User.query.get_or_404(user_id)
     if user.id == current_user.id:
         flash('Você não pode desativar sua própria conta.', 'danger')
@@ -153,28 +150,31 @@ CATEGORY_ABBR = {'classroom': 'CR', 'auditorium': 'AU', 'kitchen': 'KI', 'comput
 
 @bp.route('/rooms')
 @login_required
+@require_permission('room:read')
 def list_rooms():
-    if not current_user.is_admin:
-        abort(403)
     rooms = Classroom.query.order_by(Classroom.code).all()
     return render_template('admin/rooms.html', rooms=rooms)
 
 @bp.route('/rooms/create', methods=['GET', 'POST'])
 @login_required
+@require_permission('room:create')
 def create_room():
-    if not current_user.is_admin:
-        abort(403)
     form = ClassroomForm()
+    form.category_id.choices = [(c.id, c.name) for c in RoomCategory.query.filter_by(is_active=True).order_by(RoomCategory.name).all()]
+    
     if form.validate_on_submit():
-        abbr = CATEGORY_ABBR.get(form.category.data, 'XX')
-        generated_code = f"{abbr}{form.room_number.data}"
+        cat = RoomCategory.query.get(form.category_id.data)
+        generated_code = f"{cat.abbr}{form.room_number.data}" if cat.abbr else form.room_number.data
+        
         if Classroom.query.filter_by(code=generated_code).first():
-            flash('Uma sala com este tipo e número já existe.', 'danger')
+            flash('Uma sala com este código já existe.', 'danger')
             return render_template('admin/room_form.html', form=form, title='Criar Sala')
+            
         classroom = Classroom(
             name=form.name.data, code=generated_code, room_number=form.room_number.data,
             building=form.building.data, floor=form.floor.data, capacity=form.capacity.data,
-            category=form.category.data, computer_count=form.computer_count.data if form.category.data == 'computer_lab' else 0,
+            category_id=form.category_id.data, 
+            computer_count=form.computer_count.data if cat.code == 'computer_lab' else 0,
             description=form.description.data, is_active=form.is_active.data
         )
         db.session.add(classroom)
@@ -185,25 +185,28 @@ def create_room():
 
 @bp.route('/rooms/<int:room_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_permission('room:edit')
 def edit_room(room_id):
-    if not current_user.is_admin:
-        abort(403)
     classroom = Classroom.query.get_or_404(room_id)
     form = ClassroomForm(obj=classroom)
+    form.category_id.choices = [(c.id, c.name) for c in RoomCategory.query.filter_by(is_active=True).order_by(RoomCategory.name).all()]
+    
     if form.validate_on_submit():
-        abbr = CATEGORY_ABBR.get(form.category.data, 'XX')
-        generated_code = f"{abbr}{form.room_number.data}"
+        cat = RoomCategory.query.get(form.category_id.data)
+        generated_code = f"{cat.abbr}{form.room_number.data}" if cat.abbr else form.room_number.data
+        
         if Classroom.query.filter(Classroom.code == generated_code, Classroom.id != classroom.id).first():
-            flash('Uma sala com este tipo e número já existe.', 'danger')
+            flash('Uma sala com este código já existe.', 'danger')
             return render_template('admin/room_form.html', form=form, title='Editar Sala')
+            
         classroom.name = form.name.data
         classroom.code = generated_code
         classroom.room_number = form.room_number.data
         classroom.building = form.building.data
         classroom.floor = form.floor.data
         classroom.capacity = form.capacity.data
-        classroom.category = form.category.data
-        classroom.computer_count = form.computer_count.data if form.category.data == 'computer_lab' else 0
+        classroom.category_id = form.category_id.data
+        classroom.computer_count = form.computer_count.data if cat.code == 'computer_lab' else 0
         classroom.description = form.description.data
         classroom.is_active = form.is_active.data
         db.session.commit()
@@ -213,9 +216,8 @@ def edit_room(room_id):
 
 @bp.route('/rooms/<int:room_id>/toggle', methods=['POST'])
 @login_required
+@require_permission('room:toggle')
 def toggle_room(room_id):
-    if not current_user.is_admin:
-        abort(403)
     classroom = Classroom.query.get_or_404(room_id)
     classroom.is_active = not classroom.is_active
     db.session.commit()
@@ -226,15 +228,15 @@ def toggle_room(room_id):
 
 @bp.route('/courses')
 @login_required
+@require_permission('course:read')
 def list_courses():
-    if not current_user.is_admin: abort(403)
     courses = Course.query.order_by(Course.name).all()
     return render_template('admin/courses.html', courses=courses)
 
 @bp.route('/courses/create', methods=['GET', 'POST'])
 @login_required
+@require_permission('course:create')
 def create_course():
-    if not current_user.is_admin: abort(403)
     form = CourseForm()
     if form.validate_on_submit():
         db.session.add(Course(name=form.name.data, code=form.code.data, description=form.description.data, is_active=form.is_active.data))
@@ -245,8 +247,8 @@ def create_course():
 
 @bp.route('/courses/<int:course_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_permission('course:edit')
 def edit_course(course_id):
-    if not current_user.is_admin: abort(403)
     course = Course.query.get_or_404(course_id)
     form = CourseForm(obj=course); form._obj_id = course.id
     if form.validate_on_submit():
@@ -258,8 +260,8 @@ def edit_course(course_id):
 
 @bp.route('/courses/<int:course_id>/toggle', methods=['POST'])
 @login_required
+@require_permission('course:toggle')
 def toggle_course(course_id):
-    if not current_user.is_admin: abort(403)
     course = Course.query.get_or_404(course_id)
     course.is_active = not course.is_active
     db.session.commit()
@@ -270,15 +272,15 @@ def toggle_course(course_id):
 
 @bp.route('/subjects')
 @login_required
+@require_permission('course:read')
 def list_subjects():
-    if not current_user.is_admin: abort(403)
     subjects = Subject.query.order_by(Subject.name).all()
     return render_template('admin/subjects.html', subjects=subjects)
 
 @bp.route('/subjects/create', methods=['GET', 'POST'])
 @login_required
+@require_permission('course:create')
 def create_subject():
-    if not current_user.is_admin: abort(403)
     form = SubjectForm()
     form.course_id.choices = [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
     form.course_id.choices.insert(0, (0, '-- Nenhum Curso Específico --'))
@@ -291,8 +293,8 @@ def create_subject():
 
 @bp.route('/subjects/<int:subject_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_permission('course:edit')
 def edit_subject(subject_id):
-    if not current_user.is_admin: abort(403)
     subj = Subject.query.get_or_404(subject_id)
     form = SubjectForm(obj=subj); form._obj_id = subj.id
     form.course_id.choices = [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
@@ -306,8 +308,8 @@ def edit_subject(subject_id):
 
 @bp.route('/subjects/<int:subject_id>/toggle', methods=['POST'])
 @login_required
+@require_permission('course:toggle')
 def toggle_subject(subject_id):
-    if not current_user.is_admin: abort(403)
     subj = Subject.query.get_or_404(subject_id)
     subj.is_active = not subj.is_active
     db.session.commit()
@@ -318,15 +320,15 @@ def toggle_subject(subject_id):
 
 @bp.route('/holidays')
 @login_required
+@require_permission('holiday:read')
 def list_holidays():
-    if not current_user.is_admin: abort(403)
     holidays = Holiday.query.order_by(Holiday.date).all()
     return render_template('admin/holidays.html', holidays=holidays)
 
 @bp.route('/holidays/create', methods=['GET', 'POST'])
 @login_required
+@require_permission('holiday:create')
 def create_holiday():
-    if not current_user.is_admin: abort(403)
     form = HolidayForm()
     if form.validate_on_submit():
         if Holiday.query.filter_by(date=form.date.data).first():
@@ -340,8 +342,8 @@ def create_holiday():
 
 @bp.route('/holidays/<int:holiday_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_permission('holiday:edit')
 def edit_holiday(holiday_id):
-    if not current_user.is_admin: abort(403)
     h = Holiday.query.get_or_404(holiday_id)
     form = HolidayForm(obj=h)
     if form.validate_on_submit():
@@ -353,58 +355,169 @@ def edit_holiday(holiday_id):
 
 @bp.route('/holidays/<int:holiday_id>/delete', methods=['POST'])
 @login_required
+@require_permission('holiday:delete')
 def delete_holiday(holiday_id):
-    if not current_user.is_admin: abort(403)
     h = Holiday.query.get_or_404(holiday_id)
     db.session.delete(h)
     db.session.commit()
     flash('Feriado excluído.', 'info')
     return redirect(url_for('admin.list_holidays'))
 
-# Route to import holidays from BrasilAPI
 @bp.route('/holidays/import', methods=['POST'])
 @login_required
+@require_permission('holiday:import')
 def import_holidays():
-    if not current_user.is_admin: abort(403)
-    
-    # BrasilAPI only needs the year and returns Brazilian national holidays
+    country = request.form.get('country', 'BR')
     year = request.form.get('year', datetime.now().year, type=int)
+    
+    if not (2000 <= year <= 2100):
+        flash('Ano inválido. Use um valor entre 2000 e 2100.', 'danger')
+        return redirect(url_for('admin.list_holidays'))
+        
     url = f"https://brasilapi.com.br/api/feriados/v1/{year}"
     
     try:
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
         data = resp.json()
-        
-        imported_count = 0
-        skipped_count = 0
+        imported_count, skipped_count = 0, 0
         
         for item in data:
-            # BrasilAPI returns 'date' as 'YYYY-MM-DD' and 'name' as a direct string
-            dt_str = item.get('date', '')
+            dt_str = item.get('date', '')[:10]
             name = item.get('name', 'Feriado Nacional')
+            if not dt_str: continue
+            try: dt = datetime.strptime(dt_str, '%Y-%m-%d').date()
+            except ValueError: continue
             
-            if not dt_str:
-                continue
-                
-            try:
-                dt = datetime.strptime(dt_str, '%Y-%m-%d').date()
-            except ValueError:
-                continue
-            
-            # Check if holiday already exists in DB
             if not Holiday.query.filter_by(date=dt).first():
                 db.session.add(Holiday(name=name, date=dt, is_active=True))
                 imported_count += 1
-            else:
-                skipped_count += 1
+            else: skipped_count += 1
                 
         db.session.commit()
-        flash(f'{imported_count} novos feriados importados. {skipped_count} ignorados (já existiam).', 'success')
-        
-    except requests.exceptions.RequestException as e:
-        flash(f'Erro ao buscar a BrasilAPI: {str(e)}', 'danger')
+        flash(f'{imported_count} novos feriados importados. {skipped_count} ignorados.', 'success')
     except Exception as e:
-        flash(f'Ocorreu um erro: {str(e)}', 'danger')
-        
+        flash(f'Erro ao buscar a BrasilAPI: {str(e)}', 'danger')
     return redirect(url_for('admin.list_holidays'))
+
+# ================= ROLE MANAGEMENT =================
+
+@bp.route('/roles')
+@login_required
+@require_permission('role:read')
+def list_roles():
+    roles = Role.query.order_by(Role.name).all()
+    return render_template('admin/roles.html', roles=roles)
+
+@bp.route('/roles/create', methods=['GET', 'POST'])
+@login_required
+@require_permission('role:create')
+def create_role():
+    form = RoleForm()
+    form.permissions.choices = [(p.id, f"{p.module}: {p.action} ({p.code})") for p in Permission.query.order_by(Permission.module, Permission.action).all()]
+    
+    if form.validate_on_submit():
+        role = Role(name=form.name.data, label=form.label.data, description=form.description.data, is_system=False)
+        if form.permissions.data:
+            role.permissions = Permission.query.filter(Permission.id.in_(form.permissions.data)).all()
+        db.session.add(role)
+        db.session.commit()
+        flash('Papel criado com sucesso.', 'success')
+        return redirect(url_for('admin.list_roles'))
+    return render_template('admin/role_form.html', form=form, title='Criar Papel')
+
+@bp.route('/roles/<int:role_id>/edit', methods=['GET', 'POST'])
+@login_required
+@require_permission('role:edit')
+def edit_role(role_id):
+    role = Role.query.get_or_404(role_id)
+    form = RoleForm(obj=role)
+    form.permissions.choices = [(p.id, f"{p.module}: {p.action} ({p.code})") for p in Permission.query.order_by(Permission.module, Permission.action).all()]
+    
+    if request.method == 'GET':
+        form.permissions.data = [p.id for p in role.permissions]
+        
+    if form.validate_on_submit():
+        role.label = form.label.data
+        role.description = form.description.data
+        if form.permissions.data:
+            role.permissions = Permission.query.filter(Permission.id.in_(form.permissions.data)).all()
+        else:
+            role.permissions = []
+        db.session.commit()
+        flash('Papel atualizado com sucesso.', 'success')
+        return redirect(url_for('admin.list_roles'))
+    return render_template('admin/role_form.html', form=form, title='Editar Papel')
+
+@bp.route('/roles/<int:role_id>/delete', methods=['POST'])
+@login_required
+@require_permission('role:delete')
+def delete_role(role_id):
+    role = Role.query.get_or_404(role_id)
+    if role.is_system:
+        flash('Papéis do sistema não podem ser excluídos.', 'danger')
+        return redirect(url_for('admin.list_roles'))
+    if len(role.users) > 0:
+        flash('Não é possível excluir um papel que possui usuários vinculados. Mude os usuários de papel primeiro.', 'danger')
+        return redirect(url_for('admin.list_roles'))
+        
+    db.session.delete(role)
+    db.session.commit()
+    flash('Papel excluído.', 'info')
+    return redirect(url_for('admin.list_roles'))
+
+# ================= ROOM CATEGORY MANAGEMENT =================
+
+@bp.route('/categories')
+@login_required
+@require_permission('room:read')
+def list_categories():
+    categories = RoomCategory.query.order_by(RoomCategory.name).all()
+    return render_template('admin/categories.html', categories=categories)
+
+@bp.route('/categories/create', methods=['GET', 'POST'])
+@login_required
+@require_permission('room:create')
+def create_category():
+    form = RoomCategoryForm()
+    if form.validate_on_submit():
+        exists = RoomCategory.query.filter_by(code=form.code.data).first()
+        if exists:
+            flash('Já existe uma categoria com este código.', 'danger')
+        else:
+            cat = RoomCategory(
+                name=form.name.data, code=form.code.data, 
+                abbr=form.abbr.data.upper() if form.abbr.data else None, 
+                is_active=form.is_active.data
+            )
+            db.session.add(cat)
+            db.session.commit()
+            flash('Categoria criada com sucesso.', 'success')
+            return redirect(url_for('admin.list_categories'))
+    return render_template('admin/category_form.html', form=form, title='Criar Categoria')
+
+@bp.route('/categories/<int:cat_id>/edit', methods=['GET', 'POST'])
+@login_required
+@require_permission('room:edit')
+def edit_category(cat_id):
+    cat = RoomCategory.query.get_or_404(cat_id)
+    form = RoomCategoryForm(obj=cat)
+    if form.validate_on_submit():
+        cat.name = form.name.data
+        cat.code = form.code.data
+        cat.abbr = form.abbr.data.upper() if form.abbr.data else None
+        cat.is_active = form.is_active.data
+        db.session.commit()
+        flash('Categoria atualizada.', 'success')
+        return redirect(url_for('admin.list_categories'))
+    return render_template('admin/category_form.html', form=form, title='Editar Categoria')
+
+@bp.route('/categories/<int:cat_id>/toggle', methods=['POST'])
+@login_required
+@require_permission('room:toggle')
+def toggle_category(cat_id):
+    cat = RoomCategory.query.get_or_404(cat_id)
+    cat.is_active = not cat.is_active
+    db.session.commit()
+    flash(f'Categoria {cat.name} {"ativada" if cat.is_active else "desativada"}.', 'success')
+    return redirect(url_for('admin.list_categories'))

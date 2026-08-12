@@ -21,6 +21,7 @@ class User(UserMixin, db.Model):
     is_teacher = db.Column(db.Boolean, default=False) # Allows an employee to also act as a teacher
     force_password_change = db.Column(db.Boolean, default=True)
     unity = db.Column(db.String(120), nullable=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active_user = db.Column(db.Boolean, default=True)
 
@@ -38,31 +39,39 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
-    # Helper properties for role checking
+    # NOVAS PROPRIEDADES E MÉTODOS:
+    @property
+    def permissions(self):
+        """Retorna o set de códigos de permissão do usuário."""
+        if self.role_obj:
+            return {p.code for p in self.role_obj.permissions}
+        return set()
+
+    def has_permission(self, perm_code):
+        """Verifica se o usuário possui uma permissão específica."""
+        if not self.permissions:
+            return False
+        # Se o usuário tiver a permissão curinga '*', ele tem acesso a tudo
+        if '*' in self.permissions:
+            return True
+        return perm_code in self.permissions
+
+    # Propriedades legado atualizadas para compatibilidade
     @property
     def is_admin(self):
-        return self.role == 'admin'
+        return self.has_permission('*') or (self.role_obj and self.role_obj.name == 'admin')
 
     @property
     def is_room_group(self):
-        return self.role == 'room'
+        return self.has_permission('reservation:create')
 
     @property
     def is_viewer(self):
-        return self.role == 'viewer'
+        return self.role_obj and self.role_obj.name == 'viewer'
 
-    # Property to check if user can book rooms (Admins and Room Bookers)
     @property
     def can_book(self):
-        return self.role in ['admin', 'room']
-
-    # Flask-Login property to check if the user account is active
-    @property
-    def is_active(self):
-        return self.is_active_user
-
-    def __repr__(self):
-        return f'<User {self.username}>'
+        return self.has_permission('reservation:create')
 
 # Flask-Login loader to fetch user by ID for session management
 @login_manager.user_loader
@@ -79,7 +88,7 @@ class Classroom(db.Model):
     building = db.Column(db.String(120))
     floor = db.Column(db.String(20))
     capacity = db.Column(db.Integer, nullable=False, default=30)
-    category = db.Column(db.String(30), nullable=False, default='classroom')
+    category_id = db.Column(db.Integer, db.ForeignKey('room_categories.id'), nullable=False)
     computer_count = db.Column(db.Integer, default=0)
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
@@ -87,6 +96,7 @@ class Classroom(db.Model):
 
     # Relationship for reservations in this room
     reservations = db.relationship('Reservation', backref='classroom', lazy=True)
+    category = db.relationship('RoomCategory')
 
     def __repr__(self):
         return f'<Classroom {self.code}>'
@@ -243,3 +253,49 @@ class TeacherOvertimePay(db.Model):
 
     teacher = db.relationship('User', foreign_keys=[teacher_id])
     accountable = db.relationship('User', foreign_keys=[accountable_id])
+
+# Tabela de junção entre Roles e Permissions
+role_permissions = db.Table('role_permissions',
+    db.Column('role_id', db.Integer, db.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('permission_id', db.Integer, db.ForeignKey('permissions.id', ondelete='CASCADE'), primary_key=True)
+)
+
+# Modelo de Permissões Granulares
+class Permission(db.Model):
+    __tablename__ = 'permissions'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(80), unique=True, nullable=False)
+    module = db.Column(db.String(30), nullable=False)
+    action = db.Column(db.String(30), nullable=False)
+    description = db.Column(db.String(255))
+
+    def __repr__(self):
+        return f'<Permission {self.code}>'
+
+# Modelo de Roles (Grupos de Permissões)
+class Role(db.Model):
+    __tablename__ = 'roles'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    label = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    is_system = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    permissions = db.relationship('Permission', secondary='role_permissions', backref='roles')
+    # Relacionamento reverso para User (role_obj)
+    users = db.relationship('User', backref='role_obj', lazy=True)
+
+# Model for Room Categories (dynamic)
+class RoomCategory(db.Model):
+    __tablename__ = 'room_categories'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False) # Ex: "Laboratório de Informática"
+    code = db.Column(db.String(20), unique=True, nullable=False) # Ex: "computer_lab"
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Abreviação para gerar o código da sala automaticamente (ex: CP, CR, AU)
+    abbr = db.Column(db.String(3), nullable=True)
+
+    def __repr__(self):
+        return f'<RoomCategory {self.name}>'

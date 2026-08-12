@@ -11,7 +11,7 @@
                     <div class="mb-3">{{ form.name.label(class="form-label") }} {{ form.name(class="form-control") }}</div>
                     <div class="row">
                         <div class="col-md-6 mb-3">{{ form.room_number.label(class="form-label") }} {{ form.room_number(class="form-control") }} <small class="text-muted">O código será gerado automaticamente (ex: CR101).</small></div>
-                        <div class="col-md-6 mb-3">{{ form.category.label(class="form-label") }} {{ form.category(class="form-select") }}</div>
+                        <div class="col-md-6 mb-3">{{ form.category_id.label(class="form-label") }} {{ form.category_id(class="form-select") }}</div>
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">{{ form.building.label(class="form-label") }} {{ form.building(class="form-control") }}</div>
@@ -30,8 +30,15 @@
 {% endblock %}
 {% block scripts %}
 <script>
-    const cat = document.getElementById('category'), div = document.getElementById('compCountDiv');
-    function toggle() { div.style.display = cat.value === 'computer_lab' ? 'block' : 'none'; }
-    toggle(); cat.addEventListener('change', toggle);
+    const catSelect = document.getElementById('category_id'), div = document.getElementById('compCountDiv');
+    
+    function toggleCompCount() {
+        // Pega o texto da opção selecionada para verificar se é "Laboratório de Informática"
+        const selectedText = catSelect.options[catSelect.selectedIndex].text;
+        div.style.display = selectedText.includes('Informática') ? 'block' : 'none';
+    }
+    
+    toggleCompCount(); 
+    catSelect.addEventListener('change', toggleCompCount);
 </script>
 {% endblock %}

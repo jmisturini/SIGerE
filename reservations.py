@@ -4,6 +4,7 @@ from models import Reservation, Classroom, User, Course, Subject, Holiday
 from forms import ReservationForm
 from extensions import db
 from datetime import date, time, datetime, timedelta
+from permissions import require_permission, require_permission_or_owner
 
 bp = Blueprint('reservations', __name__, url_prefix='/reservations')
 
@@ -77,14 +78,10 @@ def check_holiday():
 # Route to create a new reservation
 @bp.route('/create', methods=['GET', 'POST'])
 @login_required
+@require_permission('reservation:create')
 def create():
-    if not current_user.can_book:
-        flash('Visualizadores só podem solicitar alterações. Contate um agendador ou administrador.', 'warning')
-        return redirect(url_for('classrooms.list_classrooms'))
-
     form = ReservationForm()
     
-    # Populate dropdowns
     classrooms = Classroom.query.filter_by(is_active=True).order_by(Classroom.code).all()
     form.classroom.choices = [(c.id, f"{c.name} ({c.code}) - Cap {c.capacity}") for c in classrooms]
     form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
@@ -105,7 +102,6 @@ def create():
             flash('Não é possível reservar uma data no passado.', 'danger')
             return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
-        # Check restrictions
         allowed, restriction_msg = check_schedule_restrictions(form.date.data, form.start_time.data)
         if not allowed:
             flash(restriction_msg, 'danger')
@@ -113,13 +109,11 @@ def create():
 
         classroom_id = form.classroom.data
         
-        # 1. Check Classroom conflict (Hard block)
         conflict = check_conflict(classroom_id, form.date.data, form.start_time.data, form.end_time.data)
         if conflict:
             flash(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})', 'danger')
             return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
-        # 2. Check Teacher conflict (Triggers pending status)
         teacher_id = form.teacher.data if form.teacher.data > 0 else None
         is_teacher_conflict = False
         
@@ -134,7 +128,6 @@ def create():
             if teacher_conflict:
                 is_teacher_conflict = True
 
-        # Determine status based on conflict
         status = 'pending' if is_teacher_conflict else 'approved'
 
         reservation = Reservation(
@@ -149,7 +142,6 @@ def create():
         db.session.add(reservation)
         db.session.commit()
         
-        # Redirect to warning page if pending, else go to my reservations
         if is_teacher_conflict:
             flash('Reserva criada como PENDENTE devido a conflito de professor.', 'warning')
             return redirect(url_for('reservations.teacher_conflict_warning', reservation_id=reservation.id))
@@ -159,43 +151,39 @@ def create():
 
     return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
-
-# Route to view user's own reservations, split into upcoming and past
+# Route to view user's own reservations
 @bp.route('/my')
 @login_required
+@require_permission('reservation:read_own')
 def my_reservations():
     status = request.args.get('status', 'all')
     query = Reservation.query.filter_by(user_id=current_user.id)
     if status != 'all':
         query = query.filter_by(status=status)
         
-    today = date.today()
+    all_res = query.order_by(Reservation.date.desc(), Reservation.start_time).all()
     
-    # Upcoming: Ascending order (closest date first)
-    upcoming_reservations = query.filter(Reservation.date >= today).order_by(Reservation.date.asc(), Reservation.start_time.asc()).all()
-    # Past: Descending order (most recent past date first)
-    past_reservations = query.filter(Reservation.date < today).order_by(Reservation.date.desc(), Reservation.start_time.desc()).all()
+    today = date.today()
+    upcoming_reservations = [r for r in all_res if r.date >= today]
+    past_reservations = [r for r in all_res if r.date < today]
     
     return render_template('reservations/my_reservations.html', upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status)
 
-# Admin route to view all reservations, split into upcoming and past
+# Admin route to view all reservations
 @bp.route('/all')
 @login_required
+@require_permission('reservation:read_all')
 def all_reservations():
-    if not current_user.is_admin:
-        abort(403)
-        
     status = request.args.get('status', 'all')
     query = Reservation.query
     if status != 'all':
         query = query.filter_by(status=status)
         
-    today = date.today()
+    all_res = query.order_by(Reservation.date.desc(), Reservation.start_time).all()
     
-    # Upcoming: Ascending order (closest date first)
-    upcoming_reservations = query.filter(Reservation.date >= today).order_by(Reservation.date.asc(), Reservation.start_time.asc()).all()
-    # Past: Descending order (most recent past date first)
-    past_reservations = query.filter(Reservation.date < today).order_by(Reservation.date.desc(), Reservation.start_time.desc()).all()
+    today = date.today()
+    upcoming_reservations = [r for r in all_res if r.date >= today]
+    past_reservations = [r for r in all_res if r.date < today]
     
     return render_template('reservations/all.html', upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status)
 
@@ -204,18 +192,17 @@ def all_reservations():
 @login_required
 def detail(reservation_id):
     reservation = Reservation.query.get_or_404(reservation_id)
-    if reservation.user_id != current_user.id and not current_user.is_admin:
-        abort(403)
+    # Permite ver se tem permissão global, OU se é o dono e tem permissão de ler as próprias
+    if not current_user.has_permission('reservation:read_all'):
+        if not (current_user.has_permission('reservation:read_own') and reservation.user_id == current_user.id):
+            abort(403)
     return render_template('reservations/detail.html', reservation=reservation)
 
-# Route to edit a reservation (Admin only, blocks past dates)
-# Route to edit a reservation (Admin only, blocks past dates)
+# Route to edit a reservation (Admin or Owner)
 @bp.route('/<int:reservation_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_permission_or_owner('reservation:edit_all')
 def edit(reservation_id):
-    if not current_user.is_admin:
-        abort(403)
-    
     reservation = Reservation.query.get_or_404(reservation_id)
     if reservation.date < date.today():
         flash('Reservas passadas não podem ser editadas.', 'warning')
@@ -223,15 +210,13 @@ def edit(reservation_id):
 
     form = ReservationForm()
     
-    # Populate dropdown choices
     classrooms = Classroom.query.filter_by(is_active=True).order_by(Classroom.code).all()
     form.classroom.choices = [(c.id, f"{c.name} ({c.code}) - Cap {c.capacity}") for c in classrooms]
     form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
-    form.subject.choices = [(0, '-- Nenhum --')] + [(s.id, s.name) for s in Subject.query.filter_by(is_active=True).order_by(Subject.name).all()]
+    form.subject.choices = [(0, '-- Nenhum --')] + [(s.id, f"{s.name}") for s in Subject.query.filter_by(is_active=True).order_by(Subject.name).all()]
     teachers = User.query.filter(User.is_active_user == True, ((User.profile_type == 'teacher') | (User.is_teacher == True))).order_by(User.full_name).all()
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
 
-    # If GET request, manually populate form fields with reservation data
     if request.method == 'GET':
         form.classroom.data = reservation.classroom_id
         form.course.data = reservation.course_id if reservation.course_id else 0
@@ -274,30 +259,28 @@ def edit(reservation_id):
 # Route to cancel a reservation
 @bp.route('/<int:reservation_id>/cancel', methods=['POST'])
 @login_required
+@require_permission_or_owner('reservation:cancel_all')
 def cancel(reservation_id):
     reservation = Reservation.query.get_or_404(reservation_id)
-    if reservation.user_id != current_user.id and not current_user.is_admin:
-        abort(403)
     if reservation.status == 'cancelled':
         flash('Esta reserva já está cancelada.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
-    if reservation.date < date.today() and not current_user.is_admin:
+    if reservation.date < date.today() and not current_user.has_permission('reservation:cancel_all'):
         flash('Não é possível cancelar uma reserva passada.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
     
     reservation.status = 'cancelled'
     db.session.commit()
     flash('Reserva cancelada.', 'info')
-    if current_user.is_admin:
+    if current_user.has_permission('reservation:read_all'):
         return redirect(url_for('reservations.all_reservations'))
     return redirect(url_for('reservations.my_reservations'))
 
 # Route to permanently delete a reservation (Admin only)
 @bp.route('/<int:reservation_id>/delete', methods=['POST'])
 @login_required
+@require_permission('reservation:delete_all')
 def delete(reservation_id):
-    if not current_user.is_admin:
-        abort(403)
     reservation = Reservation.query.get_or_404(reservation_id)
     db.session.delete(reservation)
     db.session.commit()
@@ -307,9 +290,8 @@ def delete(reservation_id):
 # Route to approve a pending reservation (Admin only)
 @bp.route('/<int:reservation_id>/approve', methods=['POST'])
 @login_required
+@require_permission('reservation:approve')
 def approve(reservation_id):
-    if not current_user.is_admin:
-        abort(403)
     reservation = Reservation.query.get_or_404(reservation_id)
     if reservation.status == 'pending':
         reservation.status = 'approved'
@@ -322,7 +304,7 @@ def approve(reservation_id):
 @login_required
 def teacher_conflict_warning(reservation_id):
     reservation = Reservation.query.get_or_404(reservation_id)
-    if reservation.user_id != current_user.id and not current_user.is_admin:
+    if reservation.user_id != current_user.id and not current_user.has_permission('reservation:read_all'):
         abort(403)
     return render_template('reservations/pending_conflict.html', reservation=reservation)
 
@@ -330,18 +312,15 @@ def teacher_conflict_warning(reservation_id):
 
 @bp.route('/<int:reservation_id>/repeat', methods=['GET', 'POST'])
 @login_required
+@require_permission('reservation:create')
 def repeat_view(reservation_id):
-    # CORREÇÃO: Bloquear visualizadores de acessar a rota
-    if not current_user.can_book:
-        abort(403)
     res = Reservation.query.get_or_404(reservation_id)
-    if res.user_id != current_user.id and not current_user.is_admin:
+    if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
         abort(403)
 
     start_date = max(res.date + timedelta(days=1), date.today() + timedelta(days=1))
     original_weekday = res.date.weekday()
 
-    # Listas para formatar a data em português
     dias_semana_extenso = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
     dias_semana_curto = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
     meses_curto = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
@@ -368,8 +347,7 @@ def repeat_view(reservation_id):
         for i in range(delta.days + 1):
             d = start_date + timedelta(days=i)
             
-            if same_day and d.weekday() != original_weekday:
-                continue
+            if same_day and d.weekday() != original_weekday: continue
             if skip_weekend:
                 if d.weekday() == 6: continue
                 if d.weekday() == 5 and original_weekday != 5: continue
@@ -386,14 +364,9 @@ def repeat_view(reservation_id):
                 if tc: teacher_conflict = True
 
             is_available = allowed and not conflict and not teacher_conflict
-            
-            # Formatar a data do cartão em português (ex: "Sex, 24 mai")
             formatted_card_date = f"{dias_semana_curto[d.weekday()]}, {d.day} {meses_curto[d.month - 1]}"
-
             days.append({
-                'date': d, 
-                'formatted_date': formatted_card_date,
-                'is_available': is_available,
+                'date': d, 'formatted_date': formatted_card_date, 'is_available': is_available,
                 'message': msg if not allowed else ("Sala Ocupada" if conflict else "Professor Ocupado" if teacher_conflict else "Disponível")
             })
 
@@ -403,12 +376,10 @@ def repeat_view(reservation_id):
 
 @bp.route('/<int:reservation_id>/repeat_schedule', methods=['POST'])
 @login_required
+@require_permission('reservation:create')
 def repeat_schedule(reservation_id):
-    # CORREÇÃO: Bloquear visualizadores de acessar a rota
-    if not current_user.can_book:
-        abort(403)
     res = Reservation.query.get_or_404(reservation_id)
-    if res.user_id != current_user.id and not current_user.is_admin:
+    if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
         abort(403)
 
     new_date_str = request.form.get('new_date')
@@ -445,12 +416,10 @@ def repeat_schedule(reservation_id):
 
 @bp.route('/<int:reservation_id>/repeat_schedule_all', methods=['POST'])
 @login_required
+@require_permission('reservation:create')
 def repeat_schedule_all(reservation_id):
-    # CORREÇÃO: Bloquear visualizadores de acessar a rota
-    if not current_user.can_book:
-        abort(403)
     res = Reservation.query.get_or_404(reservation_id)
-    if res.user_id != current_user.id and not current_user.is_admin:
+    if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
         abort(403)
 
     start_date_str = request.form.get('start_date')
@@ -470,11 +439,9 @@ def repeat_schedule_all(reservation_id):
     original_weekday = res.date.weekday()
     
     while current_date <= end_date:
-                # Apply same filters to the "Schedule All" logic
         if same_day and current_date.weekday() != original_weekday:
             current_date += timedelta(days=1)
             continue
-            
         if skip_weekend:
             if current_date.weekday() == 6: 
                 current_date += timedelta(days=1)
@@ -487,19 +454,14 @@ def repeat_schedule_all(reservation_id):
         if allowed:
             conflict = check_conflict(res.classroom_id, current_date, res.start_time, res.end_time)
             if not conflict:
-                # Check teacher conflict
                 teacher_conflict = False
                 if res.teacher_id:
                     tc = Reservation.query.filter(
-                        Reservation.teacher_id == res.teacher_id,
-                        Reservation.date == current_date,
+                        Reservation.teacher_id == res.teacher_id, Reservation.date == current_date,
                         Reservation.status.in_(['approved', 'pending']),
-                        Reservation.start_time < res.end_time,
-                        Reservation.end_time > res.start_time
+                        Reservation.start_time < res.end_time, Reservation.end_time > res.start_time
                     ).first()
-                    if tc:
-                        teacher_conflict = True
-                
+                    if tc: teacher_conflict = True
                 if not teacher_conflict:
                     new_res = Reservation(
                         user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,

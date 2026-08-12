@@ -6,9 +6,14 @@
         <div class="d-flex justify-content-between align-items-start mb-4">
             <div>
                 <h3 class="mb-1">{{ reservation.title }}</h3>
-                <span class="badge status-{{ reservation.status }} status-badge text-capitalize">{{ reservation.status }}</span>
+                <span class="badge status-{{ reservation.status }} status-badge text-capitalize">
+                    {% if reservation.status == 'approved' %}Aprovada
+                    {% elif reservation.status == 'pending' %}Pendente
+                    {% elif reservation.status == 'cancelled' %}Cancelada
+                    {% else %}{{ reservation.status }}{% endif %}
+                </span>
             </div>
-            <a href="{{ url_for('reservations.my_reservations') if not current_user.is_admin else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary btn-sm">
+            <a href="{{ url_for('reservations.my_reservations') if not current_user.has_permission('reservation:read_all') else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left"></i> Voltar
             </a>
         </div>
@@ -39,41 +44,51 @@
         </div>
         {% endif %}
 
-        <!-- Action Buttons -->
+        <!-- Action Buttons Baseados em Permissão -->
         <div class="mt-4 d-flex gap-2 flex-wrap">
-            <!-- Repeat Button -->
-            {% if reservation.status == 'approved' and (reservation.user_id == current_user.id or current_user.is_admin) %}
+            
+            <!-- Repetir: Dono ou quem tem edit_all -->
+            {% if reservation.status == 'approved' and (reservation.user_id == current_user.id or current_user.has_permission('reservation:edit_all')) %}
             <a href="{{ url_for('reservations.repeat_view', reservation_id=reservation.id) }}" class="btn btn-info">
                 <i class="bi bi-arrow-repeat"></i> Repetir
             </a>
             {% endif %}
 
-            <!-- Cancel Button -->
-            {% if reservation.status == 'approved' and (reservation.date >= now.date() or current_user.is_admin) %}
-            <form method="POST" action="{{ url_for('reservations.cancel', reservation_id=reservation.id) }}" onsubmit="return confirm('Cancelar esta reserva? A sala ficará livre.');">
-                <button class="btn btn-warning"><i class="bi bi-x-circle"></i> Cancelar Reserva</button>
-            </form>
+            <!-- Cancelar: Dono (cancel_own) ou Global (cancel_all) -->
+            {% if reservation.status == 'approved' and (reservation.date >= now.date() or current_user.has_permission('reservation:cancel_all')) %}
+                {% if current_user.has_permission('reservation:cancel_all') or (current_user.has_permission('reservation:cancel_own') and reservation.user_id == current_user.id) %}
+                <form method="POST" action="{{ url_for('reservations.cancel', reservation_id=reservation.id) }}" onsubmit="return confirm('Cancelar esta reserva? A sala ficará livre.');">
+                    <button class="btn btn-warning"><i class="bi bi-x-circle"></i> Cancelar Reserva</button>
+                </form>
+                {% endif %}
             {% endif %}
 
-            <!-- Admin Only Buttons for Approved Reservations -->
-            {% if current_user.is_admin and reservation.status == 'approved' %}
+            <!-- Editar e Excluir: Apenas Admin (edit_all, delete_all) -->
+            {% if current_user.has_permission('reservation:edit_all') and reservation.status == 'approved' %}
             <a href="{{ url_for('reservations.edit', reservation_id=reservation.id) }}" class="btn btn-primary">
                 <i class="bi bi-pencil"></i> Editar
             </a>
+            {% endif %}
+
+            {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'approved' %}
             <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva? Isso não pode ser desfeito.');">
                 <button class="btn btn-danger"><i class="bi bi-trash"></i> Excluir Permanentemente</button>
             </form>
             {% endif %}
 
-            <!-- Admin Only Buttons for Pending Reservations -->
-            {% if current_user.is_admin and reservation.status == 'pending' %}
+            <!-- Aprovar: Apenas quem tem approve -->
+            {% if current_user.has_permission('reservation:approve') and reservation.status == 'pending' %}
             <form method="POST" action="{{ url_for('reservations.approve', reservation_id=reservation.id) }}">
                 <button class="btn btn-success"><i class="bi bi-check-circle"></i> Aprovar Reserva</button>
             </form>
+            {% endif %}
+
+            {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'pending' %}
             <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva pendente?');">
                 <button class="btn btn-danger"><i class="bi bi-trash"></i> Excluir Permanentemente</button>
             </form>
             {% endif %}
+
         </div>
     </div>
 </div>

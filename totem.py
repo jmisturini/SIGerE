@@ -1,6 +1,6 @@
 import re
 from flask import Blueprint, render_template
-from models import Classroom, Reservation
+from models import Classroom, Reservation, RoomCategory
 from datetime import date, time, datetime, timedelta
 
 bp = Blueprint('totem', __name__, url_prefix='/totem')
@@ -21,16 +21,19 @@ def display():
     # 1. Fetch Auditoriums for the next 7 days
     week_end = today + timedelta(days=7)
     aud_reservations = Reservation.query.join(Classroom).filter(
-        Classroom.category == 'auditorium',
-        Reservation.date >= today, Reservation.date <= week_end,
+        Classroom.category.has(RoomCategory.code == 'auditorium'), # CORRIGIDO
+        Reservation.date >= today,
+        Reservation.date <= week_end,
         Reservation.status == 'approved'
     ).order_by(Reservation.date, Reservation.start_time).all()
 
     # 2. Fetch Classrooms for today's current period
     cls_reservations = Reservation.query.join(Classroom).filter(
-        Classroom.category != 'auditorium',
-        Reservation.date == today, Reservation.status == 'approved',
-        Reservation.start_time < p_end, Reservation.end_time > p_start
+        Classroom.category.has(RoomCategory.code != 'auditorium'), # CORRIGIDO
+        Reservation.date == today,
+        Reservation.status == 'approved',
+        Reservation.start_time < p_end,
+        Reservation.end_time > p_start
     ).order_by(Classroom.code).all()
 
     # Group classrooms by the first number in the room code

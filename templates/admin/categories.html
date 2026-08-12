@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Gerenciar Categorias{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Gerenciar Categorias de Sala</h2>
+    {% if current_user.has_permission('room:create') %}
+    <a href="{{ url_for('admin.create_category') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Adicionar Categoria</a>
+    {% endif %}
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr><th>Nome</th><th>Código Interno</th><th>Abreviação (p/ Sala)</th><th>Status</th><th>Ações</th></tr>
+            </thead>
+            <tbody>
+            {% for c in categories %}
+                <tr>
+                    <td>{{ c.name }}</td>
+                    <td><code>{{ c.code }}</code></td>
+                    <td><span class="badge bg-secondary">{{ c.abbr or '-' }}</span></td>
+                    <td>
+                        {% if c.is_active %}<span class="badge bg-success">Ativo</span>
+                        {% else %}<span class="badge bg-danger">Inativo</span>{% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('admin.edit_category', cat_id=c.id) }}" class="btn btn-sm btn-outline-primary">Editar</a>
+                        <form method="POST" action="{{ url_for('admin.toggle_category', cat_id=c.id) }}" class="d-inline">
+                            {% if c.is_active %}
+                            <button class="btn btn-sm btn-outline-danger">Desativar</button>
+                            {% else %}
+                            <button class="btn btn-sm btn-outline-success">Ativar</button>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5" class="text-muted text-center p-4">Nenhuma categoria encontrada.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

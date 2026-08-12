@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import (StringField, PasswordField, SubmitField, IntegerField, DateField, TimeField, TextAreaField, SelectField, BooleanField, FloatField)
+from wtforms import (StringField, PasswordField, SubmitField, IntegerField, DateField, TimeField, TextAreaField, SelectField, BooleanField, FloatField, SelectMultipleField)
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, timedelta
 from models import User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay 
@@ -25,11 +25,7 @@ class TeacherForm(FlaskForm):
     registration = StringField('Matrícula / ID do Professor', validators=[Optional(), Length(max=50)])
     department = StringField('Departamento', validators=[Optional(), Length(max=120)])
     unity = StringField('Unidade', validators=[Optional(), Length(max=120)])
-    role = SelectField('Nível de Acesso', choices=[
-        ('viewer', 'Visualizador (Somente Leitura)'),
-        ('room', 'Agendador (Room Booker)'), 
-        ('admin', 'Administrador')
-    ], default='room')
+    role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     password = PasswordField('Senha', validators=[DataRequired(), Length(min=6)])
     is_active_user = BooleanField('Ativo', default=True)
     submit = SubmitField('Salvar Professor')
@@ -62,11 +58,7 @@ class EmployeeForm(FlaskForm):
     sector = StringField('Setor', validators=[Optional(), Length(max=120)])
     function = StringField('Função', validators=[Optional(), Length(max=120)])
     unity = StringField('Unidade', validators=[Optional(), Length(max=120)])
-    role = SelectField('Nível de Acesso', choices=[
-        ('viewer', 'Visualizador (Somente Leitura)'),
-        ('room', 'Agendador (Room Booker)'), 
-        ('admin', 'Administrador')
-    ], default='viewer')
+    role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     is_teacher = BooleanField('Também cadastrar como Professor (pode ser designado para reservas)')
     password = PasswordField('Senha', validators=[DataRequired(), Length(min=6)])
     is_active_user = BooleanField('Ativo', default=True)
@@ -95,13 +87,7 @@ class ClassroomForm(FlaskForm):
     building = StringField('Prédio', validators=[Optional(), Length(max=120)])
     floor = StringField('Andar', validators=[Optional(), Length(max=20)])
     capacity = IntegerField('Capacidade', validators=[DataRequired()])
-    category = SelectField('Categoria', choices=[
-        ('classroom', 'Sala de Aula'), 
-        ('auditorium', 'Auditório'),
-        ('kitchen', 'Cozinha'),
-        ('computer_lab', 'Laboratório de Informática'),
-        ('health_lab', 'Laboratório de Saúde')
-    ], default='classroom')
+    category_id = SelectField('Categoria', coerce=int, validators=[DataRequired()])
     computer_count = IntegerField('Número de Computadores', validators=[Optional()])
     description = TextAreaField('Descrição', validators=[Optional()])
     is_active = BooleanField('Ativo', default=True)
@@ -223,3 +209,17 @@ class FormTeacherOvertimePay(FlaskForm):
             raise ValidationError('O código orçamentário deve conter apenas números.')
         if len(field.data) < 9:
             raise ValidationError('O código orçamentário deve ter pelo menos 9 dígitos.')
+
+class RoleForm(FlaskForm):
+    name = StringField('Nome do Sistema (ex: coordinator)', validators=[DataRequired(), Length(max=50)])
+    label = StringField('Rótulo de Exibição (ex: Coordenador)', validators=[DataRequired(), Length(max=100)])
+    description = TextAreaField('Descrição', validators=[Optional()])
+    permissions = SelectMultipleField('Permissões', coerce=int, validators=[Optional()])
+    submit = SubmitField('Salvar Papel')
+
+class RoomCategoryForm(FlaskForm):
+    name = StringField('Nome da Categoria (ex: Laboratório de Informática)', validators=[DataRequired(), Length(max=50)])
+    code = StringField('Código Interno (ex: computer_lab)', validators=[DataRequired(), Length(max=20)])
+    abbr = StringField('Abreviação para Código de Sala (ex: LI - máx 3 letras)', validators=[Optional(), Length(max=3)])
+    is_active = BooleanField('Ativo', default=True)
+    submit = SubmitField('Salvar Categoria')

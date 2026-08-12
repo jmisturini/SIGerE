@@ -35,18 +35,14 @@
     <div class="col-md-4">
         <div class="card shadow-sm h-100">
             <div class="card-body">
-                {% if classroom.category in ['computer_lab', 'health_lab', 'kitchen', 'auditorium'] %}
+                {% if classroom.category %}
                 <h6>Tipo de Sala</h6>
                 <ul class="list-unstyled">
-                    {% if classroom.category == 'computer_lab' %}
-                    <li><i class="bi bi-check-circle text-success"></i> Lab de Informática <small class="text-muted">({{ classroom.computer_count }} PCs)</small></li>
-                    {% elif classroom.category == 'health_lab' %}
-                    <li><i class="bi bi-check-circle text-success"></i> Lab de Saúde</li>
-                    {% elif classroom.category == 'kitchen' %}
-                    <li><i class="bi bi-check-circle text-success"></i> Cozinha</li>
-                    {% elif classroom.category == 'auditorium' %}
-                    <li><i class="bi bi-check-circle text-success"></i> Auditório</li>
+                    <li><i class="bi bi-check-circle text-success"></i> {{ classroom.category.name }}
+                    {% if classroom.category.code == 'computer_lab' %}
+                        <small class="text-muted">({{ classroom.computer_count }} PCs)</small>
                     {% endif %}
+                    </li>
                 </ul>
                 {% endif %}
                 {% if classroom.description %}

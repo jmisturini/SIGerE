@@ -51,11 +51,9 @@
             <label class="form-label small fw-bold">Tipo de Sala</label>
             <select id="category_select" name="category" class="form-select">
                 <option value="">Todos os Tipos</option>
-                <option value="classroom" {{ 'selected' if selected_category == 'classroom' }}>Sala de Aula</option>
-                <option value="auditorium" {{ 'selected' if selected_category == 'auditorium' }}>Auditório</option>
-                <option value="computer_lab" {{ 'selected' if selected_category == 'computer_lab' }}>Lab de Informática</option>
-                <option value="health_lab" {{ 'selected' if selected_category == 'health_lab' }}>Lab de Saúde</option>
-                <option value="kitchen" {{ 'selected' if selected_category == 'kitchen' }}>Cozinha</option>
+                {% for cat in categories %}
+                <option value="{{ cat.id }}" {{ 'selected' if selected_category == cat.id|string }}>{{ cat.name }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="col-md-2">
@@ -103,16 +101,18 @@
                     </div>
                     <p class="text-muted small mb-3">{{ c.building or 'N/A' }} · Cap. {{ c.capacity }}</p>
                     <div class="mb-3">
-                        {% if c.category == 'computer_lab' %}
-                        <span class="amenity-icon on"><i class="bi bi-pc-display"></i> Lab de Informática ({{ c.computer_count }} PCs)</span>
-                        {% elif c.category == 'health_lab' %}
-                        <span class="amenity-icon on"><i class="bi bi-heart-pulse"></i> Lab de Saúde</span>
-                        {% elif c.category == 'kitchen' %}
-                        <span class="amenity-icon on"><i class="bi bi-cup-hot"></i> Cozinha</span>
-                        {% elif c.category == 'auditorium' %}
-                        <span class="amenity-icon on"><i class="bi bi-buildings"></i> Auditório</span>
+                        {% if c.category and c.category.code == 'computer_lab' %}
+                        <span class="amenity-icon on"><i class="bi bi-pc-display"></i> {{ c.category.name }} ({{ c.computer_count }} PCs)</span>
+                        {% elif c.category and c.category.code == 'health_lab' %}
+                        <span class="amenity-icon on"><i class="bi bi-heart-pulse"></i> {{ c.category.name }}</span>
+                        {% elif c.category and c.category.code == 'kitchen' %}
+                        <span class="amenity-icon on"><i class="bi bi-cup-hot"></i> {{ c.category.name }}</span>
+                        {% elif c.category and c.category.code == 'auditorium' %}
+                        <span class="amenity-icon on"><i class="bi bi-buildings"></i> {{ c.category.name }}</span>
+                        {% elif c.category %}
+                        <span class="amenity-icon off"><i class="bi bi-square"></i> {{ c.category.name }}</span>
                         {% else %}
-                        <span class="amenity-icon off"><i class="bi bi-square"></i> Sala Comum</span>
+                        <span class="amenity-icon off"><i class="bi bi-square"></i> Sem Categoria</span>
                         {% endif %}
                     </div>
                     <div class="d-flex gap-2">
