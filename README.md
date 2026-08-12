@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🏫 SIGERE — Sistema Integrado de Gerenciamento Educacional
+# 🏫 SIGerE — Sistema Integrado de Gerenciamento Educacional
 
 [![Python](https://img.shields.io/badge/Python-3.8+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![Flask](https://img.shields.io/badge/Flask-2.x-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com)
