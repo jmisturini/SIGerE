@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash
 from models import User
 from forms import LoginForm, ChangePasswordForm
 from extensions import db
@@ -43,12 +44,37 @@ def change_password():
         if not current_user.check_password(form.current_password.data):
             flash('Senha atual incorreta.', 'danger')
             return render_template('auth/change_password.html', form=form)
-            
-        current_user.set_password(form.password.data)
-        current_user.force_password_change = False
-        db.session.commit()
+        
+        # FIX: Fetch a fresh instance explicitly to bypass any proxy/identity-map caching.
+        # Using filter_by().first() forces SQLAlchemy to hit the DB and return a clean object.
+        user = User.query.filter_by(id=current_user.id).first()
+        if not user:
+            flash('Erro de sessão. Faça login novamente.', 'danger')
+            return redirect(url_for('auth.logout'))
+
+        # Update password and flag
+        user.set_password(form.password.data)
+        user.force_password_change = False
+
+        try:
+            # Explicit flush forces SQLAlchemy to generate the UPDATE statement now
+            db.session.flush()
+            db.session.commit()
+            # Refresh from DB to confirm the change actually persisted
+            db.session.refresh(user)
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao salvar: {str(e)}', 'danger')
+            return render_template('auth/change_password.html', form=form)
+
+        # Defensive check: if the DB still shows True, something is wrong at the storage level
+        if user.force_password_change is True:
+            flash('Erro interno: a flag de troca de senha não foi atualizada no banco.', 'danger')
+            return render_template('auth/change_password.html', form=form)
+
         flash('Sua senha foi atualizada com sucesso!', 'success')
         return redirect(url_for('main.index'))
+
     return render_template('auth/change_password.html', form=form)
 
 # Route for user logout

@@ -97,7 +97,13 @@ def list_classrooms():
         filter_message = "Mostrando salas disponíveis agora."
     elif request.args.get('available_date') and request.args.get('available_period'):
         is_filtered = True
-        filter_message = f"Mostrando salas disponíveis em <strong>{request.args.get('available_date')}</strong> durante a <strong class='text-capitalize'>{request.args.get('available_period')}</strong>."
+        period_map = {
+            'morning': 'Manhã',
+            'afternoon': 'Tarde', 
+            'evening': 'Noite'
+        }
+        period_pt = period_map.get(request.args.get('available_period'), request.args.get('available_period'))
+        filter_message = f"Mostrando salas disponíveis em <strong>{request.args.get('available_date')}</strong> durante a <strong>{period_pt}</strong>."
     elif request.args.get('category'):
         is_filtered = True
         cat_id = request.args.get('category', type=int)
