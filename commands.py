@@ -13,7 +13,7 @@ import random
 @click.command('seed')
 @with_appcontext
 def seed_command():
-    """Popula o banco de dados com dados iniciais de demonstração.
+    """Popula o banco de dados com dados iniciais.
 
     Uso: flask seed
     """
@@ -24,21 +24,36 @@ def seed_command():
         ))
         return
 
-    click.echo(click.style("🌱 Iniciando população atômica do banco...", fg="green", bold=True))
+    click.echo(click.style("🌱 Iniciando população do banco...", fg="green", bold=True))
 
-    # ── ATOMICIDADE via commit/rollback explícito ──
-    # Flask-SQLAlchemy já mantém uma transação ativa.
-    # NÃO use db.session.begin() — isso causaria:
-    #   "A transaction is already begun on this Session."
     try:
         _seed_permissions()
-        _seed_data()
+        _seed_admin()
         db.session.commit()
-        click.echo(click.style("✅ População concluída com sucesso!", fg="green", bold=True))
+        click.echo(click.style("✅ Administrador criado com sucesso!", fg="green", bold=True))
         click.echo(click.style(
-            "   Logins: admin/admin123 | teacher1/teacher123 | employee1/employee123",
+            "   Login: admin/admin123",
             fg="cyan"
         ))
+
+        # Pergunta se deseja popular com dados de teste
+        populate_demo = click.confirm(
+            click.style("Deseja popular o banco com dados de demonstração?", fg="yellow"),
+            default=False
+        )
+
+        if populate_demo:
+            click.echo(click.style("📦 Populando dados de demonstração...", fg="blue"))
+            _seed_demo_data()
+            db.session.commit()
+            click.echo(click.style("✅ Dados de demonstração criados com sucesso!", fg="green", bold=True))
+            click.echo(click.style(
+                "   Logins adicionais: teacher1/teacher123 | employee1/employee123",
+                fg="cyan"
+            ))
+        else:
+            click.echo(click.style("ℹ️  Apenas o administrador foi criado.", fg="blue"))
+
     except Exception as exc:
         db.session.rollback()
         click.echo(click.style(
@@ -188,15 +203,12 @@ def _seed_permissions():
     click.echo("   ✅ Permissões e roles criadas.")
 
 
-def _seed_data():
-    """Popula dados de demonstração."""
-    click.echo("   Populando dados de demonstração...")
+def _seed_admin():
+    """Cria apenas o usuário administrador."""
+    click.echo("   Criando usuário administrador...")
 
     super_admin_role = Role.query.filter_by(name='super_admin').first()
-    teacher_role = Role.query.filter_by(name='teacher').first()
-    employee_role = Role.query.filter_by(name='employee').first()
 
-    # 1. Admin
     admin = User(
         username='admin', email='admin@school.edu',
         full_name='Administrador do Sistema', role='admin',
@@ -207,8 +219,19 @@ def _seed_data():
     admin.set_password('admin123')
     db.session.add(admin)
     db.session.flush()
+    click.echo("   ✅ Administrador criado.")
 
-    # 2. 100 Usuários
+
+def _seed_demo_data():
+    """Popula dados de demonstração (usuários, salas, cursos, reservas, etc.)."""
+    click.echo("   Populando dados de demonstração...")
+
+    super_admin_role = Role.query.filter_by(name='super_admin').first()
+    teacher_role = Role.query.filter_by(name='teacher').first()
+    employee_role = Role.query.filter_by(name='employee').first()
+    admin = User.query.filter_by(username='admin').first()
+
+    # 1. 100 Usuários
     first_names = [
         "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
         "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica",
@@ -277,7 +300,7 @@ def _seed_data():
     db.session.flush()
     click.echo(f"   ✅ {users_created} usuários criados.")
 
-    # 3. Categorias
+    # 2. Categorias
     categories = [
         RoomCategory(name="Sala de Aula", code="classroom", abbr="SA"),
         RoomCategory(name="Auditório", code="auditorium", abbr="AU"),
@@ -294,7 +317,7 @@ def _seed_data():
     cat_comp = RoomCategory.query.filter_by(code='computer_lab').first()
     cat_health = RoomCategory.query.filter_by(code='health_lab').first()
 
-    # 4. Salas
+    # 3. Salas
     room_data = [
         {"name": "Auditório Principal", "category_id": cat_aud.id, "capacity": 150, "floor": "1º Andar", "computer_count": 0, "room_number": "101"},
         {"name": "Cozinha Experimental A", "category_id": cat_kitchen.id, "capacity": 15, "floor": "1º Andar", "computer_count": 0, "room_number": "102"},
@@ -341,7 +364,7 @@ def _seed_data():
     db.session.flush()
     click.echo(f"   ✅ {len(rooms)} salas criadas.")
 
-    # 5. Cursos e Disciplinas
+    # 4. Cursos e Disciplinas
     courses_list = []
     for i in range(1, 51):
         c = Course(name=f"Curso {i}", code=f"C{i:03d}", is_active=True)
@@ -360,7 +383,7 @@ def _seed_data():
     db.session.flush()
     click.echo("   ✅ 50 cursos e 50 disciplinas criados.")
 
-    # 6. Reservas
+    # 5. Reservas
     all_bookers = teachers_list + [admin]
     time_slots = [
         (time(8, 0), time(10, 0)), (time(10, 0), time(12, 0)),
@@ -403,7 +426,7 @@ def _seed_data():
 
     click.echo("   ✅ 20 reservas criadas.")
 
-    # 7. Pagamentos
+    # 6. Pagamentos
     sample_teachers = teachers_list[:3]
     for i, teacher in enumerate(sample_teachers):
         base_pay = TeacherBasePay(
