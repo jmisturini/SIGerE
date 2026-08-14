@@ -1,56 +1,83 @@
 {% extends 'base.html' %}
 {% block title %}Reserva #{{ reservation.id }}{% endblock %}
+
 {% block content %}
-<div class="card shadow-sm">
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">{{ reservation.title }}</h3>
+        <span class="badge status-{{ reservation.status }} status-badge text-capitalize">
+            {% if reservation.status == 'approved' %}Aprovada
+            {% elif reservation.status == 'pending' %}Pendente
+            {% elif reservation.status == 'cancelled' %}Cancelada
+            {% else %}{{ reservation.status }}{% endif %}
+        </span>
+    </div>
+    <a href="{{ url_for('reservations.my_reservations') if not current_user.has_permission('reservation:read_all') else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary" onclick="history.back(); return false;">
+        <i class="bi bi-arrow-left me-1"></i> Voltar
+    </a>
+</div>
+
+<div class="card">
     <div class="card-body p-4">
-        <div class="d-flex justify-content-between align-items-start mb-4">
-            <div>
-                <h3 class="mb-1">{{ reservation.title }}</h3>
-                <span class="badge status-{{ reservation.status }} status-badge text-capitalize">
-                    {% if reservation.status == 'approved' %}Aprovada
-                    {% elif reservation.status == 'pending' %}Pendente
-                    {% elif reservation.status == 'cancelled' %}Cancelada
-                    {% else %}{{ reservation.status }}{% endif %}
-                </span>
-            </div>
-            <a href="{{ url_for('reservations.my_reservations') if not current_user.has_permission('reservation:read_all') else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-arrow-left"></i> Voltar
-            </a>
-        </div>
-        
-        <div class="row">
+        <div class="row g-4">
             <div class="col-md-6">
-                <table class="table table-borderless">
-                    <tr><th style="width: 150px;">Sala</th><td>{{ reservation.classroom.code }} - {{ reservation.classroom.name }}</td></tr>
-                    <tr><th>Curso</th><td>{{ reservation.course.name if reservation.course else 'N/A' }}</td></tr>
-                    <tr><th>Disciplina</th><td>{{ reservation.subject.name if reservation.subject else 'N/A' }}</td></tr>
-                    <tr><th>Professor</th><td>{{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</td></tr>
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-info-circle me-1"></i> Informações Gerais</h6>
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0" style="width: 140px;">Sala</th>
+                        <td class="border-0 fw-medium">{{ reservation.classroom.code }} - {{ reservation.classroom.name }}</td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Curso</th>
+                        <td class="border-0 fw-medium">{{ reservation.course.name if reservation.course else 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Disciplina</th>
+                        <td class="border-0 fw-medium">{{ reservation.subject.name if reservation.subject else 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Professor</th>
+                        <td class="border-0 fw-medium">{{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</td>
+                    </tr>
                 </table>
             </div>
             <div class="col-md-6">
-                <table class="table table-borderless">
-                    <tr><th style="width: 150px;">Data</th><td>{{ reservation.date.strftime('%d/%m/%Y') }}</td></tr>
-                    <tr><th>Horário</th><td>{{ reservation.start_time.strftime('%H:%M') }} - {{ reservation.end_time.strftime('%H:%M') }}</td></tr>
-                    <tr><th>Reservado por</th><td>{{ reservation.user.full_name }} <small class="text-muted text-capitalize">({{ reservation.user.role }})</small></td></tr>
-                    <tr><th>Registrado em</th><td>{{ reservation.created_at.strftime('%d/%m/%Y %H:%M') }}</td></tr>
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-calendar3 me-1"></i> Data e Horário</h6>
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0" style="width: 140px;">Data</th>
+                        <td class="border-0 fw-medium">{{ reservation.date.strftime('%d/%m/%Y') }}</td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Horário</th>
+                        <td class="border-0 fw-medium">{{ reservation.start_time.strftime('%H:%M') }} - {{ reservation.end_time.strftime('%H:%M') }}</td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Reservado por</th>
+                        <td class="border-0 fw-medium">{{ reservation.user.full_name }} <small class="text-muted text-capitalize">({{ reservation.user.role }})</small></td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Registrado em</th>
+                        <td class="border-0 fw-medium">{{ reservation.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
                 </table>
             </div>
         </div>
 
         {% if reservation.description %}
-        <div class="mt-3">
-            <h6>Descrição / Finalidade</h6>
-            <p class="text-muted">{{ reservation.description }}</p>
+        <div class="mt-4 pt-3 border-top">
+            <h6 class="text-muted text-uppercase small fw-bold mb-2">Descrição / Finalidade</h6>
+            <p class="text-muted mb-0">{{ reservation.description }}</p>
         </div>
         {% endif %}
 
         <!-- Action Buttons Baseados em Permissão -->
-        <div class="mt-4 d-flex gap-2 flex-wrap">
+        <div class="mt-4 pt-3 border-top d-flex gap-2 flex-wrap justify-content-end">
             
             <!-- Repetir: Dono ou quem tem edit_all -->
             {% if reservation.status == 'approved' and (reservation.user_id == current_user.id or current_user.has_permission('reservation:edit_all')) %}
-            <a href="{{ url_for('reservations.repeat_view', reservation_id=reservation.id) }}" class="btn btn-info">
-                <i class="bi bi-arrow-repeat"></i> Repetir
+            <a href="{{ url_for('reservations.repeat_view', reservation_id=reservation.id) }}" class="btn btn-outline-info">
+                <i class="bi bi-arrow-repeat me-1"></i> Repetir
             </a>
             {% endif %}
 
@@ -58,7 +85,7 @@
             {% if reservation.status == 'approved' and (reservation.date >= now.date() or current_user.has_permission('reservation:cancel_all')) %}
                 {% if current_user.has_permission('reservation:cancel_all') or (current_user.has_permission('reservation:cancel_own') and reservation.user_id == current_user.id) %}
                 <form method="POST" action="{{ url_for('reservations.cancel', reservation_id=reservation.id) }}" onsubmit="return confirm('Cancelar esta reserva? A sala ficará livre.');">
-                    <button class="btn btn-warning"><i class="bi bi-x-circle"></i> Cancelar Reserva</button>
+                    <button class="btn btn-warning"><i class="bi bi-x-circle me-1"></i> Cancelar Reserva</button>
                 </form>
                 {% endif %}
             {% endif %}
@@ -66,26 +93,26 @@
             <!-- Editar e Excluir: Apenas Admin (edit_all, delete_all) -->
             {% if current_user.has_permission('reservation:edit_all') and reservation.status == 'approved' %}
             <a href="{{ url_for('reservations.edit', reservation_id=reservation.id) }}" class="btn btn-primary">
-                <i class="bi bi-pencil"></i> Editar
+                <i class="bi bi-pencil me-1"></i> Editar
             </a>
             {% endif %}
 
             {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'approved' %}
             <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva? Isso não pode ser desfeito.');">
-                <button class="btn btn-danger"><i class="bi bi-trash"></i> Excluir Permanentemente</button>
+                <button class="btn btn-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
             </form>
             {% endif %}
 
             <!-- Aprovar: Apenas quem tem approve -->
             {% if current_user.has_permission('reservation:approve') and reservation.status == 'pending' %}
             <form method="POST" action="{{ url_for('reservations.approve', reservation_id=reservation.id) }}">
-                <button class="btn btn-success"><i class="bi bi-check-circle"></i> Aprovar Reserva</button>
+                <button class="btn btn-success"><i class="bi bi-check-circle me-1"></i> Aprovar Reserva</button>
             </form>
             {% endif %}
 
             {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'pending' %}
             <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva pendente?');">
-                <button class="btn btn-danger"><i class="bi bi-trash"></i> Excluir Permanentemente</button>
+                <button class="btn btn-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
             </form>
             {% endif %}
 

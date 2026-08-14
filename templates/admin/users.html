@@ -1,96 +1,121 @@
 {% extends 'base.html' %}
 {% block title %}Gerenciar Usuários{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Gerenciar Usuários</h2>
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Gerenciar Usuários</h3>
+        <p class="text-muted mb-0">Visualize, edite e gerencie contas de professores e funcionários.</p>
+    </div>
     <div class="dropdown">
         <button class="btn btn-primary dropdown-toggle" type="button" id="registerUserDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-plus-lg"></i> Cadastrar Usuário
+            <i class="bi bi-plus-lg me-1"></i> Cadastrar Usuário
         </button>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="registerUserDropdown">
-            <li><a class="dropdown-item" href="{{ url_for('admin.create_teacher') }}"><i class="bi bi-mortarboard"></i> Cadastrar Professor</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.create_employee') }}"><i class="bi bi-briefcase"></i> Cadastrar Funcionário</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.create_teacher') }}"><i class="bi bi-mortarboard me-2"></i> Cadastrar Professor</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.create_employee') }}"><i class="bi bi-briefcase me-2"></i> Cadastrar Funcionário</a></li>
         </ul>
     </div>
 </div>
 
-<form method="GET" class="card card-body shadow-sm mb-4">
-    <div class="row g-2 align-items-end">
-        <div class="col-md-5">
-            <label class="form-label small fw-bold">Buscar por Nome</label>
-            <input type="text" name="name" class="form-control" value="{{ search_name }}" placeholder="Digite o nome...">
-        </div>
-        <div class="col-md-4">
-            <label class="form-label small fw-bold">Filtrar por Tipo</label>
-            <select name="type" class="form-select">
-                <option value="">Todos os Tipos</option>
-                <option value="teacher" {{ 'selected' if filter_type == 'teacher' }}>Professor</option>
-                <option value="employee" {{ 'selected' if filter_type == 'employee' }}>Funcionário</option>
-            </select>
-        </div>
-        <div class="col-md-3 d-flex gap-2">
-            <button type="submit" class="btn btn-outline-primary flex-grow-1"><i class="bi bi-funnel"></i> Filtrar</button>
-            <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline-secondary flex-grow-1">Limpar</a>
+<form method="GET" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Buscar por Nome</label>
+                <input type="text" name="name" class="form-control" value="{{ search_name }}" placeholder="Digite o nome...">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Filtrar por Tipo</label>
+                <select name="type" class="form-select">
+                    <option value="">Todos os Tipos</option>
+                    <option value="teacher" {{ 'selected' if filter_type == 'teacher' }}>Professor</option>
+                    <option value="employee" {{ 'selected' if filter_type == 'employee' }}>Funcionário</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary flex-grow-1"><i class="bi bi-funnel me-1"></i> Filtrar</button>
+                <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline-secondary flex-grow-1" title="Limpar filtros"><i class="bi bi-eraser"></i></a>
+            </div>
         </div>
     </div>
 </form>
 
-<div class="card shadow-sm">
+<div class="card">
     <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Nome</th>
-                    <th>Tipo</th>
-                    <th>Matrícula</th>
-                    <th>Usuário</th>
-                    <th>Setor / Dept</th>
-                    <th>Papel</th>
-                    <th>Status</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for u in users %}
-                <tr>
-                    <td>{{ u.full_name }}</td>
-                    <td>
-                        <span class="badge bg-info text-dark">
-                            {% if u.profile_type == 'teacher' %}Professor
-                            {% else %}Funcionário
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Nome</th>
+                        <th>Tipo</th>
+                        <th>Matrícula</th>
+                        <th>Usuário</th>
+                        <th>Setor / Dept</th>
+                        <th>Papel</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in users %}
+                    <tr>
+                        <td class="ps-4 fw-bold">{{ u.full_name }}</td>
+                        <td>
+                            <span class="badge text-bg-info-subtle text-info border border-info-subtle">
+                                {% if u.profile_type == 'teacher' %}Professor{% else %}Funcionário{% endif %}
+                            </span>
+                            {% if u.is_teacher %}
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle ms-1" title="Também é Professor">
+                                    <i class="bi bi-mortarboard"></i>
+                                </span>
                             {% endif %}
-                        </span>
-                        {% if u.is_teacher %}<span class="badge bg-success ms-1">Prof</span>{% endif %}
-                    </td>
-                    <td>{{ u.registration or '-' }}</td>
-                    <td>{{ u.username }}</td>
-                    <td>
-                        {{ u.sector or u.department or '-' }}
-                        {% if u.function %}<br><small class="text-muted">{{ u.function }}</small>{% endif %}
-                    </td>
-                    <td>
-                        <span class="badge bg-secondary">{{ u.role_obj.label if u.role_obj else 'Sem Papel' }}</span>
-                    </td>
-                    <td>
-                        {% if u.is_active_user %}<span class="badge bg-success">Ativo</span>
-                        {% else %}<span class="badge bg-danger">Inativo</span>{% endif %}
-                    </td>
-                    <td>
-                        <a href="{{ url_for('admin.edit_user', user_id=u.id) }}" class="btn btn-sm btn-outline-primary">Editar</a>
-                        <form method="POST" action="{{ url_for('admin.toggle_user', user_id=u.id) }}" class="d-inline">
+                        </td>
+                        <td>{{ u.registration or '-' }}</td>
+                        <td>{{ u.username }}</td>
+                        <td>
+                            {{ u.sector or u.department or '-' }}
+                            {% if u.function %}<br><small class="text-muted">{{ u.function }}</small>{% endif %}
+                        </td>
+                        <td>
+                            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ u.role_obj.label if u.role_obj else 'Sem Papel' }}</span>
+                        </td>
+                        <td>
                             {% if u.is_active_user %}
-                            <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Desativar este usuário?')">Desativar</button>
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Ativo</span>
                             {% else %}
-                            <button class="btn btn-sm btn-outline-success">Ativar</button>
+                                <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Inativo</span>
                             {% endif %}
-                        </form>
-                    </td>
-                </tr>
-            {% else %}
-                <tr><td colspan="8" class="text-muted text-center p-3">Nenhum usuário encontrado.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
+                        </td>
+                        <td class="text-end pe-4">
+                            <a href="{{ url_for('admin.edit_user', user_id=u.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="POST" action="{{ url_for('admin.toggle_user', user_id=u.id) }}" class="d-inline">
+                                {% if u.is_active_user %}
+                                <button class="btn btn-sm btn-outline-danger" title="Desativar Usuário" onclick="return confirm('Tem certeza que deseja desativar este usuário?')">
+                                    <i class="bi bi-toggle-off"></i>
+                                </button>
+                                {% else %}
+                                <button class="btn btn-sm btn-outline-success" title="Ativar Usuário">
+                                    <i class="bi bi-toggle-on"></i>
+                                </button>
+                                {% endif %}
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted p-5">
+                            <i class="bi bi-people fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhum usuário encontrado</h5>
+                            <p class="small mb-0">Ajuste os filtros ou cadastre um novo usuário.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}

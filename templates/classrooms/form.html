@@ -1,40 +1,91 @@
 {% extends 'base.html' %}
 {% block title %}{{ title }}{% endblock %}
+
 {% block content %}
-<a href="{{ request.referrer or url_for('main.index') }}" class="btn btn-outline-secondary btn-sm mb-3" onclick="history.back(); return false;">
-    <i class="bi bi-arrow-left"></i> Back
-</a>
 <div class="row justify-content-center">
-    <div class="col-md-7">
-        <div class="card shadow-sm">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0"><i class="bi bi-door-open text-primary me-2"></i> {{ title }}</h5>
+                <a href="{{ request.referrer or url_for('main.index') }}" class="btn btn-sm btn-outline-secondary" onclick="history.back(); return false;">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
             <div class="card-body p-4">
-                <h3 class="mb-3">{{ title }}</h3>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
-                    {% for field in [form.name, form.code, form.floor, form.capacity] %}
-                    <div class="mb-3">
-                        {{ field.label(class="form-label") }}
-                        {{ field(class="form-control") }}
-                        {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            {{ form.name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.name(class="form-control") }}
+                            {% for err in form.name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.code(class="form-control") }}
+                            {% for err in form.code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.floor.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.floor(class="form-control") }}
+                            {% for err in form.floor.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.capacity.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.capacity(class="form-control") }}
+                            {% for err in form.capacity.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-12 mt-3">
+                            <span class="form-label small fw-bold text-uppercase text-muted mb-2 d-block">Recursos da Sala</span>
+                            <div class="row g-2">
+                                <div class="col-md-3 col-6">
+                                    <div class="form-check">
+                                        {{ form.has_projector(class="form-check-input") }} 
+                                        {{ form.has_projector.label(class="form-check-label fw-medium") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <div class="form-check">
+                                        {{ form.has_whiteboard(class="form-check-input") }} 
+                                        {{ form.has_whiteboard.label(class="form-check-label fw-medium") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <div class="form-check">
+                                        {{ form.has_computers(class="form-check-input") }} 
+                                        {{ form.has_computers.label(class="form-check-label fw-medium") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <div class="form-check">
+                                        {{ form.has_air_conditioning(class="form-check-input") }} 
+                                        {{ form.has_air_conditioning.label(class="form-check-label fw-medium") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-12">
+                            {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.description(class="form-control", rows="3") }}
+                        </div>
+                        
+                        <div class="col-12">
+                            <div class="form-check mt-2">
+                                {{ form.is_active(class="form-check-input") }}
+                                {{ form.is_active.label(class="form-check-label fw-medium") }}
+                            </div>
+                        </div>
                     </div>
-                    {% endfor %}
-                    <div class="row mb-3">
-                        <div class="col"><div class="form-check">{{ form.has_projector(class="form-check-input") }} {{ form.has_projector.label(class="form-check-label") }}</div></div>
-                        <div class="col"><div class="form-check">{{ form.has_whiteboard(class="form-check-input") }} {{ form.has_whiteboard.label(class="form-check-label") }}</div></div>
-                        <div class="col"><div class="form-check">{{ form.has_computers(class="form-check-input") }} {{ form.has_computers.label(class="form-check-label") }}</div></div>
-                        <div class="col"><div class="form-check">{{ form.has_air_conditioning(class="form-check-input") }} {{ form.has_air_conditioning.label(class="form-check-label") }}</div></div>
-                    </div>
-                    <div class="mb-3">
-                        {{ form.description.label(class="form-label") }}
-                        {{ form.description(class="form-control", rows=3) }}
-                    </div>
-                    <div class="mb-3 form-check">
-                        {{ form.is_active(class="form-check-input") }}
-                        {{ form.is_active.label(class="form-check-label") }}
-                    </div>
-                    <div class="d-flex gap-2">
-                        {{ form.submit(class="btn btn-primary") }}
-                        <a href="{{ url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary">Cancel</a>
+                    
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
                     </div>
                 </form>
             </div>

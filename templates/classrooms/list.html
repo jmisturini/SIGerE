@@ -1,23 +1,26 @@
 {% extends 'base.html' %}
 {% block title %}Salas{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Salas</h2>
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Salas e Espaços</h3>
+        <p class="text-muted mb-0">Encontre a sala ideal para sua atividade.</p>
+    </div>
     <div class="d-flex gap-2">
-        <!-- Export Dropdown -->
         <div class="dropdown">
-            <button class="btn btn-outline-success dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-download"></i> Exportar
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-download me-1"></i> Exportar
             </button>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="exportDropdown">
                 <li>
                     <a class="dropdown-item" href="{{ url_for('classrooms.export_classrooms') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
-                        <i class="bi bi-filetype-csv"></i> Exportar para CSV
+                        <i class="bi bi-filetype-csv me-2"></i> Exportar para CSV
                     </a>
                 </li>
                 <li>
                     <a class="dropdown-item" href="{{ url_for('classrooms.export_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
-                        <i class="bi bi-filetype-pdf"></i> Exportar para PDF
+                        <i class="bi bi-filetype-pdf me-2"></i> Exportar para PDF
                     </a>
                 </li>
             </ul>
@@ -25,52 +28,53 @@
         
         {% if current_user.is_admin %}
         <a href="{{ url_for('admin.create_room') }}" class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i> Adicionar Sala
+            <i class="bi bi-plus-lg me-1"></i> Adicionar Sala
         </a>
         {% endif %}
     </div>
 </div>
 
-<!-- Availability & Type Filter -->
-<form method="GET" id="filterForm" class="card card-body shadow-sm mb-4">
-    <div class="row g-2 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label small fw-bold">Data Disponível</label>
-            <input type="date" id="available_date" name="available_date" class="form-control" value="{{ request.args.get('available_date', '') }}">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label small fw-bold">Período</label>
-            <select id="available_period" name="available_period" class="form-select">
-                <option value="">Qualquer</option>
-                <option value="morning" {{ 'selected' if request.args.get('available_period') == 'morning' }}>Manhã</option>
-                <option value="afternoon" {{ 'selected' if request.args.get('available_period') == 'afternoon' }}>Tarde</option>
-                <option value="evening" {{ 'selected' if request.args.get('available_period') == 'evening' }}>Noite</option>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label small fw-bold">Tipo de Sala</label>
-            <select id="category_select" name="category" class="form-select">
-                <option value="">Todos os Tipos</option>
-                {% for cat in categories %}
-                <option value="{{ cat.id }}" {{ 'selected' if selected_category == cat.id|string }}>{{ cat.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md">
-            <div class="d-flex gap-2">
-                <button type="submit" id="filterBtn" class="btn btn-outline-primary flex-fill" disabled>
-                    <i class="bi bi-funnel"></i> Filtrar
-                </button>
-                {% if is_filtered %}
-                <a href="{{ url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary flex-fill">Limpar Filtro</a>
-                {% endif %}
+<form method="GET" id="filterForm" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Disponível</label>
+                <input type="date" id="available_date" name="available_date" class="form-control" value="{{ request.args.get('available_date', '') }}">
             </div>
-        </div>
-        <div class="row mt-3 border-top pt-3">
-            <div class="col-12">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Período</label>
+                <select id="available_period" name="available_period" class="form-select">
+                    <option value="">Qualquer</option>
+                    <option value="morning" {{ 'selected' if request.args.get('available_period') == 'morning' }}>Manhã</option>
+                    <option value="afternoon" {{ 'selected' if request.args.get('available_period') == 'afternoon' }}>Tarde</option>
+                    <option value="evening" {{ 'selected' if request.args.get('available_period') == 'evening' }}>Noite</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Tipo de Sala</label>
+                <select id="category_select" name="category" class="form-select">
+                    <option value="">Todos os Tipos</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {{ 'selected' if selected_category == cat.id|string }}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md">
+                <div class="d-flex gap-2">
+                    <button type="submit" id="filterBtn" class="btn btn-outline-primary flex-fill" disabled>
+                        <i class="bi bi-funnel me-1"></i> Filtrar
+                    </button>
+                    {% if is_filtered %}
+                    <a href="{{ url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary flex-fill" title="Limpar Filtros">
+                        <i class="bi bi-eraser"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-12 mt-3 border-top pt-3">
                 <div class="form-check">
                     <input type="checkbox" class="form-check-input" id="available_now" name="available_now" value="true" {{ 'checked' if request.args.get('available_now') }}>
-                    <label class="form-check-label fw-bold" for="available_now">Mostrar apenas salas disponíveis AGORA</label>
+                    <label class="form-check-label fw-medium" for="available_now">Mostrar apenas salas disponíveis AGORA</label>
                 </div>
             </div>
         </div>
@@ -78,69 +82,93 @@
 </form>
 
 {% if is_filtered %}
-<div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> {{ filter_message | safe }}
+<div class="alert alert-primary-subtle text-primary border border-primary-subtle d-flex align-items-center mb-4" role="alert">
+    <i class="bi bi-info-circle-fill me-2"></i>
+    <div>{{ filter_message | safe }}</div>
 </div>
 {% endif %}
 
-<div class="row g-3">
+<div class="row g-4">
     {% for floor_name, rooms in grouped_rooms.items() %}
-        <!-- Título do Andar -->
         <div class="col-12 mt-4">
-            <h4 class="mb-3 border-bottom pb-2">
-                <i class="bi bi-layers"></i> {{ floor_name }}
-            </h4>
+            <div class="d-flex align-items-center mb-3">
+                <i class="bi bi-layers text-primary me-2 fs-5"></i>
+                <h5 class="mb-0 text-uppercase small fw-bold text-muted">{{ floor_name }}</h5>
+            </div>
         </div>
         
-        <!-- Cartões das Salas -->
         {% for c in rooms %}
-        <div class="col-md-6 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <h5 class="card-title mb-1">{{ c.name }}</h5>
-                        <span class="badge bg-secondary">{{ c.code }}</span>
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0 fw-bold">{{ c.name }}</h5>
+                        <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">{{ c.code }}</span>
                     </div>
-                    <p class="text-muted small mb-3">{{ c.building or 'N/A' }} · Cap. {{ c.capacity }}</p>
+                    <p class="text-muted small mb-3">
+                        <i class="bi bi-building me-1"></i> {{ c.building or 'N/A' }} 
+                        <span class="mx-1">·</span> 
+                        <i class="bi bi-people me-1"></i> Cap. {{ c.capacity }}
+                    </p>
                     <div class="mb-3">
                         {% if c.category and c.category.code == 'computer_lab' %}
-                        <span class="amenity-icon on"><i class="bi bi-pc-display"></i> {{ c.category.name }} ({{ c.computer_count }} PCs)</span>
+                        <span class="badge text-bg-info-subtle text-info border border-info-subtle"><i class="bi bi-pc-display me-1"></i> {{ c.category.name }} ({{ c.computer_count }} PCs)</span>
                         {% elif c.category and c.category.code == 'health_lab' %}
-                        <span class="amenity-icon on"><i class="bi bi-heart-pulse"></i> {{ c.category.name }}</span>
+                        <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-heart-pulse me-1"></i> {{ c.category.name }}</span>
                         {% elif c.category and c.category.code == 'kitchen' %}
-                        <span class="amenity-icon on"><i class="bi bi-cup-hot"></i> {{ c.category.name }}</span>
+                        <span class="badge text-bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-cup-hot me-1"></i> {{ c.category.name }}</span>
                         {% elif c.category and c.category.code == 'auditorium' %}
-                        <span class="amenity-icon on"><i class="bi bi-buildings"></i> {{ c.category.name }}</span>
+                        <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-buildings me-1"></i> {{ c.category.name }}</span>
                         {% elif c.category %}
-                        <span class="amenity-icon off"><i class="bi bi-square"></i> {{ c.category.name }}</span>
+                        <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-tag me-1"></i> {{ c.category.name }}</span>
                         {% else %}
-                        <span class="amenity-icon off"><i class="bi bi-square"></i> Sem Categoria</span>
+                        <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-tag me-1"></i> Sem Categoria</span>
                         {% endif %}
                     </div>
-                    <div class="d-flex gap-2">
-                        <a href="{{ url_for('classrooms.detail', classroom_id=c.id) }}" class="btn btn-sm btn-outline-primary">Detalhes</a>
-                        <a href="{{ url_for('classrooms.availability', classroom_id=c.id) }}" class="btn btn-sm btn-outline-secondary">Disponibilidade</a>
+                    <div class="d-flex gap-2 mt-auto">
+                        <a href="{{ url_for('classrooms.detail', classroom_id=c.id) }}" class="btn btn-sm btn-outline-secondary flex-fill">
+                            <i class="bi bi-info-circle"></i> Detalhes
+                        </a>
+                        <a href="{{ url_for('classrooms.availability', classroom_id=c.id) }}" class="btn btn-sm btn-outline-primary flex-fill">
+                            <i class="bi bi-calendar-week"></i> Disponibilidade
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
         {% endfor %}
     {% else %}
-        <!-- Estado Vazio (Nenhuma sala encontrada) -->
         <div class="col-12 text-center text-muted py-5">
-            <i class="bi bi-emoji-frown fs-1 d-block mb-2"></i>
-            <h5>Nenhuma sala corresponde ao seu filtro.</h5>
-            {% if is_filtered %}
-            <p>Todas as salas podem estar ocupadas no período selecionado.</p>
-            {% else %}
-            <p>Não há salas ativas no sistema.</p>
-            {% endif %}
+            <div class="feature-icon bg-primary-subtle text-primary mb-4 mx-auto">
+                <i class="bi bi-emoji-frown"></i>
+            </div>
+            <h5 class="mb-1">Nenhuma sala encontrada</h5>
+            <p class="small mb-0">
+                {% if is_filtered %}
+                    Todas as salas podem estar ocupadas no período selecionado.
+                {% else %}
+                    Não há salas ativas no sistema.
+                {% endif %}
+            </p>
         </div>
     {% endfor %}
 </div>
 {% endblock %}
 
 {% block scripts %}
+<style>
+    .feature-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+    }
+    .hover-shadow { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .hover-shadow:hover { transform: translateY(-4px); box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.1) !important; }
+</style>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const dateInput = document.getElementById('available_date');
@@ -150,7 +178,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const filterBtn = document.getElementById('filterBtn');
     const filterForm = document.getElementById('filterForm');
 
-    // Enable/disable filter button based on inputs
     function updateFilterBtn() {
         const hasDatePeriod = dateInput.value && periodSelect.value;
         const hasCategory = categorySelect.value !== '';
@@ -164,7 +191,6 @@ document.addEventListener('DOMContentLoaded', function() {
         element.addEventListener('change', updateFilterBtn);
     });
 
-    // Auto-submit when "Available Now" is checked
     nowCheckbox.addEventListener('change', function() {
         if (this.checked) filterForm.submit();
     });
