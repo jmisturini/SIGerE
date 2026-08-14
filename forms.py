@@ -3,7 +3,7 @@ from wtforms import (StringField, PasswordField, SubmitField, IntegerField, Date
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, timedelta, date
 import re
-from models import User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay 
+from models import User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay, RoomCategory
 
 # =============================================================================
 # LOGIN & PASSWORD FORMS
