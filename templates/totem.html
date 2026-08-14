@@ -200,7 +200,7 @@
     setInterval(updateClock, 1000); updateClock();
 
     // Open-Meteo API
-    const lat = -23.5505; const lon = -46.6333;
+    const lat = -27.5973; const lon = -48.5496;
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
         .then(r => r.json()).then(data => {
             if (data.current_weather) {
@@ -208,7 +208,7 @@
                 let icon = 'bi-cloud'; const code = data.current_weather.weathercode;
                 if (code === 0) icon = 'bi-sun'; else if (code <= 3) icon = 'bi-cloud-sun'; else if (code <= 48) icon = 'bi-cloud-fog'; else if (code <= 67) icon = 'bi-cloud-rain'; else if (code <= 77) icon = 'bi-snow'; else if (code <= 99) icon = 'bi-cloud-lightning-rain';
                 document.querySelector('.weather-widget i').className = `bi ${icon}`;
-                document.getElementById('weather-city').textContent = 'Campus';
+                document.getElementById('weather-city').textContent = 'Florianópolis, SC'; // Cidade fixa para o totem
             }
         }).catch(() => document.getElementById('weather-city').textContent = 'Indisponível');
 

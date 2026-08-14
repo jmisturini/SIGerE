@@ -8,7 +8,7 @@
             document.documentElement.setAttribute('data-theme', 'dark');
         }
     </script>
-    <title>{% block title %}Reserva de Salas{% endblock %}</title>
+    <title>{% block title %}SIGerE{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -23,7 +23,7 @@
         <div class="sidebar-header">
             <a class="sidebar-brand" href="{{ url_for('main.index') if current_user.is_authenticated else url_for('public.home') }}">
                 <i class="bi bi-building"></i>
-                <span class="brand-text">Reserva de Salas</span>
+                <span class="brand-text">SIGerE</span>
             </a>
         </div>
         
@@ -181,7 +181,7 @@
         </div>
 
         <footer class="footer">
-            &copy; {{ now.year }} Sistema de Reserva de Salas
+            &copy; {{ now.year }} SIGerE
         </footer>
     </div>
 </div>

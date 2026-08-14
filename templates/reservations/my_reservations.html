@@ -51,13 +51,15 @@
                     <td>{{ r.title }}</td>
                     <td>{{ r.teacher.full_name if r.teacher else '-' }}</td>
                     <td>
-                        <span class="badge status-{{ r.status }} status-badge">
-                            {% if r.status == 'approved' %}Aprovada
-                            {% elif r.status == 'pending' %}Pendente
-                            {% elif r.status == 'cancelled' %}Cancelada
-                            {% else %}{{ r.status }}
-                            {% endif %}
-                        </span>
+                        {% if r.status == 'approved' %}
+                            <span class="badge text-bg-success-subtle text-success border border-success-subtle">Aprovada</span>
+                        {% elif r.status == 'pending' %}
+                            <span class="badge text-bg-warning-subtle text-warning border border-warning-subtle">Pendente</span>
+                        {% elif r.status == 'cancelled' %}
+                            <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Cancelada</span>
+                        {% else %}
+                            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ r.status }}</span>
+                        {% endif %}
                     </td>
                     <td class="text-end pe-4">
                         <a href="{{ url_for('reservations.detail', reservation_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver Detalhes">
@@ -102,13 +104,15 @@
                     <td>{{ r.title }}</td>
                     <td>{{ r.teacher.full_name if r.teacher else '-' }}</td>
                     <td>
-                        <span class="badge status-{{ r.status }} status-badge">
-                            {% if r.status == 'approved' %}Aprovada
-                            {% elif r.status == 'pending' %}Pendente
-                            {% elif r.status == 'cancelled' %}Cancelada
-                            {% else %}{{ r.status }}
-                            {% endif %}
-                        </span>
+                        {% if r.status == 'approved' %}
+                            <span class="badge text-bg-success-subtle text-success border border-success-subtle">Aprovada</span>
+                        {% elif r.status == 'pending' %}
+                            <span class="badge text-bg-warning-subtle text-warning border border-warning-subtle">Pendente</span>
+                        {% elif r.status == 'cancelled' %}
+                            <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Cancelada</span>
+                        {% else %}
+                            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ r.status }}</span>
+                        {% endif %}
                     </td>
                     <td class="text-end pe-4">
                         <a href="{{ url_for('reservations.detail', reservation_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver Detalhes">
