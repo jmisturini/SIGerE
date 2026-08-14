@@ -51,7 +51,7 @@
                         <div class="col-md-4">
                             {{ form.date.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.date(class="form-control") }}
-                            <div id="dateWarning" class="alert alert-warning mt-2 p-2 small d-flex align-items-center" style="display: none;"></div>
+                            <div id="dateWarning" class="alert alert-warning mt-2 p-2 small align-items-center" style="display: none;"></div>
                             {% for err in form.date.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
