@@ -133,7 +133,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/seu-usuario/SIGERE.git
+git clone https://github.com/jmisturini/SIGerE.git
 cd SIGERE
 
 # 2. Crie e ative um ambiente virtual
