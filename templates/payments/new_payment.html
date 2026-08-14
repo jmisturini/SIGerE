@@ -1,50 +1,104 @@
 {% extends 'base.html' %}
 {% block title %}Novo Lançamento{% endblock %}
+
 {% block content %}
-<div class="row">
-    <div class="col-md-5">
-        <div class="card shadow-sm mb-4">
+<div class="row g-4">
+    <div class="col-lg-5 col-xl-4">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0"><i class="bi bi-cash-coin text-primary me-2"></i> Novo Lançamento</h5>
+                <a href="{{ url_for('payments.list_payments') }}" class="btn btn-sm btn-outline-secondary" onclick="history.back(); return false;">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
             <div class="card-body p-4">
-                <h3 class="mb-3"><i class="bi bi-cash-coin"></i> Lançamento de Pagamento</h3>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
-                    <div class="mb-3">{{ form.teacher.label(class="form-label") }} {{ form.teacher(class="form-select") }}</div>
-                    <div class="mb-3">{{ form.level.label(class="form-label") }} {{ form.level(class="form-select") }}</div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">{{ form.month_start.label(class="form-label") }} {{ form.month_start(class="form-control") }}</div>
-                        <div class="col-md-6 mb-3">{{ form.month_end.label(class="form-label") }} {{ form.month_end(class="form-control") }}</div>
+                    
+                    <div class="row g-3">
+                        <div class="col-12">
+                            {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.teacher(class="form-select") }}
+                        </div>
+                        
+                        <div class="col-12">
+                            {{ form.level.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.level(class="form-select") }}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.month_start.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.month_start(class="form-control") }}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.month_end.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.month_end(class="form-control") }}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.weekly_hours.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.weekly_hours(class="form-control") }}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.overtime.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.overtime(class="form-control") }}
+                        </div>
+                        
+                        <div class="col-12">
+                            {{ form.payment_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.payment_code(class="form-control") }}
+                        </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">{{ form.weekly_hours.label(class="form-label") }} {{ form.weekly_hours(class="form-control") }}</div>
-                        <div class="col-md-6 mb-3">{{ form.overtime.label(class="form-label") }} {{ form.overtime(class="form-control") }}</div>
+                    
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('payments.list_payments') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
                     </div>
-                    <div class="mb-3">{{ form.payment_code.label(class="form-label") }} {{ form.payment_code(class="form-control") }}</div>
-                    <button type="submit" class="btn btn-primary">Lançar</button>
                 </form>
             </div>
         </div>
     </div>
     
-    <div class="col-md-7">
-        <div class="card shadow-sm">
-            <div class="card-header bg-transparent"><strong>Lançamentos de Hoje</strong></div>
+    <div class="col-lg-7 col-xl-8">
+        <div class="card h-100">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0"><i class="bi bi-clock-history text-primary me-2"></i> Lançamentos de Hoje</h5>
+            </div>
             <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light"><tr><th>Professor</th><th>Código</th><th>Início</th><th>Fim</th><th>Horas Totais</th></tr></thead>
-                    <tbody>
-                    {% for p in pay_list %}
-                        <tr>
-                            <td>{{ p.teacher.full_name }}</td>
-                            <td>{{ p.payment_code or '-' }}</td>
-                            <td>{{ p.month_start }}</td>
-                            <td>{{ p.month_end }}</td>
-                            <td>{{ p.total_hours_final }}</td>
-                        </tr>
-                    {% else %}
-                        <tr><td colspan="5" class="text-muted text-center p-4">Nenhum lançamento hoje.</td></tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Professor</th>
+                                <th>Código</th>
+                                <th>Início</th>
+                                <th>Fim</th>
+                                <th class="pe-4">Horas Totais</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for p in pay_list %}
+                            <tr>
+                                <td class="ps-4 fw-bold">{{ p.teacher.full_name }}</td>
+                                <td>{{ p.payment_code or '-' }}</td>
+                                <td>{{ p.month_start }}</td>
+                                <td>{{ p.month_end }}</td>
+                                <td class="pe-4">{{ p.total_hours_final }}</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted p-5">
+                                    <i class="bi bi-cash-stack fs-2 d-block mb-2"></i>
+                                    <h5 class="mb-1">Nenhum lançamento hoje</h5>
+                                    <p class="small mb-0">Os lançamentos realizados hoje aparecerão aqui.</p>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

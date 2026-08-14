@@ -1,63 +1,78 @@
 {% extends 'base.html' %}
 {% block title %}Editar Reserva{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card shadow-sm">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0"><i class="bi bi-pencil-square text-primary me-2"></i> Editar Reserva</h5>
+                <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
             <div class="card-body p-4">
-                <h3 class="mb-3"><i class="bi bi-pencil"></i> Editar Reserva</h3>
-                <p class="text-muted small">Editando: <strong>{{ reservation.title }}</strong> (Sala: {{ reservation.classroom.code }})</p>
+                <p class="text-muted small mb-4">Editando: <strong>{{ reservation.title }}</strong> (Sala: {{ reservation.classroom.code }})</p>
+                
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
-                    <div class="mb-3">
-                        {{ form.classroom.label(class="form-label") }}
-                        {{ form.classroom(class="form-select") }}
-                    </div>
-                    <div class="row g-3 mb-3">
+                    
+                    <div class="row g-3">
+                        <div class="col-12">
+                            {{ form.classroom.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.classroom(class="form-select") }}
+                            {% for err in form.classroom.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
                         <div class="col-md-6">
-                            {{ form.course.label(class="form-label") }}
+                            {{ form.course.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.course(class="form-select") }}
                         </div>
+                        
                         <div class="col-md-6">
-                            {{ form.subject.label(class="form-label") }}
+                            {{ form.subject.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.subject(class="form-select") }}
                         </div>
-                    </div>
-                    <div class="row g-3 mb-3">
+                        
                         <div class="col-md-6">
-                            {{ form.teacher.label(class="form-label") }}
+                            {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.teacher(class="form-select") }}
                         </div>
-                    </div>
-                    <div class="mb-3">
-                        {{ form.title.label(class="form-label") }}
-                        {{ form.title(class="form-control") }}
-                    </div>
-                    <div class="mb-3">
-                        {{ form.description.label(class="form-label") }}
-                        {{ form.description(class="form-control", rows=3) }}
-                    </div>
-                    <div class="row g-3 mb-3">
+                        
+                        <div class="col-12">
+                            {{ form.title.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.title(class="form-control") }}
+                            {% for err in form.title.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-12">
+                            {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.description(class="form-control", rows="3") }}
+                        </div>
+                        
                         <div class="col-md-4">
-                            {{ form.date.label(class="form-label") }}
+                            {{ form.date.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.date(class="form-control") }}
-                            <div id="dateWarning" class="alert alert-danger mt-2 p-2" style="display: none; font-size: 0.85rem;"></div>
+                            <div id="dateWarning" class="alert alert-warning mt-2 p-2 small d-flex align-items-center" style="display: none;"></div>
+                            {% for err in form.date.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
+                        
                         <div class="col-md-4">
-                            {{ form.start_time.label(class="form-label") }}
+                            {{ form.start_time.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.start_time(class="form-control") }}
+                            {% for err in form.start_time.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
+                        
                         <div class="col-md-4">
-                            {{ form.end_time.label(class="form-label") }}
+                            {{ form.end_time.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.end_time(class="form-control") }}
+                            {% for err in form.end_time.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                     </div>
-                    {% for field in [form.classroom, form.title, form.date, form.start_time, form.end_time] %}
-                        {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
-                    {% endfor %}
-                    <div class="d-flex gap-2">
-                        {{ form.submit(class="btn btn-primary") }}
+                    
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
                         <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
                     </div>
                 </form>
             </div>
@@ -91,14 +106,14 @@
                     .then(data => {
                         if (data.has_warning) { messages.push(data.message); }
                         if (messages.length > 0) {
-                            warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${messages.join('<br>')}`;
-                            warningBox.style.display = 'block';
+                            warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i> ${messages.join('<br>')}`;
+                            warningBox.style.display = 'flex';
                         } else { warningBox.style.display = 'none'; }
                     })
                     .catch(err => {
                         if (messages.length > 0) {
-                            warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${messages.join('<br>')}`;
-                            warningBox.style.display = 'block';
+                            warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i> ${messages.join('<br>')}`;
+                            warningBox.style.display = 'flex';
                         } else { warningBox.style.display = 'none'; }
                     });
             } else { warningBox.style.display = 'none'; }

@@ -1,9 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Calendário{% endblock %}
 {% block content %}
-<div class="card shadow-sm mb-4">
+<div class="card mb-4">
     <div class="card-body">
-        <form id="filterForm" class="row g-2 align-items-end">
+        <h5 class="card-title mb-3"><i class="bi bi-funnel"></i> Filtros de Reserva</h5>
+        <form id="filterForm" class="row g-3 align-items-end">
             <div class="col-md-2">
                 <label class="form-label small fw-bold">Data Inicial</label>
                 <input type="date" id="initialDate" class="form-control">
@@ -49,13 +50,14 @@
                     {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
                 </select>
             </div>
-            <div class="col-12 mt-3">
-                <button type="button" id="applyFilters" class="btn btn-primary" disabled><i class="bi bi-funnel"></i> Aplicar Filtros</button>
-                <button type="button" id="clearFilters" class="btn btn-outline-secondary">Limpar</button>
+            <div class="col-12 mt-3 d-flex gap-2">
+                <button type="button" id="applyFilters" class="btn btn-primary" disabled><i class="bi bi-search"></i> Aplicar Filtros</button>
+                <button type="button" id="clearFilters" class="btn btn-outline-secondary"><i class="bi bi-eraser"></i> Limpar</button>
             </div>
         </form>
     </div>
 </div>
+
 <div id="card-container" class="mt-4">
     <div class="text-center text-muted p-5">
         <div class="spinner-border" role="status"><span class="visually-hidden">Carregando...</span></div>
@@ -116,16 +118,17 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(`${url}?${params.toString()}`)
             .then(response => response.json())
             .then(data => renderCards(data))
-            .catch(error => { container.innerHTML = '<p class="text-center text-danger p-5">Erro ao carregar.</p>'; });
+            .catch(error => { container.innerHTML = '<div class="alert alert-danger text-center p-5">Erro ao carregar os dados.</div>'; });
     }
 
     // Render Bootstrap cards grouped by date and floor
     function renderCards(data) {
         if (data.length === 0) {
             container.innerHTML = `
-                <div class="card shadow-sm text-center text-muted p-5">
-                    <i class="bi bi-emoji-smile fs-1 d-block mb-2"></i>
-                    <h5>Nenhuma reserva encontrada para os filtros selecionados.</h5>
+                <div class="card text-center text-muted p-5">
+                    <i class="bi bi-emoji-smile fs-1 d-block mb-3"></i>
+                    <h5 class="mb-1">Nenhuma reserva encontrada</h5>
+                    <p class="small mb-0">Tente ajustar os filtros selecionados acima.</p>
                 </div>
             `;
             return;
@@ -146,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             const formattedDate = dateObj.toLocaleDateString('pt-BR', options);
 
-            html += `<div class="mb-5"><h4 class="mb-3 border-bottom pb-2"><i class="bi bi-calendar3"></i> ${formattedDate}</h4>`;
+            html += `<div class="mb-5"><h4 class="mb-3 border-bottom pb-2 text-capitalize"><i class="bi bi-calendar3 text-primary"></i> ${formattedDate}</h4>`;
 
             // Agrupar por andar
             const floors = {};
@@ -161,7 +164,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const sortedFloors = Object.keys(floors).sort((a, b) => (floorOrder[a] || 99) - (floorOrder[b] || 99));
 
             sortedFloors.forEach(floorName => {
-                html += `<div class="col-12 mt-3"><h6 class="text-muted border-bottom pb-1"><i class="bi bi-layers"></i> ${floorName}</h6></div>`;
+                html += `<div class="col-12 mt-3"><h6 class="text-muted border-bottom pb-1 text-uppercase small"><i class="bi bi-layers"></i> ${floorName}</h6></div>`;
                 html += `<div class="row g-3">`;
                 
                 // Ordenar salas por número dentro do andar
@@ -178,16 +181,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     html += `
                         <div class="col-md-6 col-xl-4">
                             <a href="${event.url}" class="text-decoration-none text-reset">
-                                <div class="card shadow-sm h-100 border-primary border-2 hover-shadow">
-                                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
-                                        <span class="fs-5 fw-bold"><i class="bi bi-door-closed"></i> ${event.classroom_code}</span>
-                                        <small style="color: rgba(255, 255, 255, 0.8);">${event.classroom_name}</small>
-                                    </div>
+                                <div class="card h-100 hover-shadow border-primary border-start border-4 border-top-0 border-end-0 border-bottom-0">
                                     <div class="card-body">
-                                        <div class="mb-2"><span class="text-muted small text-uppercase fw-bold">Evento</span><p class="mb-0 fw-bold">${event.title}</p></div>
-                                        <div class="mb-2"><span class="text-muted small text-uppercase fw-bold">Curso</span><p class="mb-0">${event.course}</p></div>
-                                        <div class="mb-2"><span class="text-muted small text-uppercase fw-bold">Professor</span><p class="mb-0">${event.teacher}</p></div>
-                                        <div class="mt-3 pt-2 border-top"><span class="text-muted small text-uppercase fw-bold">Horário</span><p class="mb-0 fw-bold text-primary"><i class="bi bi-clock"></i> ${startTime} - ${endTime}</p></div>
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <span class="fs-4 fw-bold text-primary"><i class="bi bi-door-closed"></i> ${event.classroom_code}</span>
+                                            <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-clock"></i> ${startTime} - ${endTime}</span>
+                                        </div>
+                                        <div class="mb-3">
+                                            <span class="text-muted small text-uppercase fw-bold d-block">Evento</span>
+                                            <p class="mb-0 fs-5 fw-bold">${event.title}</p>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-6 mb-2">
+                                                <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
+                                                <p class="mb-0 text-truncate">${event.course}</p>
+                                            </div>
+                                            <div class="col-6 mb-2">
+                                                <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
+                                                <p class="mb-0 text-truncate">${event.teacher}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </a>
@@ -210,7 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
     clearBtn.addEventListener('click', function() {
         initDateInput.value = ''; finDateInput.value = ''; periodSelect.value = ''; roomSelect.value = ''; teacherSelect.value = ''; courseSelect.value = ''; subjectSelect.value = '';
         updateFilterBtn();
-        container.innerHTML = `<div class="card shadow-sm text-center text-muted p-5"><i class="bi bi-funnel fs-1 d-block mb-2"></i><h5>Nenhum filtro aplicado.</h5><p>Selecione um filtro acima e clique em "Aplicar Filtros".</p></div>`;
+        container.innerHTML = `<div class="card text-center text-muted p-5"><i class="bi bi-funnel fs-1 d-block mb-3"></i><h5 class="mb-1">Nenhum filtro aplicado.</h5><p class="small mb-0">Selecione um filtro acima e clique em "Aplicar Filtros".</p></div>`;
     });
 
     // Initial Load Setup
@@ -223,7 +236,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <style>
-    .hover-shadow { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-    .hover-shadow:hover { transform: translateY(-4px); box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.15) !important; }
+    .hover-shadow { 
+        transition: transform 0.2s ease, box-shadow 0.2s ease; 
+    }
+    .hover-shadow:hover { 
+        transform: translateY(-4px); 
+        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.15) !important; 
+    }
 </style>
 {% endblock %}

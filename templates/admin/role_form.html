@@ -1,33 +1,48 @@
 {% extends 'base.html' %}
 {% block title %}{{ title }}{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card shadow-sm">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0"><i class="bi bi-shield-lock text-primary me-2"></i> {{ title }}</h5>
+                <a href="{{ url_for('admin.list_roles') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
             <div class="card-body p-4">
-                <h3 class="mb-3"><i class="bi bi-shield-lock"></i> {{ title }}</h3>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
-                    <div class="mb-3">
-                        {{ form.label.label(class="form-label") }}
-                        {{ form.label(class="form-control") }}
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            {{ form.label.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.label(class="form-control") }}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.name(class="form-control") }}
+                            <div class="form-text small">Nome interno sem espaços (ex: financial_admin).</div>
+                        </div>
+                        
+                        <div class="col-12">
+                            {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.description(class="form-control", rows=2) }}
+                        </div>
+                        
+                        <div class="col-12">
+                            {{ form.permissions.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.permissions(class="form-select", size="15") }}
+                            <div class="form-text small">Segure CTRL (Windows) ou CMD (Mac) para selecionar múltiplas permissões.</div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        {{ form.name.label(class="form-label") }}
-                        {{ form.name(class="form-control") }}
-                        <small class="text-muted">Nome interno sem espaços (ex: financial_admin).</small>
+                    
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('admin.list_roles') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
                     </div>
-                    <div class="mb-3">
-                        {{ form.description.label(class="form-label") }}
-                        {{ form.description(class="form-control", rows=2) }}
-                    </div>
-                    <div class="mb-3">
-                        {{ form.permissions.label(class="form-label") }}
-                        {{ form.permissions(class="form-select", size="15") }}
-                        <small class="text-muted">Segure CTRL (Windows) ou CMD (Mac) para selecionar múltiplas permissões.</small>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Salvar</button>
-                    <a href="{{ url_for('admin.list_roles') }}" class="btn btn-outline-secondary">Cancelar</a>
                 </form>
             </div>
         </div>

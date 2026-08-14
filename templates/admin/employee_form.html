@@ -1,83 +1,88 @@
 {% extends 'base.html' %}
 {% block title %}{{ title }}{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
-        <div class="card shadow-sm">
-            <div class="card-body p-4 p-md-5">
-                <h3 class="mb-4"><i class="bi bi-briefcase"></i> {{ title }}</h3>
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0"><i class="bi bi-person-plus-fill text-primary me-2"></i> {{ title }}</h5>
+                <a href="{{ url_for('admin.list_users') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
                     
                     <div class="row g-3">
                         <div class="col-12">
-                            {{ form.full_name.label(class="form-label") }}
+                            {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.full_name(class="form-control") }}
-                            {% for err in form.full_name.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                            {% for err in form.full_name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.username.label(class="form-label") }}
+                            {{ form.username.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.username(class="form-control") }}
-                            {% for err in form.username.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                            {% for err in form.username.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.email.label(class="form-label") }}
+                            {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.email(class="form-control") }}
-                            {% for err in form.email.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                            {% for err in form.email.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
-                        <!-- Alterado para col-md-6 para evitar desalinhamento -->
                         <div class="col-md-6">
-                            {{ form.registration.label(class="form-label") }}
+                            {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.registration(class="form-control") }}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.unity.label(class="form-label") }}
+                            {{ form.unity.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.unity(class="form-control") }}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.sector.label(class="form-label") }}
+                            {{ form.sector.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.sector(class="form-control") }}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.function.label(class="form-label") }}
+                            {{ form.function.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.function(class="form-control") }}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.role_id.label(class="form-label") }}
+                            {{ form.role_id.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.role_id(class="form-select") }}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.password.label(class="form-label") }}
+                            {{ form.password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.password(class="form-control") }}
-                            {% for err in form.password.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                            {% for err in form.password.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-12">
-                            <div class="form-check mt-2">
+                            <div class="form-check mt-3">
                                 {{ form.is_teacher(class="form-check-input") }}
-                                {{ form.is_teacher.label(class="form-check-label") }}
+                                {{ form.is_teacher.label(class="form-check-label fw-medium") }}
                             </div>
                         </div>
                         
                         <div class="col-12">
                             <div class="form-check">
                                 {{ form.is_active_user(class="form-check-input") }}
-                                {{ form.is_active_user.label(class="form-check-label") }}
+                                {{ form.is_active_user.label(class="form-check-label fw-medium") }}
                             </div>
                         </div>
                     </div>
                     
-                    <div class="d-flex gap-2 mt-4">
-                        {{ form.submit(class="btn btn-primary") }}
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
                         <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
                     </div>
                 </form>
             </div>

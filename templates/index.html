@@ -1,8 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}Painel de Controle{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <h1 class="mb-0">Bem-vindo, {{ current_user.full_name }} 👋</h1>
+    <div>
+        <h1 class="h3 mb-1">Bem-vindo, {{ current_user.full_name }} 👋</h1>
+        <p class="text-muted mb-0">Aqui está o resumo das reservas de hoje, {{ formatted_today }}.</p>
+    </div>
     
     <div class="d-flex gap-2">
         <!-- View Toggle Dropdown -->
@@ -11,14 +15,14 @@
                 <i class="bi bi-layout-three-columns"></i> <span id="viewModeText">Visão em Lista</span>
             </button>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="viewDropdown">
-                <li><a class="dropdown-item view-toggle" href="#" data-view="list"><i class="bi bi-list-ul"></i> Visão em Lista</a></li>
-                <li><a class="dropdown-item view-toggle" href="#" data-view="card"><i class="bi bi-grid-3x3-gap"></i> Visão em Cartões</a></li>
+                <li><a class="dropdown-item view-toggle" href="#" data-view="list"><i class="bi bi-list-ul me-2"></i> Visão em Lista</a></li>
+                <li><a class="dropdown-item view-toggle" href="#" data-view="card"><i class="bi bi-grid-3x3-gap me-2"></i> Visão em Cartões</a></li>
             </ul>
         </div>
 
         {% if current_user.has_permission('reservation:create') %}
         <a href="{{ url_for('reservations.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Nova Reserva
+            <i class="bi bi-plus-circle me-1"></i> Nova Reserva
         </a>
         {% endif %}
     </div>
@@ -28,72 +32,86 @@
 <div id="listView">
     
     <!-- Auditoriums List (Top) -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-            <strong><i class="bi bi-buildings"></i> Agenda de Auditórios</strong>
-            <span class="text-muted small">{{ current_period }} - {{ formatted_today }}</span>
+    <div class="card mb-4">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+            <h5 class="mb-0"><i class="bi bi-buildings text-primary me-2"></i> Agenda de Auditórios</h5>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ current_period }}</span>
         </div>
         <div class="card-body p-0">
             {% if auditorium_reservations %}
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
                         <tr>
-                            <th>Horário</th><th>Auditório</th><th>Curso</th><th>Professor</th>
+                            <th class="ps-4">Horário</th>
+                            <th>Auditório</th>
+                            <th>Curso</th>
+                            <th class="pe-4">Professor</th>
                         </tr>
                     </thead>
                     <tbody>
                     {% for r in auditorium_reservations %}
                         <tr>
-                            <td class="fw-bold text-nowrap">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
-                            <td><span class="badge bg-primary">{{ r.classroom.code }}</span> {{ r.classroom.name }}</td>
+                            <td class="fw-bold text-nowrap ps-4">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
+                            <td>
+                                <span class="badge bg-primary me-2">{{ r.classroom.code }}</span> 
+                                {{ r.classroom.name }}
+                            </td>
                             <td>{{ r.course.name if r.course else 'N/A' }}</td>
-                            <td>{{ r.teacher.full_name if r.teacher else 'N/A' }}</td>
+                            <td class="pe-4">{{ r.teacher.full_name if r.teacher else 'N/A' }}</td>
                         </tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
             {% else %}
-            <div class="text-center text-muted p-4">
-                <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
-                Nenhum auditório agendado para o período {{ current_period|lower }}.
+            <div class="text-center text-muted p-5">
+                <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
+                <h5 class="mb-1">Nenhum auditório agendado</h5>
+                <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
             </div>
             {% endif %}
         </div>
     </div>
 
     <!-- Classrooms List -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-            <strong><i class="bi bi-door-closed"></i> Agenda de Salas de Aula</strong>
-            <span class="text-muted small">{{ current_period }} - {{ formatted_today }}</span>
+    <div class="card">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+            <h5 class="mb-0"><i class="bi bi-door-closed text-primary me-2"></i> Agenda de Salas de Aula</h5>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ current_period }}</span>
         </div>
         <div class="card-body p-0">
             {% if classroom_reservations %}
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
                         <tr>
-                            <th>Horário</th><th>Sala</th><th>Curso</th><th>Professor</th>
+                            <th class="ps-4">Horário</th>
+                            <th>Sala</th>
+                            <th>Curso</th>
+                            <th class="pe-4">Professor</th>
                         </tr>
                     </thead>
                     <tbody>
                     {% for r in classroom_reservations %}
                         <tr>
-                            <td class="fw-bold text-nowrap">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
-                            <td><span class="badge bg-primary">{{ r.classroom.code }}</span> {{ r.classroom.name }}</td>
+                            <td class="fw-bold text-nowrap ps-4">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
+                            <td>
+                                <span class="badge bg-primary me-2">{{ r.classroom.code }}</span> 
+                                {{ r.classroom.name }}
+                            </td>
                             <td>{{ r.course.name if r.course else 'N/A' }}</td>
-                            <td>{{ r.teacher.full_name if r.teacher else 'N/A' }}</td>
+                            <td class="pe-4">{{ r.teacher.full_name if r.teacher else 'N/A' }}</td>
                         </tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
             {% else %}
-            <div class="text-center text-muted p-4">
-                <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
-                Nenhuma sala de aula agendada para o período {{ current_period|lower }}.
+            <div class="text-center text-muted p-5">
+                <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
+                <h5 class="mb-1">Nenhuma sala de aula agendada</h5>
+                <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
             </div>
             {% endif %}
         </div>
@@ -105,33 +123,29 @@
     
     <!-- Auditoriums Cards (Top) -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <strong><i class="bi bi-buildings"></i> Agenda de Auditórios</strong>
-        <span class="text-muted small">{{ current_period }} - {{ formatted_today }}</span>
+        <h5 class="mb-0"><i class="bi bi-buildings text-primary me-2"></i> Agenda de Auditórios</h5>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ current_period }}</span>
     </div>
     
     {% if auditorium_reservations %}
     <div class="row g-3 mb-5">
         {% for r in auditorium_reservations %}
         <div class="col-md-6 col-xl-4">
-            <div class="card shadow-sm h-100 border-primary border-2">
-                <div class="card-header bg-primary d-flex justify-content-between align-items-center py-2">
-                    <span class="fs-5 fw-bold"><i class="bi bi-buildings"></i> {{ r.classroom.code }}</span>
-                    <small style="color: rgba(255, 255, 255, 0.8);">{{ r.classroom.name }}</small>
-                </div>
+            <div class="card h-100 hover-shadow border-primary border-start border-4 border-top-0 border-end-0 border-bottom-0">
                 <div class="card-body">
-                    <div class="mb-2">
-                        <span class="text-muted small text-uppercase fw-bold">Curso</span>
-                        <p class="mb-0 fw-bold">{{ r.course.name if r.course else 'N/A' }}</p>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="fs-4 fw-bold text-primary"><i class="bi bi-buildings"></i> {{ r.classroom.code }}</span>
+                        <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</span>
                     </div>
-                    <div class="mb-2">
-                        <span class="text-muted small text-uppercase fw-bold">Professor</span>
-                        <p class="mb-0">{{ r.teacher.full_name if r.teacher else 'N/A' }}</p>
+                    <div class="mb-3">
+                        <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
+                        <p class="mb-0 fs-5 fw-bold">{{ r.course.name if r.course else 'N/A' }}</p>
                     </div>
-                    <div class="mt-3 pt-2 border-top">
-                        <span class="text-muted small text-uppercase fw-bold">Horário</span>
-                        <p class="mb-0 fw-bold text-primary">
-                            <i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}
-                        </p>
+                    <div class="row">
+                        <div class="col-12">
+                            <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
+                            <p class="mb-0">{{ r.teacher.full_name if r.teacher else 'N/A' }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -139,41 +153,38 @@
         {% endfor %}
     </div>
     {% else %}
-    <div class="card shadow-sm text-center text-muted p-4 mb-5">
-        <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
-        Nenhum auditório agendado para o período {{ current_period|lower }}.
+    <div class="card text-center text-muted p-5 mb-5">
+        <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Nenhum auditório agendado</h5>
+        <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
     </div>
     {% endif %}
 
     <!-- Classrooms Cards -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <strong><i class="bi bi-door-closed"></i> Agenda de Salas de Aula</strong>
-        <span class="text-muted small">{{ current_period }} - {{ formatted_today }}</span>
+        <h5 class="mb-0"><i class="bi bi-door-closed text-primary me-2"></i> Agenda de Salas de Aula</h5>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ current_period }}</span>
     </div>
     
     {% if classroom_reservations %}
     <div class="row g-3">
         {% for r in classroom_reservations %}
         <div class="col-md-6 col-xl-4">
-            <div class="card shadow-sm h-100 border-primary border-2">
-                <div class="card-header bg-primary d-flex justify-content-between align-items-center py-2">
-                    <span class="fs-5 fw-bold"><i class="bi bi-door-closed"></i> {{ r.classroom.code }}</span>
-                    <small style="color: rgba(255, 255, 255, 0.8);">{{ r.classroom.name }}</small>
-                </div>
+            <div class="card h-100 hover-shadow border-primary border-start border-4 border-top-0 border-end-0 border-bottom-0">
                 <div class="card-body">
-                    <div class="mb-2">
-                        <span class="text-muted small text-uppercase fw-bold">Curso</span>
-                        <p class="mb-0 fw-bold">{{ r.course.name if r.course else 'N/A' }}</p>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="fs-4 fw-bold text-primary"><i class="bi bi-door-closed"></i> {{ r.classroom.code }}</span>
+                        <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</span>
                     </div>
-                    <div class="mb-2">
-                        <span class="text-muted small text-uppercase fw-bold">Professor</span>
-                        <p class="mb-0">{{ r.teacher.full_name if r.teacher else 'N/A' }}</p>
+                    <div class="mb-3">
+                        <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
+                        <p class="mb-0 fs-5 fw-bold">{{ r.course.name if r.course else 'N/A' }}</p>
                     </div>
-                    <div class="mt-3 pt-2 border-top">
-                        <span class="text-muted small text-uppercase fw-bold">Horário</span>
-                        <p class="mb-0 fw-bold text-primary">
-                            <i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}
-                        </p>
+                    <div class="row">
+                        <div class="col-12">
+                            <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
+                            <p class="mb-0">{{ r.teacher.full_name if r.teacher else 'N/A' }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -181,9 +192,10 @@
         {% endfor %}
     </div>
     {% else %}
-    <div class="card shadow-sm text-center text-muted p-4">
-        <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
-        Nenhuma sala de aula agendada para o período {{ current_period|lower }}.
+    <div class="card text-center text-muted p-5">
+        <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Nenhuma sala de aula agendada</h5>
+        <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
     </div>
     {% endif %}
 </div>
@@ -225,4 +237,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+<style>
+    .hover-shadow { 
+        transition: transform 0.2s ease, box-shadow 0.2s ease; 
+    }
+    .hover-shadow:hover { 
+        transform: translateY(-4px); 
+        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.1) !important; 
+    }
+</style>
 {% endblock %}

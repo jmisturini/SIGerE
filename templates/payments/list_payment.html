@@ -1,70 +1,107 @@
 {% extends 'base.html' %}
 {% block title %}Consultar Lançamentos{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Consultar Lançamentos</h2>
-    <a href="{{ url_for('payments.new_payment') }}" class="btn btn-primary"><i class="bi bi-plus"></i> Novo Lançamento</a>
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Consultar Lançamentos</h3>
+        <p class="text-muted mb-0">Filtre, exporte e gerencie os lançamentos de pagamento.</p>
+    </div>
+    <a href="{{ url_for('payments.new_payment') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> Novo Lançamento
+    </a>
 </div>
 
-<div class="card shadow-sm mb-4">
+<div class="card mb-4">
     <div class="card-body">
-        <form method="GET" class="row g-2 align-items-end">
+        <!-- Formulário de Filtro -->
+        <form method="GET" class="row g-3 align-items-end mb-4">
+            <h6 class="text-muted text-uppercase small fw-bold mb-2"><i class="bi bi-funnel me-1"></i> Filtrar Resultados</h6>
             <div class="col-md-4">
-                <label class="form-label small fw-bold">Filtrar por Professor</label>
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Filtrar por Professor</label>
                 <select name="filter_teacher" class="form-select">
                     <option value="">Todos</option>
                     {% for t in select_list %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('filter_teacher') == t.id|string }}>{{ t.full_name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label small fw-bold">Código de Pagamento</label>
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Código de Pagamento</label>
                 <input type="text" name="payment_code" class="form-control" value="{{ request.args.get('payment_code', '') }}">
             </div>
-            <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Filtrar</button></div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search me-1"></i> Filtrar</button>
+            </div>
         </form>
-        <hr>
-        <form method="GET" action="{{ url_for('payments.export_excel') }}" class="row g-2 align-items-end">
+        
+        <hr class="my-4">
+        
+        <!-- Formulário de Exportação -->
+        <form method="GET" action="{{ url_for('payments.export_excel') }}" class="row g-3 align-items-end">
+            <h6 class="text-muted text-uppercase small fw-bold mb-2"><i class="bi bi-file-earmark-excel me-1"></i> Exportar para Excel</h6>
             <div class="col-md-3">
-                <label class="form-label small fw-bold">Mês (YYYY-MM)</label>
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Mês (YYYY-MM)</label>
                 <input type="text" name="month_start" class="form-control" placeholder="Ex: 2024-05" required>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold">Semestre</label>
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Semestre</label>
                 <select name="semester_search" class="form-select" required>
                     <option value="1">1º Semestre</option>
                     <option value="2">2º Semestre</option>
                 </select>
             </div>
-            <div class="col-md-2"><button type="submit" class="btn btn-success w-100"><i class="bi bi-file-earmark-excel"></i> Exportar</button></div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-success w-100"><i class="bi bi-file-excel me-1"></i> Exportar</button>
+            </div>
         </form>
     </div>
 </div>
 
-<div class="card shadow-sm">
+<div class="card">
     <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-            <thead class="table-light"><tr><th>Professor</th><th>Nível</th><th>Código</th><th>Mês Início</th><th>Mês Fim</th><th>Horas Finais</th><th>Responsável</th><th>Ações</th></tr></thead>
-            <tbody>
-            {% for p in pay_list %}
-                <tr>
-                    <td>{{ p.teacher.full_name }}</td>
-                    <td>{{ p.level.name }}</td>
-                    <td>{{ p.payment_code or '-' }}</td>
-                    <td>{{ p.month_start }}</td>
-                    <td>{{ p.month_end }}</td>
-                    <td>{{ p.total_hours_final }}</td>
-                    <td>{{ p.responsible_user }}</td>
-                    <td>
-                        <form method="POST" action="{{ url_for('payments.delete_payment', posting_id=p.id) }}" onsubmit="return confirm('Excluir este lançamento?');">
-                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                        </form>
-                    </td>
-                </tr>
-            {% else %}
-                <tr><td colspan="8" class="text-muted text-center p-4">Nenhum lançamento encontrado.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Professor</th>
+                        <th>Nível</th>
+                        <th>Código</th>
+                        <th>Mês Início</th>
+                        <th>Mês Fim</th>
+                        <th>Horas Finais</th>
+                        <th>Responsável</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for p in pay_list %}
+                    <tr>
+                        <td class="ps-4 fw-bold">{{ p.teacher.full_name }}</td>
+                        <td>{{ p.level.name }}</td>
+                        <td>{{ p.payment_code or '-' }}</td>
+                        <td>{{ p.month_start }}</td>
+                        <td>{{ p.month_end }}</td>
+                        <td>{{ p.total_hours_final }}</td>
+                        <td>{{ p.responsible_user }}</td>
+                        <td class="text-end pe-4">
+                            <form method="POST" action="{{ url_for('payments.delete_payment', posting_id=p.id) }}" class="d-inline" onsubmit="return confirm('Excluir este lançamento?');">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted p-5">
+                            <i class="bi bi-cash-stack fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhum lançamento encontrado</h5>
+                            <p class="small mb-0">Utilize os filtros acima ou cadastre um novo lançamento.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}

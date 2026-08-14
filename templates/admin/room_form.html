@@ -1,44 +1,100 @@
 {% extends 'base.html' %}
 {% block title %}{{ title }}{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card shadow-sm">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0"><i class="bi bi-door-closed text-primary me-2"></i> {{ title }}</h5>
+                <a href="{{ url_for('admin.list_rooms') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
             <div class="card-body p-4">
-                <h3 class="mb-3"><i class="bi bi-door-closed"></i> {{ title }}</h3>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
-                    <div class="mb-3">{{ form.name.label(class="form-label") }} {{ form.name(class="form-control") }}</div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">{{ form.room_number.label(class="form-label") }} {{ form.room_number(class="form-control") }} <small class="text-muted">O código será gerado automaticamente (ex: CR101).</small></div>
-                        <div class="col-md-6 mb-3">{{ form.category_id.label(class="form-label") }} {{ form.category_id(class="form-select") }}</div>
+                    
+                    <div class="row g-3">
+                        <div class="col-12">
+                            {{ form.name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.name(class="form-control") }}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.room_number.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.room_number(class="form-control") }}
+                            <div class="form-text small">O código será gerado automaticamente (ex: CR101).</div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.category_id.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.category_id(class="form-select") }}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            {{ form.building.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.building(class="form-control") }}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            {{ form.floor.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.floor(class="form-control") }}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            {{ form.capacity.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.capacity(class="form-control", min="0") }}
+                        </div>
+                        
+                        <div class="col-12 d-none" id="compCountDiv">
+                            {{ form.computer_count.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.computer_count(class="form-control", min="0") }}
+                        </div>
+                        
+                        <div class="col-12">
+                            {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.description(class="form-control", rows="3") }}
+                        </div>
+                        
+                        <div class="col-12">
+                            <div class="form-check mt-2">
+                                {{ form.is_active(class="form-check-input") }}
+                                {{ form.is_active.label(class="form-check-label fw-medium") }}
+                            </div>
+                        </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">{{ form.building.label(class="form-label") }} {{ form.building(class="form-control") }}</div>
-                        <div class="col-md-4 mb-3">{{ form.floor.label(class="form-label") }} {{ form.floor(class="form-control") }}</div>
-                        <div class="col-md-4 mb-3">{{ form.capacity.label(class="form-label") }} {{ form.capacity(class="form-control") }}</div>
+                    
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('admin.list_rooms') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
                     </div>
-                    <div class="mb-3" id="compCountDiv" style="display: none;">{{ form.computer_count.label(class="form-label") }} {{ form.computer_count(class="form-control", min="0") }}</div>
-                    <div class="mb-3">{{ form.description.label(class="form-label") }} {{ form.description(class="form-control", rows=3) }}</div>
-                    <div class="mb-3 form-check">{{ form.is_active(class="form-check-input") }} {{ form.is_active.label(class="form-check-label") }}</div>
-                    <div class="d-flex gap-2">{{ form.submit(class="btn btn-primary") }} <a href="{{ url_for('admin.list_rooms') }}" class="btn btn-outline-secondary">Cancelar</a></div>
                 </form>
             </div>
         </div>
     </div>
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
-    const catSelect = document.getElementById('category_id'), div = document.getElementById('compCountDiv');
+    const catSelect = document.getElementById('category_id');
+    const compDiv = document.getElementById('compCountDiv');
     
     function toggleCompCount() {
         // Pega o texto da opção selecionada para verificar se é "Laboratório de Informática"
         const selectedText = catSelect.options[catSelect.selectedIndex].text;
-        div.style.display = selectedText.includes('Informática') ? 'block' : 'none';
+        if (selectedText.includes('Informática')) {
+            compDiv.classList.remove('d-none');
+        } else {
+            compDiv.classList.add('d-none');
+        }
     }
     
-    toggleCompCount(); 
-    catSelect.addEventListener('change', toggleCompCount);
+    // Executa na carga e atrela ao evento de mudança
+    if (catSelect) {
+        toggleCompCount(); 
+        catSelect.addEventListener('change', toggleCompCount);
+    }
 </script>
 {% endblock %}

@@ -1,22 +1,67 @@
 {% extends 'base.html' %}
-{% block title %}Register{% endblock %}
+{% block title %}Cadastro de Usuário{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card shadow-sm">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0"><i class="bi bi-person-plus-fill text-primary me-2"></i> Cadastro de Usuário</h5>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
             <div class="card-body p-4">
-                <h3 class="mb-3"><i class="bi bi-person-plus"></i> Register</h3>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
-                    {% for field in [form.username, form.email, form.full_name, form.password, form.confirm_password, form.role, form.department] %}
-                    <div class="mb-3">
-                        {{ field.label(class="form-label") }}
-                        {{ field(class="form-control" + (" form-select" if field == form.role else "")) }}
-                        {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+                    
+                    <div class="row g-3">
+                        <div class="col-12">
+                            {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.full_name(class="form-control") }}
+                            {% for err in form.full_name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.username.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.username(class="form-control") }}
+                            {% for err in form.username.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.email(class="form-control") }}
+                            {% for err in form.email.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.role.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.role(class="form-select") }}
+                            {% for err in form.role.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.department.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.department(class="form-control") }}
+                            {% for err in form.department.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.password(class="form-control") }}
+                            {% for err in form.password.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.confirm_password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.confirm_password(class="form-control") }}
+                            {% for err in form.confirm_password.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
                     </div>
-                    {% endfor %}
-                    <div class="d-grid">
-                        {{ form.submit(class="btn btn-primary") }}
+                    
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
                     </div>
                 </form>
             </div>

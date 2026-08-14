@@ -1,36 +1,40 @@
 {% extends 'base.html' %}
 {% block title %}Disponibilidade - {{ classroom.name }}{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
-        <h2 class="mb-0">Disponibilidade: {{ classroom.name }}</h2>
-        <p class="text-muted mb-0">{{ classroom.code }}</p>
+        <h3 class="fw-bold mb-1">Disponibilidade: {{ classroom.name }}</h3>
+        <p class="text-muted mb-0">
+            <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle me-1">{{ classroom.code }}</span> 
+            Verifique os horários ocupados e livres desta sala.
+        </p>
     </div>
-    <a href="{{ request.referrer or url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary btn-sm" onclick="history.back(); return false;">
+    <a href="{{ request.referrer or url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary" onclick="history.back(); return false;">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, year=prev_year, month=prev_month) }}" class="btn btn-sm btn-outline-secondary">
-        <i class="bi bi-chevron-left"></i> Anterior
-    </a>
-    
-    <div class="text-center">
-        <h4 class="mb-0">
-            {% if month == 1 %}Janeiro{% elif month == 2 %}Fevereiro{% elif month == 3 %}Março{% elif month == 4 %}Abril{% elif month == 5 %}Maio{% elif month == 6 %}Junho{% elif month == 7 %}Julho{% elif month == 8 %}Agosto{% elif month == 9 %}Setembro{% elif month == 10 %}Outubro{% elif month == 11 %}Novembro{% else %}Dezembro{% endif %} {{ year }}
-        </h4>
-        <!-- Botão de Exportar PDF atualizado -->
-        <a href="{{ url_for('classrooms.export_availability', classroom_id=classroom.id, year=year, month=month) }}" class="btn btn-sm btn-outline-danger mt-2">
-            <i class="bi bi-filetype-pdf"></i> Exportar Reservas do Mês (PDF)
+<div class="card">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, year=prev_year, month=prev_month) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-chevron-left"></i> Anterior
+        </a>
+        
+        <div class="text-center">
+            <h5 class="mb-2 fw-bold text-capitalize">
+                {% if month == 1 %}Janeiro{% elif month == 2 %}Fevereiro{% elif month == 3 %}Março{% elif month == 4 %}Abril{% elif month == 5 %}Maio{% elif month == 6 %}Junho{% elif month == 7 %}Julho{% elif month == 8 %}Agosto{% elif month == 9 %}Setembro{% elif month == 10 %}Outubro{% elif month == 11 %}Novembro{% else %}Dezembro{% endif %} {{ year }}
+            </h5>
+            <a href="{{ url_for('classrooms.export_availability', classroom_id=classroom.id, year=year, month=month) }}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-filetype-pdf me-1"></i> Exportar Reservas do Mês (PDF)
+            </a>
+        </div>
+        
+        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, year=next_year, month=next_month) }}" class="btn btn-sm btn-outline-secondary">
+            Próximo <i class="bi bi-chevron-right"></i>
         </a>
     </div>
     
-    <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, year=next_year, month=next_month) }}" class="btn btn-sm btn-outline-secondary">
-        Próximo <i class="bi bi-chevron-right"></i>
-    </a>
-    </div>
     <div class="card-body">
         <!-- Cabeçalho dos dias da semana -->
         <div class="calendar-grid mb-2">
@@ -71,42 +75,45 @@
 </div>
 
 <style>
-    /* CSS Fixado para garantir o formato de cartão em qualquer tema */
     .calendar-grid {
         display: grid;
         grid-template-columns: repeat(7, 1fr);
-        gap: 8px;
+        gap: 10px;
     }
     .calendar-weekday {
         text-align: center;
         font-weight: 600;
         font-size: 0.85rem;
-        color: #64748b;
-        padding-bottom: 8px;
-        border-bottom: 2px solid #e2e8f0;
+        color: var(--text-muted, #6c757d);
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--border-color, rgba(0,0,0,0.05));
     }
     .calendar-day {
-        min-height: 110px;
-        border: 1px solid #e2e8f0;
+        min-height: 120px;
+        border: 1px solid var(--border-color, rgba(0,0,0,0.05));
         border-radius: 8px;
         padding: 8px;
-        background-color: #ffffff;
+        background-color: var(--topbar-bg, #ffffff); /* Usa a cor de fundo dos cards */
+        transition: box-shadow 0.2s ease;
+    }
+    .calendar-day:hover:not(.empty) {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
     .calendar-day.empty {
         background-color: transparent;
         border: none;
     }
     .calendar-day.today {
-        border: 2px solid #2563eb;
-        background-color: rgba(37, 99, 235, 0.05);
+        border: 2px solid var(--primary-color, #004b8d);
+        background-color: rgba(var(--primary-color-rgb, 0, 75, 141), 0.05);
     }
     .day-number {
         font-weight: 700;
         margin-bottom: 5px;
-        color: #64748b;
+        color: var(--text-muted, #6c757d);
     }
     .calendar-day.today .day-number {
-        color: #2563eb;
+        color: var(--primary-color, #004b8d);
     }
     .events-container {
         display: flex;
@@ -115,39 +122,14 @@
     }
     .event-pill {
         font-size: 0.75rem;
-        background: #f8fafc;
-        color: #1e293b;
-        padding: 3px 6px;
+        background: var(--body-bg, #f4f6f9); /* Fundo suave utilizando a cor de fundo do body */
+        color: var(--text-color, #333);
+        padding: 4px 8px;
         border-radius: 4px;
-        border-left: 3px solid #2563eb;
+        border-left: 3px solid var(--primary-color, #004b8d);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }
-
-    /*sobrescrever as cores fixas acima se o tema escuro estiver ativo*/
-    [data-theme="dark"] .calendar-weekday {
-        color: #94a3b8;
-        border-bottom: 2px solid #334155;
-    }
-    [data-theme="dark"] .calendar-day {
-        border: 1px solid #334155;
-        background-color: #1e293b;
-    }
-    [data-theme="dark"] .calendar-day.today {
-        border: 2px solid #3b82f6;
-        background-color: rgba(59, 130, 246, 0.1);
-    }
-    [data-theme="dark"] .day-number {
-        color: #94a3b8;
-    }
-    [data-theme="dark"] .calendar-day.today .day-number {
-        color: #60a5fa;
-    }
-    [data-theme="dark"] .event-pill {
-        background: #334155;
-        color: #f8fafc;
-        border-left: 3px solid #3b82f6;
     }
 </style>
 {% endblock %}
