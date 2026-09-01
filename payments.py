@@ -1,4 +1,5 @@
 import os
+import re
 import math
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required, current_user
@@ -67,11 +68,13 @@ def parse_currency(value_str):
 @login_required
 @require_permission('payment:read')
 def list_base_pays():
-    # Se for professor (apenas read_own), filtra por ele mesmo
-    if not current_user.has_permission('payment:read') and current_user.has_permission('payment:read_own'):
-        infos = TeacherBasePay.query.filter_by(teacher_id=current_user.id).order_by(TeacherBasePay.created_at.desc()).all()
-    else:
-        infos = TeacherBasePay.query.order_by(TeacherBasePay.created_at.desc()).all()
+    # Usuários com payment:read_own (ex: professores) enxergam apenas os próprios registros.
+    # A rota usa payment:read; quem só tem payment:read_own é barrado pelo decorator acima,
+    # portanto a rota separada /list/own deve ser criada se necessário. Por ora, todos os que
+    # chegam aqui têm payment:read e vêem tudo.
+    # CORREÇÃO: a verificação anterior era dead-code — @require_permission('payment:read') já
+    # garante que current_user.has_permission('payment:read') == True para qualquer request.
+    infos = TeacherBasePay.query.order_by(TeacherBasePay.created_at.desc()).all()
     return render_template('payments/list_base.html', infos=infos)
 
 @bp.route('/create', methods=['GET', 'POST'])
@@ -93,10 +96,13 @@ def create_base_pay():
             flash('Erro: Formato de mês inválido.', 'danger')
             return redirect(url_for('payments.create_base_pay'))
             
+        # CORREÇÃO: a verificação anterior (month_start >= inicio AND month_end <= fim)
+        # só detectava períodos contidos; sobreposições parciais passavam. Agora usa o
+        # teste clássico de sobreposição de intervalos para o mesmo professor.
         exists = TeacherBasePay.query.filter(
-            TeacherBasePay.month_start >= form.month_start.data,
-            TeacherBasePay.month_end <= form.month_end.data,
-            TeacherBasePay.teacher_id == form.teacher.data
+            TeacherBasePay.teacher_id == form.teacher.data,
+            TeacherBasePay.month_start <= form.month_end.data,
+            TeacherBasePay.month_end >= form.month_start.data
         ).first()
         if exists:
             flash('Erro: Lançamento duplicado para esse semestre.', 'danger')
@@ -168,7 +174,12 @@ def create_additive():
     form.course.choices = [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
     
     if form.validate_on_submit():
-        base = TeacherBasePay.query.get(form.base_release.data)
+        # CORREÇÃO: usar db.session.get() (API atual do SQLAlchemy) e tratar o caso
+        # de lançamento base inexistente — antes, base.created_at gerava AttributeError.
+        base = db.session.get(TeacherBasePay, form.base_release.data)
+        if not base:
+            flash('Erro: Lançamento base não encontrado.', 'danger')
+            return redirect(url_for('payments.create_additive'))
         if not validate_180_days_rule(base.created_at):
             return redirect(url_for('payments.list_base_pays'))
             
@@ -212,15 +223,14 @@ def list_overtime():
     filter_month = request.args.get('month_base', '')
     filter_teacher = request.args.get('teacher_filter', type=int)
     
-    # Se for professor (apenas read_own), filtra por ele mesmo
-    if not current_user.has_permission('payment:read') and current_user.has_permission('payment:read_own'):
-        query = TeacherOvertimePay.query.filter_by(teacher_id=current_user.id)
-    else:
-        query = TeacherOvertimePay.query
-        if filter_month:
-            query = query.filter_by(month_base=filter_month)
-        if filter_teacher:
-            query = query.filter_by(teacher_id=filter_teacher)
+    # CORREÇÃO: a condição anterior era dead-code — @require_permission('payment:read') já garante
+    # que qualquer usuário aqui tem payment:read, tornando o bloco de filtro por professor
+    # inalcançável. Agora aplica os filtros normalmente para todos.
+    query = TeacherOvertimePay.query
+    if filter_month:
+        query = query.filter_by(month_base=filter_month)
+    if filter_teacher:
+        query = query.filter_by(teacher_id=filter_teacher)
         
     infos = query.order_by(TeacherOvertimePay.created_at.desc()).all()
     list_teachers = User.query.filter_by(profile_type='teacher', is_active_user=True).order_by(User.full_name).all()
@@ -238,7 +248,6 @@ def create_overtime():
         form.month_base.data = datetime.now().strftime('%Y-%m')
     
     if form.validate_on_submit():
-        import re
         current_date = datetime.now()
         month_base_str = form.month_base.data
         
@@ -281,7 +290,13 @@ def create_overtime():
 def edit_overtime(overtime_id):
     overtime = TeacherOvertimePay.query.get_or_404(overtime_id)
     
-    if overtime.created_at.month < datetime.now().month or (datetime.now().date() - overtime.created_at.date() > timedelta(days=30)):
+    # CORREÇÃO: comparação anterior usava apenas .month, ignorando o ano.
+    # Ex.: registro de dez/2025 seria editável em jan/2026 pois 12 > 1.
+    # Agora compara a data completa (ano + mês).
+    now = datetime.now()
+    record_ym = (overtime.created_at.year, overtime.created_at.month)
+    now_ym = (now.year, now.month)
+    if record_ym < now_ym or (now.date() - overtime.created_at.date() > timedelta(days=30)):
         flash('Erro: Registros dos meses anteriores não podem ser alterados.', 'danger')
         return redirect(url_for('payments.list_overtime'))
 
@@ -292,7 +307,6 @@ def edit_overtime(overtime_id):
         form.hourly_value.data = f"{overtime.hourly_value:.2f}".replace('.', ',')
 
     if form.validate_on_submit():
-        import re
         month_base_str = form.month_base.data
         
         if not re.match(r'^\d{4}-\d{2}$', month_base_str):
@@ -332,7 +346,11 @@ def edit_overtime(overtime_id):
 @require_permission('payment:delete')
 def delete_overtime(overtime_id):
     overtime = TeacherOvertimePay.query.get_or_404(overtime_id)
-    if overtime.created_at.month < datetime.now().month or (datetime.now().date() - overtime.created_at.date() > timedelta(days=30)):
+    # CORREÇÃO: mesma correção de ano aplicada no edit — compara (year, month) completo.
+    now = datetime.now()
+    record_ym = (overtime.created_at.year, overtime.created_at.month)
+    now_ym = (now.year, now.month)
+    if record_ym < now_ym or (now.date() - overtime.created_at.date() > timedelta(days=30)):
         flash('Erro: Registros dos meses anteriores não podem ser excluídos.', 'danger')
         return redirect(url_for('payments.list_overtime'))
         
@@ -464,9 +482,12 @@ def export_excel_overtime():
     for merged_cell in list(ws.merged_cells.ranges):
         ws.unmerge_cells(str(merged_cell))
 
-    for baseline, data in enumerate(overtimes, start=7):
-        ws.insert_rows(baseline)
+    # CORREÇÃO: antes, ws.insert_rows(baseline) era chamado a cada iteração do loop,
+    # deslocando o conteúdo do template repetidamente. Agora todas as linhas são
+    # inseridas de uma única vez antes de escrever os dados.
+    ws.insert_rows(7, len(overtimes))
 
+    for baseline, data in enumerate(overtimes, start=7):
         cell_data = [
             (1, data.teacher.full_name),
             (2, data.teaching_level),

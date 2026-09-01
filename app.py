@@ -1,9 +1,9 @@
 from flask import Flask, render_template, redirect, url_for, request
 from config import Config
 from extensions import db, login_manager
-from models import User, Classroom, Reservation, Course, Subject, Holiday, TeacherBasePay, Role, Permission, RoomCategory
-from datetime import datetime, date, time, timedelta
-import random
+from models import User
+from datetime import datetime
+import os
 
 def create_app(config_class=Config):
     """Factory function to create and configure the Flask app."""
@@ -63,7 +63,8 @@ def create_app(config_class=Config):
         from flask_login import current_user
         if current_user.is_authenticated and current_user.force_password_change:
             allowed_endpoints = ['auth.change_password', 'auth.logout', 'static']
-            if request.endpoint not in allowed_endpoints:
+            # Guard against None endpoint (e.g. unresolved routes before 404 handler fires)
+            if request.endpoint and request.endpoint not in allowed_endpoints:
                 return redirect(url_for('auth.change_password'))
 
     # Create database tables only (NO automatic seeding)
@@ -76,4 +77,4 @@ def create_app(config_class=Config):
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true', port=5000)
