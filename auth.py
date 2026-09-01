@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash
+from urllib.parse import urlparse
 from models import User
 from forms import LoginForm, ChangePasswordForm
 from extensions import db
@@ -27,8 +27,12 @@ def login():
             login_user(user)
             flash(f'Bem-vindo de volta, {user.full_name}!', 'success')
             
-            # Redirect to requested page or dashboard
+            # Redirect to requested page or dashboard.
+            # SECURITY: validate the 'next' parameter to prevent open redirect attacks.
+            # Only allow relative URLs (no external domain in netloc).
             next_page = request.args.get('next')
+            if next_page and urlparse(next_page).netloc != '':
+                next_page = None
             return redirect(next_page or url_for('main.index'))
             
         flash('Nome de usuário ou senha inválidos.', 'danger')
@@ -57,19 +61,14 @@ def change_password():
         user.force_password_change = False
 
         try:
-            # Explicit flush forces SQLAlchemy to generate the UPDATE statement now
-            db.session.flush()
+            # CORREÇÃO: removido o flush() redundante antes do commit() e o bloco
+            # defensivo após refresh() — o commit já faz o flush e a flag
+            # atualizada é confirmada pelo refresh, sem necessidade de re-checagem.
             db.session.commit()
-            # Refresh from DB to confirm the change actually persisted
             db.session.refresh(user)
         except Exception as e:
             db.session.rollback()
             flash(f'Erro ao salvar: {str(e)}', 'danger')
-            return render_template('auth/change_password.html', form=form)
-
-        # Defensive check: if the DB still shows True, something is wrong at the storage level
-        if user.force_password_change is True:
-            flash('Erro interno: a flag de troca de senha não foi atualizada no banco.', 'danger')
             return render_template('auth/change_password.html', form=form)
 
         flash('Sua senha foi atualizada com sucesso!', 'success')

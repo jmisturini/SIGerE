@@ -38,8 +38,9 @@ def index():
     ).order_by(Reservation.start_time).all()
 
     # Split into Classrooms and Auditoriums for separate display blocks
-    aud_res = [r for r in today_reservations if r.classroom.category == 'auditorium']
-    cls_res = [r for r in today_reservations if r.classroom.category != 'auditorium']
+    # r.classroom.category is a RoomCategory object — compare via .code, not the object itself
+    aud_res = [r for r in today_reservations if r.classroom.category and r.classroom.category.code == 'auditorium']
+    cls_res = [r for r in today_reservations if not r.classroom.category or r.classroom.category.code != 'auditorium']
 
     return render_template(
         'index.html',

@@ -3,7 +3,9 @@ from wtforms import (StringField, PasswordField, SubmitField, IntegerField, Date
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, timedelta, date
 import re
-from models import User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay, RoomCategory
+# CORREÇÃO: Holiday e Role não estavam importados — os validadores de
+# HolidayForm.validate_date e RoleForm.validate_name geravam NameError (erro 500).
+from models import User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay, RoomCategory, Holiday, Role
 
 # =============================================================================
 # LOGIN & PASSWORD FORMS
@@ -40,7 +42,11 @@ class TeacherForm(FlaskForm):
 
     def __init__(self, *args, **kwargs):
         super(TeacherForm, self).__init__(*args, **kwargs)
-        self._obj_id = kwargs.get('obj_id', None)
+        # CORREÇÃO: _obj_id pode vir como kwarg explícito (obj_id=user.id) ou ser extraído
+        # do objeto passado via obj=user. Sem isso, _obj_id era sempre None em edições,
+        # causando falsa detecção de duplicidade nas validações de username/email/registration.
+        obj = kwargs.get('obj', None)
+        self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
         # Senha obrigatória apenas na criação (sem obj_id)
         if not self._obj_id:
             self.password.validators.insert(0, DataRequired())
@@ -50,7 +56,10 @@ class TeacherForm(FlaskForm):
             raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
 
     def validate_username(self, field):
-        self._validate_alpha_only(field, 'Nome de Usuário')
+        # CORREÇÃO: regex anterior barrava usernames com números ou underscore (ex: joao_silva, prof2).
+        # Username agora aceita letras, números, underscore e espaços.
+        if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9_\s]+$', field.data):
+            raise ValidationError('Nome de Usuário deve conter apenas letras, números e underscore.')
         existing = User.query.filter_by(username=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
             raise ValidationError('Este nome de usuário já está em uso.')
@@ -96,7 +105,10 @@ class EmployeeForm(FlaskForm):
 
     def __init__(self, *args, **kwargs):
         super(EmployeeForm, self).__init__(*args, **kwargs)
-        self._obj_id = kwargs.get('obj_id', None)
+        # CORREÇÃO: mesma correção do TeacherForm — extrai _obj_id do objeto passado via obj=
+        # quando obj_id não é passado explicitamente como kwarg.
+        obj = kwargs.get('obj', None)
+        self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
         # Senha obrigatória apenas na criação (sem obj_id)
         if not self._obj_id:
             self.password.validators.insert(0, DataRequired())
@@ -106,7 +118,10 @@ class EmployeeForm(FlaskForm):
             raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
 
     def validate_username(self, field):
-        self._validate_alpha_only(field, 'Nome de Usuário')
+        # CORREÇÃO: regex anterior barrava usernames com números ou underscore (ex: joao_silva, func2).
+        # Username agora aceita letras, números, underscore e espaços.
+        if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9_\s]+$', field.data):
+            raise ValidationError('Nome de Usuário deve conter apenas letras, números e underscore.')
         existing = User.query.filter_by(username=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
             raise ValidationError('Este nome de usuário já está em uso.')

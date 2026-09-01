@@ -1,4 +1,6 @@
-from datetime import datetime
+# CORREÇÃO: datetime.utcnow foi substituído por datetime.now(timezone.utc) em todos os
+# defaults — a função sem fuso está deprecada desde o Python 3.12 e será removida.
+from datetime import datetime, timezone
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db, login_manager
@@ -22,7 +24,7 @@ class User(UserMixin, db.Model):
     force_password_change = db.Column(db.Boolean, default=True)
     unity = db.Column(db.String(120), nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     is_active_user = db.Column(db.Boolean, default=True)
 
     # Relationship for reservations made by this user
@@ -76,7 +78,9 @@ class User(UserMixin, db.Model):
 # Flask-Login loader to fetch user by ID for session management
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    # CORREÇÃO: User.query.get() é API legada removida no SQLAlchemy 2.x.
+    # db.session.get() é a forma correta desde SQLAlchemy 1.4+.
+    return db.session.get(User, int(user_id))
 
 # Model representing the physical rooms (Classrooms, Auditoriums, Labs)
 class Classroom(db.Model):
@@ -92,7 +96,7 @@ class Classroom(db.Model):
     computer_count = db.Column(db.Integer, default=0)
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
     # Relationship for reservations in this room
     reservations = db.relationship('Reservation', backref='classroom', lazy=True)
@@ -121,8 +125,8 @@ class Reservation(db.Model):
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='approved') # approved, pending, cancelled
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     review_note = db.Column(db.Text)
 
@@ -203,8 +207,8 @@ class TeacherBasePay(db.Model):
     monthly_hour = db.Column(db.Integer, default=0)
     semester_hour = db.Column(db.Integer, default=0)
     accountable_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     term_generated = db.Column(db.Integer, default=1)
 
     teacher = db.relationship('User', foreign_keys=[teacher_id])
@@ -225,8 +229,8 @@ class TeacherAdditivePayment(db.Model):
     semester_hour = db.Column(db.Integer, default=0)
     complement = db.Column(db.String(100))
     accountable_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     term_generated = db.Column(db.Integer, default=1)
 
     # CORREÇÃO: Adicionar cascade no relacionamento
@@ -248,8 +252,8 @@ class TeacherOvertimePay(db.Model):
     justification = db.Column(db.String(100))
     month_base = db.Column(db.String(7), nullable=False) # YYYY-MM
     accountable_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     teacher = db.relationship('User', foreign_keys=[teacher_id])
     accountable = db.relationship('User', foreign_keys=[accountable_id])
@@ -280,7 +284,7 @@ class Role(db.Model):
     label = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     is_system = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
     permissions = db.relationship('Permission', secondary='role_permissions', backref='roles')
     # Relacionamento reverso para User (role_obj)
