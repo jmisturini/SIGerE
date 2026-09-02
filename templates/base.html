@@ -46,55 +46,130 @@
                     </a>
                 </li>
                 
+                {% set in_reservations = request.endpoint and request.endpoint.startswith('reservations.') %}
                 {% if current_user.has_permission('reservation:create') or current_user.has_permission('reservation:read_all') or current_user.has_permission('reservation:read_own') %}
-                <li class="nav-section">Reservas</li>
-                {% if current_user.has_permission('reservation:create') %}
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('reservations.create') }}">
-                        <i class="bi bi-plus-circle"></i> <span>Nova Reserva</span>
+                    <a class="nav-link {{ 'active' if in_reservations else '' }}" data-bs-toggle="collapse" href="#menu-reservas" role="button" aria-expanded="{{ 'true' if in_reservations else 'false' }}" aria-controls="menu-reservas">
+                        <i class="bi bi-calendar-week"></i> <span>Reservas</span>
+                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
                     </a>
+                    <div class="collapse {{ 'show' if in_reservations else '' }}" id="menu-reservas">
+                        <ul class="nav flex-column nav-submenu">
+                            {% if current_user.has_permission('reservation:create') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('reservations.create') }}">
+                                    <i class="bi bi-plus-circle"></i> <span>Nova Reserva</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if current_user.has_permission('reservation:read_own') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('reservations.my_reservations') }}">
+                                    <i class="bi bi-calendar-check"></i> <span>Minhas Reservas</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if current_user.has_permission('reservation:read_all') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('reservations.all_reservations') }}">
+                                    <i class="bi bi-people"></i> <span>Todas as Reservas</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
                 </li>
-                {% endif %}
-                {% if current_user.has_permission('reservation:read_own') %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('reservations.my_reservations') }}">
-                        <i class="bi bi-calendar-check"></i> <span>Minhas Reservas</span>
-                    </a>
-                </li>
-                {% endif %}
-                {% if current_user.has_permission('reservation:read_all') %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('reservations.all_reservations') }}">
-                        <i class="bi bi-people"></i> <span>Todas as Reservas</span>
-                    </a>
-                </li>
-                {% endif %}
                 {% endif %}
 
-                {% if current_user.has_permission('payment:read') or current_user.has_permission('payment:read_own') %}
-                <li class="nav-section">Pagamentos</li>
+                {% set in_payments = request.endpoint and request.endpoint.startswith('payments.') %}
+                {# A rota de listagem exige payment:read (read_own não dá acesso a nenhuma página do módulo) #}
+                {% if current_user.has_permission('payment:read') %}
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('payments.list_base_pays') }}">
-                        <i class="bi bi-list-ul"></i> <span>Consultar Base</span>
+                    <a class="nav-link {{ 'active' if in_payments else '' }}" data-bs-toggle="collapse" href="#menu-pagamentos" role="button" aria-expanded="{{ 'true' if in_payments else 'false' }}" aria-controls="menu-pagamentos">
+                        <i class="bi bi-cash-stack"></i> <span>Pagamentos</span>
+                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
                     </a>
-                </li>
-                {% if current_user.has_permission('payment:create') %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('payments.create_base_pay') }}">
-                        <i class="bi bi-plus-circle"></i> <span>Novo Base</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('payments.list_overtime') }}">
-                        <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('payments.create_overtime') }}">
-                        <i class="bi bi-plus-circle"></i> <span>Nova Hora Extra</span>
-                    </a>
+                    <div class="collapse {{ 'show' if in_payments else '' }}" id="menu-pagamentos">
+                        <ul class="nav flex-column nav-submenu">
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('payments.list_base_pays') }}">
+                                    <i class="bi bi-list-ul"></i> <span>Consultar Base</span>
+                                </a>
+                            </li>
+                            {% if current_user.has_permission('payment:create') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('payments.create_base_pay') }}">
+                                    <i class="bi bi-plus-circle"></i> <span>Novo Base</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('payments.list_overtime') }}">
+                                    <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('payments.create_overtime') }}">
+                                    <i class="bi bi-plus-circle"></i> <span>Nova Hora Extra</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
                 </li>
                 {% endif %}
+
+                {% set in_kitchen = request.endpoint and request.endpoint.startswith('kitchen.') %}
+                {% if current_user.has_permission('ingredient:read') or current_user.has_permission('stock:read') or current_user.has_permission('recipe:read') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_kitchen else '' }}" data-bs-toggle="collapse" href="#menu-cozinha" role="button" aria-expanded="{{ 'true' if in_kitchen else 'false' }}" aria-controls="menu-cozinha">
+                        <i class="bi bi-egg-fried"></i> <span>Cozinha</span>
+                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
+                    </a>
+                    <div class="collapse {{ 'show' if in_kitchen else '' }}" id="menu-cozinha">
+                        <ul class="nav flex-column nav-submenu">
+                            {% if current_user.has_permission('stock:read') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('kitchen.dashboard') }}">
+                                    <i class="bi bi-speedometer2"></i> <span>Visão Geral</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if current_user.has_permission('ingredient:read') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('kitchen.list_ingredients') }}">
+                                    <i class="bi bi-basket"></i> <span>Ingredientes</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if current_user.has_permission('stock:read') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('kitchen.stock') }}">
+                                    <i class="bi bi-box-seam"></i> <span>Estoque</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if current_user.has_permission('recipe:read') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('kitchen.list_recipes') }}">
+                                    <i class="bi bi-journal-text"></i> <span>Receitas</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if current_user.has_permission('stock:read') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('kitchen.shopping_list') }}">
+                                    <i class="bi bi-cart-plus"></i> <span>Lista de Compras</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('kitchen.consumption_report') }}">
+                                    <i class="bi bi-graph-up"></i> <span>Relatórios</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </li>
                 {% endif %}
 
                 {% if current_user.has_permission('system:dashboard') %}

@@ -76,13 +76,13 @@ body {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    padding: 1.5rem 1.5rem 0.5rem 1.5rem;
+    padding: 1rem 1.5rem 0.4rem 1.5rem;
     font-weight: 600;
 }
 
 .sidebar-menu .nav-link {
     color: var(--sidebar-color);
-    padding: 0.75rem 1.5rem;
+    padding: 0.6rem 1.5rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -101,6 +101,23 @@ body {
     background-color: var(--sidebar-active-bg);
     color: var(--sidebar-active-color);
     border-left: 3px solid #fff;
+}
+
+/* Grupos expansíveis da sidebar (menus dropdown) */
+.sidebar-menu .nav-link .nav-chevron {
+    font-size: 0.7rem;
+    transition: transform 0.2s ease;
+}
+
+.sidebar-menu .nav-link[aria-expanded="true"] .nav-chevron {
+    transform: rotate(180deg);
+}
+
+.sidebar-menu .nav-submenu .nav-link {
+    padding: 0.45rem 1.5rem 0.45rem 3.1rem;
+    font-size: 0.875rem;
+    font-weight: 400;
+    gap: 0.65rem;
 }
 
 /* Main Content */

@@ -40,7 +40,7 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 - 📺 **Totens digitais** para corredores com exibição em tempo real de ocupação de salas
 - 📆 **Calendário interativo** com filtros avançados e visualização mensal
 
-O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissões granulares, tema claro/escuro persistente, exportação de relatórios em PDF/CSV/Excel e seed automático de dados de demonstração.
+O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissões granulares, tema claro/escuro persistente, exportação de relatórios em PDF/Excel e seed automático de dados de demonstração.
 
 ---
 
@@ -61,7 +61,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 - **Categorias dinâmicas:** Sala de Aula, Auditório, Laboratório de Informática, Laboratório de Saúde, Cozinha Experimental
 - **Código automático:** geração de códigos no formato `SA101`, `AU101`, `LI105`, `LS301`, etc.
 - **Visualização mensal:** calendário de ocupação por sala com navegação entre meses
-- **Exportação:** CSV, PDF (landscape A4) e Excel
+- **Exportação:** PDF (landscape A4) e Excel
 
 ### 👥 Gestão de Usuários (Painel Admin)
 - **Perfis distintos:**
@@ -100,6 +100,19 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
   - Horas extras só até o dia 25 do mês corrente
 - **Exportação Excel:** planilhas formatadas com modelo pré-definido (base e horas extras)
 
+### 🍳 Cozinha: Receitas, Ingredientes e Estoque (`/kitchen`)
+- **Painel da Cozinha (dashboard):** gráficos Chart.js com evolução de entradas × saídas (30 dias), valor do estoque por categoria, top ingredientes consumidos e receitas mais preparadas; cartões de resumo e alertas de validade
+- **Cadastro de ingredientes:** nome, **categoria (seção de mercado: Frios, Hortifruti, Grãos...)**, unidade de medida, **preço de compra por unidade** e estoque mínimo para alertas; a listagem é **agrupada por seções, como um supermercado**
+- **Controle de estoque:** posição atual, alerta de **estoque baixo**, entradas e saídas com usuário responsável (saída nunca deixa o saldo negativo) e **histórico completo com filtros e paginação**
+- **Lotes e validade:** registro de lotes por ingrediente com alertas de produtos **vencidos e vencendo** (7 dias) no estoque e no painel
+- **Cadastro de receitas:** rendimento, tempo de preparo, modo de preparo, foto e lista dinâmica de ingredientes; **custo total e custo por porção calculados automaticamente** a partir dos preços cadastrados
+- **Verificação automática de disponibilidade:** ao abrir uma receita, o sistema informa se todos os ingredientes estão em estoque ou exatamente quais e quanto falta
+- **Recálculo proporcional:** informe o número de porções desejado e as quantidades (e o custo) são recalculados automaticamente
+- **Versão para impressão:** layout limpo e formatado da receita, pronto para a cozinha
+- **Lista de compras (dois modos):** por receita (itens faltantes) ou **reposição automática** (todos os ingredientes abaixo do estoque mínimo, mesmo sem receita); agrupada por categoria, com custo estimado; disponível em **PDF moderno**, **texto formatado para copiar** (WhatsApp) e **envio por e-mail** (SMTP configurável via variáveis de ambiente)
+- **Relatório de consumo:** gráficos por período com top ingredientes consumidos, tendência de custo semanal e detalhamento por ingrediente
+- **Preparar receita (baixa de estoque):** com um clique, os ingredientes são deduzidos do estoque e o movimento é registrado no histórico — bloqueado se houver ingredientes insuficientes
+
 ### 🌐 Portal Público
 - Página inicial pública com links para login, calendário e busca
 - Busca por salas (nome/código) e professores (nome)
@@ -118,7 +131,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 | **Backend** | Python 3.8+, Flask, Flask-SQLAlchemy, Flask-Login, Flask-WTF |
 | **Banco de Dados** | SQLite (padrão), compatível com PostgreSQL/MySQL |
 | **Frontend** | Bootstrap 5, Bootstrap Icons, Jinja2, FullCalendar |
-| **Relatórios** | FPDF2, OpenPyXL, CSV |
+| **Relatórios** | FPDF2, OpenPyXL |
 | **APIs Externas** | [Open-Meteo](https://open-meteo.com/) (clima), [BrasilAPI](https://brasilapi.com.br/) (feriados) |
 
 ---
@@ -154,7 +167,9 @@ python app.py
 
 A aplicação estará disponível em: **http://localhost:5000**
 
-> **Nota:** Na primeira execução, o banco de dados é criado automaticamente. Execute `flask seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
+> **Nota:** Na primeira execução, o banco de dados é criado automaticamente. Execute `flask seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas, 20 reservas, ingredientes e receitas).
+
+> **Atualizando uma instalação existente:** ao receber atualizações que adicionam novos módulos (ex: Cozinha), execute `flask sync-permissions` para criar as novas permissões e vinculá-las aos papéis sem precisar popular o banco novamente.
 
 ---
 
@@ -181,6 +196,20 @@ class Config:
 export SECRET_KEY="sua-chave-secreta-forte-aqui"
 export DATABASE_URL="postgresql://user:pass@localhost/sigere"
 ```
+
+### Envio da lista de compras por e-mail (opcional)
+
+```bash
+export MAIL_HOST="smtp.gmail.com"
+export MAIL_PORT="587"
+export MAIL_USER="cozinha@escola.edu"
+export MAIL_PASSWORD="senha-do-email"
+export MAIL_FROM="cozinha@escola.edu"   # opcional; padrão: MAIL_USER
+export MAIL_USE_TLS="true"              # padrão: true
+```
+
+Sem essas variáveis o sistema avisa que o e-mail não está configurado e a lista continua
+disponível para copiar como texto formatado, imprimir ou baixar em PDF.
 
 ### Configurar localização do Totem (Clima)
 
@@ -215,7 +244,7 @@ const lon = -46.6333;   // Longitude da sua instituição
 
 ### Exportar relatórios
 
-- **Salas:** `/classrooms/export` (CSV) ou `/classrooms/export_pdf` (PDF)
+- **Salas:** `/classrooms/export_pdf` (PDF)
 - **Disponibilidade mensal:** `/classrooms/<id>/export_availability` (PDF)
 - **Pagamentos base:** `/payments/export/base` (Excel)
 - **Horas extras:** `/payments/export/overtime` (Excel)
@@ -243,8 +272,9 @@ SIGERE/
 ├── public.py              # Portal público (home, busca)
 ├── main.py                # Dashboard principal
 ├── payments.py            # Gestão de pagamentos docentes (base, aditivo, extra)
+├── kitchen.py             # Cozinha: ingredientes, estoque e receitas
 ├── permissions.py         # Decoradores de controle de acesso baseado em permissões
-├── commands.py            # Comandos CLI customizados (seed de dados)
+├── commands.py            # Comandos CLI customizados (seed de dados, sync-permissions)
 │
 ├── static/
 │   ├── css/style.css      # Estilos globais e variáveis de tema
@@ -262,6 +292,7 @@ SIGERE/
     ├── classrooms/          # Listagem, detalhes, disponibilidade mensal
     ├── reservations/        # Criar, editar, detalhes, minhas reservas, conflitos
     ├── payments/            # Formulários e listagens de pagamentos
+    ├── kitchen/             # Ingredientes, estoque, histórico de movimentações e receitas
     └── errors/              # Páginas 403, 404, 500
 ```
 
@@ -297,13 +328,14 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 | Papel | Descrição |
 |-------|-----------|
 | **Super Administrador** | Acesso irrestrito a todas as funcionalidades |
-| **Administrador** | Gestão completa de usuários, salas, cursos, feriados e papéis |
+| **Administrador** | Gestão completa de usuários, salas, cursos, feriados, papéis e cozinha |
 | **Administrador Financeiro** | Gestão de pagamentos, lançamentos e exportações |
-| **Coordenador Pedagógico** | Aprovação de reservas, gestão de cursos e disciplinas |
+| **Coordenador Pedagógico** | Aprovação de reservas, gestão de cursos e disciplinas, receitas |
+| **Gestor de Cozinha** | Gestão completa de ingredientes, estoque e receitas |
 | **Gestor de Salas** | Criação e gestão de salas, todas as reservas |
-| **Professor** | Criar reservas, editar/cancelar próprias reservas, ver pagamentos |
-| **Funcionário** | Visualização de salas e cursos |
-| **Visualizador** | Acesso somente leitura a salas e cursos |
+| **Professor** | Criar reservas, editar/cancelar próprias reservas, ver pagamentos, criar receitas |
+| **Funcionário** | Visualização de salas, cursos e cozinha |
+| **Visualizador** | Acesso somente leitura a salas, cursos e cozinha |
 
 ---
 

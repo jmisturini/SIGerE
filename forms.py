@@ -1,11 +1,13 @@
 from flask_wtf import FlaskForm
-from wtforms import (StringField, PasswordField, SubmitField, IntegerField, DateField, TimeField, TextAreaField, SelectField, BooleanField, FloatField, SelectMultipleField)
+from flask_wtf.file import FileField, FileAllowed
+from wtforms import (StringField, PasswordField, SubmitField, IntegerField, DateField, TimeField, TextAreaField, SelectField, BooleanField, FloatField, SelectMultipleField, HiddenField)
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, timedelta, date
 import re
 # CORREÇÃO: Holiday e Role não estavam importados — os validadores de
 # HolidayForm.validate_date e RoleForm.validate_name geravam NameError (erro 500).
-from models import User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay, RoomCategory, Holiday, Role
+from models import (User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay,
+                    RoomCategory, Holiday, Role, Ingredient, IngredientCategory, StockBatch, Recipe, UNIT_LABELS)
 
 # =============================================================================
 # LOGIN & PASSWORD FORMS
@@ -477,3 +479,93 @@ class RoomCategoryForm(FlaskForm):
         existing = RoomCategory.query.filter_by(code=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
             raise ValidationError('Este código interno já está em uso.')
+
+
+# =============================================================================
+# KITCHEN FORMS (Ingredientes, Estoque e Receitas)
+# =============================================================================
+
+class IngredientForm(FlaskForm):
+    name = StringField('Nome do Ingrediente', validators=[DataRequired(), Length(max=120)])
+    category_id = SelectField('Categoria (seção do mercado)', coerce=int, validators=[Optional()])
+    unit = SelectField('Unidade de Medida', choices=[(code, label) for code, label in UNIT_LABELS.items()], validators=[DataRequired()])
+    unit_price = FloatField('Preço de Compra por Unidade (R$)', validators=[Optional(), NumberRange(min=0, message='O preço não pode ser negativo.')])
+    minimum_stock = FloatField('Estoque Mínimo (gera alerta quando igual ou abaixo)', validators=[Optional(), NumberRange(min=0, message='O estoque mínimo não pode ser negativo.')])
+    is_active = BooleanField('Ativo', default=True)
+    submit = SubmitField('Salvar Ingrediente')
+
+    def __init__(self, *args, **kwargs):
+        super(IngredientForm, self).__init__(*args, **kwargs)
+        self._obj_id = kwargs.get('obj_id', None)
+
+    def validate_name(self, field):
+        # Nome de ingrediente aceita letras, números e símbolos comuns de embalagens (ex: "Leite Condensado 395g")
+        if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9\s\-,.\%°()/]+$', field.data):
+            raise ValidationError('O nome do ingrediente contém caracteres inválidos.')
+        existing = Ingredient.query.filter_by(name=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Já existe um ingrediente cadastrado com este nome.')
+
+
+class IngredientCategoryForm(FlaskForm):
+    name = StringField('Nome da Categoria', validators=[DataRequired(), Length(max=60)])
+    display_order = IntegerField('Ordem de Exibição', validators=[Optional(), NumberRange(min=0, message='A ordem não pode ser negativa.')])
+    is_active = BooleanField('Ativa', default=True)
+    submit = SubmitField('Salvar Categoria')
+
+    def __init__(self, *args, **kwargs):
+        super(IngredientCategoryForm, self).__init__(*args, **kwargs)
+        self._obj_id = kwargs.get('obj_id', None)
+
+    def validate_name(self, field):
+        existing = IngredientCategory.query.filter_by(name=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Já existe uma categoria com este nome.')
+
+
+class StockBatchForm(FlaskForm):
+    quantity = FloatField('Quantidade do Lote', validators=[DataRequired()])
+    expiry_date = DateField('Validade', validators=[Optional()])
+    note = StringField('Identificação do Lote', validators=[Optional(), Length(max=80)])
+    submit = SubmitField('Registrar Lote')
+
+    def validate_quantity(self, field):
+        if field.data is not None and field.data <= 0:
+            raise ValidationError('A quantidade do lote deve ser maior que zero.')
+
+    def validate_expiry_date(self, field):
+        if field.data and field.data < date.today():
+            raise ValidationError('A validade não pode estar no passado.')
+
+
+class StockMovementForm(FlaskForm):
+    ingredient = SelectField('Ingrediente', coerce=int, validators=[DataRequired()])
+    movement_type = SelectField('Tipo de Movimento', choices=[('in', 'Entrada'), ('out', 'Saída')], validators=[DataRequired()])
+    quantity = FloatField('Quantidade', validators=[DataRequired()])
+    note = StringField('Observação', validators=[Optional(), Length(max=255)])
+    submit = SubmitField('Registrar Movimento')
+
+    def validate_quantity(self, field):
+        if field.data is not None and field.data <= 0:
+            raise ValidationError('A quantidade deve ser maior que zero.')
+
+
+class RecipeForm(FlaskForm):
+    name = StringField('Nome da Receita', validators=[DataRequired(), Length(max=150)])
+    servings = IntegerField('Rendimento (porções)', validators=[Optional(), NumberRange(min=1, message='O rendimento deve ser pelo menos 1 porção.')])
+    prep_time_minutes = IntegerField('Tempo de Preparo (minutos)', validators=[Optional(), NumberRange(min=0, message='O tempo de preparo não pode ser negativo.')])
+    photo = FileField('Foto da Receita (opcional)', validators=[
+        FileAllowed(['png', 'jpg', 'jpeg', 'webp', 'gif'], 'A foto deve ser um arquivo de imagem (png, jpg, jpeg, webp ou gif).')
+    ])
+    description = TextAreaField('Modo de Preparo', validators=[Optional()])
+    is_active = BooleanField('Ativa', default=True)
+    submit = SubmitField('Salvar Receita')
+
+    def __init__(self, *args, **kwargs):
+        super(RecipeForm, self).__init__(*args, **kwargs)
+        self._obj_id = kwargs.get('obj_id', None)
+
+    def validate_name(self, field):
+        existing = Recipe.query.filter_by(name=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Já existe uma receita cadastrada com este nome.')

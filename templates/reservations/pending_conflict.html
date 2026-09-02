@@ -15,7 +15,7 @@
                 <div class="alert alert-warning border border-warning-subtle d-flex align-items-center mb-4" role="alert">
                     <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
                     <div>
-                        <strong>Atenção!</strong> O professor selecionado (<strong>{{ reservation.teacher.full_name }}</strong>) já está agendado em outra reserva neste horário.<br>
+                        <strong>Atenção!</strong> O professor selecionado (<strong>{{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</strong>) já está agendado em outra reserva neste horário.<br>
                         Esta reserva foi criada como <strong>PENDENTE</strong> e requer aprovação do administrador.
                     </div>
                 </div>
