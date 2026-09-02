@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-9 col-md-11">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0"><i class="bi bi-egg-fried text-primary me-2"></i> {{ title }}</h5>
+                <a href="{{ url_for('kitchen.list_recipes') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" novalidate id="recipe-form" enctype="multipart/form-data">
+                    {{ form.hidden_tag() }}
+
+                    {% for field in [form.name, form.servings, form.prep_time_minutes] %}
+                    {% if field.errors %}
+                    <div class="alert alert-danger py-2 small mb-3">
+                        {% for error in field.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            {{ form.name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.name(class="form-control", placeholder="Ex: Bolo de Chocolate") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ form.servings.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.servings(class="form-control", min="1", placeholder="Ex: 12") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ form.prep_time_minutes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.prep_time_minutes(class="form-control", min="0", placeholder="Ex: 50") }}
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-uppercase text-muted mb-1">
+                                <i class="bi bi-list-check me-1"></i>Ingredientes da Receita
+                            </label>
+                            <div id="recipe-items">
+                                {% for link in links %}
+                                <div class="recipe-item-row row g-2 align-items-center mb-2">
+                                    <div class="col-7">
+                                        <select name="ingredient_id" class="form-select" required>
+                                            <option value="" disabled>Selecione o ingrediente...</option>
+                                            {% for i in ingredients %}
+                                            <option value="{{ i.id }}" {% if link.ingredient_id == i.id %}selected{% endif %}>
+                                                {{ i.name }} ({{ i.unit_label }})
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <input type="number" name="quantity" class="form-control" step="any" min="0" placeholder="Quantidade" value="{{ link.quantity }}" required>
+                                    </div>
+                                    <div class="col-1">
+                                        <button type="button" class="btn btn-outline-danger w-100 remove-row" title="Remover linha">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="recipe-item-row row g-2 align-items-center mb-2">
+                                    <div class="col-7">
+                                        <select name="ingredient_id" class="form-select" required>
+                                            <option value="" disabled selected>Selecione o ingrediente...</option>
+                                            {% for i in ingredients %}
+                                            <option value="{{ i.id }}">{{ i.name }} ({{ i.unit_label }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <input type="number" name="quantity" class="form-control" step="any" min="0" placeholder="Quantidade" required>
+                                    </div>
+                                    <div class="col-1">
+                                        <button type="button" class="btn btn-outline-danger w-100 remove-row" title="Remover linha">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <button type="button" id="add-row" class="btn btn-sm btn-outline-primary mt-1">
+                                <i class="bi bi-plus-lg me-1"></i> Adicionar Ingrediente
+                            </button>
+                            <div class="form-text mt-2">
+                                A quantidade deve ser informada na unidade de medida do ingrediente. O sistema compara
+                                essas quantidades com o estoque atual ao abrir a receita.
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.description(class="form-control", rows="5", placeholder="Descreva o modo de preparo passo a passo...") }}
+                        </div>
+
+                        <div class="col-md-6">
+                            {{ form.photo.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.photo(class="form-control") }}
+                            <div class="form-text">Formatos aceitos: PNG, JPG, JPEG, WEBP ou GIF.</div>
+                            {% if form.photo.errors %}
+                            <div class="alert alert-danger py-2 small mt-2 mb-0">
+                                {% for error in form.photo.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                            </div>
+                            {% endif %}
+                            {% if recipe_photo %}
+                            <div class="d-flex align-items-center gap-2 mt-2">
+                                <img src="{{ url_for('static', filename='uploads/recipes/' ~ recipe_photo) }}"
+                                     alt="Foto atual" class="rounded border" style="height: 52px; width: 52px; object-fit: cover;">
+                                <small class="text-muted">Foto atual — envie um novo arquivo para substituí-la.</small>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check mt-2">
+                                {{ form.is_active(class="form-check-input") }}
+                                {{ form.is_active.label(class="form-check-label fw-medium") }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('kitchen.list_recipes') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Linha-modelo usada pelo JavaScript para adicionar novos ingredientes #}
+<div id="row-template" class="d-none">
+    <div class="recipe-item-row row g-2 align-items-center mb-2">
+        <div class="col-7">
+            <select name="ingredient_id" class="form-select" required>
+                <option value="" disabled selected>Selecione o ingrediente...</option>
+                {% for i in ingredients %}
+                <option value="{{ i.id }}">{{ i.name }} ({{ i.unit_label }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-4">
+            <input type="number" name="quantity" class="form-control" step="any" min="0" placeholder="Quantidade" required>
+        </div>
+        <div class="col-1">
+            <button type="button" class="btn btn-outline-danger w-100 remove-row" title="Remover linha">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const itemsContainer = document.getElementById('recipe-items');
+    const template = document.getElementById('row-template');
+
+    function updateRemoveButtons() {
+        const rows = itemsContainer.querySelectorAll('.recipe-item-row');
+        rows.forEach(row => {
+            const btn = row.querySelector('.remove-row');
+            btn.disabled = rows.length === 1;
+        });
+    }
+
+    document.getElementById('add-row').addEventListener('click', () => {
+        itemsContainer.appendChild(template.firstElementChild.cloneNode(true));
+        updateRemoveButtons();
+    });
+
+    itemsContainer.addEventListener('click', (event) => {
+        const btn = event.target.closest('.remove-row');
+        if (btn && !btn.disabled) {
+            btn.closest('.recipe-item-row').remove();
+            updateRemoveButtons();
+        }
+    });
+
+    updateRemoveButtons();
+</script>
+{% endblock %}

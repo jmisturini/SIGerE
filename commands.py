@@ -4,10 +4,160 @@ from flask.cli import with_appcontext
 from extensions import db
 from models import (
     User, Classroom, Reservation, Course, Subject,
-    TeacherBasePay, Role, Permission, RoomCategory
+    TeacherBasePay, Role, Permission, RoomCategory,
+    Ingredient, IngredientCategory, StockMovement, StockBatch, Recipe, RecipeIngredient
 )
 from datetime import datetime, date, time, timedelta
 import random
+
+
+# Códigos de permissão do sistema (code, module, action, description).
+# Mantido no nível do módulo para ser reutilizado pelo seed e pelo comando
+# `flask sync-permissions` (upgrade idempotente em bancos já existentes).
+PERMISSION_DATA = [
+    ('user:read', 'user', 'read', 'Visualizar usuários'),
+    ('user:create', 'user', 'create', 'Criar usuários'),
+    ('user:edit', 'user', 'edit', 'Editar usuários'),
+    ('user:toggle', 'user', 'toggle', 'Ativar/desativar usuários'),
+    ('room:read', 'room', 'read', 'Visualizar salas'),
+    ('room:create', 'room', 'create', 'Criar salas'),
+    ('room:edit', 'room', 'edit', 'Editar salas'),
+    ('room:toggle', 'room', 'toggle', 'Ativar/desativar salas'),
+    ('reservation:read_all', 'reservation', 'read_all', 'Ver todas as reservas'),
+    ('reservation:read_own', 'reservation', 'read_own', 'Ver próprias reservas'),
+    ('reservation:create', 'reservation', 'create', 'Criar reservas'),
+    ('reservation:edit_all', 'reservation', 'edit_all', 'Editar todas as reservas'),
+    ('reservation:edit_own', 'reservation', 'edit_own', 'Editar próprias reservas'),
+    ('reservation:delete_all', 'reservation', 'delete_all', 'Excluir todas as reservas'),
+    ('reservation:cancel_own', 'reservation', 'cancel_own', 'Cancelar próprias reservas'),
+    ('reservation:cancel_all', 'reservation', 'cancel_all', 'Cancelar todas as reservas'),
+    ('reservation:approve', 'reservation', 'approve', 'Aprovar reservas pendentes'),
+    ('course:read', 'course', 'read', 'Visualizar cursos/disciplinas'),
+    ('course:create', 'course', 'create', 'Criar cursos/disciplinas'),
+    ('course:edit', 'course', 'edit', 'Editar cursos/disciplinas'),
+    ('course:toggle', 'course', 'toggle', 'Ativar/desativar cursos/disciplinas'),
+    ('holiday:read', 'holiday', 'read', 'Visualizar feriados'),
+    ('holiday:create', 'holiday', 'create', 'Criar feriados'),
+    ('holiday:edit', 'holiday', 'edit', 'Editar feriados'),
+    ('holiday:delete', 'holiday', 'delete', 'Excluir feriados'),
+    ('holiday:import', 'holiday', 'import', 'Importar feriados da API'),
+    ('payment:read', 'payment', 'read', 'Ver todos os pagamentos'),
+    ('payment:read_own', 'payment', 'read_own', 'Ver próprios pagamentos'),
+    ('payment:create', 'payment', 'create', 'Criar lançamentos'),
+    ('payment:edit', 'payment', 'edit', 'Editar lançamentos'),
+    ('payment:delete', 'payment', 'delete', 'Excluir lançamentos'),
+    ('payment:export', 'payment', 'export', 'Exportar pagamentos'),
+    ('system:dashboard', 'system', 'dashboard', 'Acessar painel administrativo'),
+    ('system:export', 'system', 'export', 'Exportar dados diversos'),
+    ('role:read', 'role', 'read', 'Visualizar papéis'),
+    ('role:create', 'role', 'create', 'Criar papéis'),
+    ('role:edit', 'role', 'edit', 'Editar papéis'),
+    ('role:delete', 'role', 'delete', 'Excluir papéis'),
+    # Módulo Cozinha (ingredientes, estoque e receitas)
+    ('ingredient:read', 'ingredient', 'read', 'Visualizar ingredientes'),
+    ('ingredient:create', 'ingredient', 'create', 'Cadastrar ingredientes'),
+    ('ingredient:edit', 'ingredient', 'edit', 'Editar ingredientes'),
+    ('ingredient:toggle', 'ingredient', 'toggle', 'Ativar/desativar ingredientes'),
+    ('stock:read', 'stock', 'read', 'Visualizar controle de estoque'),
+    ('stock:movement', 'stock', 'movement', 'Registrar entradas e saídas de estoque'),
+    ('recipe:read', 'recipe', 'read', 'Visualizar receitas'),
+    ('recipe:create', 'recipe', 'create', 'Criar receitas'),
+    ('recipe:edit', 'recipe', 'edit', 'Editar receitas'),
+    ('recipe:toggle', 'recipe', 'toggle', 'Ativar/desativar receitas'),
+    ('recipe:prepare', 'recipe', 'prepare', 'Preparar receita (baixa de estoque)'),
+    ('*', 'system', 'all', 'Permissão universal (super admin)'),
+]
+
+# Configuração dos papéis padrão e suas permissões.
+ROLES_CONFIG = {
+    'super_admin': {
+        'label': 'Super Administrador',
+        'is_system': True,
+        'permissions': ['*']
+    },
+    'admin': {
+        'label': 'Administrador',
+        'is_system': True,
+        'permissions': [
+            'user:read', 'user:create', 'user:edit', 'user:toggle',
+            'room:read', 'room:create', 'room:edit', 'room:toggle',
+            'course:read', 'course:create', 'course:edit', 'course:toggle',
+            'holiday:read', 'holiday:create', 'holiday:edit', 'holiday:delete', 'holiday:import',
+            'reservation:read_all', 'reservation:edit_all', 'reservation:delete_all',
+            'reservation:approve', 'reservation:cancel_all',
+            'system:dashboard', 'system:export',
+            'role:read', 'role:create', 'role:edit', 'role:delete',
+            'ingredient:read', 'ingredient:create', 'ingredient:edit', 'ingredient:toggle',
+            'stock:read', 'stock:movement',
+            'recipe:read', 'recipe:create', 'recipe:edit', 'recipe:toggle', 'recipe:prepare'
+        ]
+    },
+    'financial_admin': {
+        'label': 'Administrador Financeiro',
+        'is_system': False,
+        'permissions': [
+            'payment:read', 'payment:create', 'payment:edit', 'payment:delete', 'payment:export',
+            'user:read', 'system:export'
+        ]
+    },
+    'coordinator': {
+        'label': 'Coordenador Pedagógico',
+        'is_system': False,
+        'permissions': [
+            'room:read', 'course:read', 'course:create', 'course:edit', 'course:toggle',
+            'reservation:read_all', 'reservation:approve',
+            'reservation:edit_all', 'reservation:cancel_all',
+            'user:read',
+            'ingredient:read', 'stock:read',
+            'recipe:read', 'recipe:create', 'recipe:edit', 'recipe:toggle', 'recipe:prepare'
+        ]
+    },
+    'kitchen_manager': {
+        'label': 'Gestor de Cozinha',
+        'is_system': False,
+        'permissions': [
+            'ingredient:read', 'ingredient:create', 'ingredient:edit', 'ingredient:toggle',
+            'stock:read', 'stock:movement',
+            'recipe:read', 'recipe:create', 'recipe:edit', 'recipe:toggle', 'recipe:prepare'
+        ]
+    },
+    'room_manager': {
+        'label': 'Gestor de Salas',
+        'is_system': False,
+        'permissions': [
+            'room:read', 'room:create', 'room:edit', 'room:toggle',
+            'reservation:read_all', 'reservation:edit_all', 'reservation:cancel_all',
+            'system:export'
+        ]
+    },
+    'teacher': {
+        'label': 'Professor',
+        'is_system': False,
+        'permissions': [
+            'reservation:create', 'reservation:read_own',
+            'reservation:edit_own', 'reservation:cancel_own',
+            'room:read', 'course:read', 'payment:read_own',
+            'ingredient:read', 'stock:read',
+            'recipe:read', 'recipe:create', 'recipe:edit'
+        ]
+    },
+    'employee': {
+        'label': 'Funcionário',
+        'is_system': False,
+        'permissions': [
+            'room:read', 'course:read', 'reservation:read_own',
+            'ingredient:read', 'stock:read', 'recipe:read'
+        ]
+    },
+    'viewer': {
+        'label': 'Visualizador',
+        'is_system': False,
+        'permissions': [
+            'room:read', 'course:read',
+            'ingredient:read', 'stock:read', 'recipe:read'
+        ]
+    }
+}
 
 
 @click.command('seed')
@@ -63,6 +213,54 @@ def seed_command():
         raise click.ClickException(str(exc))
 
 
+@click.command('sync-permissions')
+@with_appcontext
+def sync_permissions_command():
+    """Sincroniza permissões e papéis definidos no código com o banco.
+
+    Cria permissões e papéis ausentes e concede às roles os códigos
+    definidos em ROLES_CONFIG. Não remove nada já concedido. Útil para
+    atualizar bancos criados antes de novos módulos (ex: Cozinha).
+
+    Uso: flask sync-permissions
+    """
+    created_perms, created_roles, created_links = 0, 0, 0
+
+    try:
+        perm_objects = {p.code: p for p in Permission.query.all()}
+        for code, module, action, desc in PERMISSION_DATA:
+            if code not in perm_objects:
+                p = Permission(code=code, module=module, action=action, description=desc)
+                db.session.add(p)
+                perm_objects[code] = p
+                created_perms += 1
+        db.session.flush()
+
+        for role_name, config in ROLES_CONFIG.items():
+            role = Role.query.filter_by(name=role_name).first()
+            if not role:
+                role = Role(name=role_name, label=config['label'],
+                            is_system=config.get('is_system', False))
+                db.session.add(role)
+                created_roles += 1
+                click.echo(f"   ➕ Papel criado: {config['label']}")
+
+            existing = {p.code for p in role.permissions}
+            for perm_code in config['permissions']:
+                if perm_code not in existing and perm_code in perm_objects:
+                    role.permissions.append(perm_objects[perm_code])
+                    created_links += 1
+
+        db.session.commit()
+        click.echo(click.style("✅ Permissões sincronizadas com sucesso!", fg="green", bold=True))
+        click.echo(f"   Permissões criadas: {created_perms}")
+        click.echo(f"   Papéis criados: {created_roles}")
+        click.echo(f"   Vínculos papel↔permissão adicionados: {created_links}")
+    except Exception as exc:
+        db.session.rollback()
+        raise click.ClickException(f"Falha ao sincronizar permissões: {exc}")
+
+
 def _seed_permissions():
     """Cria permissões e roles padrão."""
     if Role.query.count() > 0:
@@ -70,129 +268,15 @@ def _seed_permissions():
 
     click.echo("   Criando sistema de permissões...")
 
-    permission_data = [
-        ('user:read', 'user', 'read', 'Visualizar usuários'),
-        ('user:create', 'user', 'create', 'Criar usuários'),
-        ('user:edit', 'user', 'edit', 'Editar usuários'),
-        ('user:toggle', 'user', 'toggle', 'Ativar/desativar usuários'),
-        ('room:read', 'room', 'read', 'Visualizar salas'),
-        ('room:create', 'room', 'create', 'Criar salas'),
-        ('room:edit', 'room', 'edit', 'Editar salas'),
-        ('room:toggle', 'room', 'toggle', 'Ativar/desativar salas'),
-        ('reservation:read_all', 'reservation', 'read_all', 'Ver todas as reservas'),
-        ('reservation:read_own', 'reservation', 'read_own', 'Ver próprias reservas'),
-        ('reservation:create', 'reservation', 'create', 'Criar reservas'),
-        ('reservation:edit_all', 'reservation', 'edit_all', 'Editar todas as reservas'),
-        ('reservation:edit_own', 'reservation', 'edit_own', 'Editar próprias reservas'),
-        ('reservation:delete_all', 'reservation', 'delete_all', 'Excluir todas as reservas'),
-        ('reservation:cancel_own', 'reservation', 'cancel_own', 'Cancelar próprias reservas'),
-        ('reservation:cancel_all', 'reservation', 'cancel_all', 'Cancelar todas as reservas'),
-        ('reservation:approve', 'reservation', 'approve', 'Aprovar reservas pendentes'),
-        ('course:read', 'course', 'read', 'Visualizar cursos/disciplinas'),
-        ('course:create', 'course', 'create', 'Criar cursos/disciplinas'),
-        ('course:edit', 'course', 'edit', 'Editar cursos/disciplinas'),
-        ('course:toggle', 'course', 'toggle', 'Ativar/desativar cursos/disciplinas'),
-        ('holiday:read', 'holiday', 'read', 'Visualizar feriados'),
-        ('holiday:create', 'holiday', 'create', 'Criar feriados'),
-        ('holiday:edit', 'holiday', 'edit', 'Editar feriados'),
-        ('holiday:delete', 'holiday', 'delete', 'Excluir feriados'),
-        ('holiday:import', 'holiday', 'import', 'Importar feriados da API'),
-        ('payment:read', 'payment', 'read', 'Ver todos os pagamentos'),
-        ('payment:read_own', 'payment', 'read_own', 'Ver próprios pagamentos'),
-        ('payment:create', 'payment', 'create', 'Criar lançamentos'),
-        ('payment:edit', 'payment', 'edit', 'Editar lançamentos'),
-        ('payment:delete', 'payment', 'delete', 'Excluir lançamentos'),
-        ('payment:export', 'payment', 'export', 'Exportar pagamentos'),
-        ('system:dashboard', 'system', 'dashboard', 'Acessar painel administrativo'),
-        ('system:export', 'system', 'export', 'Exportar dados diversos'),
-        ('role:read', 'role', 'read', 'Visualizar papéis'),
-        ('role:create', 'role', 'create', 'Criar papéis'),
-        ('role:edit', 'role', 'edit', 'Editar papéis'),
-        ('role:delete', 'role', 'delete', 'Excluir papéis'),
-        ('*', 'system', 'all', 'Permissão universal (super admin)'),
-    ]
-
     perm_objects = {}
-    for code, module, action, desc in permission_data:
+    for code, module, action, desc in PERMISSION_DATA:
         p = Permission(code=code, module=module, action=action, description=desc)
         db.session.add(p)
         perm_objects[code] = p
 
     db.session.flush()
 
-    roles_config = {
-        'super_admin': {
-            'label': 'Super Administrador',
-            'is_system': True,
-            'permissions': ['*']
-        },
-        'admin': {
-            'label': 'Administrador',
-            'is_system': True,
-            'permissions': [
-                'user:read', 'user:create', 'user:edit', 'user:toggle',
-                'room:read', 'room:create', 'room:edit', 'room:toggle',
-                'course:read', 'course:create', 'course:edit', 'course:toggle',
-                'holiday:read', 'holiday:create', 'holiday:edit', 'holiday:delete', 'holiday:import',
-                'reservation:read_all', 'reservation:edit_all', 'reservation:delete_all',
-                'reservation:approve', 'reservation:cancel_all',
-                'system:dashboard', 'system:export',
-                'role:read', 'role:create', 'role:edit', 'role:delete'
-            ]
-        },
-        'financial_admin': {
-            'label': 'Administrador Financeiro',
-            'is_system': False,
-            'permissions': [
-                'payment:read', 'payment:create', 'payment:edit', 'payment:delete', 'payment:export',
-                'user:read', 'system:export'
-            ]
-        },
-        'coordinator': {
-            'label': 'Coordenador Pedagógico',
-            'is_system': False,
-            'permissions': [
-                'room:read', 'course:read', 'course:create', 'course:edit', 'course:toggle',
-                'reservation:read_all', 'reservation:approve',
-                'reservation:edit_all', 'reservation:cancel_all',
-                'user:read'
-            ]
-        },
-        'room_manager': {
-            'label': 'Gestor de Salas',
-            'is_system': False,
-            'permissions': [
-                'room:read', 'room:create', 'room:edit', 'room:toggle',
-                'reservation:read_all', 'reservation:edit_all', 'reservation:cancel_all',
-                'system:export'
-            ]
-        },
-        'teacher': {
-            'label': 'Professor',
-            'is_system': False,
-            'permissions': [
-                'reservation:create', 'reservation:read_own',
-                'reservation:edit_own', 'reservation:cancel_own',
-                'room:read', 'course:read', 'payment:read_own'
-            ]
-        },
-        'employee': {
-            'label': 'Funcionário',
-            'is_system': False,
-            'permissions': [
-                'room:read', 'course:read', 'reservation:read_own'
-            ]
-        },
-        'viewer': {
-            'label': 'Visualizador',
-            'is_system': False,
-            'permissions': [
-                'room:read', 'course:read'
-            ]
-        }
-    }
-
-    for role_name, config in roles_config.items():
+    for role_name, config in ROLES_CONFIG.items():
         role = Role(name=role_name, label=config['label'], is_system=config['is_system'])
         for perm_code in config['permissions']:
             if perm_code in perm_objects:
@@ -442,3 +526,84 @@ def _seed_demo_data():
         db.session.add(base_pay)
 
     click.echo("   ✅ Lançamentos de pagamento base criados.")
+
+    # 7. Cozinha: ingredientes (com categoria e preço), estoque e receitas
+    ing_data = [
+        # (nome, unidade, estoque, mínimo, preço/unidade R$, categoria)
+        ("Farinha de Trigo", "kg", 5.0, 1.0, 4.50, "Grãos e Cereais"),
+        ("Açúcar Refinado", "kg", 3.0, 1.0, 3.90, "Grãos e Cereais"),
+        ("Ovos", "un", 30.0, 12.0, 0.75, "Frios e Laticínios"),
+        ("Leite Integral", "l", 6.0, 2.0, 4.99, "Frios e Laticínios"),
+        ("Manteiga", "g", 1000.0, 500.0, 0.045, "Frios e Laticínios"),
+        ("Fermento Químico em Pó", "g", 400.0, 200.0, 0.08, "Padaria"),
+        ("Chocolate em Pó", "g", 900.0, 400.0, 0.06, "Confeitaria"),
+        ("Óleo de Soja", "ml", 2000.0, 900.0, 0.008, "Outros"),
+        ("Sal", "g", 1000.0, 500.0, 0.005, "Temperos e Especiarias"),
+        ("Morango", "g", 300.0, 600.0, 0.025, "Hortifruti"),
+    ]
+    ing_map = {}
+    for name, unit, stock, minimum, price, category_name in ing_data:
+        category = IngredientCategory.query.filter_by(name=category_name).first()
+        ing = Ingredient(name=name, unit=unit, stock_quantity=stock, minimum_stock=minimum,
+                         unit_price=price, category_id=category.id if category else None)
+        db.session.add(ing)
+        ing_map[name] = ing
+    db.session.flush()
+    click.echo(f"   ✅ {len(ing_data)} ingredientes criados (com categoria, preço e estoque inicial).")
+
+    # Lotes de demonstração: vencendo, vencido e válidos
+    today = date.today()
+    demo_batches = [
+        ("Ovos", 12, today + timedelta(days=5), "Lote A7"),            # vencendo
+        ("Ovos", 18, today + timedelta(days=25), "Lote B2"),
+        ("Morango", 300, today - timedelta(days=1), "Lote M3"),        # vencido
+        ("Leite Integral", 6, today + timedelta(days=6), "Lote L12"),  # vencendo
+        ("Farinha de Trigo", 5, today + timedelta(days=180), "Lote F01"),
+    ]
+    for ing_name, qty, expiry, note in demo_batches:
+        db.session.add(StockBatch(ingredient_id=ing_map[ing_name].id, quantity=qty,
+                                  expiry_date=expiry, note=note))
+    db.session.flush()
+    click.echo("   ✅ Lotes de validade de demonstração criados.")
+
+    def ing(name):
+        return ing_map[name]
+
+    recipes_data = [
+        {
+            "name": "Bolo Simples de Chocolate",
+            "servings": 12, "prep_time_minutes": 50,
+            "description": "1. Misture os ingredientes secos.\n2. Adicione os ovos, o leite e o óleo.\n3. Asse a 180 °C por cerca de 40 minutos.",
+            "items": [("Farinha de Trigo", 0.5), ("Açúcar Refinado", 0.3), ("Ovos", 3),
+                      ("Leite Integral", 0.3), ("Óleo de Soja", 100), ("Chocolate em Pó", 200),
+                      ("Fermento Químico em Pó", 15)],
+            "active": True,
+        },
+        {
+            "name": "Panqueca de Morango",
+            "servings": 8, "prep_time_minutes": 30,
+            "description": "1. Bata os ingredientes da massa.\n2. Grelhe em frigideira antiaderente.\n3. Sirva com morangos picados.",
+            "items": [("Farinha de Trigo", 0.3), ("Leite Integral", 0.25), ("Ovos", 2),
+                      ("Açúcar Refinado", 0.1), ("Manteiga", 50), ("Morango", 250)],
+            "active": True,
+        },
+        {
+            "name": "Torta de Morango Especial",
+            "servings": 10, "prep_time_minutes": 90,
+            "description": "Receita que consome mais morangos do que o estoque disponível — usada para demonstrar o alerta de ingredientes faltando.",
+            "items": [("Farinha de Trigo", 0.6), ("Manteiga", 300), ("Morango", 900),
+                      ("Açúcar Refinado", 0.4), ("Ovos", 4)],
+            "active": True,
+        },
+    ]
+    for r_data in recipes_data:
+        recipe = Recipe(
+            name=r_data["name"], description=r_data["description"],
+            servings=r_data["servings"], prep_time_minutes=r_data["prep_time_minutes"],
+            is_active=r_data["active"], created_by=admin.id
+        )
+        for ing_name, qty in r_data["items"]:
+            recipe.ingredients.append(RecipeIngredient(ingredient_id=ing(ing_name).id, quantity=qty))
+        db.session.add(recipe)
+    db.session.flush()
+    click.echo(f"   ✅ {len(recipes_data)} receitas criadas.")

@@ -1,5 +1,3 @@
-import csv
-import io
 from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, make_response
 from flask_login import login_required, current_user
 from models import Classroom, Reservation, RoomCategory
@@ -118,30 +116,6 @@ def list_classrooms():
         is_filtered=is_filtered,
         filter_message=filter_message,
         selected_category=request.args.get('category', '')
-    )
-
-# Route to export filtered classrooms to CSV
-@bp.route('/export')
-@login_required
-@require_permission('system:export')
-def export_classrooms():
-    classrooms = get_filtered_classrooms(request.args)
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Nome', 'Código', 'Número', 'Categoria', 'Prédio', 'Andar', 'Capacidade', 'Computadores', 'Status'])
-    for c in classrooms:
-        writer.writerow([
-            c.name, c.code, c.room_number or 'N/A',
-            c.category.name.title(),
-            c.building or 'N/A', c.floor or 'N/A', c.capacity,
-            c.computer_count if c.category.code == 'computer_lab' else 0,
-            'Ativo' if c.is_active else 'Inativo'
-        ])
-    output.seek(0)
-    return Response(
-        output,
-        mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=exportacao_salas.csv'}
     )
 
 # Route to export filtered classrooms to PDF

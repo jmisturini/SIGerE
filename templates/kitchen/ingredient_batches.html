@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block title %}Lotes e Validade — {{ ingredient.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-calendar-date text-primary me-2"></i>Lotes e Validade</h3>
+        <p class="text-muted mb-0">Ingrediente: <strong>{{ ingredient.name }}</strong> ·
+            estoque atual {{ ingredient.stock_quantity|qty }} {{ ingredient.unit_symbol }}</p>
+    </div>
+    <a href="{{ url_for('kitchen.list_ingredients') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Voltar aos Ingredientes
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header bg-transparent py-3">
+                <h6 class="fw-bold mb-0">Lotes Registrados</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Lote</th>
+                                <th>Quantidade</th>
+                                <th>Validade</th>
+                                <th>Situação</th>
+                                <th class="text-end pe-4"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for b in batches %}
+                            <tr class="{{ 'table-danger' if b.is_expired else ('table-warning' if b.is_expiring() else '') }}">
+                                <td class="ps-4">{{ b.note or '—' }}</td>
+                                <td class="fw-bold">{{ b.quantity|qty }} {{ ingredient.unit_symbol }}</td>
+                                <td>{{ b.expiry_date.strftime('%d/%m/%Y') if b.expiry_date else 'Sem validade' }}</td>
+                                <td>
+                                    {% if b.is_expired %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Vencido</span>
+                                    {% elif b.is_expiring() %}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                            Vence em {{ b.days_left }} dia{{ 's' if b.days_left != 1 }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">OK</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    {% if current_user.has_permission('stock:movement') %}
+                                    <form method="POST" action="{{ url_for('kitchen.delete_batch', batch_id=b.id) }}" class="d-inline"
+                                          onsubmit="return confirm('Remover este lote?');">
+                                        <button class="btn btn-sm btn-outline-danger" title="Remover lote"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted p-5">
+                                    <i class="bi bi-calendar-date fs-2 d-block mb-2"></i>
+                                    <h5 class="mb-1">Nenhum lote registrado</h5>
+                                    <p class="small mb-0">Registre lotes ao lado para receber alertas de validade.</p>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header bg-transparent py-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-plus-lg me-2"></i>Registrar Novo Lote</h6>
+            </div>
+            <div class="card-body p-4">
+                {% if current_user.has_permission('stock:movement') %}
+                {% if form.expiry_date.errors or form.quantity.errors %}
+                <div class="alert alert-danger py-2 small">
+                    {% for field in [form.quantity, form.expiry_date] %}
+                    {% for error in field.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="row g-3">
+                        <div class="col-6">
+                            {{ form.quantity.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.quantity(class="form-control", step="any", min="0", placeholder="Ex: 5") }}
+                        </div>
+                        <div class="col-6">
+                            {{ form.expiry_date.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.expiry_date(class="form-control") }}
+                        </div>
+                        <div class="col-12">
+                            {{ form.note.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.note(class="form-control", placeholder="Ex: Lote 42A — nota fiscal 123") }}
+                        </div>
+                        <div class="col-12 d-flex justify-content-end">
+                            {{ form.submit(class="btn btn-primary px-4") }}
+                        </div>
+                    </div>
+                </form>
+                {% else %}
+                <p class="text-muted mb-0">Você não tem permissão para registrar lotes de estoque.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

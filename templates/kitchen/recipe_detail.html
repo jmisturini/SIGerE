@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% block title %}{{ recipe.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">
+            <i class="bi bi-egg-fried text-primary me-2"></i>{{ recipe.name }}
+            {% if not recipe.is_active %}
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-2 align-middle">Inativa</span>
+            {% endif %}
+        </h3>
+        <p class="text-muted mb-0">
+            Rendimento: {{ recipe.servings }} porç{{ 'ões' if recipe.servings > 1 else 'ão' }}
+            {% if recipe.prep_time_minutes %} · Tempo de preparo: {{ recipe.prep_time_minutes }} min{% endif %}
+            {% if recipe.author %} · Cadastrada por {{ recipe.author.full_name }}{% endif %}
+        </p>
+        {% if recipe.total_cost > 0 %}
+        <p class="mb-0 mt-1">
+            <span class="badge bg-light text-dark border"><i class="bi bi-cash-coin me-1"></i>Custo total: <strong>{{ recipe.total_cost|brl }}</strong></span>
+            <span class="badge bg-light text-dark border"><i class="bi bi-cash-stack me-1"></i>Por porção: <strong>{{ recipe.cost_per_serving|brl }}</strong></span>
+        </p>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('kitchen.list_recipes') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Voltar
+        </a>
+        <a href="{{ url_for('kitchen.print_recipe', recipe_id=recipe.id) }}" target="_blank" class="btn btn-outline-secondary">
+            <i class="bi bi-printer me-1"></i> Imprimir
+        </a>
+        {% if not available and current_user.has_permission('stock:read') %}
+        <a href="{{ url_for('kitchen.shopping_list', recipe_id=recipe.id) }}" class="btn btn-outline-success">
+            <i class="bi bi-cart-plus me-1"></i> Lista de Compras
+        </a>
+        {% endif %}
+        {% if current_user.has_permission('recipe:edit') %}
+        <a href="{{ url_for('kitchen.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-outline-primary">
+            <i class="bi bi-pencil me-1"></i> Editar
+        </a>
+        {% endif %}
+        {% if current_user.has_permission('recipe:prepare') %}
+        <form method="POST" action="{{ url_for('kitchen.prepare_recipe', recipe_id=recipe.id) }}" class="d-inline"
+              onsubmit="return confirm('Baixar do estoque os ingredientes desta receita?');">
+            <button type="submit" class="btn btn-success" {% if not available or not recipe.is_active %}disabled
+                    title="{% if not recipe.is_active %}Receita inativa{% else %}Existem ingredientes faltando no estoque{% endif %}"{% endif %}>
+                <i class="bi bi-check2-circle me-1"></i> Preparar (Baixar Estoque)
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Resultado da verificação de estoque ── #}
+{% if available %}
+<div class="alert alert-success d-flex align-items-start gap-3">
+    <i class="bi bi-check-circle-fill fs-3"></i>
+    <div>
+        <strong>Todos os ingredientes estão disponíveis no estoque!</strong>
+        <div class="small">Esta receita pode ser preparada com a quantidade atual de ingredientes.</div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-danger d-flex align-items-start gap-3">
+    <i class="bi bi-exclamation-triangle-fill fs-3"></i>
+    <div>
+        <strong>Falt{{ 'am' if missing|length > 1 else 'a' }} {{ missing|length }} ingrediente{{ 's' if missing|length > 1 }} no estoque para esta receita:</strong>
+        <ul class="mb-0 mt-2">
+            {% for m in missing %}
+            <li>
+                <strong>{{ m.ingredient.name }}</strong> —
+                {% if m.reason == 'inactive' %}
+                    ingrediente inativo no cadastro (necessário: {{ m.required|qty }} {{ m.ingredient.unit_symbol }})
+                {% else %}
+                    necessário {{ m.required|qty }} {{ m.ingredient.unit_symbol }}, disponível {{ m.available|qty }} {{ m.ingredient.unit_symbol }} (falta {{ m.shortage|qty }} {{ m.ingredient.unit_symbol }})
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h6 class="fw-bold mb-0"><i class="bi bi-list-check me-2"></i>Ingredientes e Disponibilidade</h6>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small text-muted mb-0">Porções desejadas:</label>
+                    <input type="number" id="scale-servings" class="form-control form-control-sm" style="width: 84px;" min="1" step="1" value="{{ recipe.servings }}">
+                    <button type="button" id="btn-recalc" class="btn btn-sm btn-outline-primary" title="Recalcular quantidades proporcionalmente">
+                        <i class="bi bi-calculator me-1"></i> Recalcular
+                    </button>
+                    <button type="button" id="btn-reset-scale" class="btn btn-sm btn-outline-secondary d-none" title="Voltar às quantidades originais">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Ingrediente</th>
+                                <th class="text-center">Necessário</th>
+                                <th class="text-center">Em Estoque</th>
+                                <th class="text-end">Custo</th>
+                                <th class="pe-4">Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for link in recipe.ingredients %}
+                            {% set ing = link.ingredient %}
+                            {% set m = missing_map.get(ing.id) if ing else None %}
+                            <tr class="{{ 'table-danger' if m else '' }}">
+                                <td class="ps-4 fw-bold">{{ ing.name if ing else '—' }}</td>
+                                <td class="text-center" {% if ing %}data-qty="{{ link.quantity }}"{% endif %}>
+                                    <span class="qty-text">{{ link.quantity|qty }}</span> {{ ing.unit_symbol if ing else '' }}
+                                </td>
+                                <td class="text-center">{{ ing.stock_quantity|qty if ing else '—' }} {{ ing.unit_symbol if ing else '' }}</td>
+                                <td class="text-end">{{ (link.quantity * ing.unit_price)|brl if ing and ing.unit_price else '—' }}</td>
+                                <td class="pe-4">
+                                    {% if not m %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                            <i class="bi bi-check-lg me-1"></i>Suficiente
+                                        </span>
+                                    {% elif m.reason == 'inactive' %}
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                                            <i class="bi bi-slash-circle me-1"></i>Inativo
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                                            <i class="bi bi-exclamation-lg me-1"></i>Falta {{ m.shortage|qty }} {{ ing.unit_symbol }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted p-5">
+                                    <i class="bi bi-list-check fs-2 d-block mb-2"></i>
+                                    <h5 class="mb-1">Nenhum ingrediente vinculado</h5>
+                                    <p class="small mb-0">Edite a receita para adicionar ingredientes.</p>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                        {% if recipe.total_cost > 0 %}
+                        <tfoot>
+                            <tr class="table-light">
+                                <th colspan="3" class="ps-4 text-end">Custo total da receita</th>
+                                <th class="text-end" id="scaled-total" data-base-total="{{ recipe.total_cost }}">{{ recipe.total_cost|brl }}</th>
+                                <th></th>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent py-2 small text-muted">
+                <i class="bi bi-calculator me-1"></i> Use "Recalcular" para ajustar todas as quantidades
+                proporcionalmente ao número de porções desejado.
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header bg-transparent py-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-journal-text me-2"></i>Modo de Preparo</h6>
+            </div>
+            <div class="card-body">
+                {% if recipe.photo %}
+                <img src="{{ url_for('static', filename='uploads/recipes/' ~ recipe.photo) }}"
+                     alt="Foto da receita {{ recipe.name }}"
+                     class="img-fluid rounded mb-3 w-100" style="max-height: 260px; object-fit: cover;">
+                {% endif %}
+                {% if recipe.description %}
+                    <p class="mb-0" style="white-space: pre-line;">{{ recipe.description }}</p>
+                {% else %}
+                    <p class="text-muted mb-0 fst-italic">Nenhum modo de preparo informado para esta receita.</p>
+                {% endif %}
+            </div>
+            {% if current_user.has_permission('stock:movement') %}
+            <div class="card-footer bg-transparent py-3">
+                <a href="{{ url_for('kitchen.create_movement') }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-box-seam me-1"></i> Registrar Entrada de Ingrediente
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const baseServings = {{ recipe.servings or 1 }};
+    const fmtQty = (v) => {
+        if (v === Math.trunc(v)) return String(Math.trunc(v));
+        return (Math.round(v * 100) / 100).toFixed(2).replace(/0$/, '').replace('.', ',');
+    };
+    const fmtBRL = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    document.getElementById('btn-recalc').addEventListener('click', () => {
+        const desired = parseFloat(document.getElementById('scale-servings').value);
+        if (!desired || desired <= 0) { alert('Informe um número de porções válido.'); return; }
+        const factor = desired / baseServings;
+        document.querySelectorAll('td[data-qty]').forEach(td => {
+            const base = parseFloat(td.dataset.qty);
+            td.querySelector('.qty-text').textContent = fmtQty(base * factor);
+        });
+        const totalEl = document.getElementById('scaled-total');
+        if (totalEl) {
+            totalEl.textContent = fmtBRL(parseFloat(totalEl.dataset.baseTotal) * factor);
+        }
+        document.getElementById('btn-reset-scale').classList.remove('d-none');
+    });
+
+    document.getElementById('btn-reset-scale').addEventListener('click', () => {
+        document.getElementById('scale-servings').value = baseServings;
+        document.querySelectorAll('td[data-qty]').forEach(td => {
+            td.querySelector('.qty-text').textContent = fmtQty(parseFloat(td.dataset.qty));
+        });
+        const totalEl = document.getElementById('scaled-total');
+        if (totalEl) totalEl.textContent = fmtBRL(parseFloat(totalEl.dataset.baseTotal));
+        document.getElementById('btn-reset-scale').classList.add('d-none');
+    });
+</script>
+{% endblock %}

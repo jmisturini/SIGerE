@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+{% block title %}Controle de Estoque{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-box-seam text-primary me-2"></i>Controle de Estoque</h3>
+        <p class="text-muted mb-0">Situação atual do estoque de ingredientes e movimentações recentes.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('kitchen.dashboard') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-speedometer me-1"></i> Painel
+        </a>
+        <a href="{{ url_for('kitchen.shopping_list') }}" class="btn btn-outline-success">
+            <i class="bi bi-cart-plus me-1"></i> Lista de Compras
+        </a>
+        {% if current_user.has_permission('stock:movement') %}
+        <a href="{{ url_for('kitchen.create_movement') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Registrar Movimento
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="fs-2 text-primary"><i class="bi bi-basket"></i></div>
+                <div>
+                    <div class="fs-3 fw-bold mb-0">{{ total_ingredients }}</div>
+                    <div class="text-muted small">Ingredientes cadastrados</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100 {{ 'border-warning' if low_stock else '' }}">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="fs-2 {{ 'text-warning' if low_stock else 'text-success' }}"><i class="bi bi-exclamation-triangle"></i></div>
+                <div>
+                    <div class="fs-3 fw-bold mb-0">{{ low_stock|length }}</div>
+                    <div class="text-muted small">Com estoque baixo</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="fs-2 text-success"><i class="bi bi-box-arrow-in-down"></i></div>
+                <div>
+                    <div class="fs-3 fw-bold mb-0">{{ entries_count }}</div>
+                    <div class="text-muted small">Entradas registradas</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="fs-2 text-danger"><i class="bi bi-box-arrow-up"></i></div>
+                <div>
+                    <div class="fs-3 fw-bold mb-0">{{ exits_count }}</div>
+                    <div class="text-muted small">Saídas registradas</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if low_stock %}
+<div class="alert alert-warning d-flex align-items-start gap-2">
+    <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+    <div>
+        <strong>Atenção:</strong> {{ low_stock|length }} ingrediente{{ 's' if low_stock|length > 1 }} est{{ 'ão' if low_stock|length > 1 else 'á' }} com estoque igual ou abaixo do mínimo:
+        {{ low_stock|map(attribute='name')|join(', ') }}.
+        <a href="{{ url_for('kitchen.shopping_list') }}" class="fw-bold">Gerar lista de reposição</a>.
+    </div>
+</div>
+{% endif %}
+
+{% if expired or expiring %}
+<div class="alert {{ 'alert-danger' if expired else 'alert-warning' }} d-flex align-items-start gap-2">
+    <i class="bi bi-calendar-x-fill fs-4"></i>
+    <div class="flex-grow-1">
+        <strong>Validade:</strong>
+        {% if expired %}
+            {{ expired|length }} lote{{ 's' if expired|length > 1 }} vencido{{ 's' if expired|length > 1 }}
+            ({{ expired|map(attribute='ingredient')|map(attribute='name')|join(', ') }})
+        {% endif %}
+        {% if expired and expiring %} · {% endif %}
+        {% if expiring %}
+            {{ expiring|length }} vencendo em até 7 dias
+            ({{ expiring|map(attribute='ingredient')|map(attribute='name')|join(', ') }})
+        {% endif %}.
+        Acesse o botão <i class="bi bi-calendar-date"></i> do ingrediente para gerenciar os lotes.
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header bg-transparent py-3 d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0">Posição Atual do Estoque</h6>
+                <a href="{{ url_for('kitchen.list_ingredients') }}" class="btn btn-sm btn-outline-secondary">
+                    Gerenciar Ingredientes
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Ingrediente</th>
+                                <th>Estoque Atual</th>
+                                <th>Mínimo</th>
+                                <th class="pe-4">Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for i in ingredients %}
+                            <tr>
+                                <td class="ps-4 fw-bold">{{ i.name }}</td>
+                                <td>{{ i.stock_quantity|qty }} {{ i.unit_symbol }}</td>
+                                <td class="text-muted">{{ i.minimum_stock|qty }} {{ i.unit_symbol }}</td>
+                                <td>
+                                    {% if not i.is_active %}
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Inativo</span>
+                                    {% elif i.is_low_stock %}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Estoque Baixo</span>
+                                    {% else %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">Normal</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted p-5">
+                                    <i class="bi bi-basket fs-2 d-block mb-2"></i>
+                                    <h5 class="mb-1">Nenhum ingrediente cadastrado</h5>
+                                    <p class="small mb-0">Cadastre ingredientes para controlar o estoque.</p>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card h-100">
+        <div class="card-header bg-transparent py-3 d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0">Últimas Movimentações <span class="text-muted fw-normal">({{ movements_count }} no total)</span></h6>
+            <a href="{{ url_for('kitchen.stock_movements_history') }}" class="btn btn-sm btn-outline-secondary">
+                Ver todas <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+        </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Ingrediente</th>
+                                <th>Movimento</th>
+                                <th class="pe-4">Data</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for m in movements %}
+                            <tr>
+                                <td class="ps-4">
+                                    <div class="fw-bold">{{ m.ingredient.name }}</div>
+                                    {% if m.note %}<div class="small text-muted text-truncate" style="max-width: 220px;" title="{{ m.note }}">{{ m.note }}</div>{% endif %}
+                                </td>
+                                <td>
+                                    {% if m.movement_type == 'in' %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                            <i class="bi bi-plus-lg"></i> +{{ m.quantity|qty }} {{ m.ingredient.unit_symbol }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                                            <i class="bi bi-dash-lg"></i> −{{ m.quantity|qty }} {{ m.ingredient.unit_symbol }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small pe-4">
+                                    {{ m.created_at.strftime('%d/%m/%Y %H:%M') if m.created_at else '—' }}
+                                    {% if m.user %}<div>{{ m.user.full_name }}</div>{% endif %}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted p-5">
+                                    <i class="bi bi-arrow-left-right fs-2 d-block mb-2"></i>
+                                    <h5 class="mb-1">Nenhuma movimentação</h5>
+                                    <p class="small mb-0">Registre entradas e saídas para acompanhar o histórico.</p>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

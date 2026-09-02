@@ -24,6 +24,7 @@ def create_app(config_class=Config):
     from schedule import bp as schedule_bp
     from public import bp as public_bp
     from payments import bp as payments_bp
+    from kitchen import bp as kitchen_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -34,10 +35,12 @@ def create_app(config_class=Config):
     app.register_blueprint(schedule_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(payments_bp)
+    app.register_blueprint(kitchen_bp)
 
     # ── Register CLI commands ──
-    from commands import seed_command
+    from commands import seed_command, sync_permissions_command
     app.cli.add_command(seed_command)
+    app.cli.add_command(sync_permissions_command)
 
     # Custom Error Handlers
     @app.errorhandler(403)
@@ -70,8 +73,41 @@ def create_app(config_class=Config):
     # Create database tables only (NO automatic seeding)
     with app.app_context():
         db.create_all()
+        _ensure_schema_upgrades()
 
     return app
+
+
+def _ensure_schema_upgrades():
+    """Migrações leves e idempotentes para bancos já existentes.
+
+    O db.create_all() cria apenas tabelas novas — não adiciona colunas em
+    tabelas que já existem. Bancos criados antes de novas versões precisam
+    das colunas adicionadas via ALTER TABLE.
+    """
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+
+    def add_column_if_missing(table, ddl):
+        if table in inspector.get_table_names():
+            columns = [c['name'] for c in inspector.get_columns(table)]
+            column = ddl.split()[0]
+            if column not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {ddl}'))
+
+    add_column_if_missing('recipes', 'photo VARCHAR(255)')
+    add_column_if_missing('ingredients', 'unit_price FLOAT')
+    add_column_if_missing('ingredients', 'category_id INTEGER')
+    add_column_if_missing('stock_movements', 'recipe_id INTEGER')
+
+    # Categorias padrão de ingredientes (apenas na primeira execução)
+    if 'ingredient_categories' in inspector.get_table_names():
+        from models import IngredientCategory, DEFAULT_INGREDIENT_CATEGORIES
+        if IngredientCategory.query.count() == 0:
+            for name, order in DEFAULT_INGREDIENT_CATEGORIES:
+                db.session.add(IngredientCategory(name=name, display_order=order))
+            db.session.commit()
 
 
 app = create_app()
