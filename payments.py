@@ -6,6 +6,7 @@ from flask_login import login_required, current_user
 from models import User, Course, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay
 from forms import FormTeacherBasePay, FormTeacherAdditivePay, FormTeacherOvertimePay
 from extensions import db
+from unity_context import current_unity_id
 from datetime import datetime, timedelta
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
@@ -16,6 +17,32 @@ from permissions import require_permission
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 
 # ================= HELPER FUNCTIONS =================
+
+def _teachers_for_current_unity():
+    """Professores da unidade ativa + contas globais (para dropdowns de pagamento)."""
+    uid = current_unity_id()
+    return User.query.filter(
+        User.profile_type == 'teacher',
+        User.is_active_user == True,
+        (User.unity_id == uid) | (User.unity_id.is_(None))
+    ).order_by(User.full_name).all()
+
+def _courses_for_current_unity():
+    return Course.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Course.name).all()
+
+def _get_base_pay_scoped(pay_id):
+    pay = TeacherBasePay.query.get_or_404(pay_id)
+    if pay.unity_id != current_unity_id():
+        from flask import abort
+        abort(404)
+    return pay
+
+def _get_overtime_scoped(overtime_id):
+    overtime = TeacherOvertimePay.query.get_or_404(overtime_id)
+    if overtime.unity_id != current_unity_id():
+        from flask import abort
+        abort(404)
+    return overtime
 
 def get_remaining_months(month_base):
     year, month = map(int, month_base.split('-'))
@@ -74,7 +101,7 @@ def list_base_pays():
     # chegam aqui têm payment:read e vêem tudo.
     # CORREÇÃO: a verificação anterior era dead-code — @require_permission('payment:read') já
     # garante que current_user.has_permission('payment:read') == True para qualquer request.
-    infos = TeacherBasePay.query.order_by(TeacherBasePay.created_at.desc()).all()
+    infos = TeacherBasePay.query.filter_by(unity_id=current_unity_id()).order_by(TeacherBasePay.created_at.desc()).all()
     return render_template('payments/list_base.html', infos=infos)
 
 @bp.route('/create', methods=['GET', 'POST'])
@@ -82,9 +109,9 @@ def list_base_pays():
 @require_permission('payment:create')
 def create_base_pay():
     form = FormTeacherBasePay()
-    form.teacher.choices = [(t.id, t.full_name) for t in User.query.filter_by(profile_type='teacher', is_active_user=True).order_by(User.full_name).all()]
-    form.course.choices = [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
-    
+    form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
+    form.course.choices = [(c.id, c.name) for c in _courses_for_current_unity()]
+
     if form.validate_on_submit():
         try:
             start_dt = datetime.strptime(form.month_start.data, '%Y-%m')
@@ -95,21 +122,23 @@ def create_base_pay():
         except ValueError:
             flash('Erro: Formato de mês inválido.', 'danger')
             return redirect(url_for('payments.create_base_pay'))
-            
+
         # CORREÇÃO: a verificação anterior (month_start >= inicio AND month_end <= fim)
         # só detectava períodos contidos; sobreposições parciais passavam. Agora usa o
         # teste clássico de sobreposição de intervalos para o mesmo professor.
         exists = TeacherBasePay.query.filter(
             TeacherBasePay.teacher_id == form.teacher.data,
+            TeacherBasePay.unity_id == current_unity_id(),
             TeacherBasePay.month_start <= form.month_end.data,
             TeacherBasePay.month_end >= form.month_start.data
         ).first()
         if exists:
             flash('Erro: Lançamento duplicado para esse semestre.', 'danger')
             return redirect(url_for('payments.create_base_pay'))
-            
+
         pay = TeacherBasePay(
             teacher_id=form.teacher.data, course_id=form.course.data,
+            unity_id=current_unity_id(),
             month_start=form.month_start.data, month_end=form.month_end.data,
             budget_code=form.budget_code.data, complement=form.complement.data,
             weekly_workload=form.weekly_workload.data
@@ -126,13 +155,13 @@ def create_base_pay():
 @login_required
 @require_permission('payment:edit')
 def edit_base_pay(pay_id):
-    pay = TeacherBasePay.query.get_or_404(pay_id)
+    pay = _get_base_pay_scoped(pay_id)
     if not validate_30_days_rule(pay.created_at):
         return redirect(url_for('payments.list_base_pays'))
-        
+
     form = FormTeacherBasePay(obj=pay)
-    form.teacher.choices = [(t.id, t.full_name) for t in User.query.filter_by(profile_type='teacher', is_active_user=True).order_by(User.full_name).all()]
-    form.course.choices = [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
+    form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
+    form.course.choices = [(c.id, c.name) for c in _courses_for_current_unity()]
     
     if form.validate_on_submit():
         pay.teacher_id = form.teacher.data
@@ -153,7 +182,7 @@ def edit_base_pay(pay_id):
 @login_required
 @require_permission('payment:delete')
 def delete_base_pay(pay_id):
-    pay = TeacherBasePay.query.get_or_404(pay_id)
+    pay = _get_base_pay_scoped(pay_id)
     if not validate_180_days_rule(pay.created_at):
         return redirect(url_for('payments.list_base_pays'))
         
@@ -169,15 +198,16 @@ def delete_base_pay(pay_id):
 @require_permission('payment:create')
 def create_additive():
     form = FormTeacherAdditivePay()
-    bases = TeacherBasePay.query.order_by(TeacherBasePay.created_at.desc()).all()
+    # Lançamentos base apenas da unidade ativa
+    bases = TeacherBasePay.query.filter_by(unity_id=current_unity_id()).order_by(TeacherBasePay.created_at.desc()).all()
     form.base_release.choices = [(b.id, f"{b.teacher.full_name} - {b.month_start}") for b in bases]
-    form.course.choices = [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
-    
+    form.course.choices = [(c.id, c.name) for c in _courses_for_current_unity()]
+
     if form.validate_on_submit():
         # CORREÇÃO: usar db.session.get() (API atual do SQLAlchemy) e tratar o caso
         # de lançamento base inexistente — antes, base.created_at gerava AttributeError.
         base = db.session.get(TeacherBasePay, form.base_release.data)
-        if not base:
+        if not base or base.unity_id != current_unity_id():
             flash('Erro: Lançamento base não encontrado.', 'danger')
             return redirect(url_for('payments.create_additive'))
         if not validate_180_days_rule(base.created_at):
@@ -190,6 +220,7 @@ def create_additive():
             
         additive = TeacherAdditivePayment(
             base_release_id=form.base_release.data, course_id=form.course.data,
+            unity_id=current_unity_id(),
             month_start=form.month_start.data, month_end=form.month_end.data,
             additional_hour=form.additional_hour.data, complement=form.complement.data
         )
@@ -206,6 +237,9 @@ def create_additive():
 @require_permission('payment:delete')
 def delete_additive(additive_id):
     additive = TeacherAdditivePayment.query.get_or_404(additive_id)
+    if additive.unity_id != current_unity_id():
+        from flask import abort
+        abort(404)
     if not validate_180_days_rule(additive.created_at):
         return redirect(url_for('payments.list_base_pays'))
         
@@ -226,14 +260,14 @@ def list_overtime():
     # CORREÇÃO: a condição anterior era dead-code — @require_permission('payment:read') já garante
     # que qualquer usuário aqui tem payment:read, tornando o bloco de filtro por professor
     # inalcançável. Agora aplica os filtros normalmente para todos.
-    query = TeacherOvertimePay.query
+    query = TeacherOvertimePay.query.filter_by(unity_id=current_unity_id())
     if filter_month:
         query = query.filter_by(month_base=filter_month)
     if filter_teacher:
         query = query.filter_by(teacher_id=filter_teacher)
-        
+
     infos = query.order_by(TeacherOvertimePay.created_at.desc()).all()
-    list_teachers = User.query.filter_by(profile_type='teacher', is_active_user=True).order_by(User.full_name).all()
+    list_teachers = _teachers_for_current_unity()
     
     return render_template('payments/list_overtime.html', infos=infos, list_teachers=list_teachers, filter_month=filter_month, filter_teacher=filter_teacher)
 
@@ -242,8 +276,8 @@ def list_overtime():
 @require_permission('payment:create')
 def create_overtime():
     form = FormTeacherOvertimePay()
-    form.teacher.choices = [(t.id, t.full_name) for t in User.query.filter_by(profile_type='teacher', is_active_user=True).order_by(User.full_name).all()]
-    
+    form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
+
     if request.method == 'GET':
         form.month_base.data = datetime.now().strftime('%Y-%m')
     
@@ -272,6 +306,7 @@ def create_overtime():
             
         overtime = TeacherOvertimePay(
             teacher_id=form.teacher.data, teaching_level=form.teaching_level.data,
+            unity_id=current_unity_id(),
             weekly_workload=form.weekly_workload.data, hourly_value=hourly_value,
             budget_code=form.budget_code.data, shift=form.shift.data,
             multiple_dates=form.multiple_dates.data, justification=form.justification.data,
@@ -288,8 +323,8 @@ def create_overtime():
 @login_required
 @require_permission('payment:edit')
 def edit_overtime(overtime_id):
-    overtime = TeacherOvertimePay.query.get_or_404(overtime_id)
-    
+    overtime = _get_overtime_scoped(overtime_id)
+
     # CORREÇÃO: comparação anterior usava apenas .month, ignorando o ano.
     # Ex.: registro de dez/2025 seria editável em jan/2026 pois 12 > 1.
     # Agora compara a data completa (ano + mês).
@@ -301,8 +336,8 @@ def edit_overtime(overtime_id):
         return redirect(url_for('payments.list_overtime'))
 
     form = FormTeacherOvertimePay(obj=overtime)
-    form.teacher.choices = [(t.id, t.full_name) for t in User.query.filter_by(profile_type='teacher', is_active_user=True).order_by(User.full_name).all()]
-    
+    form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
+
     if request.method == 'GET':
         form.hourly_value.data = f"{overtime.hourly_value:.2f}".replace('.', ',')
 
@@ -345,7 +380,7 @@ def edit_overtime(overtime_id):
 @login_required
 @require_permission('payment:delete')
 def delete_overtime(overtime_id):
-    overtime = TeacherOvertimePay.query.get_or_404(overtime_id)
+    overtime = _get_overtime_scoped(overtime_id)
     # CORREÇÃO: mesma correção de ano aplicada no edit — compara (year, month) completo.
     now = datetime.now()
     record_ym = (overtime.created_at.year, overtime.created_at.month)
@@ -378,6 +413,7 @@ def export_excel_base():
         start_q, end_q = f'{year_base}-08', f'{int(year_base)+1}-01'
 
     pays = TeacherBasePay.query.filter(
+        TeacherBasePay.unity_id == current_unity_id(),
         TeacherBasePay.month_start >= start_q,
         TeacherBasePay.month_end <= end_q
     ).all()
@@ -444,12 +480,12 @@ def export_excel_overtime():
         flash('Selecione pelo menos o Mês Base ou o Professor para exportar.', 'danger')
         return redirect(url_for('payments.list_overtime'))
         
-    query = TeacherOvertimePay.query
+    query = TeacherOvertimePay.query.filter_by(unity_id=current_unity_id())
     if month_base:
         query = query.filter_by(month_base=month_base)
     if teacher_id:
         query = query.filter_by(teacher_id=teacher_id)
-        
+
     overtimes = query.all()
     
     if not overtimes:

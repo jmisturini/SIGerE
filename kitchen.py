@@ -15,10 +15,27 @@ from extensions import db
 from models import (Ingredient, IngredientCategory, StockMovement, StockBatch, Recipe, RecipeIngredient)
 from forms import (IngredientForm, IngredientCategoryForm, StockMovementForm, StockBatchForm, RecipeForm)
 from permissions import require_permission
+from unity_context import current_unity_id
 
 bp = Blueprint('kitchen', __name__, url_prefix='/kitchen')
 
 ALLOWED_PHOTO_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
+
+
+def _ingredient_by_id_scoped(ingredient_id):
+    """Carrega ingrediente da unidade ativa — ingredientes de outras unidades dão 404."""
+    ingredient = Ingredient.query.get_or_404(ingredient_id)
+    if ingredient.unity_id != current_unity_id():
+        abort(404)
+    return ingredient
+
+
+def _recipe_by_id_scoped(recipe_id):
+    """Carrega receita da unidade ativa — receitas de outras unidades dão 404."""
+    recipe = Recipe.query.get_or_404(recipe_id)
+    if recipe.unity_id != current_unity_id():
+        abort(404)
+    return recipe
 
 
 def _fmt_qty(value):
@@ -126,6 +143,8 @@ def _build_shopping_list(mode='restock', recipe_id=None):
 
     if mode == 'recipe' and recipe_id:
         recipe = Recipe.query.get_or_404(recipe_id)
+        if recipe.unity_id != current_unity_id():
+            abort(404)
         title = f'Lista de Compras — {recipe.name}'
         subtitle = f'Receita: {recipe.name}'
         available, missing = recipe.check_stock()
@@ -143,7 +162,8 @@ def _build_shopping_list(mode='restock', recipe_id=None):
         mode = 'restock'
         title = 'Lista de Compras — Reposição de Estoque'
         subtitle = 'Ingredientes abaixo do estoque mínimo'
-        low = [i for i in Ingredient.query.filter_by(is_active=True).order_by(Ingredient.name).all()
+        low = [i for i in Ingredient.query.filter_by(unity_id=current_unity_id(), is_active=True)
+               .order_by(Ingredient.name).all()
                if i.is_low_stock]
         for ing in low:
             price = ing.unit_price
@@ -201,7 +221,7 @@ def _shopping_list_as_text(data):
 @require_permission('ingredient:read')
 def list_ingredients():
     search = request.args.get('name', '')
-    query = Ingredient.query
+    query = Ingredient.query.filter_by(unity_id=current_unity_id())
     if search:
         query = query.filter(Ingredient.name.ilike(f'%{search}%'))
     ingredients = query.order_by(Ingredient.name).all()
@@ -236,7 +256,8 @@ def create_ingredient():
             category_id=form.category_id.data or None,
             unit_price=form.unit_price.data,
             minimum_stock=form.minimum_stock.data or 0.0,
-            is_active=form.is_active.data
+            is_active=form.is_active.data,
+            unity_id=current_unity_id()
         )
         db.session.add(ingredient)
         db.session.commit()
@@ -256,7 +277,7 @@ def _fill_category_choices(form):
 @login_required
 @require_permission('ingredient:edit')
 def edit_ingredient(ingredient_id):
-    ingredient = Ingredient.query.get_or_404(ingredient_id)
+    ingredient = _ingredient_by_id_scoped(ingredient_id)
     form = IngredientForm(obj=ingredient, obj_id=ingredient.id)
     _fill_category_choices(form)
     if form.validate_on_submit():
@@ -276,7 +297,7 @@ def edit_ingredient(ingredient_id):
 @login_required
 @require_permission('ingredient:toggle')
 def toggle_ingredient(ingredient_id):
-    ingredient = Ingredient.query.get_or_404(ingredient_id)
+    ingredient = _ingredient_by_id_scoped(ingredient_id)
     ingredient.is_active = not ingredient.is_active
     db.session.commit()
     flash(f'Ingrediente {ingredient.name} {"ativado" if ingredient.is_active else "desativado"}.', 'success')
@@ -289,7 +310,7 @@ def toggle_ingredient(ingredient_id):
 @login_required
 @require_permission('stock:read')
 def stock():
-    ingredients = Ingredient.query.order_by(Ingredient.name).all()
+    ingredients = Ingredient.query.filter_by(unity_id=current_unity_id()).order_by(Ingredient.name).all()
     active_ingredients = [i for i in ingredients if i.is_active]
     low_stock = [i for i in active_ingredients if i.is_low_stock]
 
@@ -300,12 +321,13 @@ def stock():
 
     movements = (StockMovement.query
                  .options(joinedload(StockMovement.ingredient), joinedload(StockMovement.user))
+                 .filter(StockMovement.unity_id == current_unity_id())
                  .order_by(StockMovement.created_at.desc(), StockMovement.id.desc())
                  .limit(10).all())
 
-    entries_count = StockMovement.query.filter_by(movement_type='in').count()
-    exits_count = StockMovement.query.filter_by(movement_type='out').count()
-    movements_count = StockMovement.query.count()
+    entries_count = StockMovement.query.filter_by(unity_id=current_unity_id(), movement_type='in').count()
+    exits_count = StockMovement.query.filter_by(unity_id=current_unity_id(), movement_type='out').count()
+    movements_count = StockMovement.query.filter_by(unity_id=current_unity_id()).count()
 
     return render_template(
         'kitchen/stock.html',
@@ -341,7 +363,8 @@ def stock_movements_history():
         flash('Período inválido. Use o seletor de datas.', 'warning')
 
     query = (StockMovement.query
-             .options(joinedload(StockMovement.ingredient), joinedload(StockMovement.user)))
+             .options(joinedload(StockMovement.ingredient), joinedload(StockMovement.user))
+             .filter(StockMovement.unity_id == current_unity_id()))
     if ingredient_id:
         query = query.filter(StockMovement.ingredient_id == ingredient_id)
     if movement_type in ('in', 'out'):
@@ -373,7 +396,7 @@ def stock_movements_history():
     if date_to:
         filter_params['to'] = date_to.isoformat()
 
-    ingredients = Ingredient.query.order_by(Ingredient.name).all()
+    ingredients = Ingredient.query.filter_by(unity_id=current_unity_id()).order_by(Ingredient.name).all()
     return render_template(
         'kitchen/stock_movements.html',
         pagination=pagination,
@@ -392,9 +415,10 @@ def stock_movements_history():
 @require_permission('stock:movement')
 def create_movement():
     form = StockMovementForm()
-    # Apenas ingredientes ativos podem ser movimentados
+    # Apenas ingredientes ativos da unidade ativa podem ser movimentados
     form.ingredient.choices = [
-        (i.id, f'{i.name} ({i.unit_label})') for i in Ingredient.query.filter_by(is_active=True).order_by(Ingredient.name).all()
+        (i.id, f'{i.name} ({i.unit_label})') for i in Ingredient.query.filter_by(
+            unity_id=current_unity_id(), is_active=True).order_by(Ingredient.name).all()
     ]
 
     preselect = request.args.get('ingredient', type=int)
@@ -403,7 +427,7 @@ def create_movement():
 
     if form.validate_on_submit():
         ingredient = Ingredient.query.get(form.ingredient.data)
-        if not ingredient:
+        if not ingredient or ingredient.unity_id != current_unity_id():
             abort(404)
 
         quantity = form.quantity.data
@@ -420,6 +444,7 @@ def create_movement():
             movement = StockMovement(
                 ingredient_id=ingredient.id,
                 user_id=current_user.id,
+                unity_id=current_unity_id(),
                 quantity=quantity,
                 movement_type=form.movement_type.data,
                 note=form.note.data
@@ -438,8 +463,9 @@ def create_movement():
 # ================= RECIPES =================
 
 def _recipe_query():
-    """Carrega receitas com ingredientes e estoque para evitar N+1 queries."""
+    """Carrega receitas da unidade ativa com ingredientes e estoque (evita N+1)."""
     return (Recipe.query
+            .filter_by(unity_id=current_unity_id())
             .options(selectinload(Recipe.ingredients).joinedload(RecipeIngredient.ingredient))
             .order_by(Recipe.name))
 
@@ -493,6 +519,8 @@ def _parse_recipe_items():
         ingredient = Ingredient.query.get(entry)
         if not ingredient:
             return [], 'Um dos ingredientes selecionados não existe.'
+        if ingredient.unity_id != current_unity_id():
+            return [], 'Um dos ingredientes selecionados não pertence à unidade ativa.'
         items.append({'ingredient': ingredient, 'quantity': merged[entry]['quantity']})
 
     return items, None
@@ -521,7 +549,8 @@ def create_recipe():
                 name=form.name.data, description=form.description.data,
                 servings=form.servings.data or 1,
                 prep_time_minutes=form.prep_time_minutes.data,
-                is_active=form.is_active.data, created_by=current_user.id
+                is_active=form.is_active.data, created_by=current_user.id,
+                unity_id=current_unity_id()
             )
             for item in items:
                 recipe.ingredients.append(RecipeIngredient(
@@ -535,7 +564,7 @@ def create_recipe():
             flash(f'Receita "{recipe.name}" cadastrada com sucesso.', 'success')
             return redirect(url_for('kitchen.recipe_detail', recipe_id=recipe.id))
 
-    ingredients = Ingredient.query.filter_by(is_active=True).order_by(Ingredient.name).all()
+    ingredients = Ingredient.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Ingredient.name).all()
     return render_template('kitchen/recipe_form.html', form=form, ingredients=ingredients, links=[], title='Cadastrar Receita')
 
 
@@ -556,7 +585,7 @@ def recipe_detail(recipe_id):
 @login_required
 @require_permission('recipe:edit')
 def edit_recipe(recipe_id):
-    recipe = Recipe.query.get_or_404(recipe_id)
+    recipe = _recipe_by_id_scoped(recipe_id)
     form = RecipeForm(obj=recipe, obj_id=recipe.id)
 
     if form.validate_on_submit():
@@ -587,7 +616,7 @@ def edit_recipe(recipe_id):
             flash(f'Receita "{recipe.name}" atualizada com sucesso.', 'success')
             return redirect(url_for('kitchen.recipe_detail', recipe_id=recipe.id))
 
-    ingredients = Ingredient.query.filter_by(is_active=True).order_by(Ingredient.name).all()
+    ingredients = Ingredient.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Ingredient.name).all()
     links = recipe.ingredients
     return render_template('kitchen/recipe_form.html', form=form, ingredients=ingredients, links=links,
                            title='Editar Receita', obj_id=recipe.id, recipe_photo=recipe.photo)
@@ -597,7 +626,7 @@ def edit_recipe(recipe_id):
 @login_required
 @require_permission('recipe:toggle')
 def toggle_recipe(recipe_id):
-    recipe = Recipe.query.get_or_404(recipe_id)
+    recipe = _recipe_by_id_scoped(recipe_id)
     recipe.is_active = not recipe.is_active
     db.session.commit()
     flash(f'Receita {recipe.name} {"ativada" if recipe.is_active else "desativada"}.', 'success')
@@ -793,9 +822,7 @@ def _resolve_shopping_args():
     """Lê recipe_id/restock da query string e monta a lista (com validação)."""
     recipe_id = request.args.get('recipe_id', type=int)
     if recipe_id:
-        recipe = Recipe.query.get(recipe_id)
-        if not recipe:
-            abort(404)
+        recipe = _recipe_by_id_scoped(recipe_id)
         data = _build_shopping_list('recipe', recipe_id)
         if not data['items_count']:
             flash('Todos os ingredientes desta receita estão em estoque — não há itens para comprar.', 'info')
@@ -894,8 +921,9 @@ def shopping_list_email():
 @require_permission('stock:read')
 def dashboard():
     since = datetime.now() - timedelta(days=30)
+    uid = current_unity_id()
 
-    ingredients = Ingredient.query.all()
+    ingredients = Ingredient.query.filter_by(unity_id=uid).all()
     active = [i for i in ingredients if i.is_active]
     low = [i for i in active if i.is_low_stock]
     expiring, expired = [], []
@@ -915,7 +943,9 @@ def dashboard():
     total_stock_value = round(sum(stock_value_data), 2)
 
     # Gráfico 2: evolução de entradas e saídas (últimos 30 dias)
-    movements = StockMovement.query.filter(StockMovement.created_at >= since).all()
+    movements = StockMovement.query.filter(
+        StockMovement.unity_id == uid,
+        StockMovement.created_at >= since).all()
     days = [(datetime.now() - timedelta(days=i)).date() for i in range(29, -1, -1)]
     day_labels = [d.strftime('%d/%m') for d in days]
     entries_series, exits_series = [0.0] * 30, [0.0] * 30
@@ -939,6 +969,7 @@ def dashboard():
     prep_counts = dict(
         db.session.query(Recipe.name, func.count(StockMovement.id))
         .join(StockMovement, StockMovement.recipe_id == Recipe.id)
+        .filter(StockMovement.unity_id == uid)
         .group_by(Recipe.id).order_by(func.count(StockMovement.id).desc()).limit(8).all()
     )
     prep_labels = list(prep_counts.keys())
@@ -1026,7 +1057,7 @@ def toggle_category(category_id):
 @bp.route('/ingredients/<int:ingredient_id>/batches', methods=['GET', 'POST'])
 @login_required
 def ingredient_batches(ingredient_id):
-    ingredient = Ingredient.query.get_or_404(ingredient_id)
+    ingredient = _ingredient_by_id_scoped(ingredient_id)
     form = StockBatchForm()
 
     if request.method == 'POST':
@@ -1055,7 +1086,9 @@ def ingredient_batches(ingredient_id):
 @require_permission('stock:movement')
 def delete_batch(batch_id):
     batch = StockBatch.query.get_or_404(batch_id)
-    ingredient_id = batch.ingredient_id
+    # Lote só pode ser removido se o ingrediente pertence à unidade ativa
+    ingredient = _ingredient_by_id_scoped(batch.ingredient_id)
+    ingredient_id = ingredient.id
     db.session.delete(batch)
     db.session.commit()
     flash('Lote removido.', 'info')
@@ -1084,7 +1117,8 @@ def consumption_report():
 
     movements = (StockMovement.query
                  .options(joinedload(StockMovement.ingredient))
-                 .filter(StockMovement.movement_type == 'out',
+                 .filter(StockMovement.unity_id == current_unity_id(),
+                         StockMovement.movement_type == 'out',
                          StockMovement.created_at >= start,
                          StockMovement.created_at <= end).all())
 

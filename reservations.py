@@ -3,10 +3,36 @@ from flask_login import login_required, current_user
 from models import Reservation, Classroom, User, Course, Subject, Holiday
 from forms import ReservationForm
 from extensions import db
+from unity_context import current_unity_id
 from datetime import date, time, datetime, timedelta
 from permissions import require_permission, require_permission_or_owner
 
 bp = Blueprint('reservations', __name__, url_prefix='/reservations')
+
+def _teachers_for_current_unity():
+    """Professores da unidade ativa (contas globais sem unidade também aparecem)."""
+    uid = current_unity_id()
+    return User.query.filter(
+        User.is_active_user == True,
+        ((User.profile_type == 'teacher') | (User.is_teacher == True)),
+        (User.unity_id == uid) | (User.unity_id.is_(None))
+    ).order_by(User.full_name).all()
+
+def _courses_for_current_unity():
+    return Course.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Course.name).all()
+
+def _subjects_for_current_unity():
+    return Subject.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Subject.name).all()
+
+def _classrooms_for_current_unity():
+    return Classroom.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Classroom.code).all()
+
+def _get_reservation_scoped(reservation_id):
+    """Carrega a reserva da unidade ativa — reservas de outras unidades dão 404."""
+    reservation = Reservation.query.get_or_404(reservation_id)
+    if reservation.unity_id != current_unity_id():
+        abort(404)
+    return reservation
 
 # Helper function to check if a room is already booked
 def check_conflict(classroom_id, reservation_date, start_time, end_time, exclude_id=None):
@@ -23,28 +49,29 @@ def check_conflict(classroom_id, reservation_date, start_time, end_time, exclude
 
 # Helper function to check scheduling restrictions (Sundays, Holidays, Saturday nights)
 def check_schedule_restrictions(res_date, start_time):
+    unity_id = current_unity_id()  # feriados são cadastrados por unidade
     if isinstance(res_date, str):
         try:
             res_date = datetime.strptime(res_date, '%Y-%m-%d').date()
         except ValueError:
             pass
-            
+
     weekday = res_date.weekday()
-    
+
     # 1. Block Sundays
     if weekday == 6:
         return False, "Reservas não podem ser agendadas aos domingos."
-    
+
     # 2. Block Holidays (Query Database)
-    holiday = Holiday.query.filter_by(date=res_date, is_active=True).first()
+    holiday = Holiday.query.filter_by(date=res_date, is_active=True, unity_id=unity_id).first()
     if holiday:
         return False, f"Reservas não podem ser agendadas em feriados ({holiday.name})."
-    
+
     # 3. Block Saturday Nights (After 18:00)
-    if weekday == 5: 
+    if weekday == 5:
         if start_time >= time(18, 0):
             return False, "Aos sábados, as reservas são permitidas apenas pela manhã e tarde (até 18:00)."
-    
+
     return True, ""
 
 # AJAX endpoint to check for holiday/sunday warnings before form submission
@@ -54,22 +81,22 @@ def check_holiday():
     date_str = request.args.get('date')
     if not date_str:
         return jsonify({'has_warning': False})
-        
+
     try:
         check_date = datetime.strptime(date_str, '%Y-%m-%d').date()
     except ValueError:
         return jsonify({'has_warning': False})
 
-    holiday = Holiday.query.filter_by(date=check_date, is_active=True).first()
+    holiday = Holiday.query.filter_by(date=check_date, is_active=True, unity_id=current_unity_id()).first()
     if holiday:
         return jsonify({
-            'has_warning': True, 
+            'has_warning': True,
             'message': f'Aviso: Esta data é um feriado ({holiday.name}). Reservas estão bloqueadas.'
         })
 
     if check_date.weekday() == 6:
         return jsonify({
-            'has_warning': True, 
+            'has_warning': True,
             'message': 'Aviso: Reservas não podem ser agendadas aos domingos.'
         })
 
@@ -81,16 +108,13 @@ def check_holiday():
 @require_permission('reservation:create')
 def create():
     form = ReservationForm()
-    
-    classrooms = Classroom.query.filter_by(is_active=True).order_by(Classroom.code).all()
+
+    classrooms = _classrooms_for_current_unity()
     form.classroom.choices = [(c.id, f"{c.name} ({c.code}) - Cap {c.capacity}") for c in classrooms]
-    form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
-    form.subject.choices = [(0, '-- Nenhum --')] + [(s.id, f"{s.name}") for s in Subject.query.filter_by(is_active=True).order_by(Subject.name).all()]
-    
-    teachers = User.query.filter(
-        User.is_active_user == True,
-        ((User.profile_type == 'teacher') | (User.is_teacher == True))
-    ).order_by(User.full_name).all()
+    form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in _courses_for_current_unity()]
+    form.subject.choices = [(0, '-- Nenhum --')] + [(s.id, f"{s.name}") for s in _subjects_for_current_unity()]
+
+    teachers = _teachers_for_current_unity()
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
 
     preselect = request.args.get('classroom_id', type=int)
@@ -108,7 +132,12 @@ def create():
             return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
         classroom_id = form.classroom.data
-        
+        # Multi-unidade: a sala precisa pertencer à unidade ativa
+        classroom = db.session.get(Classroom, classroom_id)
+        if not classroom or classroom.unity_id != current_unity_id():
+            flash('Sala inválida para a unidade ativa.', 'danger')
+            return render_template('reservations/create.html', form=form, classrooms=classrooms)
+
         conflict = check_conflict(classroom_id, form.date.data, form.start_time.data, form.end_time.data)
         if conflict:
             flash(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})', 'danger')
@@ -116,7 +145,7 @@ def create():
 
         teacher_id = form.teacher.data if form.teacher.data > 0 else None
         is_teacher_conflict = False
-        
+
         if teacher_id:
             teacher_conflict = Reservation.query.filter(
                 Reservation.teacher_id == teacher_id,
@@ -137,7 +166,8 @@ def create():
             teacher_id=teacher_id, title=form.title.data,
             description=form.description.data, date=form.date.data,
             start_time=form.start_time.data, end_time=form.end_time.data,
-            status=status
+            status=status,
+            unity_id=classroom.unity_id
         )
         db.session.add(reservation)
         db.session.commit()
@@ -175,7 +205,7 @@ def my_reservations():
 @require_permission('reservation:read_all')
 def all_reservations():
     status = request.args.get('status', 'all')
-    query = Reservation.query
+    query = Reservation.query.filter_by(unity_id=current_unity_id())
     if status != 'all':
         query = query.filter_by(status=status)
         
@@ -191,7 +221,7 @@ def all_reservations():
 @bp.route('/<int:reservation_id>')
 @login_required
 def detail(reservation_id):
-    reservation = Reservation.query.get_or_404(reservation_id)
+    reservation = _get_reservation_scoped(reservation_id)
     # Permite ver se tem permissão global, OU se é o dono e tem permissão de ler as próprias
     if not current_user.has_permission('reservation:read_all'):
         if not (current_user.has_permission('reservation:read_own') and reservation.user_id == current_user.id):
@@ -203,18 +233,18 @@ def detail(reservation_id):
 @login_required
 @require_permission_or_owner('reservation:edit_all')
 def edit(reservation_id):
-    reservation = Reservation.query.get_or_404(reservation_id)
+    reservation = _get_reservation_scoped(reservation_id)
     if reservation.date < date.today():
         flash('Reservas passadas não podem ser editadas.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
 
     form = ReservationForm()
-    
-    classrooms = Classroom.query.filter_by(is_active=True).order_by(Classroom.code).all()
+
+    classrooms = _classrooms_for_current_unity()
     form.classroom.choices = [(c.id, f"{c.name} ({c.code}) - Cap {c.capacity}") for c in classrooms]
-    form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in Course.query.filter_by(is_active=True).order_by(Course.name).all()]
-    form.subject.choices = [(0, '-- Nenhum --')] + [(s.id, f"{s.name}") for s in Subject.query.filter_by(is_active=True).order_by(Subject.name).all()]
-    teachers = User.query.filter(User.is_active_user == True, ((User.profile_type == 'teacher') | (User.is_teacher == True))).order_by(User.full_name).all()
+    form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in _courses_for_current_unity()]
+    form.subject.choices = [(0, '-- Nenhum --')] + [(s.id, f"{s.name}") for s in _subjects_for_current_unity()]
+    teachers = _teachers_for_current_unity()
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
 
     if request.method == 'GET':
@@ -235,12 +265,19 @@ def edit(reservation_id):
             return render_template('reservations/edit.html', form=form, reservation=reservation)
 
         classroom_id = form.classroom.data
+        # Multi-unidade: a sala precisa pertencer à unidade ativa
+        classroom = db.session.get(Classroom, classroom_id)
+        if not classroom or classroom.unity_id != current_unity_id():
+            flash('Sala inválida para a unidade ativa.', 'danger')
+            return render_template('reservations/edit.html', form=form, reservation=reservation)
+
         conflict = check_conflict(classroom_id, form.date.data, form.start_time.data, form.end_time.data, exclude_id=reservation.id)
         if conflict:
             flash(f'Conflito de sala com "{conflict.title}"', 'danger')
             return render_template('reservations/edit.html', form=form, reservation=reservation)
 
         reservation.classroom_id = classroom_id
+        reservation.unity_id = classroom.unity_id
         reservation.course_id = form.course.data if form.course.data > 0 else None
         reservation.subject_id = form.subject.data if form.subject.data > 0 else None
         reservation.teacher_id = form.teacher.data if form.teacher.data > 0 else None
@@ -261,7 +298,7 @@ def edit(reservation_id):
 @login_required
 @require_permission_or_owner('reservation:cancel_all')
 def cancel(reservation_id):
-    reservation = Reservation.query.get_or_404(reservation_id)
+    reservation = _get_reservation_scoped(reservation_id)
     if reservation.status == 'cancelled':
         flash('Esta reserva já está cancelada.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
@@ -281,7 +318,7 @@ def cancel(reservation_id):
 @login_required
 @require_permission('reservation:delete_all')
 def delete(reservation_id):
-    reservation = Reservation.query.get_or_404(reservation_id)
+    reservation = _get_reservation_scoped(reservation_id)
     db.session.delete(reservation)
     db.session.commit()
     flash('Reserva excluída permanentemente.', 'info')
@@ -292,7 +329,7 @@ def delete(reservation_id):
 @login_required
 @require_permission('reservation:approve')
 def approve(reservation_id):
-    reservation = Reservation.query.get_or_404(reservation_id)
+    reservation = _get_reservation_scoped(reservation_id)
     if reservation.status == 'pending':
         reservation.status = 'approved'
         db.session.commit()
@@ -303,7 +340,7 @@ def approve(reservation_id):
 @bp.route('/<int:reservation_id>/pending-teacher-conflict')
 @login_required
 def teacher_conflict_warning(reservation_id):
-    reservation = Reservation.query.get_or_404(reservation_id)
+    reservation = _get_reservation_scoped(reservation_id)
     if reservation.user_id != current_user.id and not current_user.has_permission('reservation:read_all'):
         abort(403)
     return render_template('reservations/pending_conflict.html', reservation=reservation)
@@ -314,7 +351,7 @@ def teacher_conflict_warning(reservation_id):
 @login_required
 @require_permission('reservation:create')
 def repeat_view(reservation_id):
-    res = Reservation.query.get_or_404(reservation_id)
+    res = _get_reservation_scoped(reservation_id)
     if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
         abort(403)
 
@@ -378,7 +415,7 @@ def repeat_view(reservation_id):
 @login_required
 @require_permission('reservation:create')
 def repeat_schedule(reservation_id):
-    res = Reservation.query.get_or_404(reservation_id)
+    res = _get_reservation_scoped(reservation_id)
     if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
         abort(403)
 
@@ -407,7 +444,7 @@ def repeat_schedule(reservation_id):
         user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
         subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
         description=res.description, date=new_date, start_time=res.start_time,
-        end_time=res.end_time, status='approved'
+        end_time=res.end_time, status='approved', unity_id=res.unity_id
     )
     db.session.add(new_res)
     db.session.commit()
@@ -418,7 +455,7 @@ def repeat_schedule(reservation_id):
 @login_required
 @require_permission('reservation:create')
 def repeat_schedule_all(reservation_id):
-    res = Reservation.query.get_or_404(reservation_id)
+    res = _get_reservation_scoped(reservation_id)
     if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
         abort(403)
 
@@ -467,7 +504,7 @@ def repeat_schedule_all(reservation_id):
                         user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
                         subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
                         description=res.description, date=current_date, start_time=res.start_time,
-                        end_time=res.end_time, status='approved'
+                        end_time=res.end_time, status='approved', unity_id=res.unity_id
                     )
                     db.session.add(new_res)
                     scheduled_count += 1

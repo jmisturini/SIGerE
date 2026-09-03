@@ -7,7 +7,8 @@ import re
 # CORREÇÃO: Holiday e Role não estavam importados — os validadores de
 # HolidayForm.validate_date e RoleForm.validate_name geravam NameError (erro 500).
 from models import (User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay,
-                    RoomCategory, Holiday, Role, Ingredient, IngredientCategory, StockBatch, Recipe, UNIT_LABELS)
+                    RoomCategory, Holiday, Role, Ingredient, IngredientCategory, StockBatch, Recipe, Unity, UNIT_LABELS)
+from unity_context import current_unity_id
 
 # =============================================================================
 # LOGIN & PASSWORD FORMS
@@ -36,7 +37,7 @@ class TeacherForm(FlaskForm):
     full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
     registration = StringField('Matrícula / ID do Professor', validators=[Optional(), Length(max=50)])
     department = StringField('Departamento', validators=[Optional(), Length(max=120)])
-    unity = StringField('Unidade', validators=[Optional(), Length(max=120)])
+    unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     password = PasswordField('Senha', validators=[Length(min=6)])
     is_active_user = BooleanField('Ativo', default=True)
@@ -77,9 +78,6 @@ class TeacherForm(FlaskForm):
     def validate_department(self, field):
         self._validate_alpha_only(field, 'Departamento')
 
-    def validate_unity(self, field):
-        self._validate_alpha_only(field, 'Unidade')
-
     def validate_registration(self, field):
         if field.data:
             existing = User.query.filter_by(registration=field.data).first()
@@ -98,7 +96,7 @@ class EmployeeForm(FlaskForm):
     registration = StringField('Matrícula / ID do Funcionário', validators=[Optional(), Length(max=50)])
     sector = StringField('Setor', validators=[Optional(), Length(max=120)])
     function = StringField('Função', validators=[Optional(), Length(max=120)])
-    unity = StringField('Unidade', validators=[Optional(), Length(max=120)])
+    unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     is_teacher = BooleanField('Também cadastrar como Professor (pode ser designado para reservas)')
     password = PasswordField('Senha', validators=[Length(min=6)])
@@ -141,9 +139,6 @@ class EmployeeForm(FlaskForm):
 
     def validate_function(self, field):
         self._validate_alpha_only(field, 'Função')
-
-    def validate_unity(self, field):
-        self._validate_alpha_only(field, 'Unidade')
 
     def validate_registration(self, field):
         if field.data:
@@ -241,9 +236,10 @@ class CourseForm(FlaskForm):
         self._validate_alpha_only(field, 'Nome do Curso')
 
     def validate_code(self, field):
-        existing = Course.query.filter_by(code=field.data).first()
+        # Unicidade por unidade: o mesmo código pode existir em unidades diferentes
+        existing = Course.query.filter_by(unity_id=current_unity_id(), code=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Este código de curso já existe.')
+            raise ValidationError('Este código de curso já existe nesta unidade.')
 
 
 # =============================================================================
@@ -270,9 +266,10 @@ class SubjectForm(FlaskForm):
         self._validate_alpha_only(field, 'Nome da Disciplina')
 
     def validate_code(self, field):
-        existing = Subject.query.filter_by(code=field.data).first()
+        # Unicidade por unidade: o mesmo código pode existir em unidades diferentes
+        existing = Subject.query.filter_by(unity_id=current_unity_id(), code=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Este código de disciplina já existe.')
+            raise ValidationError('Este código de disciplina já existe nesta unidade.')
 
 
 # =============================================================================
@@ -299,9 +296,48 @@ class HolidayForm(FlaskForm):
     def validate_date(self, field):
         if field.data < date.today():
             raise ValidationError('Não é possível cadastrar um feriado no passado.')
-        existing = Holiday.query.filter_by(date=field.data).first()
+        # Unicidade por unidade: unidades distintas podem cadastrar o mesmo feriado
+        existing = Holiday.query.filter_by(unity_id=current_unity_id(), date=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Já existe um feriado cadastrado para esta data.')
+            raise ValidationError('Já existe um feriado cadastrado nesta unidade para esta data.')
+
+
+# =============================================================================
+# UNITY FORM (Multi-unidade)
+# =============================================================================
+
+class UnityForm(FlaskForm):
+    name = StringField('Nome da Unidade (ex: Unidade Centro)', validators=[DataRequired(), Length(max=120)])
+    code = StringField('Código Curto (ex: CTR)', validators=[DataRequired(), Length(min=2, max=20)])
+    address = StringField('Endereço', validators=[Optional(), Length(max=255)])
+    phone = StringField('Telefone', validators=[Optional(), Length(max=30)])
+    is_active = BooleanField('Ativa', default=True)
+    submit = SubmitField('Salvar Unidade')
+
+    def __init__(self, *args, **kwargs):
+        super(UnityForm, self).__init__(*args, **kwargs)
+        self._obj_id = kwargs.get('obj_id', None)
+
+    def _validate_alpha_only(self, field, field_name):
+        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
+            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
+
+    def validate_name(self, field):
+        self._validate_alpha_only(field, 'Nome da Unidade')
+        existing = Unity.query.filter_by(name=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Já existe uma unidade com este nome.')
+
+    def validate_code(self, field):
+        if not re.match(r'^[A-Za-z0-9]+$', field.data or ''):
+            raise ValidationError('O código deve conter apenas letras e números (sem espaços ou símbolos).')
+        existing = Unity.query.filter_by(code=field.data.upper()).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Este código de unidade já está em uso.')
+
+    def validate_phone(self, field):
+        if field.data and not re.match(r'^[0-9()\-\s+]+$', field.data):
+            raise ValidationError('O telefone deve conter apenas números, parênteses, traços e "+ ".')
 
 
 # =============================================================================
@@ -502,9 +538,10 @@ class IngredientForm(FlaskForm):
         # Nome de ingrediente aceita letras, números e símbolos comuns de embalagens (ex: "Leite Condensado 395g")
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9\s\-,.\%°()/]+$', field.data):
             raise ValidationError('O nome do ingrediente contém caracteres inválidos.')
-        existing = Ingredient.query.filter_by(name=field.data).first()
+        # Unicidade por unidade: cada unidade tem seu próprio estoque de ingredientes
+        existing = Ingredient.query.filter_by(unity_id=current_unity_id(), name=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Já existe um ingrediente cadastrado com este nome.')
+            raise ValidationError('Já existe um ingrediente cadastrado com este nome nesta unidade.')
 
 
 class IngredientCategoryForm(FlaskForm):
@@ -566,6 +603,7 @@ class RecipeForm(FlaskForm):
         self._obj_id = kwargs.get('obj_id', None)
 
     def validate_name(self, field):
-        existing = Recipe.query.filter_by(name=field.data).first()
+        # Unicidade por unidade: cada unidade tem seu próprio livro de receitas
+        existing = Recipe.query.filter_by(unity_id=current_unity_id(), name=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Já existe uma receita cadastrada com este nome.')
+            raise ValidationError('Já existe uma receita cadastrada com este nome nesta unidade.')

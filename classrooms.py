@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, make_response
+from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, make_response, abort
 from flask_login import login_required, current_user
 from models import Classroom, Reservation, RoomCategory
 from forms import ClassroomForm
 from extensions import db
+from unity_context import current_unity_id, current_unity
 from datetime import datetime, date, time
 import calendar
 from fpdf import FPDF
@@ -12,7 +13,11 @@ bp = Blueprint('classrooms', __name__, url_prefix='/classrooms')
 
 # Helper function to apply filters and return a query
 def get_filtered_classrooms(args):
-    query = Classroom.query.filter_by(is_active=True)
+    # Multi-unidade: apenas salas da unidade ativa
+    query = Classroom.query.filter(
+        Classroom.is_active == True,
+        Classroom.unity_id == current_unity_id()
+    )
     
     available_date_str = args.get('available_date')
     available_period = args.get('available_period')
@@ -60,6 +65,13 @@ def get_filtered_classrooms(args):
             query = query.filter(~Classroom.id.in_(occupied_flat))
 
     return query.order_by(Classroom.building, Classroom.code).all()
+
+def _get_classroom_scoped(classroom_id):
+    """Carrega a sala da unidade ativa — salas de outras unidades dão 404."""
+    classroom = Classroom.query.get_or_404(classroom_id)
+    if classroom.unity_id != current_unity_id():
+        abort(404)
+    return classroom
 
 # Route to list classrooms with filters
 @bp.route('/')
@@ -128,6 +140,11 @@ def export_pdf():
     pdf.add_page()
     pdf.set_font("Helvetica", 'B', 16)
     pdf.cell(0, 10, "Relatório de Salas", new_x="LMARGIN", new_y="NEXT", align="C")
+    # Multi-unidade: identifica a unidade no relatório
+    unity = current_unity()
+    if unity:
+        pdf.set_font("Helvetica", '', 11)
+        pdf.cell(0, 7, unity.name, new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.ln(5)
     
     pdf.set_font("Helvetica", 'B', 10)
@@ -165,7 +182,7 @@ def export_pdf():
 @bp.route('/<int:classroom_id>')
 @login_required
 def detail(classroom_id):
-    classroom = Classroom.query.get_or_404(classroom_id)
+    classroom = _get_classroom_scoped(classroom_id)
     today = date.today()
     upcoming = Reservation.query.filter(
         Reservation.classroom_id == classroom_id,
@@ -178,7 +195,7 @@ def detail(classroom_id):
 @bp.route('/<int:classroom_id>/availability')
 @login_required
 def availability(classroom_id):
-    classroom = Classroom.query.get_or_404(classroom_id)
+    classroom = _get_classroom_scoped(classroom_id)
     req_year = request.args.get('year', type=int)
     req_month = request.args.get('month', type=int)
     today = date.today()
@@ -229,8 +246,8 @@ def availability(classroom_id):
 @login_required
 @require_permission('system:export')
 def export_availability(classroom_id):
-    classroom = Classroom.query.get_or_404(classroom_id)
-    
+    classroom = _get_classroom_scoped(classroom_id)
+
     req_year = request.args.get('year', type=int)
     req_month = request.args.get('month', type=int)
     today = date.today()
