@@ -25,7 +25,6 @@ def create_app(config_class=Config):
     from schedule import bp as schedule_bp
     from public import bp as public_bp
     from payments import bp as payments_bp
-    from kitchen import bp as kitchen_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -36,7 +35,6 @@ def create_app(config_class=Config):
     app.register_blueprint(schedule_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(payments_bp)
-    app.register_blueprint(kitchen_bp)
 
     # ── Register CLI commands ──
     from commands import seed_command, sync_permissions_command
@@ -112,15 +110,9 @@ def _ensure_schema_upgrades():
                 with db.engine.begin() as conn:
                     conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {ddl}'))
 
-    add_column_if_missing('recipes', 'photo VARCHAR(255)')
-    add_column_if_missing('ingredients', 'unit_price FLOAT')
-    add_column_if_missing('ingredients', 'category_id INTEGER')
-    add_column_if_missing('stock_movements', 'recipe_id INTEGER')
-
     UNITY_TABLES = (
         'users', 'classrooms', 'reservations', 'courses', 'subjects', 'holidays',
         'teacher_base_pay', 'teacher_additive_payment', 'teacher_overtime_pay',
-        'ingredients', 'recipes', 'stock_movements',
     )
     for table in UNITY_TABLES:
         add_column_if_missing(table, 'unity_id INTEGER')
@@ -128,14 +120,6 @@ def _ensure_schema_upgrades():
     _migrate_to_unities(inspector)
     inspector = inspect(db.engine)  # reflete as colunas/tabelas novas
     _rebuild_unity_unique_constraints(inspector)
-
-    # Categorias padrão de ingredientes (apenas na primeira execução)
-    if 'ingredient_categories' in inspector.get_table_names():
-        from models import IngredientCategory, DEFAULT_INGREDIENT_CATEGORIES
-        if IngredientCategory.query.count() == 0:
-            for name, order in DEFAULT_INGREDIENT_CATEGORIES:
-                db.session.add(IngredientCategory(name=name, display_order=order))
-            db.session.commit()
 
     # Garante permissões/papéis novos (ex: unity:*) em bancos já existentes
     from commands import sync_permissions_impl
@@ -202,7 +186,7 @@ def _migrate_to_unities(inspector):
     # db.engine.begin() aqui causaria "database is locked" no SQLite.
     for table in ('classrooms', 'reservations', 'courses', 'subjects', 'holidays',
                   'teacher_base_pay', 'teacher_additive_payment',
-                  'teacher_overtime_pay', 'ingredients', 'recipes', 'stock_movements'):
+                  'teacher_overtime_pay'):
         if table in inspector.get_table_names():
             db.session.execute(text(
                 f'UPDATE "{table}" SET unity_id = :uid WHERE unity_id IS NULL'
@@ -240,12 +224,12 @@ def _rebuild_unity_unique_constraints(inspector):
     from sqlalchemy import text
     from sqlalchemy.schema import CreateTable, CreateIndex
     from sqlalchemy import MetaData
-    from models import Classroom, Course, Subject, Holiday, Ingredient, Recipe
+    from models import Classroom, Course, Subject, Holiday
 
     # (modelo, coluna que era única globalmente)
     targets = [
         (Classroom, 'code'), (Course, 'code'), (Subject, 'code'),
-        (Holiday, 'date'), (Ingredient, 'name'), (Recipe, 'name'),
+        (Holiday, 'date'),
     ]
 
     with db.engine.connect() as conn:

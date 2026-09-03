@@ -118,60 +118,6 @@
                 </li>
                 {% endif %}
 
-                {% set in_kitchen = request.endpoint and request.endpoint.startswith('kitchen.') %}
-                {% if current_user.has_permission('ingredient:read') or current_user.has_permission('stock:read') or current_user.has_permission('recipe:read') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_kitchen else '' }}" data-bs-toggle="collapse" href="#menu-cozinha" role="button" aria-expanded="{{ 'true' if in_kitchen else 'false' }}" aria-controls="menu-cozinha">
-                        <i class="bi bi-egg-fried"></i> <span>Cozinha</span>
-                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
-                    </a>
-                    <div class="collapse {{ 'show' if in_kitchen else '' }}" id="menu-cozinha">
-                        <ul class="nav flex-column nav-submenu">
-                            {% if current_user.has_permission('stock:read') %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('kitchen.dashboard') }}">
-                                    <i class="bi bi-speedometer2"></i> <span>Visão Geral</span>
-                                </a>
-                            </li>
-                            {% endif %}
-                            {% if current_user.has_permission('ingredient:read') %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('kitchen.list_ingredients') }}">
-                                    <i class="bi bi-basket"></i> <span>Ingredientes</span>
-                                </a>
-                            </li>
-                            {% endif %}
-                            {% if current_user.has_permission('stock:read') %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('kitchen.stock') }}">
-                                    <i class="bi bi-box-seam"></i> <span>Estoque</span>
-                                </a>
-                            </li>
-                            {% endif %}
-                            {% if current_user.has_permission('recipe:read') %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('kitchen.list_recipes') }}">
-                                    <i class="bi bi-journal-text"></i> <span>Receitas</span>
-                                </a>
-                            </li>
-                            {% endif %}
-                            {% if current_user.has_permission('stock:read') %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('kitchen.shopping_list') }}">
-                                    <i class="bi bi-cart-plus"></i> <span>Lista de Compras</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('kitchen.consumption_report') }}">
-                                    <i class="bi bi-graph-up"></i> <span>Relatórios</span>
-                                </a>
-                            </li>
-                            {% endif %}
-                        </ul>
-                    </div>
-                </li>
-                {% endif %}
-
                 {% if current_user.has_permission('system:dashboard') %}
                 <li class="nav-section">Administração</li>
                 <li class="nav-item">
