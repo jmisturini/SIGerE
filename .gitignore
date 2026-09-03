@@ -11,6 +11,9 @@ instance/
 # Uploads de usuários
 static/uploads/
 
+# Backup do módulo Cozinha v1 (preservado fora do git; versão no branch cozinha-backup)
+backup_cozinha/
+
 # IDE
 .vscode/
 .idea/
