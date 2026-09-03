@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block title %}Ingredientes{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-basket text-primary me-2"></i>Ingredientes</h3>
+        <p class="text-muted mb-0">{{ total }} ingrediente{{ 's' if total != 1 }} organizado{{ 's' if total != 1 }} por seção, como um supermercado.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('kitchen.list_categories') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-tags me-1"></i> Categorias
+        </a>
+        <a href="{{ url_for('kitchen.shopping_list') }}" class="btn btn-outline-success">
+            <i class="bi bi-cart-plus me-1"></i> Lista de Compras
+        </a>
+        {% if current_user.has_permission('ingredient:create') %}
+        <a href="{{ url_for('kitchen.create_ingredient') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Cadastrar Ingrediente
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-transparent py-3">
+        <form method="GET" class="row g-2">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="name" class="form-control" placeholder="Buscar ingrediente pelo nome..." value="{{ search }}">
+                    <button class="btn btn-outline-secondary" type="submit">Buscar</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% for category_name, group_items in grouped %}
+<div class="card mb-4">
+    <div class="card-header bg-transparent py-2 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0 text-uppercase small"><i class="bi bi-tag me-1"></i>{{ category_name }}</h6>
+        <span class="badge bg-secondary-subtle text-secondary">{{ group_items|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr class="small text-muted">
+                        <th class="ps-3">Nome</th>
+                        <th>Estoque Atual</th>
+                        <th>Estoque Mínimo</th>
+                        <th>Preço/Unidade</th>
+                        <th>Situação</th>
+                        <th class="text-end pe-3">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for i in group_items %}
+                    <tr class="{{ 'table-warning' if i.is_active and i.is_low_stock else '' }}">
+                        <td class="ps-3 fw-bold">{{ i.name }}</td>
+                        <td>{{ i.stock_quantity|qty }} {{ i.unit_symbol }}</td>
+                        <td>{{ i.minimum_stock|qty }} {{ i.unit_symbol }}</td>
+                        <td>{{ i.unit_price|brl if i.unit_price else '—' }}</td>
+                        <td>
+                            {% if not i.is_active %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inativo</span>
+                            {% elif i.is_low_stock %}
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Estoque Baixo
+                                </span>
+                            {% else %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">Normal</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-3">
+                            <a href="{{ url_for('kitchen.ingredient_batches', ingredient_id=i.id) }}" class="btn btn-sm btn-outline-secondary" title="Lotes e validade">
+                                <i class="bi bi-calendar-date"></i>
+                            </a>
+                            <a href="{{ url_for('kitchen.create_movement', ingredient=i.id) }}" class="btn btn-sm btn-outline-primary" title="Movimentar estoque">
+                                <i class="bi bi-box-seam"></i>
+                            </a>
+                            {% if current_user.has_permission('ingredient:edit') %}
+                            <a href="{{ url_for('kitchen.edit_ingredient', ingredient_id=i.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% endif %}
+                            {% if current_user.has_permission('ingredient:toggle') %}
+                            <form method="POST" action="{{ url_for('kitchen.toggle_ingredient', ingredient_id=i.id) }}" class="d-inline">
+                                {% if i.is_active %}
+                                    <button class="btn btn-sm btn-outline-danger" title="Desativar Ingrediente">
+                                        <i class="bi bi-toggle-off"></i>
+                                    </button>
+                                {% else %}
+                                    <button class="btn btn-sm btn-outline-success" title="Ativar Ingrediente">
+                                        <i class="bi bi-toggle-on"></i>
+                                    </button>
+                                {% endif %}
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body text-center text-muted p-5">
+        <i class="bi bi-basket fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Nenhum ingrediente encontrado</h5>
+        <p class="small mb-0">Clique em "Cadastrar Ingrediente" para começar.</p>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
