@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Unidades Educacionais{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Unidades Educacionais</h3>
+        <p class="text-muted mb-0">Cada unidade possui salas, cursos, reservas, estoque e lançamentos próprios.</p>
+    </div>
+    {% if current_user.has_permission('unity:create') %}
+    <a href="{{ url_for('admin.create_unity') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> Nova Unidade
+    </a>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Unidade</th>
+                        <th>Código</th>
+                        <th>Salas</th>
+                        <th>Usuários</th>
+                        <th>Contato</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in unities %}
+                    <tr class="{{ 'table-active' if current_unity and current_unity.id == u.id }}">
+                        <td class="ps-4">
+                            <div class="fw-bold">{{ u.name }}</div>
+                            {% if current_unity and current_unity.id == u.id %}
+                                <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle mt-1">Unidade ativa</span>
+                            {% endif %}
+                            {% if u.address %}<div class="small text-muted">{{ u.address }}</div>{% endif %}
+                        </td>
+                        <td><span class="badge text-bg-light border">{{ u.code }}</span></td>
+                        <td>{{ room_counts.get(u.id, 0) }}</td>
+                        <td>{{ users_count.get(u.id, 0) }}</td>
+                        <td class="small text-muted">{{ u.phone or '—' }}</td>
+                        <td>
+                            {% if u.is_active %}
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Ativa</span>
+                            {% else %}
+                                <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Inativa</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            {% if current_user.has_permission('unity:edit') %}
+                            <a href="{{ url_for('admin.edit_unity', unity_id=u.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% endif %}
+                            {% if current_user.has_permission('unity:toggle') %}
+                            <form method="POST" action="{{ url_for('admin.toggle_unity', unity_id=u.id) }}" class="d-inline"
+                                  onsubmit="return confirm('Tem certeza que deseja {{ 'desativar' if u.is_active else 'ativar' }} esta unidade?');">
+                                <button class="btn btn-sm {{ 'btn-outline-danger' if u.is_active else 'btn-outline-success' }}"
+                                        title="{{ 'Desativar' if u.is_active else 'Ativar' }}" {{ 'disabled' if current_unity and current_unity.id == u.id and u.is_active }}>
+                                    <i class="bi {{ 'bi-power' if u.is_active else 'bi-arrow-repeat' }}"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted p-5">
+                            <i class="bi bi-building fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhuma unidade cadastrada</h5>
+                            <p class="small mb-0">Crie a primeira unidade educacional para organizar os dados do sistema.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

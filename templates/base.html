@@ -180,6 +180,13 @@
                     </a>
                 </li>
                 {% endif %}
+                {% if current_user.has_permission('unity:read') %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin.list_unities') }}">
+                        <i class="bi bi-buildings"></i> <span>Unidades</span>
+                    </a>
+                </li>
+                {% endif %}
                 {% else %}
                 {# Calendário removido do menu de visitantes: o schedule exige login #}
                 <li class="nav-item">
@@ -201,6 +208,23 @@
             </button>
             
             <div class="ms-auto d-flex align-items-center">
+                {% if current_user.is_authenticated and can_switch_unity and switchable_unities|length > 1 %}
+                <form method="POST" action="{{ url_for('main.switch_unity') }}" class="me-2">
+                    <select name="unity_id" class="form-select form-select-sm bg-transparent border-0 fw-semibold"
+                            style="max-width: 220px; color: var(--bs-body-color);"
+                            onchange="this.form.submit()"
+                            title="Unidade ativa de operação">
+                        {% for u in switchable_unities %}
+                        <option value="{{ u.id }}" {{ 'selected' if current_unity and current_unity.id == u.id }}>{{ u.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% elif current_user.is_authenticated and current_unity %}
+                <span class="badge text-bg-light border me-2 d-none d-md-inline-block" title="Unidade ativa de operação">
+                    <i class="bi bi-geo-alt me-1"></i>{{ current_unity.name }}
+                </span>
+                {% endif %}
+
                 <button id="theme-toggle" class="btn btn-sm btn-icon" title="Alternar tema">
                     <i class="bi bi-sun-fill" id="theme-icon"></i>
                 </button>

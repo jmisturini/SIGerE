@@ -40,8 +40,9 @@
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.unity.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                            {{ form.unity(class="form-control") }}
+                            {{ form.unity_id.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.unity_id(class="form-select") }}
+                            {% for err in form.unity_id.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">

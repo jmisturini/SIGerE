@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required
 from models import Reservation, Classroom, User, Course, Subject
+from unity_context import current_unity_id
 from datetime import datetime, time
 
 bp = Blueprint('schedule', __name__, url_prefix='/calendar')
@@ -9,15 +10,17 @@ bp = Blueprint('schedule', __name__, url_prefix='/calendar')
 @bp.route('/')
 @login_required
 def view():
-    # Fetch data for filter dropdowns
-    classrooms = Classroom.query.filter_by(is_active=True).order_by(Classroom.code).all()
+    uid = current_unity_id()
+    # Fetch data for filter dropdowns — apenas registros da unidade ativa
+    classrooms = Classroom.query.filter_by(unity_id=uid, is_active=True).order_by(Classroom.code).all()
     teachers = User.query.filter(
         User.is_active_user == True,
-        ((User.profile_type == 'teacher') | (User.is_teacher == True))
+        ((User.profile_type == 'teacher') | (User.is_teacher == True)),
+        (User.unity_id == uid) | (User.unity_id.is_(None))
     ).order_by(User.full_name).all()
-    courses = Course.query.filter_by(is_active=True).order_by(Course.name).all()
-    subjects = Subject.query.filter_by(is_active=True).order_by(Subject.name).all()
-    
+    courses = Course.query.filter_by(unity_id=uid, is_active=True).order_by(Course.name).all()
+    subjects = Subject.query.filter_by(unity_id=uid, is_active=True).order_by(Subject.name).all()
+
     return render_template('calendar.html', classrooms=classrooms, teachers=teachers, courses=courses, subjects=subjects)
 
 # API route to fetch reservation events as JSON
@@ -27,7 +30,8 @@ def events():
     start_str = request.args.get('initialDate') or request.args.get('start')
     end_str = request.args.get('finalDate') or request.args.get('end')
 
-    query = Reservation.query.filter_by(status='approved')
+    # Multi-unidade: apenas reservas da unidade ativa
+    query = Reservation.query.filter_by(status='approved', unity_id=current_unity_id())
 
     # Filter by date range
     if start_str and end_str:
@@ -50,7 +54,7 @@ def events():
     if teacher_id: query = query.filter_by(teacher_id=teacher_id)
     if course_id: query = query.filter_by(course_id=course_id)
     if subject_id: query = query.filter_by(subject_id=subject_id)
-        
+
     # Apply period filter
     if period:
         if period == 'morning':
@@ -61,7 +65,7 @@ def events():
             p_start, p_end = time(18, 0), time(23, 59)
         else:
             p_start, p_end = None, None
-            
+
         if p_start and p_end:
             query = query.filter(Reservation.start_time < p_end, Reservation.end_time > p_start)
 

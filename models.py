@@ -6,6 +6,23 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db, login_manager
 import math
 
+# Model representing an educational unit (campus/school) — base do multi-tenancy.
+# Cada unidade possui seus próprios salas, cursos, reservas, estoque e lançamentos.
+class Unity(db.Model):
+    __tablename__ = 'unities'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    code = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    address = db.Column(db.String(255))
+    phone = db.Column(db.String(30))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+
+    classrooms = db.relationship('Classroom', backref='unity', lazy=True)
+
+    def __repr__(self):
+        return f'<Unity {self.code}>'
+
 # Model representing the application users (Admins, Teachers, Employees)
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -22,7 +39,9 @@ class User(UserMixin, db.Model):
     profile_type = db.Column(db.String(20), default='employee') # 'teacher' or 'employee'
     is_teacher = db.Column(db.Boolean, default=False) # Allows an employee to also act as a teacher
     force_password_change = db.Column(db.Boolean, default=True)
-    unity = db.Column(db.String(120), nullable=True)
+    # Unidade educacional do usuário. NULL = conta global (ex: super admin,
+    # que pode operar em qualquer unidade via seletor).
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     is_active_user = db.Column(db.Boolean, default=True)
@@ -85,9 +104,13 @@ def load_user(user_id):
 # Model representing the physical rooms (Classrooms, Auditoriums, Labs)
 class Classroom(db.Model):
     __tablename__ = 'classrooms'
+    __table_args__ = (
+        # O mesmo código de sala pode existir em unidades diferentes
+        db.UniqueConstraint('unity_id', 'code', name='uq_classroom_unity_code'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), nullable=False)
-    code = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    code = db.Column(db.String(20), nullable=False, index=True)
     room_number = db.Column(db.String(20), nullable=True)
     building = db.Column(db.String(120))
     floor = db.Column(db.String(20))
@@ -96,6 +119,7 @@ class Classroom(db.Model):
     computer_count = db.Column(db.Integer, default=0)
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
     # Relationship for reservations in this room
@@ -119,6 +143,8 @@ class Reservation(db.Model):
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id', ondelete='SET NULL'), nullable=True)
     subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id', ondelete='SET NULL'), nullable=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # Unidade da sala reservada (desnormalizado de classrooms.unity_id para filtros rápidos)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     date = db.Column(db.Date, nullable=False, index=True)
@@ -138,6 +164,8 @@ class Reservation(db.Model):
     course = db.relationship('Course', backref='reservations')
     # Relationship for the subject linked to this reservation
     subject = db.relationship('Subject', backref='reservations')
+    # Unidade educacional da reserva
+    unity = db.relationship('Unity')
 
     def __repr__(self):
         return f'<Reservation {self.id} - {self.title}>'
@@ -149,11 +177,15 @@ class Reservation(db.Model):
 # Model representing academic courses
 class Course(db.Model):
     __tablename__ = 'courses'
+    __table_args__ = (
+        db.UniqueConstraint('unity_id', 'code', name='uq_course_unity_code'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
-    code = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    code = db.Column(db.String(20), nullable=False, index=True)
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
 
     subjects = db.relationship('Subject', backref='course', lazy=True)
 
@@ -163,12 +195,16 @@ class Course(db.Model):
 # Model representing subjects within courses
 class Subject(db.Model):
     __tablename__ = 'subjects'
+    __table_args__ = (
+        db.UniqueConstraint('unity_id', 'code', name='uq_subject_unity_code'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
-    code = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    code = db.Column(db.String(20), nullable=False, index=True)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
 
     def __repr__(self):
         return f'<Subject {self.code}>'
@@ -178,11 +214,14 @@ class Holiday(db.Model):
     __tablename__ = 'holidays'
     __table_args__ = (
         db.Index('idx_holiday_active', 'date', 'is_active'), # CORREÇÃO: Índice para queries rápidas
+        # Feriados nacionais podem ser cadastrados em todas as unidades na mesma data
+        db.UniqueConstraint('unity_id', 'date', name='uq_holiday_unity_date'),
     )
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
-    date = db.Column(db.Date, unique=True, nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False, index=True)
     is_active = db.Column(db.Boolean, default=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
 
     def __repr__(self):
         return f'<Holiday {self.name} on {self.date}>'
@@ -199,6 +238,7 @@ class TeacherBasePay(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     month_start = db.Column(db.String(7), nullable=False) # YYYY-MM
     month_end = db.Column(db.String(7), nullable=False)
     budget_code = db.Column(db.Integer, nullable=False)
@@ -222,6 +262,7 @@ class TeacherAdditivePayment(db.Model):
     # CORREÇÃO: Adicionar ondelete='CASCADE' para excluir aditivos se o lançamento base for excluído
     base_release_id = db.Column(db.Integer, db.ForeignKey('teacher_base_pay.id', ondelete='CASCADE'), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id', ondelete='SET NULL'), nullable=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     month_start = db.Column(db.String(7), nullable=False)
     month_end = db.Column(db.String(7), nullable=False)
     additional_hour = db.Column(db.Integer, nullable=False)
@@ -243,6 +284,7 @@ class TeacherOvertimePay(db.Model):
     __tablename__ = 'teacher_overtime_pay'
     id = db.Column(db.Integer, primary_key=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     teaching_level = db.Column(db.String(50), nullable=False) # E.g., 'Técnico', 'Superior'
     weekly_workload = db.Column(db.Integer, nullable=False)
     hourly_value = db.Column(db.Numeric(10, 2), nullable=False) # 10 dígitos no total, 2 decimais
@@ -335,14 +377,19 @@ class IngredientCategory(db.Model):
 # Model representing a culinary ingredient with stock control
 class Ingredient(db.Model):
     __tablename__ = 'ingredients'
+    __table_args__ = (
+        # O mesmo ingrediente pode existir em unidades diferentes (estoques separados)
+        db.UniqueConstraint('unity_id', 'name', name='uq_ingredient_unity_name'),
+    )
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=False, index=True)
     unit = db.Column(db.String(20), nullable=False, default='un')
     stock_quantity = db.Column(db.Float, nullable=False, default=0.0)
     minimum_stock = db.Column(db.Float, nullable=False, default=0.0)
     unit_price = db.Column(db.Float, nullable=True) # preço de compra por unidade registrada (R$)
     category_id = db.Column(db.Integer, db.ForeignKey('ingredient_categories.id'), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
@@ -428,6 +475,8 @@ class StockMovement(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredients.id', ondelete='CASCADE'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    # Unidade do ingrediente movimentado (desnormalizado de ingredients.unity_id)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     quantity = db.Column(db.Float, nullable=False)
     movement_type = db.Column(db.String(10), nullable=False) # 'in' (entrada) ou 'out' (saída)
     note = db.Column(db.String(255))
@@ -443,14 +492,19 @@ class StockMovement(db.Model):
 # Model representing a culinary recipe
 class Recipe(db.Model):
     __tablename__ = 'recipes'
+    __table_args__ = (
+        # O mesmo nome de receita pode existir em unidades diferentes
+        db.UniqueConstraint('unity_id', 'name', name='uq_recipe_unity_name'),
+    )
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(150), nullable=False, index=True)
     description = db.Column(db.Text) # Modo de preparo
     servings = db.Column(db.Integer, default=1) # Rendimento (porções)
     prep_time_minutes = db.Column(db.Integer, nullable=True)
     photo = db.Column(db.String(255), nullable=True) # Nome do arquivo em static/uploads/recipes/
     is_active = db.Column(db.Boolean, default=True)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 

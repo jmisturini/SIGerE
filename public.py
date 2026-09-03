@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for
 from flask_login import current_user
 from models import User, Classroom
+from unity_context import current_unity_id
 
 bp = Blueprint('public', __name__)
 
@@ -17,30 +18,38 @@ def home():
 def search():
     query = request.args.get('q', '')
     search_type = request.args.get('type', 'classroom')
-    
+
     results_rooms = []
     results_teachers = []
-    
+
     if query:
         if search_type == 'classroom':
-            # Search active classrooms by name or code
-            results_rooms = Classroom.query.filter(
+            # Busca salas ativas da unidade do visitante logado (ou de todas para anônimos)
+            uid = current_unity_id()
+            room_filter = [
                 Classroom.is_active == True,
                 (Classroom.name.ilike(f'%{query}%') | Classroom.code.ilike(f'%{query}%'))
-            ).order_by(Classroom.code).all()
-            
+            ]
+            if uid is not None:
+                room_filter.append(Classroom.unity_id == uid)
+            results_rooms = Classroom.query.filter(*room_filter).order_by(Classroom.code).all()
+
         elif search_type == 'teacher':
-            # Search active teachers by name
-            results_teachers = User.query.filter(
+            # Busca professores ativos (escopo por unidade quando determinável)
+            uid = current_unity_id()
+            teacher_filter = [
                 User.is_active_user == True,
                 User.profile_type == 'teacher',
                 User.full_name.ilike(f'%{query}%')
-            ).order_by(User.full_name).all()
+            ]
+            if uid is not None:
+                teacher_filter.append((User.unity_id == uid) | (User.unity_id.is_(None)))
+            results_teachers = User.query.filter(*teacher_filter).order_by(User.full_name).all()
 
     return render_template(
-        'search.html', 
-        query=query, 
-        search_type=search_type, 
-        results_rooms=results_rooms, 
+        'search.html',
+        query=query,
+        search_type=search_type,
+        results_rooms=results_rooms,
         results_teachers=results_teachers
     )

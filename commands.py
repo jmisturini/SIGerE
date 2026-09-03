@@ -4,7 +4,7 @@ from flask.cli import with_appcontext
 from extensions import db
 from models import (
     User, Classroom, Reservation, Course, Subject,
-    TeacherBasePay, Role, Permission, RoomCategory,
+    TeacherBasePay, Role, Permission, RoomCategory, Unity,
     Ingredient, IngredientCategory, StockMovement, StockBatch, Recipe, RecipeIngredient
 )
 from datetime import datetime, date, time, timedelta
@@ -19,6 +19,12 @@ PERMISSION_DATA = [
     ('user:create', 'user', 'create', 'Criar usuários'),
     ('user:edit', 'user', 'edit', 'Editar usuários'),
     ('user:toggle', 'user', 'toggle', 'Ativar/desativar usuários'),
+    # Módulo de Unidades Educacionais (multi-unidade)
+    ('unity:read', 'unity', 'read', 'Visualizar unidades educacionais'),
+    ('unity:create', 'unity', 'create', 'Criar unidades educacionais'),
+    ('unity:edit', 'unity', 'edit', 'Editar unidades educacionais'),
+    ('unity:toggle', 'unity', 'toggle', 'Ativar/desativar unidades educacionais'),
+    ('unity:switch', 'unity', 'switch', 'Alternar a unidade ativa de operação'),
     ('room:read', 'room', 'read', 'Visualizar salas'),
     ('room:create', 'room', 'create', 'Criar salas'),
     ('room:edit', 'room', 'edit', 'Editar salas'),
@@ -80,6 +86,7 @@ ROLES_CONFIG = {
         'is_system': True,
         'permissions': [
             'user:read', 'user:create', 'user:edit', 'user:toggle',
+            'unity:read', 'unity:create', 'unity:edit', 'unity:toggle', 'unity:switch',
             'room:read', 'room:create', 'room:edit', 'room:toggle',
             'course:read', 'course:create', 'course:edit', 'course:toggle',
             'holiday:read', 'holiday:create', 'holiday:edit', 'holiday:delete', 'holiday:import',
@@ -224,7 +231,18 @@ def sync_permissions_command():
 
     Uso: flask sync-permissions
     """
+    sync_permissions_impl(verbose=True)
+
+
+def sync_permissions_impl(verbose=True):
+    """Lógica compartilhada do sync de permissões.
+
+    Chamada pelo comando `flask sync-permissions` e também durante o startup
+    (app.py) para garantir que permissões de módulos novos (ex: unity:*)
+    existam em bancos já existentes sem passo manual.
+    """
     created_perms, created_roles, created_links = 0, 0, 0
+    log = click.echo if verbose else (lambda *a, **k: None)
 
     try:
         perm_objects = {p.code: p for p in Permission.query.all()}
@@ -243,7 +261,7 @@ def sync_permissions_command():
                             is_system=config.get('is_system', False))
                 db.session.add(role)
                 created_roles += 1
-                click.echo(f"   ➕ Papel criado: {config['label']}")
+                log(f"   ➕ Papel criado: {config['label']}")
 
             existing = {p.code for p in role.permissions}
             for perm_code in config['permissions']:
@@ -252,10 +270,12 @@ def sync_permissions_command():
                     created_links += 1
 
         db.session.commit()
-        click.echo(click.style("✅ Permissões sincronizadas com sucesso!", fg="green", bold=True))
-        click.echo(f"   Permissões criadas: {created_perms}")
-        click.echo(f"   Papéis criados: {created_roles}")
-        click.echo(f"   Vínculos papel↔permissão adicionados: {created_links}")
+        if verbose:
+            click.echo(click.style("✅ Permissões sincronizadas com sucesso!", fg="green", bold=True))
+            click.echo(f"   Permissões criadas: {created_perms}")
+            click.echo(f"   Papéis criados: {created_roles}")
+            click.echo(f"   Vínculos papel↔permissão adicionados: {created_links}")
+        return created_perms, created_roles, created_links
     except Exception as exc:
         db.session.rollback()
         raise click.ClickException(f"Falha ao sincronizar permissões: {exc}")
@@ -315,6 +335,20 @@ def _seed_demo_data():
     employee_role = Role.query.filter_by(name='employee').first()
     admin = User.query.filter_by(username='admin').first()
 
+    # 0. Unidades educacionais de demonstração
+    unity_names = [("Unidade Centro", "CTR"), ("Unidade Norte", "NOR"), ("Unidade Sul", "SUL")]
+    unities = []
+    for name, code in unity_names:
+        unity = Unity.query.filter_by(name=name).first()
+        if not unity:
+            unity = Unity(name=name, code=code, is_active=True)
+            db.session.add(unity)
+        unities.append(unity)
+    db.session.flush()
+    main_unity = unities[0]  # dados acadêmicos/estoque demonstrados na unidade principal
+    unity_ids = [u.id for u in unities]
+    click.echo(f"   ✅ {len(unities)} unidades educacionais criadas.")
+
     # 1. 100 Usuários
     first_names = [
         "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
@@ -349,7 +383,7 @@ def _seed_demo_data():
             function=random.choice(["Coordinator", "Secretary", "Technician", "Director"]),
             profile_type='employee',
             is_teacher=is_teacher_flag,
-            unity=random.choice(["Unidade Centro", "Unidade Norte", "Unidade Sul"]),
+            unity_id=random.choice(unity_ids),
             force_password_change=False,
             role_id=employee_role.id
         )
@@ -371,7 +405,7 @@ def _seed_demo_data():
             role='room',
             department=random.choice(["Science", "Math", "History", "Arts", "Languages", "Physical Ed"]),
             profile_type='teacher',
-            unity=random.choice(["Unidade Centro", "Unidade Norte", "Unidade Sul"]),
+            unity_id=random.choice(unity_ids),
             registration=f"REG-{i:04d}",
             force_password_change=False,
             role_id=teacher_role.id
@@ -440,7 +474,8 @@ def _seed_demo_data():
         room = Classroom(
             code=code, name=r_data["name"], category_id=r_data["category_id"],
             capacity=r_data["capacity"], floor=r_data["floor"], building="Bloco Principal",
-            room_number=r_data["room_number"], computer_count=r_data["computer_count"], is_active=True
+            room_number=r_data["room_number"], computer_count=r_data["computer_count"], is_active=True,
+            unity_id=main_unity.id
         )
         db.session.add(room)
         rooms.append(room)
@@ -451,7 +486,7 @@ def _seed_demo_data():
     # 4. Cursos e Disciplinas
     courses_list = []
     for i in range(1, 51):
-        c = Course(name=f"Curso {i}", code=f"C{i:03d}", is_active=True)
+        c = Course(name=f"Curso {i}", code=f"C{i:03d}", is_active=True, unity_id=main_unity.id)
         db.session.add(c)
         courses_list.append(c)
 
@@ -460,7 +495,7 @@ def _seed_demo_data():
     subjects_list = []
     for i in range(1, 51):
         random_course = random.choice(courses_list)
-        s = Subject(name=f"Disciplina {i}", code=f"S{i:03d}", course_id=random_course.id, is_active=True)
+        s = Subject(name=f"Disciplina {i}", code=f"S{i:03d}", course_id=random_course.id, is_active=True, unity_id=main_unity.id)
         db.session.add(s)
         subjects_list.append(s)
 
@@ -502,6 +537,7 @@ def _seed_demo_data():
             user_id=booker.id, classroom_id=room.id,
             teacher_id=teacher.id if teacher else None,
             course_id=course.id, subject_id=subject.id,
+            unity_id=room.unity_id,
             title=f"Aula/Evento {i}",
             description="Aula agendada para alunos.",
             date=res_date, start_time=start, end_time=end, status=status
@@ -516,6 +552,7 @@ def _seed_demo_data():
         base_pay = TeacherBasePay(
             teacher_id=teacher.id,
             course_id=courses_list[i].id,
+            unity_id=teacher.unity_id,
             month_start='2024-02',
             month_end='2024-07',
             budget_code=95000,
@@ -545,7 +582,8 @@ def _seed_demo_data():
     for name, unit, stock, minimum, price, category_name in ing_data:
         category = IngredientCategory.query.filter_by(name=category_name).first()
         ing = Ingredient(name=name, unit=unit, stock_quantity=stock, minimum_stock=minimum,
-                         unit_price=price, category_id=category.id if category else None)
+                         unit_price=price, category_id=category.id if category else None,
+                         unity_id=main_unity.id)
         db.session.add(ing)
         ing_map[name] = ing
     db.session.flush()
@@ -600,7 +638,8 @@ def _seed_demo_data():
         recipe = Recipe(
             name=r_data["name"], description=r_data["description"],
             servings=r_data["servings"], prep_time_minutes=r_data["prep_time_minutes"],
-            is_active=r_data["active"], created_by=admin.id
+            is_active=r_data["active"], created_by=admin.id,
+            unity_id=main_unity.id
         )
         for ing_name, qty in r_data["items"]:
             recipe.ingredients.append(RecipeIngredient(ingredient_id=ing(ing_name).id, quantity=qty))
