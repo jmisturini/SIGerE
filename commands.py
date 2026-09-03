@@ -4,8 +4,7 @@ from flask.cli import with_appcontext
 from extensions import db
 from models import (
     User, Classroom, Reservation, Course, Subject,
-    TeacherBasePay, Role, Permission, RoomCategory, Unity,
-    Ingredient, IngredientCategory, StockMovement, StockBatch, Recipe, RecipeIngredient
+    TeacherBasePay, Role, Permission, RoomCategory, Unity
 )
 from datetime import datetime, date, time, timedelta
 import random
@@ -59,18 +58,6 @@ PERMISSION_DATA = [
     ('role:create', 'role', 'create', 'Criar papéis'),
     ('role:edit', 'role', 'edit', 'Editar papéis'),
     ('role:delete', 'role', 'delete', 'Excluir papéis'),
-    # Módulo Cozinha (ingredientes, estoque e receitas)
-    ('ingredient:read', 'ingredient', 'read', 'Visualizar ingredientes'),
-    ('ingredient:create', 'ingredient', 'create', 'Cadastrar ingredientes'),
-    ('ingredient:edit', 'ingredient', 'edit', 'Editar ingredientes'),
-    ('ingredient:toggle', 'ingredient', 'toggle', 'Ativar/desativar ingredientes'),
-    ('stock:read', 'stock', 'read', 'Visualizar controle de estoque'),
-    ('stock:movement', 'stock', 'movement', 'Registrar entradas e saídas de estoque'),
-    ('recipe:read', 'recipe', 'read', 'Visualizar receitas'),
-    ('recipe:create', 'recipe', 'create', 'Criar receitas'),
-    ('recipe:edit', 'recipe', 'edit', 'Editar receitas'),
-    ('recipe:toggle', 'recipe', 'toggle', 'Ativar/desativar receitas'),
-    ('recipe:prepare', 'recipe', 'prepare', 'Preparar receita (baixa de estoque)'),
     ('*', 'system', 'all', 'Permissão universal (super admin)'),
 ]
 
@@ -93,10 +80,7 @@ ROLES_CONFIG = {
             'reservation:read_all', 'reservation:edit_all', 'reservation:delete_all',
             'reservation:approve', 'reservation:cancel_all',
             'system:dashboard', 'system:export',
-            'role:read', 'role:create', 'role:edit', 'role:delete',
-            'ingredient:read', 'ingredient:create', 'ingredient:edit', 'ingredient:toggle',
-            'stock:read', 'stock:movement',
-            'recipe:read', 'recipe:create', 'recipe:edit', 'recipe:toggle', 'recipe:prepare'
+            'role:read', 'role:create', 'role:edit', 'role:delete'
         ]
     },
     'financial_admin': {
@@ -114,18 +98,7 @@ ROLES_CONFIG = {
             'room:read', 'course:read', 'course:create', 'course:edit', 'course:toggle',
             'reservation:read_all', 'reservation:approve',
             'reservation:edit_all', 'reservation:cancel_all',
-            'user:read',
-            'ingredient:read', 'stock:read',
-            'recipe:read', 'recipe:create', 'recipe:edit', 'recipe:toggle', 'recipe:prepare'
-        ]
-    },
-    'kitchen_manager': {
-        'label': 'Gestor de Cozinha',
-        'is_system': False,
-        'permissions': [
-            'ingredient:read', 'ingredient:create', 'ingredient:edit', 'ingredient:toggle',
-            'stock:read', 'stock:movement',
-            'recipe:read', 'recipe:create', 'recipe:edit', 'recipe:toggle', 'recipe:prepare'
+            'user:read'
         ]
     },
     'room_manager': {
@@ -143,25 +116,21 @@ ROLES_CONFIG = {
         'permissions': [
             'reservation:create', 'reservation:read_own',
             'reservation:edit_own', 'reservation:cancel_own',
-            'room:read', 'course:read', 'payment:read_own',
-            'ingredient:read', 'stock:read',
-            'recipe:read', 'recipe:create', 'recipe:edit'
+            'room:read', 'course:read', 'payment:read_own'
         ]
     },
     'employee': {
         'label': 'Funcionário',
         'is_system': False,
         'permissions': [
-            'room:read', 'course:read', 'reservation:read_own',
-            'ingredient:read', 'stock:read', 'recipe:read'
+            'room:read', 'course:read', 'reservation:read_own'
         ]
     },
     'viewer': {
         'label': 'Visualizador',
         'is_system': False,
         'permissions': [
-            'room:read', 'course:read',
-            'ingredient:read', 'stock:read', 'recipe:read'
+            'room:read', 'course:read'
         ]
     }
 }
@@ -227,7 +196,7 @@ def sync_permissions_command():
 
     Cria permissões e papéis ausentes e concede às roles os códigos
     definidos em ROLES_CONFIG. Não remove nada já concedido. Útil para
-    atualizar bancos criados antes de novos módulos (ex: Cozinha).
+    atualizar bancos criados antes de novos módulos.
 
     Uso: flask sync-permissions
     """
@@ -563,86 +532,3 @@ def _seed_demo_data():
         db.session.add(base_pay)
 
     click.echo("   ✅ Lançamentos de pagamento base criados.")
-
-    # 7. Cozinha: ingredientes (com categoria e preço), estoque e receitas
-    ing_data = [
-        # (nome, unidade, estoque, mínimo, preço/unidade R$, categoria)
-        ("Farinha de Trigo", "kg", 5.0, 1.0, 4.50, "Grãos e Cereais"),
-        ("Açúcar Refinado", "kg", 3.0, 1.0, 3.90, "Grãos e Cereais"),
-        ("Ovos", "un", 30.0, 12.0, 0.75, "Frios e Laticínios"),
-        ("Leite Integral", "l", 6.0, 2.0, 4.99, "Frios e Laticínios"),
-        ("Manteiga", "g", 1000.0, 500.0, 0.045, "Frios e Laticínios"),
-        ("Fermento Químico em Pó", "g", 400.0, 200.0, 0.08, "Padaria"),
-        ("Chocolate em Pó", "g", 900.0, 400.0, 0.06, "Confeitaria"),
-        ("Óleo de Soja", "ml", 2000.0, 900.0, 0.008, "Outros"),
-        ("Sal", "g", 1000.0, 500.0, 0.005, "Temperos e Especiarias"),
-        ("Morango", "g", 300.0, 600.0, 0.025, "Hortifruti"),
-    ]
-    ing_map = {}
-    for name, unit, stock, minimum, price, category_name in ing_data:
-        category = IngredientCategory.query.filter_by(name=category_name).first()
-        ing = Ingredient(name=name, unit=unit, stock_quantity=stock, minimum_stock=minimum,
-                         unit_price=price, category_id=category.id if category else None,
-                         unity_id=main_unity.id)
-        db.session.add(ing)
-        ing_map[name] = ing
-    db.session.flush()
-    click.echo(f"   ✅ {len(ing_data)} ingredientes criados (com categoria, preço e estoque inicial).")
-
-    # Lotes de demonstração: vencendo, vencido e válidos
-    today = date.today()
-    demo_batches = [
-        ("Ovos", 12, today + timedelta(days=5), "Lote A7"),            # vencendo
-        ("Ovos", 18, today + timedelta(days=25), "Lote B2"),
-        ("Morango", 300, today - timedelta(days=1), "Lote M3"),        # vencido
-        ("Leite Integral", 6, today + timedelta(days=6), "Lote L12"),  # vencendo
-        ("Farinha de Trigo", 5, today + timedelta(days=180), "Lote F01"),
-    ]
-    for ing_name, qty, expiry, note in demo_batches:
-        db.session.add(StockBatch(ingredient_id=ing_map[ing_name].id, quantity=qty,
-                                  expiry_date=expiry, note=note))
-    db.session.flush()
-    click.echo("   ✅ Lotes de validade de demonstração criados.")
-
-    def ing(name):
-        return ing_map[name]
-
-    recipes_data = [
-        {
-            "name": "Bolo Simples de Chocolate",
-            "servings": 12, "prep_time_minutes": 50,
-            "description": "1. Misture os ingredientes secos.\n2. Adicione os ovos, o leite e o óleo.\n3. Asse a 180 °C por cerca de 40 minutos.",
-            "items": [("Farinha de Trigo", 0.5), ("Açúcar Refinado", 0.3), ("Ovos", 3),
-                      ("Leite Integral", 0.3), ("Óleo de Soja", 100), ("Chocolate em Pó", 200),
-                      ("Fermento Químico em Pó", 15)],
-            "active": True,
-        },
-        {
-            "name": "Panqueca de Morango",
-            "servings": 8, "prep_time_minutes": 30,
-            "description": "1. Bata os ingredientes da massa.\n2. Grelhe em frigideira antiaderente.\n3. Sirva com morangos picados.",
-            "items": [("Farinha de Trigo", 0.3), ("Leite Integral", 0.25), ("Ovos", 2),
-                      ("Açúcar Refinado", 0.1), ("Manteiga", 50), ("Morango", 250)],
-            "active": True,
-        },
-        {
-            "name": "Torta de Morango Especial",
-            "servings": 10, "prep_time_minutes": 90,
-            "description": "Receita que consome mais morangos do que o estoque disponível — usada para demonstrar o alerta de ingredientes faltando.",
-            "items": [("Farinha de Trigo", 0.6), ("Manteiga", 300), ("Morango", 900),
-                      ("Açúcar Refinado", 0.4), ("Ovos", 4)],
-            "active": True,
-        },
-    ]
-    for r_data in recipes_data:
-        recipe = Recipe(
-            name=r_data["name"], description=r_data["description"],
-            servings=r_data["servings"], prep_time_minutes=r_data["prep_time_minutes"],
-            is_active=r_data["active"], created_by=admin.id,
-            unity_id=main_unity.id
-        )
-        for ing_name, qty in r_data["items"]:
-            recipe.ingredients.append(RecipeIngredient(ingredient_id=ing(ing_name).id, quantity=qty))
-        db.session.add(recipe)
-    db.session.flush()
-    click.echo(f"   ✅ {len(recipes_data)} receitas criadas.")
