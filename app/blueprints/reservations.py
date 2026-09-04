@@ -6,6 +6,10 @@ from app.extensions import db
 from app.unity_context import current_unity_id
 from datetime import date, time, datetime, timedelta
 from app.permissions import require_permission, require_permission_or_owner
+# Regras e gravação protegida contra condição de corrida vivem no serviço
+# central — mantidos aqui por re-export para compatibilidade.
+from app.services.scheduling import (check_conflict, check_schedule_restrictions,
+                                     check_teacher_conflict, slot_locks)
 
 bp = Blueprint('reservations', __name__, url_prefix='/reservations')
 
@@ -34,45 +38,10 @@ def _get_reservation_scoped(reservation_id):
         abort(404)
     return reservation
 
-# Helper function to check if a room is already booked
-def check_conflict(classroom_id, reservation_date, start_time, end_time, exclude_id=None):
-    query = Reservation.query.filter(
-        Reservation.classroom_id == classroom_id,
-        Reservation.date == reservation_date,
-        Reservation.status == 'approved',
-        Reservation.start_time < end_time,
-        Reservation.end_time > start_time
-    )
-    if exclude_id:
-        query = query.filter(Reservation.id != exclude_id)
-    return query.first()
-
-# Helper function to check scheduling restrictions (Sundays, Holidays, Saturday nights)
-def check_schedule_restrictions(res_date, start_time):
-    unity_id = current_unity_id()  # feriados são cadastrados por unidade
-    if isinstance(res_date, str):
-        try:
-            res_date = datetime.strptime(res_date, '%Y-%m-%d').date()
-        except ValueError:
-            pass
-
-    weekday = res_date.weekday()
-
-    # 1. Block Sundays
-    if weekday == 6:
-        return False, "Reservas não podem ser agendadas aos domingos."
-
-    # 2. Block Holidays (Query Database)
-    holiday = Holiday.query.filter_by(date=res_date, is_active=True, unity_id=unity_id).first()
-    if holiday:
-        return False, f"Reservas não podem ser agendadas em feriados ({holiday.name})."
-
-    # 3. Block Saturday Nights (After 18:00)
-    if weekday == 5:
-        if start_time >= time(18, 0):
-            return False, "Aos sábados, as reservas são permitidas apenas pela manhã e tarde (até 18:00)."
-
-    return True, ""
+# Helper functions check_conflict, check_teacher_conflict,
+# check_schedule_restrictions e slot_locks foram movidas para
+# app/services/scheduling.py — ponto único de validação e gravação atômica
+# (proteção contra condição de corrida) e re-exportados acima.
 
 # AJAX endpoint to check for holiday/sunday warnings before form submission
 @bp.route('/check_holiday', methods=['GET'])
@@ -126,11 +95,6 @@ def create():
             flash('Não é possível reservar uma data no passado.', 'danger')
             return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
-        allowed, restriction_msg = check_schedule_restrictions(form.date.data, form.start_time.data)
-        if not allowed:
-            flash(restriction_msg, 'danger')
-            return render_template('reservations/create.html', form=form, classrooms=classrooms)
-
         classroom_id = form.classroom.data
         # Multi-unidade: a sala precisa pertencer à unidade ativa
         classroom = db.session.get(Classroom, classroom_id)
@@ -138,44 +102,47 @@ def create():
             flash('Sala inválida para a unidade ativa.', 'danger')
             return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
-        conflict = check_conflict(classroom_id, form.date.data, form.start_time.data, form.end_time.data)
-        if conflict:
-            flash(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})', 'danger')
-            return render_template('reservations/create.html', form=form, classrooms=classrooms)
+        # Gravação atômica: checagens e INSERT na mesma seção crítica por
+        # (sala, data) — duas requisições simultâneas nunca gravam a mesma
+        # janela (a segunda reexecuta as checagens após o commit da primeira).
+        with slot_locks(classroom_id, [form.date.data]):
+            allowed, restriction_msg = check_schedule_restrictions(
+                form.date.data, form.start_time.data, form.end_time.data)
+            if not allowed:
+                flash(restriction_msg, 'danger')
+                return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
-        teacher_id = form.teacher.data if form.teacher.data > 0 else None
-        is_teacher_conflict = False
+            conflict = check_conflict(classroom_id, form.date.data, form.start_time.data, form.end_time.data)
+            if conflict:
+                flash(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})', 'danger')
+                return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
-        if teacher_id:
-            teacher_conflict = Reservation.query.filter(
-                Reservation.teacher_id == teacher_id,
-                Reservation.date == form.date.data,
-                Reservation.status.in_(['approved', 'pending']),
-                Reservation.start_time < form.end_time.data,
-                Reservation.end_time > form.start_time.data
-            ).first()
-            if teacher_conflict:
-                is_teacher_conflict = True
+            teacher_id = form.teacher.data if form.teacher.data > 0 else None
+            is_teacher_conflict = False
+            if teacher_id:
+                is_teacher_conflict = check_teacher_conflict(
+                    teacher_id, form.date.data, form.start_time.data, form.end_time.data
+                ) is not None
 
-        status = 'pending' if is_teacher_conflict else 'approved'
+            status = 'pending' if is_teacher_conflict else 'approved'
 
-        reservation = Reservation(
-            user_id=current_user.id, classroom_id=classroom_id,
-            course_id=form.course.data if form.course.data > 0 else None,
-            subject_id=form.subject.data if form.subject.data > 0 else None,
-            teacher_id=teacher_id, title=form.title.data,
-            description=form.description.data, date=form.date.data,
-            start_time=form.start_time.data, end_time=form.end_time.data,
-            status=status,
-            unity_id=classroom.unity_id
-        )
-        db.session.add(reservation)
-        db.session.commit()
-        
+            reservation = Reservation(
+                user_id=current_user.id, classroom_id=classroom_id,
+                course_id=form.course.data if form.course.data > 0 else None,
+                subject_id=form.subject.data if form.subject.data > 0 else None,
+                teacher_id=teacher_id, title=form.title.data,
+                description=form.description.data, date=form.date.data,
+                start_time=form.start_time.data, end_time=form.end_time.data,
+                status=status,
+                unity_id=classroom.unity_id
+            )
+            db.session.add(reservation)
+            db.session.commit()
+
         if is_teacher_conflict:
             flash('Reserva criada como PENDENTE devido a conflito de professor.', 'warning')
             return redirect(url_for('reservations.teacher_conflict_warning', reservation_id=reservation.id))
-        
+
         flash('Reserva agendada com sucesso!', 'success')
         return redirect(url_for('reservations.my_reservations'))
 
@@ -259,11 +226,6 @@ def edit(reservation_id):
         form.end_time.data = reservation.end_time
 
     if form.validate_on_submit():
-        allowed, restriction_msg = check_schedule_restrictions(form.date.data, form.start_time.data)
-        if not allowed:
-            flash(restriction_msg, 'danger')
-            return render_template('reservations/edit.html', form=form, reservation=reservation)
-
         classroom_id = form.classroom.data
         # Multi-unidade: a sala precisa pertencer à unidade ativa
         classroom = db.session.get(Classroom, classroom_id)
@@ -271,24 +233,49 @@ def edit(reservation_id):
             flash('Sala inválida para a unidade ativa.', 'danger')
             return render_template('reservations/edit.html', form=form, reservation=reservation)
 
-        conflict = check_conflict(classroom_id, form.date.data, form.start_time.data, form.end_time.data, exclude_id=reservation.id)
-        if conflict:
-            flash(f'Conflito de sala com "{conflict.title}"', 'danger')
-            return render_template('reservations/edit.html', form=form, reservation=reservation)
+        # Mesma seção crítica da criação: revalida restrições e conflitos já
+        # enxergando o estado consolidado (edit + approve concorrentes).
+        with slot_locks(classroom_id, [form.date.data]):
+            allowed, restriction_msg = check_schedule_restrictions(
+                form.date.data, form.start_time.data, form.end_time.data)
+            if not allowed:
+                flash(restriction_msg, 'danger')
+                return render_template('reservations/edit.html', form=form, reservation=reservation)
 
-        reservation.classroom_id = classroom_id
-        reservation.unity_id = classroom.unity_id
-        reservation.course_id = form.course.data if form.course.data > 0 else None
-        reservation.subject_id = form.subject.data if form.subject.data > 0 else None
-        reservation.teacher_id = form.teacher.data if form.teacher.data > 0 else None
-        reservation.title = form.title.data
-        reservation.description = form.description.data
-        reservation.date = form.date.data
-        reservation.start_time = form.start_time.data
-        reservation.end_time = form.end_time.data
-        
-        db.session.commit()
-        flash('Reserva atualizada com sucesso.', 'success')
+            conflict = check_conflict(classroom_id, form.date.data, form.start_time.data,
+                                      form.end_time.data, exclude_id=reservation.id)
+            if conflict:
+                flash(f'Conflito de sala com "{conflict.title}"', 'danger')
+                return render_template('reservations/edit.html', form=form, reservation=reservation)
+
+            reservation.classroom_id = classroom_id
+            reservation.unity_id = classroom.unity_id
+            reservation.course_id = form.course.data if form.course.data > 0 else None
+            reservation.subject_id = form.subject.data if form.subject.data > 0 else None
+            reservation.teacher_id = form.teacher.data if form.teacher.data > 0 else None
+            reservation.title = form.title.data
+            reservation.description = form.description.data
+            reservation.date = form.date.data
+            reservation.start_time = form.start_time.data
+            reservation.end_time = form.end_time.data
+
+            # Recheck de docente na edição (a criação já fazia; a edição não):
+            # mudar data/horário/professor pode criar sobreposição — a reserva
+            # volta a PENDENTE, mesmo critério da criação.
+            teacher_conflict = False
+            if reservation.teacher_id:
+                teacher_conflict = check_teacher_conflict(
+                    reservation.teacher_id, reservation.date, reservation.start_time,
+                    reservation.end_time, exclude_id=reservation.id) is not None
+            if teacher_conflict and reservation.status == 'approved':
+                reservation.status = 'pending'
+
+            db.session.commit()
+
+        if teacher_conflict and reservation.status == 'pending':
+            flash('Reserva atualizada como PENDENTE devido a conflito de professor.', 'warning')
+        else:
+            flash('Reserva atualizada com sucesso.', 'success')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
 
     return render_template('reservations/edit.html', form=form, reservation=reservation)
@@ -331,8 +318,22 @@ def delete(reservation_id):
 def approve(reservation_id):
     reservation = _get_reservation_scoped(reservation_id)
     if reservation.status == 'pending':
-        reservation.status = 'approved'
-        db.session.commit()
+        # Aprovar revalida o conflito de sala dentro da seção crítica:
+        # enquanto a reserva estava pendente outra pode ter sido aprovada
+        # sobre a mesma janela (ou estar sendo aprovada em paralelo).
+        with slot_locks(reservation.classroom_id, [reservation.date]):
+            conflict = check_conflict(
+                reservation.classroom_id, reservation.date,
+                reservation.start_time, reservation.end_time,
+                exclude_id=reservation.id)
+            if conflict:
+                flash(f'Não é possível aprovar: a sala já possui a reserva aprovada '
+                      f'"{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - '
+                      f'{conflict.end_time.strftime("%H:%M")}) nesta janela. '
+                      f'A reserva permanece PENDENTE.', 'danger')
+                return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+            reservation.status = 'approved'
+            db.session.commit()
         flash('Reserva aprovada.', 'success')
     return redirect(url_for('reservations.detail', reservation_id=reservation.id))
 
@@ -389,16 +390,12 @@ def repeat_view(reservation_id):
                 if d.weekday() == 6: continue
                 if d.weekday() == 5 and original_weekday != 5: continue
             
-            allowed, msg = check_schedule_restrictions(d, res.start_time)
+            allowed, msg = check_schedule_restrictions(d, res.start_time, res.end_time)
             conflict = check_conflict(res.classroom_id, d, res.start_time, res.end_time)
             teacher_conflict = False
             if res.teacher_id:
-                tc = Reservation.query.filter(
-                    Reservation.teacher_id == res.teacher_id, Reservation.date == d,
-                    Reservation.status.in_(['approved', 'pending']),
-                    Reservation.start_time < res.end_time, Reservation.end_time > res.start_time
-                ).first()
-                if tc: teacher_conflict = True
+                teacher_conflict = check_teacher_conflict(
+                    res.teacher_id, d, res.start_time, res.end_time) is not None
 
             is_available = allowed and not conflict and not teacher_conflict
             formatted_card_date = f"{dias_semana_curto[d.weekday()]}, {d.day} {meses_curto[d.month - 1]}"
@@ -430,24 +427,25 @@ def repeat_schedule(reservation_id):
         flash('Data inválida.', 'danger')
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
-    allowed, msg = check_schedule_restrictions(new_date, res.start_time)
-    if not allowed:
-        flash(msg, 'danger')
-        return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+    with slot_locks(res.classroom_id, [new_date]):
+        allowed, msg = check_schedule_restrictions(new_date, res.start_time, res.end_time)
+        if not allowed:
+            flash(msg, 'danger')
+            return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
-    conflict = check_conflict(res.classroom_id, new_date, res.start_time, res.end_time)
-    if conflict:
-        flash(f'Conflito de sala em {new_date}.', 'danger')
-        return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+        conflict = check_conflict(res.classroom_id, new_date, res.start_time, res.end_time)
+        if conflict:
+            flash(f'Conflito de sala em {new_date}.', 'danger')
+            return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
-    new_res = Reservation(
-        user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
-        subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
-        description=res.description, date=new_date, start_time=res.start_time,
-        end_time=res.end_time, status='approved', unity_id=res.unity_id
-    )
-    db.session.add(new_res)
-    db.session.commit()
+        new_res = Reservation(
+            user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
+            subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
+            description=res.description, date=new_date, start_time=res.start_time,
+            end_time=res.end_time, status='approved', unity_id=res.unity_id
+        )
+        db.session.add(new_res)
+        db.session.commit()
     flash(f'Reserva agendada com sucesso para {new_date}.', 'success')
     return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
@@ -474,42 +472,47 @@ def repeat_schedule_all(reservation_id):
     scheduled_count = 0
     current_date = start_date
     original_weekday = res.date.weekday()
-    
-    while current_date <= end_date:
-        if same_day and current_date.weekday() != original_weekday:
+
+    # Seção crítica de todo o intervalo: as checagens das N datas enxergam o
+    # estado consolidado e nenhuma reserva concorrente grava no meio do lote.
+    range_dates = []
+    d = start_date
+    while d <= end_date:
+        range_dates.append(d)
+        d += timedelta(days=1)
+
+    with slot_locks(res.classroom_id, range_dates):
+        while current_date <= end_date:
+            if same_day and current_date.weekday() != original_weekday:
+                current_date += timedelta(days=1)
+                continue
+            if skip_weekend:
+                if current_date.weekday() == 6:
+                    current_date += timedelta(days=1)
+                    continue
+                if current_date.weekday() == 5 and original_weekday != 5:
+                    current_date += timedelta(days=1)
+                    continue
+
+            allowed, _ = check_schedule_restrictions(current_date, res.start_time, res.end_time)
+            if allowed:
+                conflict = check_conflict(res.classroom_id, current_date, res.start_time, res.end_time)
+                if not conflict:
+                    teacher_conflict = False
+                    if res.teacher_id:
+                        teacher_conflict = check_teacher_conflict(
+                            res.teacher_id, current_date, res.start_time, res.end_time) is not None
+                    if not teacher_conflict:
+                        new_res = Reservation(
+                            user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
+                            subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
+                            description=res.description, date=current_date, start_time=res.start_time,
+                            end_time=res.end_time, status='approved', unity_id=res.unity_id
+                        )
+                        db.session.add(new_res)
+                        scheduled_count += 1
             current_date += timedelta(days=1)
-            continue
-        if skip_weekend:
-            if current_date.weekday() == 6: 
-                current_date += timedelta(days=1)
-                continue
-            if current_date.weekday() == 5 and original_weekday != 5: 
-                current_date += timedelta(days=1)
-                continue
-        
-        allowed, _ = check_schedule_restrictions(current_date, res.start_time)
-        if allowed:
-            conflict = check_conflict(res.classroom_id, current_date, res.start_time, res.end_time)
-            if not conflict:
-                teacher_conflict = False
-                if res.teacher_id:
-                    tc = Reservation.query.filter(
-                        Reservation.teacher_id == res.teacher_id, Reservation.date == current_date,
-                        Reservation.status.in_(['approved', 'pending']),
-                        Reservation.start_time < res.end_time, Reservation.end_time > res.start_time
-                    ).first()
-                    if tc: teacher_conflict = True
-                if not teacher_conflict:
-                    new_res = Reservation(
-                        user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
-                        subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
-                        description=res.description, date=current_date, start_time=res.start_time,
-                        end_time=res.end_time, status='approved', unity_id=res.unity_id
-                    )
-                    db.session.add(new_res)
-                    scheduled_count += 1
-        current_date += timedelta(days=1)
-        
-    db.session.commit()
+
+        db.session.commit()
     flash(f'{scheduled_count} novas reservas agendadas com sucesso.', 'success')
     return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
