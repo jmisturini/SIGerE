@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+{% block title %}{{ recipe.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-egg-fried text-primary me-2"></i>{{ recipe.name }}</h3>
+        <p class="text-muted mb-0">
+            <i class="bi bi-clock me-1"></i>Tempo de Preparação: {{ recipe.prep_time or '—' }} ·
+            <i class="bi bi-people me-1"></i>Rendimento: {{ recipe.yield_info or '—' }}
+        </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('kitchen.preparations') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Voltar
+        </a>
+        {% if can_edit %}
+        <a href="{{ url_for('kitchen.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-outline-primary">
+            <i class="bi bi-pencil-square me-1"></i> Editar preparação
+        </a>
+        {% endif %}
+        {% if can_delete %}
+        <form method="POST" action="{{ url_for('kitchen.delete_recipe', recipe_id=recipe.id) }}"
+              onsubmit="return confirm('Excluir esta preparação e a ficha técnica de origem?');">
+            <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        {% if recipe.base_portions %}
+        {# ── Recálculo de quantidades por porções (base = menor rendimento) ── #}
+        <div class="card border-primary-subtle mb-4">
+            <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+                <label for="scale-portions" class="small fw-semibold mb-0 text-nowrap">
+                    <i class="bi bi-calculator text-primary me-1"></i>Porções desejadas:
+                </label>
+                <input type="number" id="scale-portions" class="form-control form-control-sm"
+                       style="width: 90px;" min="0" step="any" value="{{ recipe.base_portions|qtyfmt }}">
+                <button type="button" id="btn-recalc" class="btn btn-sm btn-outline-primary text-nowrap">
+                    <i class="bi bi-arrow-repeat me-1"></i> Recalcular quantidades
+                </button>
+                <button type="button" id="btn-reset-scale" class="btn btn-sm btn-outline-secondary d-none"
+                        title="Voltar às quantidades originais">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+                <span class="small text-muted ms-auto text-nowrap">
+                    Rendimento base: {{ recipe.base_portions|qtyfmt }} porç{{ 'ões' if recipe.base_portions != 1 else 'ão' }}
+                    (menor valor do rendimento informado)
+                </span>
+            </div>
+        </div>
+        {% elif recipe.yield_info %}
+        <p class="small text-muted mb-3">
+            <i class="bi bi-calculator me-1"></i>O rendimento informado não contém número de porções —
+            não é possível recalcular quantidades.
+        </p>
+        {% endif %}
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="fw-bold mb-2"><i class="bi bi-gear text-primary me-1"></i>Equipamentos utilizados</h6>
+                        <p class="small mb-0">{{ recipe.equipments or '—' }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="fw-bold mb-2"><i class="bi bi-tools text-primary me-1"></i>Utensílios</h6>
+                        <p class="small mb-0">{{ recipe.utensils or '—' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% for preparation in recipe.preparations %}
+        <div class="card mb-4">
+            <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h6 class="fw-bold mb-0">
+                    <i class="bi bi-collection me-2"></i>
+                    {{ 'Ingredientes — ' ~ preparation.name if recipe.preparations|length > 1 else 'Ingredientes' }}
+                </h6>
+                {% if can_edit %}
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{{ url_for('kitchen.edit_ingredients', recipe_id=recipe.id, prep_id=preparation.id) }}">
+                    <i class="bi bi-pencil-square me-1"></i> Editar ingredientes
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Ingrediente</th>
+                                <th>Especificação</th>
+                                <th class="text-center">Quantidade</th>
+                                <th class="text-end {{ '' if can_edit else 'pe-4' }}">Unidade</th>
+                                {% if can_edit %}<th class="text-end pe-4">Situação</th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for ingredient in preparation.ingredients %}
+                            <tr class="{{ 'text-muted' if not ingredient.is_active }}">
+                                <td class="ps-4 fw-semibold">
+                                    {{ ingredient.name }}
+                                    {% if not ingredient.is_active %}
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1"
+                                          title="Desativado: não aparece na requisição de compra">Inativo</span>
+                                    {% endif %}
+                                </td>
+                                <td class="small text-muted">{{ ingredient.specification or '—' }}</td>
+                                <td class="text-center" {% if ingredient.quantity is not none %}data-qty="{{ ingredient.quantity }}"{% endif %}><span class="qty-text">{{ ingredient.quantity|qtyfmt if ingredient.quantity is not none else (ingredient.quantity_raw or '—') }}</span></td>
+                                <td class="text-end {{ '' if can_edit else 'pe-4' }}">{{ ingredient.unit or '—' }}</td>
+                                {% if can_edit %}
+                                <td class="text-end pe-4">
+                                    <form method="POST" class="d-inline"
+                                          action="{{ url_for('kitchen.toggle_ingredient', ingredient_id=ingredient.id) }}">
+                                        {% if ingredient.is_active %}
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                                title="Desativar (sai da requisição de compra)">
+                                            <i class="bi bi-toggle-on"></i>
+                                        </button>
+                                        {% else %}
+                                        <button type="submit" class="btn btn-sm btn-outline-success"
+                                                title="Ativar (volta à requisição de compra)">
+                                            <i class="bi bi-toggle-off"></i>
+                                        </button>
+                                        {% endif %}
+                                    </form>
+                                </td>
+                                {% endif %}
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="{{ 5 if can_edit else 4 }}" class="text-center text-muted p-4">Nenhum ingrediente nesta preparação.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center text-muted p-5">
+                <i class="bi bi-list-check fs-2 d-block mb-2"></i>
+                <h5 class="mb-1">Nenhum ingrediente cadastrado</h5>
+                <p class="small mb-0">A ficha técnica de origem não continha a tabela de insumos.</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header bg-transparent py-3 d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0"><i class="bi bi-journal-text me-2"></i>Modo de Preparo</h6>
+                <span class="badge bg-light text-dark border">Geral</span>
+            </div>
+            <div class="card-body">
+                {% if recipe.step_list %}
+                <ol class="mb-0 ps-3">
+                    {% for step in recipe.step_list %}
+                    <li class="mb-2">{{ step }}</li>
+                    {% endfor %}
+                </ol>
+                {% else %}
+                <p class="text-muted fst-italic mb-0">Nenhum modo de preparo informado.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if recipe.allergens %}
+        <div class="card border-warning-subtle mb-4">
+            <div class="card-body">
+                <h6 class="fw-bold mb-2"><i class="bi bi-exclamation-circle text-warning me-1"></i>Alergênicos</h6>
+                <p class="small mb-0">{{ recipe.allergens }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if recipe.general_notes %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h6 class="fw-bold mb-2"><i class="bi bi-clipboard-data me-1"></i>Observações técnicas</h6>
+                <p class="small mb-0">{{ recipe.general_notes }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if recipe.references %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h6 class="fw-bold mb-2"><i class="bi bi-book me-1"></i>Referências bibliográficas</h6>
+                <p class="small mb-0">{{ recipe.references }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if recipe.technical_sheet %}
+        <div class="card border-secondary-subtle">
+            <div class="card-body d-flex justify-content-between align-items-center gap-2">
+                <div class="small">
+                    <span class="fw-semibold"><i class="bi bi-file-earmark-word me-1"></i>Ficha de origem:</span>
+                    <span class="text-muted text-break">{{ recipe.technical_sheet.original_filename }}</span>
+                </div>
+                <a href="{{ url_for('kitchen.download_sheet', sheet_id=recipe.technical_sheet.id) }}"
+                   class="btn btn-sm btn-outline-secondary flex-shrink-0" title="Baixar .docx original">
+                    <i class="bi bi-download"></i>
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if recipe.base_portions %}
+<script>
+    // Recálculo proporcional das quantidades exibidas: fator = porções desejadas
+    // ÷ rendimento base (menor valor quando o rendimento é uma faixa).
+    const basePortions = {{ recipe.base_portions }};
+    const fmtQty = (v) => {
+        if (Math.abs(v - Math.trunc(v)) < 1e-9) return String(Math.trunc(v));
+        return (Math.round(v * 100) / 100).toFixed(2).replace(/0$/, '').replace('.', ',');
+    };
+    const qtyCells = () => document.querySelectorAll('td[data-qty]');
+
+    document.getElementById('btn-recalc').addEventListener('click', () => {
+        const desired = parseFloat(document.getElementById('scale-portions').value);
+        if (!desired || desired <= 0) { alert('Informe um número de porções válido.'); return; }
+        const factor = desired / basePortions;
+        qtyCells().forEach(td => {
+            td.querySelector('.qty-text').textContent = fmtQty(parseFloat(td.dataset.qty) * factor);
+        });
+        document.getElementById('btn-reset-scale').classList.remove('d-none');
+    });
+
+    document.getElementById('btn-reset-scale').addEventListener('click', () => {
+        document.getElementById('scale-portions').value = basePortions;
+        qtyCells().forEach(td => {
+            td.querySelector('.qty-text').textContent = fmtQty(parseFloat(td.dataset.qty));
+        });
+        document.getElementById('btn-reset-scale').classList.add('d-none');
+    });
+</script>
+{% endif %}
+{% endblock %}

@@ -9,7 +9,10 @@ instance/
 *.log
 
 # Uploads de usuários
-static/uploads/
+app/static/uploads/
+
+# Backup do módulo Cozinha v1 (preservado fora do git; versão no branch cozinha-backup)
+backup_cozinha/
 
 # IDE
 .vscode/
@@ -18,3 +21,10 @@ static/uploads/
 # SO
 .DS_Store
 Thumbs.db
+
+# Arquivos de lock do Excel (~$arquivo.xlsx)
+~$*
+
+# Backups de banco de dados
+*.db.bak*
+reservation.db.bak*

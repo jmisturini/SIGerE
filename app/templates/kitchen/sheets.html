@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% block title %}Cozinha — Ficha Técnica{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-word text-primary me-2"></i>Ficha Técnica</h3>
+        <p class="text-muted mb-0">Envie os arquivos .docx das fichas técnicas operacionais — o sistema lê o conteúdo
+            e, após salvar, a preparação fica disponível no menu <strong>Preparações</strong>.</p>
+    </div>
+    {% if can_manage %}
+    <a href="{{ url_for('kitchen.create_sheet') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> Criar Ficha Técnica
+    </a>
+    {% endif %}
+</div>
+
+{% if can_manage %}
+<div class="card mb-4 border-primary-subtle">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('kitchen.upload_sheets') }}" enctype="multipart/form-data"
+              class="row g-3 align-items-end">
+            <div class="col-lg-8">
+                <label for="files" class="form-label fw-semibold">
+                    <i class="bi bi-cloud-arrow-up me-1"></i> Arquivos das fichas técnicas
+                </label>
+                <input type="file" class="form-control" id="files" name="files" accept=".docx" multiple required>
+                <div class="form-text">É possível enviar várias fichas de uma vez. Formato aceito: .docx (Word).</div>
+            </div>
+            <div class="col-lg-4">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-file-earmark-text me-1"></i> Ler arquivos
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if pending %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <h5 class="fw-bold mb-0">
+        <i class="bi bi-hourglass-split text-warning me-2"></i>Aguardando salvamento
+        <span class="badge text-bg-warning ms-1">{{ pending|length }}</span>
+    </h5>
+    {% if can_manage and pending|length > 1 %}
+    <form method="POST" action="{{ url_for('kitchen.save_all_sheets') }}">
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-save me-1"></i> Salvar todas ({{ pending|length }})
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+    {% for sheet in pending %}
+    {% set data = sheet.parsed_data %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card h-100 border-warning-subtle">
+            <div class="card-header bg-warning-subtle d-flex align-items-start gap-2">
+                <i class="bi bi-file-earmark-word fs-5"></i>
+                <div class="small flex-grow-1">
+                    <div class="fw-semibold text-break">{{ sheet.original_filename }}</div>
+                    <div class="text-muted">Enviada em {{ sheet.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <h6 class="fw-bold mb-3 text-break">{{ data.nome if data else '—' }}</h6>
+                {% if data %}
+                <p class="small mb-1"><strong><i class="bi bi-gear me-1"></i>Equipamentos:</strong> {{ data.equipamentos or '—' }}</p>
+                <p class="small mb-1"><strong><i class="bi bi-tools me-1"></i>Utensílios:</strong> {{ data.utensilios or '—' }}</p>
+                <p class="small mb-1"><strong><i class="bi bi-clock me-1"></i>Tempo de Preparo:</strong> {{ data.tempo_preparo or '—' }}</p>
+                <p class="small mb-1"><strong><i class="bi bi-people me-1"></i>Rendimento:</strong> {{ data.rendimento or '—' }}</p>
+                <p class="small mb-0">
+                    <strong><i class="bi bi-list-check me-1"></i>Insumos:</strong>
+                    {{ data.preparacoes|length }} preparação(ões) e
+                    {% set total = namespace(n=0) %}{% for p in data.preparacoes %}{% set total.n = total.n + p.ingredientes|length %}{% endfor %}
+                    {{ total.n }} ingrediente(s)
+                </p>
+                {% else %}
+                <p class="small text-muted mb-0">Sem prévia disponível.</p>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent d-flex gap-2">
+                <a href="{{ url_for('kitchen.sheet_preview', sheet_id=sheet.id) }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-eye me-1"></i> Ver prévia
+                </a>
+                {% if can_manage %}
+                <form method="POST" action="{{ url_for('kitchen.save_sheet', sheet_id=sheet.id) }}" class="flex-grow-1">
+                    <button type="submit" class="btn btn-sm btn-success w-100">
+                        <i class="bi bi-save me-1"></i> Salvar Ficha Técnica
+                    </button>
+                </form>
+                {% endif %}
+                {% if can_delete %}
+                <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}"
+                      onsubmit="return confirm('Descartar a ficha &quot;{{ sheet.original_filename }}&quot;?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Descartar">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if errored %}
+<div class="card border-danger-subtle mb-4">
+    <div class="card-header bg-danger-subtle">
+        <h6 class="fw-bold mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Falha na leitura</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead><tr><th class="ps-4">Arquivo</th><th>Problema</th><th class="text-end pe-4">Ações</th></tr></thead>
+                <tbody>
+                {% for sheet in errored %}
+                    <tr>
+                        <td class="ps-4 text-break">{{ sheet.original_filename }}</td>
+                        <td class="text-danger small">{{ sheet.parse_error or 'Erro desconhecido.' }}</td>
+                        <td class="text-end pe-4">
+                            {% if can_delete %}
+                            <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}" class="d-inline">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir arquivo"><i class="bi bi-trash"></i></button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header bg-transparent py-3">
+        <h6 class="fw-bold mb-0"><i class="bi bi-archive me-2"></i>Fichas salvas</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Arquivo</th>
+                        <th>Preparação</th>
+                        <th>Enviada em</th>
+                        <th>Enviada por</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for sheet in saved %}
+                    <tr>
+                        <td class="ps-4 text-break" style="max-width: 280px;">{{ sheet.original_filename }}</td>
+                        <td>
+                            {% if sheet.recipe %}
+                            <a href="{{ url_for('kitchen.preparation_detail', recipe_id=sheet.recipe.id) }}" class="fw-bold text-decoration-none">
+                                {{ sheet.recipe.name }}
+                            </a>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>{{ sheet.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ sheet.uploaded_by.full_name if sheet.uploaded_by else '—' }}</td>
+                        <td class="text-end pe-4">
+                            <a href="{{ url_for('kitchen.sheet_preview', sheet_id=sheet.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver conteúdo">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{{ url_for('kitchen.download_sheet', sheet_id=sheet.id) }}" class="btn btn-sm btn-outline-secondary" title="Baixar .docx">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            {% if can_delete %}
+                            <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}" class="d-inline"
+                                  onsubmit="return confirm('Excluir a ficha e a preparação gerada por ela?');">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir ficha e preparação"><i class="bi bi-trash"></i></button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted p-5">
+                            <i class="bi bi-file-earmark-word fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhuma ficha técnica salva</h5>
+                            <p class="small mb-0">Envie os arquivos .docx acima para começar.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

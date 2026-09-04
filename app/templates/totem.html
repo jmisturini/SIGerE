@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="300">
+    <title>Ocupação de Salas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Tema Claro (Senac/Moderno) */
+            --bg-light: #f4f6f9;
+            --card-bg-light: #ffffff;
+            --text-main-light: #1e293b;
+            --text-muted-light: #64748b;
+            --border-light: #e2e8f0;
+            --primary-light: #004b8d;
+            --danger-light: #ef4444;
+            --shadow-light: 0 4px 20px rgba(0, 0, 0, 0.05);
+
+            /* Tema Escuro (Senac/Moderno) */
+            --bg-dark: #0d1117;
+            --card-bg-dark: #161b22;
+            --text-main-dark: #f8fafc;
+            --text-muted-dark: #8b949e;
+            --border-dark: #30363d;
+            --primary-dark: #2c7be5;
+            --danger-dark: #f87171;
+            --shadow-dark: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+            transition: background-color 0.5s ease, color 0.5s ease;
+        }
+
+        /* Dia */
+        body.day-theme {
+            background-color: var(--bg-light);
+            color: var(--text-main-light);
+        }
+        body.day-theme .totem-header {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-light);
+        }
+        body.day-theme .room-card, body.day-theme .aud-card {
+            background: var(--card-bg-light);
+            border: 1px solid var(--border-light);
+            box-shadow: var(--shadow-light);
+            color: var(--text-main-light);
+        }
+        body.day-theme .room-card.occupied {
+            border-left: 5px solid var(--danger-light);
+            background: linear-gradient(90deg, rgba(239, 68, 68, 0.05) 0%, var(--card-bg-light) 100%);
+        }
+        body.day-theme .aud-card {
+            border-left: 5px solid var(--primary-light);
+            background: linear-gradient(90deg, rgba(0, 75, 141, 0.05) 0%, var(--card-bg-light) 100%);
+        }
+        body.day-theme .category-badge { background: #e2e8f0; color: #475569; }
+        body.day-theme .event-time { color: var(--text-muted-light); }
+        body.day-theme .clock-date { color: var(--text-muted-light); }
+        body.day-theme .text-muted { color: var(--text-muted-light) !important; }
+
+        /* Noite */
+        body.night-theme {
+            background-color: var(--bg-dark);
+            color: var(--text-main-dark);
+        }
+        body.night-theme .totem-header {
+            background: rgba(13, 17, 23, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-dark);
+        }
+        body.night-theme .room-card, body.night-theme .aud-card {
+            background: var(--card-bg-dark);
+            border: 1px solid var(--border-dark);
+            box-shadow: var(--shadow-dark);
+            color: var(--text-main-dark);
+        }
+        body.night-theme .room-card.occupied {
+            border-left: 5px solid var(--danger-dark);
+            background: linear-gradient(90deg, rgba(248, 113, 113, 0.1) 0%, var(--card-bg-dark) 100%);
+        }
+        body.night-theme .aud-card {
+            border-left: 5px solid var(--primary-dark);
+            background: linear-gradient(90deg, rgba(44, 123, 229, 0.1) 0%, var(--card-bg-dark) 100%);
+        }
+        body.night-theme .category-badge { background: #21262d; color: #c9d1d9; }
+        body.night-theme .event-time { color: var(--text-muted-dark); }
+        body.night-theme .clock-date { color: var(--text-muted-dark); }
+        body.night-theme .text-muted { color: var(--text-muted-dark) !important; }
+
+        /* Componentes */
+        .clock-time { font-size: 3.5rem; font-weight: 800; letter-spacing: -2px; }
+        .weather-widget { font-size: 1.5rem; font-weight: 600; }
+        .period-title { font-size: 1.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border-bottom: 3px solid var(--primary-dark); padding-bottom: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        body.day-theme .period-title { border-color: var(--primary-light); }
+        
+        .category-badge { font-size: 1rem; padding: 6px 14px; border-radius: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 15px; }
+        .room-card { border-radius: 12px; padding: 18px; margin-bottom: 15px; transition: transform 0.2s; }
+        .room-code { font-size: 1.6rem; font-weight: 800; }
+        .event-title { font-size: 1.2rem; font-weight: 600; }
+        .event-time { font-size: 1rem; display: flex; align-items: center; gap: 5px; }
+        .aud-card { border-radius: 12px; padding: 18px; margin-bottom: 10px; }
+        
+        .totem-scroll {
+            max-height: 38vh;
+            overflow-y: hidden;
+            padding-right: 10px;
+            position: relative;
+        }
+        .totem-header { z-index: 1000; }
+    </style>
+</head>
+<body class="night-theme">
+<div class="totem-header py-4 sticky-top">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+        <div>
+            <div class="clock-date" id="date-display">Carregando...</div>
+            <div class="clock-time" id="time-display">00:00:00</div>
+        </div>
+        <div class="text-center d-none d-md-block">
+            <span class="text-muted fs-4 fw-bold">Ocupação de Salas</span>
+            {% if totem_unity %}
+            <div class="text-muted fs-6">
+                <i class="bi bi-geo-alt"></i> {{ totem_unity.name }}
+                {% if totem_unities and totem_unities|length > 1 %}
+                <div class="dropdown d-inline">
+                    <a class="text-muted small text-decoration-none" data-bs-toggle="dropdown" href="#" title="Trocar unidade">
+                        <i class="bi bi-chevron-down"></i>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        {% for u in totem_unities %}
+                        <li><a class="dropdown-item {{ 'active' if u.id == totem_unity.id }}" href="{{ url_for('totem.display', unity=u.id) }}">{{ u.name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        <div class="weather-widget text-end">
+            <i class="bi bi-cloud-sun"></i> <span id="weather-temp">--°C</span>
+            <div class="text-muted fs-6" id="weather-city">Carregando...</div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid mt-4">
+    <div class="row g-4">
+        <!-- TOP BLOCK: Auditoriums (Week) -->
+        <div class="col-12">
+            <div class="period-title"><i class="bi bi-buildings"></i> Auditórios (Próximos 7 dias)</div>
+            <div class="totem-scroll">
+                {% if aud_reservations %}
+                    <div class="row g-3">
+                        {% for r in aud_reservations %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="aud-card h-100">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="room-code">{{ r.classroom.code }}</span>
+                                    <span class="badge bg-primary fs-6">{{ r.date.strftime('%d/%m') }}</span>
+                                </div>
+                                <div class="mt-2">
+                                    <div class="event-title">{{ r.title }}</div>
+                                    <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="room-card text-center text-muted py-4"><i class="bi bi-emoji-smile fs-4 d-block mb-2"></i><h5>Nenhum auditório reservado para a semana</h5></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- BOTTOM BLOCK: Classrooms (Current Period) -->
+        <div class="col-12">
+            <div class="period-title"><i class="bi bi-door-closed"></i> Salas de Aula ({{ current_period }})</div>
+            <div class="totem-scroll">
+                {% if classroom_floors %}
+                    <div class="row g-3">
+                        {% for floor_name, reservations in classroom_floors.items() %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="category-badge"><i class="bi bi-layers"></i> {{ floor_name }}</div>
+                            {% for r in reservations %}
+                            <div class="room-card occupied mb-3">
+                                <div class="d-flex justify-content-between align-items-center"><span class="room-code">{{ r.classroom.code }}</span></div>
+                                <div class="mt-2">
+                                    <div class="event-title">{{ r.title }}</div>
+                                    <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="room-card text-center text-muted py-4"><i class="bi bi-emoji-smile fs-4 d-block mb-2"></i><h5>Nenhuma sala ocupada neste período</h5></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('date-display').textContent = now.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        document.getElementById('time-display').textContent = now.toLocaleTimeString('pt-BR', { hour12: false });
+    }
+    setInterval(updateClock, 1000); updateClock();
+
+    // Open-Meteo API
+    const lat = -27.5973; const lon = -48.5496;
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
+        .then(r => r.json()).then(data => {
+            if (data.current_weather) {
+                document.getElementById('weather-temp').textContent = `${Math.round(data.current_weather.temperature)}°C`;
+                let icon = 'bi-cloud'; const code = data.current_weather.weathercode;
+                if (code === 0) icon = 'bi-sun'; else if (code <= 3) icon = 'bi-cloud-sun'; else if (code <= 48) icon = 'bi-cloud-fog'; else if (code <= 67) icon = 'bi-cloud-rain'; else if (code <= 77) icon = 'bi-snow'; else if (code <= 99) icon = 'bi-cloud-lightning-rain';
+                document.querySelector('.weather-widget i').className = `bi ${icon}`;
+                document.getElementById('weather-city').textContent = 'Florianópolis, SC'; // Cidade fixa para o totem
+            }
+        }).catch(() => document.getElementById('weather-city').textContent = 'Indisponível');
+
+    // Auto Day/Night Theme
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 18) { 
+        document.body.classList.remove('night-theme'); 
+        document.body.classList.add('day-theme'); 
+    }
+    
+    // --- Auto-Scroll Logic for Totem ---
+    document.querySelectorAll('.totem-scroll').forEach(container => {
+        let pos = 0;
+        let dir = 1; // 1 para baixo, -1 para cima
+        let paused = false;
+
+        setInterval(() => {
+            if (paused) return;
+            // Se o conteúdo não ultrapassa a altura do contêiner, não rola
+            if (container.scrollHeight <= container.clientHeight) return;
+
+            pos += dir;
+            container.scrollTop = pos;
+
+            // Se chegou ao fundo, pausa e inverte a direção
+            if (pos >= container.scrollHeight - container.clientHeight) {
+                dir = -1;
+                paused = true;
+                setTimeout(() => paused = false, 4000); // Pausa 4 segundos no fundo
+            } 
+            // Se voltou ao topo, pausa e inverte a direção
+            else if (pos <= 0) {
+                dir = 1;
+                paused = true;
+                setTimeout(() => paused = false, 4000); // Pausa 4 segundos no topo
+            }
+        }, 40); // Velocidade da rolagem (menor = mais rápido)
+    });
+</script>
+</body>
+</html>

@@ -100,18 +100,12 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
   - Horas extras só até o dia 25 do mês corrente
 - **Exportação Excel:** planilhas formatadas com modelo pré-definido (base e horas extras)
 
-### 🍳 Cozinha: Receitas, Ingredientes e Estoque (`/kitchen`)
-- **Painel da Cozinha (dashboard):** gráficos Chart.js com evolução de entradas × saídas (30 dias), valor do estoque por categoria, top ingredientes consumidos e receitas mais preparadas; cartões de resumo e alertas de validade
-- **Cadastro de ingredientes:** nome, **categoria (seção de mercado: Frios, Hortifruti, Grãos...)**, unidade de medida, **preço de compra por unidade** e estoque mínimo para alertas; a listagem é **agrupada por seções, como um supermercado**
-- **Controle de estoque:** posição atual, alerta de **estoque baixo**, entradas e saídas com usuário responsável (saída nunca deixa o saldo negativo) e **histórico completo com filtros e paginação**
-- **Lotes e validade:** registro de lotes por ingrediente com alertas de produtos **vencidos e vencendo** (7 dias) no estoque e no painel
-- **Cadastro de receitas:** rendimento, tempo de preparo, modo de preparo, foto e lista dinâmica de ingredientes; **custo total e custo por porção calculados automaticamente** a partir dos preços cadastrados
-- **Verificação automática de disponibilidade:** ao abrir uma receita, o sistema informa se todos os ingredientes estão em estoque ou exatamente quais e quanto falta
-- **Recálculo proporcional:** informe o número de porções desejado e as quantidades (e o custo) são recalculados automaticamente
-- **Versão para impressão:** layout limpo e formatado da receita, pronto para a cozinha
-- **Lista de compras (dois modos):** por receita (itens faltantes) ou **reposição automática** (todos os ingredientes abaixo do estoque mínimo, mesmo sem receita); agrupada por categoria, com custo estimado; disponível em **PDF moderno**, **texto formatado para copiar** (WhatsApp) e **envio por e-mail** (SMTP configurável via variáveis de ambiente)
-- **Relatório de consumo:** gráficos por período com top ingredientes consumidos, tendência de custo semanal e detalhamento por ingrediente
-- **Preparar receita (baixa de estoque):** com um clique, os ingredientes são deduzidos do estoque e o movimento é registrado no histórico — bloqueado se houver ingredientes insuficientes
+### 🍳 Cozinha (`/kitchen`)
+- **Ficha Técnica:** envio de múltiplos arquivos `.docx` de fichas técnicas operacionais de uma vez; o sistema lê o conteúdo (nome da preparação, equipamentos, utensílios, tempo de preparo, rendimento, tabelas de insumos, modo de preparo e notas técnicas) e um botão **Salvar Ficha Técnica** gera a preparação; também é possível **criar a ficha manualmente** pelo botão "Criar Ficha Técnica", no mesmo modelo
+- **Preparações:** cada ficha salva gera uma receita visualizável em **cards ou lista** (à escolha do usuário, persistida no navegador), com busca por nome; a visualização completa traz equipamentos, utensílios, tempo, rendimento, ingredientes por preparação (especificação, quantidade e unidade), modo de preparo geral, alergênicos, observações e referências; os ingredientes podem ser **editados e ativados/desativados** — desativados, ficam de fora da requisição de compra; há **recálculo das quantidades por porções desejadas** (base = menor rendimento informado, ex.: "4 a 6 porções" usa 4) e **edição de todos os campos da preparação**
+- **Compras:** seleção de múltiplas preparações e **soma dos ingredientes por similaridade** (acentos, plurais e parênteses normalizados), com conversão automática de unidades (g→KG, ml→L, un→UN) e exportação da **requisição de compra em Excel** preenchendo o modelo `app/static/templates_excel/base_planilha_compras.xlsx` ("REQUISIÇÃO DE COMPRA - GASTRONOMIA", com aba de centros de custo); a coluna OBSERVAÇÃO é exportada em branco, com as linhas da grade, para ser preenchida posteriormente
+- **Multi-unidade:** fichas e preparações são isoladas por unidade educacional
+- **Permissões:** `kitchen:read`, `kitchen:sheet_create`, `kitchen:sheet_delete`, `kitchen:shopping_export`
 
 ### 🌐 Portal Público
 - Página inicial pública com links para login, calendário e busca
@@ -162,23 +156,23 @@ venv\Scripts\activate
 pip install -r requirements.txt
 
 # 4. Execute a aplicação
-python app.py
+python run.py
 ```
 
 A aplicação estará disponível em: **http://localhost:5000**
 
-> **Nota:** Na primeira execução, o banco de dados é criado automaticamente. Execute `flask seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas, 20 reservas, ingredientes e receitas).
+> **Nota:** Na primeira execução, o banco de dados é criado automaticamente. Execute `flask --app run seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
 
-> **Atualizando uma instalação existente:** ao receber atualizações que adicionam novos módulos (ex: Cozinha), execute `flask sync-permissions` para criar as novas permissões e vinculá-las aos papéis sem precisar popular o banco novamente.
+> **Atualizando uma instalação existente:** ao receber atualizações que adicionam novos módulos, execute `flask --app run sync-permissions` para criar as novas permissões e vinculá-las aos papéis sem precisar popular o banco novamente.
 
 ---
 
 ## ⚙️ Configuração
 
-Edite o arquivo `config.py` ou utilize variáveis de ambiente:
+Edite o arquivo `app/config.py` ou utilize variáveis de ambiente:
 
 ```python
-# config.py
+# app/config.py
 import os
 
 class Config:
@@ -197,23 +191,9 @@ export SECRET_KEY="sua-chave-secreta-forte-aqui"
 export DATABASE_URL="postgresql://user:pass@localhost/sigere"
 ```
 
-### Envio da lista de compras por e-mail (opcional)
-
-```bash
-export MAIL_HOST="smtp.gmail.com"
-export MAIL_PORT="587"
-export MAIL_USER="cozinha@escola.edu"
-export MAIL_PASSWORD="senha-do-email"
-export MAIL_FROM="cozinha@escola.edu"   # opcional; padrão: MAIL_USER
-export MAIL_USE_TLS="true"              # padrão: true
-```
-
-Sem essas variáveis o sistema avisa que o e-mail não está configurado e a lista continua
-disponível para copiar como texto formatado, imprimir ou baixar em PDF.
-
 ### Configurar localização do Totem (Clima)
 
-Edite `templates/totem.html` e ajuste as coordenadas geográficas:
+Edite `app/templates/totem.html` e ajuste as coordenadas geográficas:
 
 ```javascript
 const lat = -23.5505;   // Latitude da sua instituição
@@ -256,44 +236,54 @@ const lon = -46.6333;   // Longitude da sua instituição
 ```
 SIGERE/
 │
-├── app.py                 # Factory da aplicação, registro de blueprints e hooks de segurança
-├── config.py              # Configurações do Flask
-├── extensions.py          # Instâncias do SQLAlchemy e LoginManager
-├── models.py              # Modelos do banco de dados (User, Classroom, Reservation, etc.)
-├── forms.py               # Definições de formulários WTForms
-├── requirements.txt       # Dependências Python
+├── run.py                     # Entrypoint: cria a app e roda o servidor
+├── requirements.txt           # Dependências Python
+├── reservation.db             # Banco SQLite (criado na primeira execução)
 │
-├── auth.py                # Autenticação (login, logout, troca de senha)
-├── admin.py               # Painel administrativo (usuários, salas, cursos, feriados, papéis)
-├── classrooms.py          # Listagem, detalhes, disponibilidade e exportação de salas
-├── reservations.py        # CRUD de reservas, aprovações, repetição e conflitos
-├── schedule.py            # API JSON para o FullCalendar
-├── totem.py               # Display de quiosque para TVs
-├── public.py              # Portal público (home, busca)
-├── main.py                # Dashboard principal
-├── payments.py            # Gestão de pagamentos docentes (base, aditivo, extra)
-├── kitchen.py             # Cozinha: ingredientes, estoque e receitas
-├── permissions.py         # Decoradores de controle de acesso baseado em permissões
-├── commands.py            # Comandos CLI customizados (seed de dados, sync-permissions)
-│
-├── static/
-│   ├── css/style.css      # Estilos globais e variáveis de tema
-│   └── templates_excel/   # Modelos .xlsx para exportação
-│
-└── templates/
-    ├── base.html            # Layout principal, navbar, toggle de tema
-    ├── index.html           # Dashboard
-    ├── home.html            # Página pública
-    ├── search.html          # Busca pública
-    ├── calendar.html        # Calendário FullCalendar
-    ├── totem.html           # Interface do quiosque
-    ├── auth/                # Login, troca de senha
-    ├── admin/               # Dashboard admin, usuários, salas, cursos, disciplinas, feriados
-    ├── classrooms/          # Listagem, detalhes, disponibilidade mensal
-    ├── reservations/        # Criar, editar, detalhes, minhas reservas, conflitos
-    ├── payments/            # Formulários e listagens de pagamentos
-    ├── kitchen/             # Ingredientes, estoque, histórico de movimentações e receitas
-    └── errors/              # Páginas 403, 404, 500
+└── app/                       # Pacote da aplicação
+    ├── __init__.py            # Factory (create_app), registro de blueprints e migrações leves
+    ├── config.py              # Configurações do Flask
+    ├── extensions.py          # Instâncias do SQLAlchemy e LoginManager
+    ├── models.py              # Modelos do banco de dados (User, Classroom, Reservation, etc.)
+    ├── forms.py               # Definições de formulários WTForms
+    ├── permissions.py         # Decoradores de controle de acesso por permissão
+    ├── unity_context.py       # Contexto multi-unidade (unidade ativa, seletor, escopo de queries)
+    ├── commands.py            # Comandos CLI (seed, sync-permissions)
+    │
+    ├── blueprints/            # Um módulo (ou subpacote) por funcionalidade
+    │   ├── auth.py            # Autenticação (login, logout, troca de senha)
+    │   ├── main.py            # Dashboard principal
+    │   ├── admin.py           # Painel administrativo (usuários, salas, cursos, feriados, papéis)
+    │   ├── classrooms.py      # Salas: listagem, detalhes, disponibilidade e exportação
+    │   ├── reservations.py    # Reservas: CRUD, aprovações, repetição e conflitos
+    │   ├── schedule.py        # API JSON para o FullCalendar
+    │   ├── totem.py           # Display de quiosque para TVs
+    │   ├── public.py          # Portal público (home, busca)
+    │   ├── payments.py        # Pagamentos docentes (base, aditivo, hora extra)
+    │   └── kitchen/           # Módulo Cozinha
+    │       ├── __init__.py    # Rotas: fichas técnicas, preparações e compras
+    │       ├── parser.py      # Parser das Fichas Técnicas (.docx)
+    │       └── export.py      # Requisição de compra em XLSX
+    │
+    ├── static/
+    │   ├── css/style.css      # Estilos globais e variáveis de tema
+    │   ├── templates_excel/   # Modelos .xlsx para exportação
+    │   └── uploads/           # Arquivos enviados pelos usuários (ignorado no git)
+    │
+    └── templates/
+        ├── base.html          # Layout principal, navbar, toggle de tema
+        ├── index.html         # Dashboard
+        ├── home.html          # Página pública
+        ├── search.html        # Busca pública
+        ├── calendar.html      # Calendário FullCalendar
+        ├── totem.html         # Interface do quiosque
+        ├── auth/              # Login, troca de senha
+        ├── admin/             # Dashboard admin, usuários, salas, cursos, disciplinas, feriados
+        ├── classrooms/        # Listagem, detalhes, disponibilidade mensal
+        ├── reservations/      # Criar, editar, detalhes, minhas reservas, conflitos
+        ├── payments/          # Formulários e listagens de pagamentos
+        ├── kitchen/           # Fichas técnicas, preparações e compras
+        └── errors/            # Páginas 403, 404, 500
 ```
 
 ---
@@ -309,7 +299,7 @@ SIGERE/
 
 ## 👤 Contas de Demonstração
 
-Após executar `flask seed`, os seguintes logins estarão disponíveis:
+Após executar `flask --app run seed`, os seguintes logins estarão disponíveis:
 
 | Perfil | Usuário | Senha | Permissões |
 |--------|---------|-------|------------|
@@ -328,14 +318,13 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 | Papel | Descrição |
 |-------|-----------|
 | **Super Administrador** | Acesso irrestrito a todas as funcionalidades |
-| **Administrador** | Gestão completa de usuários, salas, cursos, feriados, papéis e cozinha |
+| **Administrador** | Gestão completa de usuários, salas, cursos, feriados e papéis |
 | **Administrador Financeiro** | Gestão de pagamentos, lançamentos e exportações |
-| **Coordenador Pedagógico** | Aprovação de reservas, gestão de cursos e disciplinas, receitas |
-| **Gestor de Cozinha** | Gestão completa de ingredientes, estoque e receitas |
+| **Coordenador Pedagógico** | Aprovação de reservas, gestão de cursos e disciplinas |
 | **Gestor de Salas** | Criação e gestão de salas, todas as reservas |
-| **Professor** | Criar reservas, editar/cancelar próprias reservas, ver pagamentos, criar receitas |
-| **Funcionário** | Visualização de salas, cursos e cozinha |
-| **Visualizador** | Acesso somente leitura a salas, cursos e cozinha |
+| **Professor** | Criar reservas, editar/cancelar próprias reservas, ver pagamentos |
+| **Funcionário** | Visualização de salas e cursos |
+| **Visualizador** | Acesso somente leitura a salas e cursos |
 
 ---
 
