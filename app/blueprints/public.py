@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for
 from flask_login import current_user
-from models import User, Classroom
-from unity_context import current_unity_id
+from app.models import User, Classroom
+from app.unity_context import current_unity_id
 
 bp = Blueprint('public', __name__)
 

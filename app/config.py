@@ -1,6 +1,7 @@
 import os
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+# Raiz do projeto (o pacote app/ vive um nível abaixo) — é onde o SQLite persiste.
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')

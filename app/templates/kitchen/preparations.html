@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block title %}Cozinha — Preparações{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-egg-fried text-primary me-2"></i>Preparações</h3>
+        <p class="text-muted mb-0">Receitas geradas a partir das fichas técnicas salvas.</p>
+    </div>
+    <div class="btn-group" role="group" aria-label="Modo de visualização">
+        <button type="button" class="btn btn-outline-primary view-toggle" data-view="cards" title="Visualizar em cards">
+            <i class="bi bi-grid-3x2-gap-fill me-1"></i> Cards
+        </button>
+        <button type="button" class="btn btn-outline-primary view-toggle" data-view="list" title="Visualizar em lista">
+            <i class="bi bi-list-ul me-1"></i> Lista
+        </button>
+    </div>
+</div>
+
+<form method="GET" class="row g-2 mb-4">
+    <div class="col-sm-8 col-md-6 col-lg-5">
+        <div class="input-group">
+            <span class="input-group-text bg-transparent"><i class="bi bi-search"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ search }}" placeholder="Buscar preparação pelo nome...">
+        </div>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Buscar</button>
+        {% if search %}
+        <a href="{{ url_for('kitchen.preparations') }}" class="btn btn-outline-secondary">Limpar</a>
+        {% endif %}
+    </div>
+</form>
+
+{# ── Visualização em cards ── #}
+<div id="view-cards">
+    <div class="row g-3">
+        {% for recipe in recipes %}
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 recipe-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="fw-bold mb-0 text-break">{{ recipe.name }}</h6>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle flex-shrink-0 ms-2">
+                            {{ recipe.preparations|length }} preparaç{{ 'ões' if recipe.preparations|length != 1 else 'ão' }}
+                        </span>
+                    </div>
+                    <p class="small text-muted mb-1 text-break">
+                        <i class="bi bi-clock me-1"></i>{{ recipe.prep_time or 'Tempo não informado' }}
+                    </p>
+                    <p class="small text-muted mb-3">
+                        <i class="bi bi-people me-1"></i>{{ recipe.yield_info or 'Rendimento não informado' }}
+                    </p>
+                    <div class="mt-auto d-flex justify-content-between align-items-center">
+                        <span class="small text-muted">
+                            <i class="bi bi-list-check me-1"></i>{{ recipe.ingredient_count }} ingrediente(s)
+                        </span>
+                        <a href="{{ url_for('kitchen.preparation_detail', recipe_id=recipe.id) }}" class="btn btn-sm btn-primary">
+                            Ver receita <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="card"><div class="card-body text-center text-muted p-5">
+                <i class="bi bi-egg-fried fs-2 d-block mb-2"></i>
+                <h5 class="mb-1">Nenhuma preparação encontrada</h5>
+                <p class="small mb-0">Salve fichas técnicas no menu <strong>Ficha Técnica</strong> para gerar preparações.</p>
+            </div></div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{# ── Visualização em lista ── #}
+<div id="view-list" class="d-none">
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Preparação</th>
+                            <th>Preparações</th>
+                            <th>Ingredientes</th>
+                            <th>Tempo de Preparo</th>
+                            <th>Rendimento</th>
+                            <th class="text-end pe-4">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for recipe in recipes %}
+                        <tr>
+                            <td class="ps-4">
+                                <a href="{{ url_for('kitchen.preparation_detail', recipe_id=recipe.id) }}" class="fw-bold text-decoration-none">
+                                    {{ recipe.name }}
+                                </a>
+                            </td>
+                            <td>{{ recipe.preparations|length }}</td>
+                            <td>{{ recipe.ingredient_count }}</td>
+                            <td class="small">{{ recipe.prep_time or '—' }}</td>
+                            <td class="small">{{ recipe.yield_info or '—' }}</td>
+                            <td class="text-end pe-4">
+                                <a href="{{ url_for('kitchen.preparation_detail', recipe_id=recipe.id) }}" class="btn btn-sm btn-outline-primary" title="Ver detalhes">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted p-5">
+                                <i class="bi bi-egg-fried fs-2 d-block mb-2"></i>
+                                <h5 class="mb-1">Nenhuma preparação encontrada</h5>
+                                <p class="small mb-0">Salve fichas técnicas no menu <strong>Ficha Técnica</strong> para gerar preparações.</p>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Escolha do usuário (cards ou lista) fica salva no navegador.
+    const VIEW_KEY = 'kitchen_preparations_view';
+    const cardsEl = document.getElementById('view-cards');
+    const listEl = document.getElementById('view-list');
+
+    function applyView(view) {
+        const showCards = view !== 'list';
+        cardsEl.classList.toggle('d-none', !showCards);
+        listEl.classList.toggle('d-none', showCards);
+        document.querySelectorAll('.view-toggle').forEach(btn => {
+            const active = btn.dataset.view === view;
+            btn.classList.toggle('btn-primary', active);
+            btn.classList.toggle('btn-outline-primary', !active);
+        });
+        localStorage.setItem(VIEW_KEY, view);
+    }
+
+    document.querySelectorAll('.view-toggle').forEach(btn =>
+        btn.addEventListener('click', () => applyView(btn.dataset.view)));
+    applyView(localStorage.getItem(VIEW_KEY) || 'cards');
+</script>
+{% endblock %}

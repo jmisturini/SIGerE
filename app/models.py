@@ -1,9 +1,12 @@
 # CORREÇÃO: datetime.utcnow foi substituído por datetime.now(timezone.utc) em todos os
 # defaults — a função sem fuso está deprecada desde o Python 3.12 e será removida.
 from datetime import datetime, date, timedelta, timezone
+import json
+import re
+
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from extensions import db, login_manager
+from app.extensions import db, login_manager
 import math
 
 # Model representing an educational unit (campus/school) — base do multi-tenancy.
@@ -338,9 +341,136 @@ class RoomCategory(db.Model):
     name = db.Column(db.String(50), nullable=False) # Ex: "Laboratório de Informática"
     code = db.Column(db.String(20), unique=True, nullable=False) # Ex: "computer_lab"
     is_active = db.Column(db.Boolean, default=True)
-    
+
     # Abreviação para gerar o código da sala automaticamente (ex: CP, CR, AU)
     abbr = db.Column(db.String(3), nullable=True)
 
     def __repr__(self):
         return f'<RoomCategory {self.name}>'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Módulo Cozinha — fichas técnicas (DOCX), preparações e ingredientes.
+# As tabelas usam o prefixo kitchen_/technical_ para não colidir com as tabelas
+# legadas do módulo de cozinha v1 (removido), que podem existir no banco.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Ficha Técnica Operacional enviada (arquivo .docx lido pelo kitchen_parser).
+class TechnicalSheet(db.Model):
+    __tablename__ = 'technical_sheets'
+    id = db.Column(db.Integer, primary_key=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
+    original_filename = db.Column(db.String(255), nullable=False)
+    stored_filename = db.Column(db.String(255), nullable=False)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    uploaded_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    # pending: aguardando "Salvar Ficha Técnica" | saved: preparação gerada
+    # | error: falha na leitura do arquivo
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    parse_error = db.Column(db.Text)
+    # Conteúdo extraído (JSON) enquanto pendente; limpo após salvar.
+    data_json = db.Column(db.Text)
+
+    uploaded_by = db.relationship('User')
+    recipe = db.relationship('KitchenRecipe', backref='technical_sheet',
+                             uselist=False, cascade='all, delete-orphan')
+
+    @property
+    def parsed_data(self):
+        try:
+            return json.loads(self.data_json) if self.data_json else None
+        except (ValueError, TypeError):
+            return None
+
+    def __repr__(self):
+        return f'<TechnicalSheet {self.original_filename}>'
+
+
+# Preparação (receita) gerada a partir de uma ficha técnica salva.
+class KitchenRecipe(db.Model):
+    __tablename__ = 'kitchen_recipes'
+    id = db.Column(db.Integer, primary_key=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
+    technical_sheet_id = db.Column(db.Integer,
+                                   db.ForeignKey('technical_sheets.id', ondelete='CASCADE'),
+                                   nullable=True)
+    name = db.Column(db.String(255), nullable=False)
+    equipments = db.Column(db.Text)
+    utensils = db.Column(db.Text)
+    prep_time = db.Column(db.String(255))   # tempo de preparo (texto livre da ficha)
+    yield_info = db.Column(db.String(255))  # rendimento
+    steps_text = db.Column(db.Text)         # modo de preparo geral (um passo por linha)
+    general_notes = db.Column(db.Text)      # observações técnicas
+    allergens = db.Column(db.Text)          # alergênicos
+    references = db.Column(db.Text)         # referências bibliográficas
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+
+    preparations = db.relationship('KitchenPreparation', backref='recipe',
+                                   cascade='all, delete-orphan',
+                                   order_by='KitchenPreparation.position',
+                                   lazy=True)
+
+    @property
+    def step_list(self):
+        return [s for s in (self.steps_text or '').split('\n') if s.strip()]
+
+    @property
+    def base_portions(self):
+        """Rendimento base em porções para recálculo de quantidades: o MENOR
+        número do texto de rendimento, ignorando o que está entre parênteses
+        ('4 a 6 porções (aprox. 20 unidades)' → 4). None se não houver número."""
+        yield_text = re.sub(r'\([^)]*\)', ' ', self.yield_info or '')
+        numbers = re.findall(r'\d+(?:[.,]\d+)?', yield_text)
+        if not numbers:
+            return None
+        return min(float(n.replace(',', '.')) for n in numbers)
+
+    @property
+    def ingredient_count(self):
+        """Apenas ingredientes ativos — os desativados não entram na requisição."""
+        return sum(1 for p in self.preparations for i in p.ingredients if i.is_active)
+
+    def __repr__(self):
+        return f'<KitchenRecipe {self.name}>'
+
+
+# Sub-preparação dentro da receita ("Massa do Bolo de Carne", "Purê de Batatas"...).
+# Receitas com múltiplas preparações exibem uma lista de ingredientes por grupo.
+class KitchenPreparation(db.Model):
+    __tablename__ = 'kitchen_preparations'
+    id = db.Column(db.Integer, primary_key=True)
+    recipe_id = db.Column(db.Integer,
+                          db.ForeignKey('kitchen_recipes.id', ondelete='CASCADE'),
+                          nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    position = db.Column(db.Integer, default=0)
+
+    ingredients = db.relationship('KitchenRecipeIngredient', backref='preparation',
+                                  cascade='all, delete-orphan',
+                                  order_by='KitchenRecipeIngredient.position',
+                                  lazy=True)
+
+    def __repr__(self):
+        return f'<KitchenPreparation {self.name}>'
+
+
+# Ingrediente de uma sub-preparação, com especificação técnica, quantidade e unidade.
+class KitchenRecipeIngredient(db.Model):
+    __tablename__ = 'kitchen_recipe_ingredients'
+    id = db.Column(db.Integer, primary_key=True)
+    preparation_id = db.Column(db.Integer,
+                               db.ForeignKey('kitchen_preparations.id', ondelete='CASCADE'),
+                               nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    specification = db.Column(db.Text)
+    quantity = db.Column(db.Float)          # valor numérico quando identificável
+    quantity_raw = db.Column(db.String(50)) # texto original ('400', '15 e 3', 'a gosto')
+    unit = db.Column(db.String(30))         # g, ml, un, '' (a gosto)...
+    position = db.Column(db.Integer, default=0)
+    # Ingrediente desativado continua na preparação, mas não aparece na
+    # requisição de compra (Compras).
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    def __repr__(self):
+        return f'<KitchenRecipeIngredient {self.name}>'

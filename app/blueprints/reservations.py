@@ -1,11 +1,11 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
-from models import Reservation, Classroom, User, Course, Subject, Holiday
-from forms import ReservationForm
-from extensions import db
-from unity_context import current_unity_id
+from app.models import Reservation, Classroom, User, Course, Subject, Holiday
+from app.forms import ReservationForm
+from app.extensions import db
+from app.unity_context import current_unity_id
 from datetime import date, time, datetime, timedelta
-from permissions import require_permission, require_permission_or_owner
+from app.permissions import require_permission, require_permission_or_owner
 
 bp = Blueprint('reservations', __name__, url_prefix='/reservations')
 

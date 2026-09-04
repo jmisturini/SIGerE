@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+{% block title %}Cozinha — Criar Ficha Técnica{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-plus text-primary me-2"></i>Criar Ficha Técnica</h3>
+        <p class="text-muted mb-0">Preencha a ficha seguindo o mesmo modelo das fichas enviadas — ao salvar, a
+            preparação é gerada diretamente em <strong>Preparações</strong>.</p>
+    </div>
+    <a href="{{ url_for('kitchen.sheets') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Voltar
+    </a>
+</div>
+
+<form method="POST" id="sheet-form">
+    {# ── Identificação ── #}
+    <div class="card mb-4">
+        <div class="card-header bg-transparent py-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-card-heading me-2"></i>Identificação</h6>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Nome da Preparação <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" name="nome" required maxlength="255"
+                       placeholder="Ex: BOLINHO CREMOSO DE CARNE SECA">
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold"><i class="bi bi-gear me-1"></i>Equipamentos utilizados</label>
+                    <input type="text" class="form-control" name="equipamentos" maxlength="500"
+                           placeholder="Ex: Fogão e forno">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold"><i class="bi bi-tools me-1"></i>Utensílios</label>
+                    <input type="text" class="form-control" name="utensilios" maxlength="500"
+                           placeholder="Ex: Panela de pressão, faca do chef, bowls">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold"><i class="bi bi-clock me-1"></i>Tempo de Preparação</label>
+                    <input type="text" class="form-control" name="tempo_preparo" maxlength="255"
+                           placeholder="Ex: 30 minutos (preparo) + 60 minutos (cocção)">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold"><i class="bi bi-people me-1"></i>Rendimento</label>
+                    <input type="text" class="form-control" name="rendimento" maxlength="255"
+                           placeholder="Ex: 4 porções">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Insumos por preparação ── #}
+    <div class="card mb-4">
+        <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h6 class="fw-bold mb-0"><i class="bi bi-collection me-2"></i>Insumos <span
+                    class="fw-normal text-muted small">(uma lista de ingredientes por preparação)</span></h6>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-add-prep">
+                <i class="bi bi-plus-lg me-1"></i> Adicionar preparação
+            </button>
+        </div>
+        <div class="card-body" id="prep-list"></div>
+        <div class="card-footer bg-transparent py-2 small text-muted">
+            <i class="bi bi-info-circle me-1"></i> Quantidade aceita número ("400"), mais de um valor ("15 e 3") ou
+            texto livre ("a gosto").
+        </div>
+    </div>
+
+    {# ── Modo de preparo e notas ── #}
+    <div class="card mb-4">
+        <div class="card-header bg-transparent py-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-journal-text me-2"></i>Modo de Preparo e Notas Técnicas</h6>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Modo de Preparo <span
+                        class="fw-normal text-muted small">(um passo por linha)</span></label>
+                <textarea class="form-control" name="modo_preparo" rows="6"
+                          placeholder="1. Preaquecer o forno a 180 °C.&#10;2. Temperar a carne..."></textarea>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Observações técnicas</label>
+                    <textarea class="form-control" name="observacoes" rows="3"></textarea>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Alergênicos</label>
+                    <textarea class="form-control" name="alergenicos" rows="3"
+                              placeholder="Ex: Contém Glúten, Ovos e Derivados de Leite"></textarea>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Referências bibliográficas</label>
+                    <textarea class="form-control" name="referencias" rows="3"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 mb-4">
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-save me-1"></i> Salvar Ficha Técnica
+        </button>
+        <a href="{{ url_for('kitchen.sheets') }}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+
+{# ── Modelos para linhas/blocos dinâmicos ── #}
+<template id="tpl-ing-row">
+    <tr class="ing-row">
+        <td><input type="text" class="form-control form-control-sm" name="ing_nome[]"
+                   placeholder="Ex: Carne bovina moída"></td>
+        <td><input type="text" class="form-control form-control-sm" name="ing_espec[]"
+                   placeholder="Ex: acém ou patinho"></td>
+        <td><input type="text" class="form-control form-control-sm" name="ing_qtd[]"
+                   placeholder="400 / a gosto"></td>
+        <td style="max-width: 90px;"><input type="text" class="form-control form-control-sm" name="ing_unid[]"
+                   placeholder="g"></td>
+        <td class="text-end">
+            <input type="hidden" name="ing_prep[]" value="0">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-ing" title="Remover ingrediente">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </td>
+    </tr>
+</template>
+
+<template id="tpl-prep-block">
+    <div class="card mb-3 prep-block border-secondary-subtle">
+        <div class="card-header bg-secondary-subtle py-2 d-flex align-items-center gap-2">
+            <span class="fw-bold small text-nowrap">Preparação:</span>
+            <input type="text" class="form-control form-control-sm prep-name" name="prep_nome[]"
+                   placeholder="Ex: Massa do Bolo de Carne">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-prep text-nowrap"
+                    title="Remover esta preparação (e seus ingredientes)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead>
+                <tr>
+                    <th style="min-width: 220px;">Ingrediente</th>
+                    <th style="min-width: 200px;">Especificação</th>
+                    <th style="min-width: 120px;">Quantidade</th>
+                    <th style="min-width: 80px;">Unidade</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody class="ing-tbody"></tbody>
+            </table>
+        </div>
+        <div class="card-footer bg-transparent py-2">
+            <button type="button" class="btn btn-sm btn-outline-primary btn-add-ing">
+                <i class="bi bi-plus-lg me-1"></i> Adicionar ingrediente
+            </button>
+        </div>
+    </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const prepList = document.getElementById('prep-list');
+    const tplPrep = document.getElementById('tpl-prep-block');
+    const tplIng = document.getElementById('tpl-ing-row');
+
+    function addIngredient(prepBlock) {
+        prepBlock.querySelector('.ing-tbody')
+            .appendChild(tplIng.content.cloneNode(true));
+    }
+
+    function addPreparation() {
+        const block = tplPrep.content.cloneNode(true);
+        prepList.appendChild(block);
+        const added = prepList.lastElementChild;
+        addIngredient(added);
+        return added;
+    }
+
+    // Reordena os índices das preparações (ing_prep[]) conforme a ordem na tela.
+    function renumber() {
+        prepList.querySelectorAll('.prep-block').forEach((block, index) => {
+            block.querySelectorAll('input[name="ing_prep[]"]').forEach(hidden => {
+                hidden.value = index;
+            });
+        });
+    }
+
+    prepList.addEventListener('click', (event) => {
+        const btn = event.target.closest('button');
+        if (!btn) return;
+        const block = btn.closest('.prep-block');
+        if (btn.classList.contains('btn-add-ing')) {
+            addIngredient(block);
+        } else if (btn.classList.contains('btn-remove-ing')) {
+            btn.closest('.ing-row').remove();
+        } else if (btn.classList.contains('btn-remove-prep')) {
+            block.remove();
+        }
+        renumber();
+    });
+
+    document.getElementById('btn-add-prep').addEventListener('click', () => {
+        addPreparation();
+        renumber();
+    });
+
+    document.getElementById('sheet-form').addEventListener('submit', renumber);
+
+    // Estado inicial: uma preparação com uma linha de ingrediente
+    addPreparation();
+    renumber();
+</script>
+{% endblock %}

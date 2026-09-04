@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required
-from models import Reservation, Classroom, User, Course, Subject
-from unity_context import current_unity_id
+from app.models import Reservation, Classroom, User, Course, Subject
+from app.unity_context import current_unity_id
 from datetime import datetime, time
 
 bp = Blueprint('schedule', __name__, url_prefix='/calendar')

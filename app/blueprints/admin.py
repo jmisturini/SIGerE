@@ -2,13 +2,13 @@ import requests
 from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request
 from flask_login import login_required, current_user
-from models import User, Classroom, Reservation, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity
-from forms import (ClassroomForm, CourseForm, SubjectForm, TeacherForm, EmployeeForm, HolidayForm, RoleForm,
+from app.models import User, Classroom, Reservation, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity
+from app.forms import (ClassroomForm, CourseForm, SubjectForm, TeacherForm, EmployeeForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm)
-from extensions import db
+from app.extensions import db
 from wtforms.validators import Optional
-from permissions import require_permission
-from unity_context import current_unity_id
+from app.permissions import require_permission
+from app.unity_context import current_unity_id
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 

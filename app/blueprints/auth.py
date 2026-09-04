@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
 from urllib.parse import urlparse
-from models import User
-from forms import LoginForm, ChangePasswordForm
-from extensions import db
+from app.models import User
+from app.forms import LoginForm, ChangePasswordForm
+from app.extensions import db
 
 bp = Blueprint('auth', __name__)
 

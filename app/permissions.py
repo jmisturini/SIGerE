@@ -30,7 +30,7 @@ def require_permission_or_owner(perm_code, owner_attr='user_id'):
             # Se não tem permissão global, verifica se é dono do recurso
             resource_id = kwargs.get('reservation_id') or kwargs.get('user_id')
             if resource_id:
-                from models import Reservation
+                from app.models import Reservation
                 resource = Reservation.query.get(resource_id)
                 if resource and getattr(resource, owner_attr) == current_user.id:
                     return f(*args, **kwargs)

@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block title %}Prévia — {{ data.nome if data else sheet.original_filename }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">
+            <i class="bi bi-file-earmark-word text-primary me-2"></i>
+            {{ data.nome if data else sheet.original_filename }}
+            {% if sheet.status == 'pending' %}
+            <span class="badge text-bg-warning align-middle ms-1">Pendente de salvamento</span>
+            {% elif sheet.status == 'saved' %}
+            <span class="badge text-bg-success align-middle ms-1">Salva</span>
+            {% endif %}
+        </h3>
+        <p class="text-muted mb-0">Arquivo: {{ sheet.original_filename }} · Enviada em
+            {{ sheet.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('kitchen.sheets') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Voltar
+        </a>
+        <a href="{{ url_for('kitchen.download_sheet', sheet_id=sheet.id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-download me-1"></i> Baixar .docx
+        </a>
+        {% if sheet.status == 'pending' and can_manage %}
+        <form method="POST" action="{{ url_for('kitchen.save_sheet', sheet_id=sheet.id) }}">
+            <button type="submit" class="btn btn-success">
+                <i class="bi bi-save me-1"></i> Salvar Ficha Técnica
+            </button>
+        </form>
+        {% endif %}
+        {% if can_delete %}
+        <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}"
+              onsubmit="return confirm('Excluir esta ficha{{ ' e a preparação gerada' if sheet.status == 'saved' else '' }}?');">
+            <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{% if sheet.status == 'error' %}
+<div class="alert alert-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>
+    {{ sheet.parse_error or 'Não foi possível ler o conteúdo desta ficha.' }}</div>
+{% elif data %}
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <p class="mb-2"><strong><i class="bi bi-gear text-primary me-1"></i>Equipamentos utilizados:</strong>
+                            {{ data.equipamentos or '—' }}</p>
+                        <p class="mb-0"><strong><i class="bi bi-tools text-primary me-1"></i>Utensílios:</strong>
+                            {{ data.utensilios or '—' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-2"><strong><i class="bi bi-clock text-primary me-1"></i>Tempo de Preparação:</strong>
+                            {{ data.tempo_preparo or '—' }}</p>
+                        <p class="mb-0"><strong><i class="bi bi-people text-primary me-1"></i>Rendimento:</strong>
+                            {{ data.rendimento or '—' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        {% for prep in data.preparacoes %}
+        <div class="card mb-4 {{ 'mt-lg-n1' if not loop.first }}">
+            <div class="card-header bg-transparent py-3">
+                <h6 class="fw-bold mb-0">
+                    <i class="bi bi-collection me-2"></i>
+                    {{ 'Ingredientes — ' ~ prep.nome if data.preparacoes|length > 1 else 'Ingredientes' }}
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Ingrediente</th>
+                                <th>Especificação</th>
+                                <th class="text-center">Quantidade</th>
+                                <th class="text-end pe-4">Unidade</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for ing in prep.ingredientes %}
+                            <tr>
+                                <td class="ps-4 fw-semibold">{{ ing.nome }}</td>
+                                <td class="small text-muted">{{ ing.especificacao or '—' }}</td>
+                                <td class="text-center">{{ ing.quantidade|qtyfmt if ing.quantidade is not none else (ing.quantidade_raw or '—') }}</td>
+                                <td class="text-end pe-4">{{ ing.unidade or '—' }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="4" class="text-center text-muted p-4">Nenhum ingrediente nesta preparação.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header bg-transparent py-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-journal-text me-2"></i>Modo de Preparo</h6>
+            </div>
+            <div class="card-body">
+                {% if data.modo_preparo %}
+                <ol class="mb-0 ps-3">
+                    {% for step in data.modo_preparo %}
+                    <li class="mb-2">{{ step }}</li>
+                    {% endfor %}
+                </ol>
+                {% else %}
+                <p class="text-muted fst-italic mb-0">Nenhum modo de preparo informado.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if data.observacoes or data.alergenicos or data.referencias %}
+        <div class="card">
+            <div class="card-header bg-transparent py-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-clipboard-data me-2"></i>Notas Técnicas</h6>
+            </div>
+            <div class="card-body">
+                {% if data.observacoes %}
+                <p class="small mb-2"><strong>Observações técnicas:</strong> {{ data.observacoes }}</p>
+                {% endif %}
+                {% if data.alergenicos %}
+                <p class="small mb-2"><strong><i class="bi bi-exclamation-circle text-warning me-1"></i>Alergênicos:</strong>
+                    {{ data.alergenicos }}</p>
+                {% endif %}
+                {% if data.referencias %}
+                <p class="small mb-0"><strong>Referências:</strong> {{ data.referencias }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
