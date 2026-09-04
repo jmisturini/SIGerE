@@ -8,10 +8,10 @@ GASTRONOMIA"):
     Prof / Data da aula / Curso / Período
     PRODUTO | QUANTIDADE | UNIDADE | OBSERVAÇÃO   (g→KG, ml→L, un→UN)
 
-A coluna OBSERVAÇÃO é deixada em branco — as especificações técnicas serão
-incluídas posteriormente. Ingredientes de nome similar em unidades
-incompatíveis (g × ml × un) geram linhas separadas por unidade. Água não é
-incluída na requisição.
+A coluna OBSERVAÇÃO é deixada em branco, com linhas leves na tonalidade da
+grade do Excel — as informações serão incluídas posteriormente. Ingredientes
+de nome similar em unidades incompatíveis (g × ml × un) geram linhas
+separadas por unidade. Água não é incluída na requisição.
 """
 import os
 import re
@@ -28,9 +28,16 @@ TEMPLATE_PATH_PARTS = ('static', 'templates_excel', 'base_planilha_compras.xlsx'
 SHEET_NAME = 'Aula dia '  # aba do modelo (com espaço no final, igual ao original)
 DATA_START_ROW = 10       # primeira linha livre após o cabeçalho (linha 9)
 
-# Grade visível na coluna OBSERVAÇÃO — as informações serão incluídas depois
-_THIN = Side(style='thin')
-_OBSERVATION_BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
+# Linhas leves na coluna OBSERVAÇÃO, na mesma tonalidade da grade base do
+# Excel — a coluna fica visualmente igual às demais e pronta para receber
+# informações posteriormente.
+_GRID_GRAY = 'FFD4D4D4'
+_OBSERVATION_BORDER = Border(
+    left=Side(style='thin', color=_GRID_GRAY),
+    right=Side(style='thin', color=_GRID_GRAY),
+    top=Side(style='thin', color=_GRID_GRAY),
+    bottom=Side(style='thin', color=_GRID_GRAY),
+)
 
 # Produtos que não fazem sentido na requisição de compra.
 EXCLUDED_INGREDIENTS = {'agua'}
@@ -154,8 +161,8 @@ def build_purchase_xlsx(rows, professor, class_date, course, period):
     ws['A7'] = f'Curso: {course}' if course else 'Curso:'
     ws['D7'] = period or ''
 
-    # PRODUTO | QUANTIDADE | UNIDADE — OBSERVAÇÃO (coluna 4) sai com grade
-    # para ser preenchida posteriormente.
+    # PRODUTO | QUANTIDADE | UNIDADE — OBSERVAÇÃO (coluna 4) fica em branco,
+    # com as linhas da grade para receber informações posteriormente.
     for index, row in enumerate(rows, start=DATA_START_ROW):
         ws.cell(row=index, column=1, value=row['nome'])
         if row['quantidade'] is not None:
