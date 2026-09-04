@@ -1,8 +1,8 @@
 """Comandos CLI customizados para o Flask."""
 import click
 from flask.cli import with_appcontext
-from extensions import db
-from models import (
+from app.extensions import db
+from app.models import (
     User, Classroom, Reservation, Course, Subject,
     TeacherBasePay, Role, Permission, RoomCategory, Unity
 )
@@ -52,6 +52,11 @@ PERMISSION_DATA = [
     ('payment:edit', 'payment', 'edit', 'Editar lançamentos'),
     ('payment:delete', 'payment', 'delete', 'Excluir lançamentos'),
     ('payment:export', 'payment', 'export', 'Exportar pagamentos'),
+    # Módulo de Cozinha (fichas técnicas, preparações e compras)
+    ('kitchen:read', 'kitchen', 'read', 'Acessar o módulo de Cozinha (fichas técnicas, preparações e compras)'),
+    ('kitchen:sheet_create', 'kitchen', 'sheet_create', 'Enviar e salvar fichas técnicas (DOCX)'),
+    ('kitchen:sheet_delete', 'kitchen', 'sheet_delete', 'Excluir fichas técnicas e preparações'),
+    ('kitchen:shopping_export', 'kitchen', 'shopping_export', 'Gerar e exportar a requisição de compra'),
     ('system:dashboard', 'system', 'dashboard', 'Acessar painel administrativo'),
     ('system:export', 'system', 'export', 'Exportar dados diversos'),
     ('role:read', 'role', 'read', 'Visualizar papéis'),
@@ -80,7 +85,8 @@ ROLES_CONFIG = {
             'reservation:read_all', 'reservation:edit_all', 'reservation:delete_all',
             'reservation:approve', 'reservation:cancel_all',
             'system:dashboard', 'system:export',
-            'role:read', 'role:create', 'role:edit', 'role:delete'
+            'role:read', 'role:create', 'role:edit', 'role:delete',
+            'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export'
         ]
     },
     'financial_admin': {
@@ -88,7 +94,8 @@ ROLES_CONFIG = {
         'is_system': False,
         'permissions': [
             'payment:read', 'payment:create', 'payment:edit', 'payment:delete', 'payment:export',
-            'user:read', 'system:export'
+            'user:read', 'system:export',
+            'kitchen:read', 'kitchen:shopping_export'
         ]
     },
     'coordinator': {
@@ -98,7 +105,8 @@ ROLES_CONFIG = {
             'room:read', 'course:read', 'course:create', 'course:edit', 'course:toggle',
             'reservation:read_all', 'reservation:approve',
             'reservation:edit_all', 'reservation:cancel_all',
-            'user:read'
+            'user:read',
+            'kitchen:read', 'kitchen:sheet_create', 'kitchen:shopping_export'
         ]
     },
     'room_manager': {
@@ -107,7 +115,8 @@ ROLES_CONFIG = {
         'permissions': [
             'room:read', 'room:create', 'room:edit', 'room:toggle',
             'reservation:read_all', 'reservation:edit_all', 'reservation:cancel_all',
-            'system:export'
+            'system:export',
+            'kitchen:read'
         ]
     },
     'teacher': {
@@ -116,21 +125,24 @@ ROLES_CONFIG = {
         'permissions': [
             'reservation:create', 'reservation:read_own',
             'reservation:edit_own', 'reservation:cancel_own',
-            'room:read', 'course:read', 'payment:read_own'
+            'room:read', 'course:read', 'payment:read_own',
+            'kitchen:read', 'kitchen:sheet_create', 'kitchen:shopping_export'
         ]
     },
     'employee': {
         'label': 'Funcionário',
         'is_system': False,
         'permissions': [
-            'room:read', 'course:read', 'reservation:read_own'
+            'room:read', 'course:read', 'reservation:read_own',
+            'kitchen:read'
         ]
     },
     'viewer': {
         'label': 'Visualizador',
         'is_system': False,
         'permissions': [
-            'room:read', 'course:read'
+            'room:read', 'course:read',
+            'kitchen:read'
         ]
     }
 }

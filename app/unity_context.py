@@ -26,7 +26,7 @@ def can_switch_unity():
 def _first_active_unity_id():
     first = g.setdefault('_unity_first', None)
     if first is None:
-        from models import Unity
+        from app.models import Unity
         unity = Unity.query.filter_by(is_active=True).order_by(Unity.name).first()
         first = ('none',) if unity is None else ('ok', unity.id)
         g._unity_first = first
@@ -41,7 +41,7 @@ def current_unity_id():
     if cached is not None:
         return None if cached == 'none' else cached
 
-    from models import Unity, db
+    from app.models import Unity, db
 
     unity_id = None
     if can_switch_unity():
@@ -64,7 +64,7 @@ def current_unity():
     unity_id = current_unity_id()
     if unity_id is None:
         return None
-    from models import Unity, db
+    from app.models import Unity, db
     return db.session.get(Unity, unity_id)
 
 
@@ -72,7 +72,7 @@ def switchable_unities():
     """Unidades disponíveis no seletor (apenas para quem pode alternar)."""
     if not can_switch_unity():
         return []
-    from models import Unity
+    from app.models import Unity
     return Unity.query.filter_by(is_active=True).order_by(Unity.name).all()
 
 

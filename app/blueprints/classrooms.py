@@ -1,13 +1,13 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, make_response, abort
 from flask_login import login_required, current_user
-from models import Classroom, Reservation, RoomCategory
-from forms import ClassroomForm
-from extensions import db
-from unity_context import current_unity_id, current_unity
+from app.models import Classroom, Reservation, RoomCategory
+from app.forms import ClassroomForm
+from app.extensions import db
+from app.unity_context import current_unity_id, current_unity
 from datetime import datetime, date, time
 import calendar
 from fpdf import FPDF
-from permissions import require_permission
+from app.permissions import require_permission
 
 bp = Blueprint('classrooms', __name__, url_prefix='/classrooms')
 

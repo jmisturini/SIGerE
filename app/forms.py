@@ -5,9 +5,9 @@ from datetime import datetime, timedelta, date
 import re
 # CORREÇÃO: Holiday e Role não estavam importados — os validadores de
 # HolidayForm.validate_date e RoleForm.validate_name geravam NameError (erro 500).
-from models import (User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay,
+from app.models import (User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay,
                     RoomCategory, Holiday, Role, Unity)
-from unity_context import current_unity_id
+from app.unity_context import current_unity_id
 
 # =============================================================================
 # LOGIN & PASSWORD FORMS

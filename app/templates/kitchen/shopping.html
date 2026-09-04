@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% block title %}Cozinha — Compras{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h3 class="fw-bold mb-1"><i class="bi bi-cart-check text-primary me-2"></i>Compras</h3>
+    <p class="text-muted mb-0">Selecione as preparações: os ingredientes serão somados por similaridade e exportados
+        na requisição de compra (Excel), com quantidades convertidas para <strong>KG</strong>, <strong>L</strong> e
+        <strong>UN</strong>.</p>
+</div>
+
+{% if recipes %}
+<form method="POST" action="{{ url_for('kitchen.shopping_export') }}">
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-basket me-2"></i>Preparações ({{ recipes|length }})</h6>
+                    <div class="form-check mb-0">
+                        <input type="checkbox" class="form-check-input" id="select-all">
+                        <label class="form-check-label small fw-semibold" for="select-all">Selecionar todas</label>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <tbody>
+                            {% for recipe in recipes %}
+                                <tr>
+                                    <td class="ps-4" style="width: 40px;">
+                                        <input type="checkbox" class="form-check-input recipe-check" name="recipe_ids"
+                                               value="{{ recipe.id }}" id="recipe-{{ recipe.id }}">
+                                    </td>
+                                    <td>
+                                        <label class="form-check-label fw-semibold text-decoration-none w-100" for="recipe-{{ recipe.id }}">
+                                            {{ recipe.name }}
+                                            <div class="small text-muted fw-normal">
+                                                {{ recipe.preparations|length }} preparação(ões) ·
+                                                {{ recipe.ingredient_count }} ingrediente(s) ·
+                                                {{ recipe.yield_info or 'rendimento não informado' }}
+                                            </div>
+                                        </label>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header bg-transparent py-3">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Dados da requisição</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="professor" class="form-label fw-semibold">Prof:</label>
+                        <input type="text" class="form-control" id="professor" name="professor"
+                               value="{{ current_user.full_name }}" maxlength="120">
+                    </div>
+                    <div class="mb-3">
+                        <label for="class_date" class="form-label fw-semibold">Data da aula:</label>
+                        <input type="date" class="form-control" id="class_date" name="class_date"
+                               value="{{ today.strftime('%Y-%m-%d') }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="course" class="form-label fw-semibold">Curso:</label>
+                        <input type="text" class="form-control" id="course" name="course"
+                               placeholder="Ex: TURISMO - GRADUAÇÃO - 090001009" maxlength="200">
+                    </div>
+                    <div class="mb-4">
+                        <label for="period" class="form-label fw-semibold">Período:</label>
+                        <select class="form-select" id="period" name="period">
+                            <option value="">—</option>
+                            <option value="Matutino">Matutino</option>
+                            <option value="Vespertino">Vespertino</option>
+                            <option value="Noturno">Noturno</option>
+                        </select>
+                    </div>
+                    <div class="alert alert-light border small mb-4">
+                        <i class="bi bi-info-circle me-1"></i>
+                        A planilha gerada segue o modelo "REQUISIÇÃO DE COMPRA - GASTRONOMIA", com a aba de referência
+                        dos centros de custo. Ingredientes sem quantidade definida (ex.: "a gosto") são listados com a
+                        quantidade em branco; ingredientes <strong>desativados</strong> na preparação ficam de fora.
+                        Água não é incluída.
+                    </div>
+                    {% if can_export %}
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar Requisição (.xlsx)
+                    </button>
+                    {% else %}
+                    <button type="submit" class="btn btn-success w-100" disabled
+                            title="Você não tem permissão para exportar a requisição de compra">
+                        <i class="bi bi-lock me-1"></i> Exportar Requisição (.xlsx)
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% else %}
+<div class="card">
+    <div class="card-body text-center text-muted p-5">
+        <i class="bi bi-basket fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Nenhuma preparação disponível</h5>
+        <p class="small mb-0">Salve fichas técnicas no menu <strong>Ficha Técnica</strong> para gerar preparações e
+            montar a requisição de compra.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const selectAll = document.getElementById('select-all');
+    const checks = document.querySelectorAll('.recipe-check');
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            checks.forEach(c => c.checked = selectAll.checked);
+        });
+        checks.forEach(c => c.addEventListener('change', () => {
+            selectAll.checked = [...checks].every(c => c.checked);
+        }));
+    }
+</script>
+{% endblock %}

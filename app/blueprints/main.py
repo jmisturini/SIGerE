@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, request, session, flash
 from flask_login import login_required, current_user
-from models import Reservation, Unity
-from extensions import db
-from unity_context import current_unity_id, can_switch_unity, reset_unity_cache
+from app.models import Reservation, Unity
+from app.extensions import db
+from app.unity_context import current_unity_id, can_switch_unity, reset_unity_cache
 from datetime import datetime, date, time
 
 bp = Blueprint('main', __name__)

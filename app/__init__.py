@@ -1,7 +1,7 @@
 from flask import Flask, render_template, redirect, url_for, request
-from config import Config
-from extensions import db, login_manager
-from models import User
+from app.config import Config
+from app.extensions import db, login_manager
+from app.models import User
 from datetime import datetime
 import os
 import sys
@@ -16,15 +16,16 @@ def create_app(config_class=Config):
     login_manager.init_app(app)
 
     # Register all Blueprints
-    from auth import bp as auth_bp
-    from main import bp as main_bp
-    from classrooms import bp as classrooms_bp
-    from reservations import bp as reservations_bp
-    from admin import bp as admin_bp
-    from totem import bp as totem_bp
-    from schedule import bp as schedule_bp
-    from public import bp as public_bp
-    from payments import bp as payments_bp
+    from app.blueprints.auth import bp as auth_bp
+    from app.blueprints.main import bp as main_bp
+    from app.blueprints.classrooms import bp as classrooms_bp
+    from app.blueprints.reservations import bp as reservations_bp
+    from app.blueprints.admin import bp as admin_bp
+    from app.blueprints.totem import bp as totem_bp
+    from app.blueprints.schedule import bp as schedule_bp
+    from app.blueprints.public import bp as public_bp
+    from app.blueprints.payments import bp as payments_bp
+    from app.blueprints.kitchen import bp as kitchen_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -35,9 +36,10 @@ def create_app(config_class=Config):
     app.register_blueprint(schedule_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(payments_bp)
+    app.register_blueprint(kitchen_bp)
 
     # ── Register CLI commands ──
-    from commands import seed_command, sync_permissions_command
+    from app.commands import seed_command, sync_permissions_command
     app.cli.add_command(seed_command)
     app.cli.add_command(sync_permissions_command)
 
@@ -62,7 +64,7 @@ def create_app(config_class=Config):
     # Multi-unidade: injeta a unidade ativa e o seletor de unidades nos templates
     @app.context_processor
     def inject_unity_context():
-        from unity_context import (current_unity, switchable_unities,
+        from app.unity_context import (current_unity, switchable_unities,
                                    can_switch_unity)
         return {
             'current_unity': current_unity(),
@@ -117,12 +119,15 @@ def _ensure_schema_upgrades():
     for table in UNITY_TABLES:
         add_column_if_missing(table, 'unity_id INTEGER')
 
+    # Cozinha: ingredientes desativáveis (não aparecem na requisição de compra)
+    add_column_if_missing('kitchen_recipe_ingredients', 'is_active BOOLEAN DEFAULT 1')
+
     _migrate_to_unities(inspector)
     inspector = inspect(db.engine)  # reflete as colunas/tabelas novas
     _rebuild_unity_unique_constraints(inspector)
 
     # Garante permissões/papéis novos (ex: unity:*) em bancos já existentes
-    from commands import sync_permissions_impl
+    from app.commands import sync_permissions_impl
     sync_permissions_impl(verbose=False)
 
 
@@ -135,7 +140,7 @@ def _migrate_to_unities(inspector):
     - Usuários com o texto legado recebem a unidade correspondente.
     """
     from sqlalchemy import text
-    from models import Unity, db
+    from app.models import Unity, db
 
     if 'unities' not in inspector.get_table_names():
         return  # banco novo será criado pelo create_all com o schema atual
@@ -204,7 +209,7 @@ def _migrate_to_unities(inspector):
 
 def _generate_unity_code(name):
     """Gera um código curto e único a partir do nome da unidade."""
-    from models import Unity
+    from app.models import Unity
     initials = ''.join(word[0] for word in name.split() if word).upper()[:4] or 'U'
     code, suffix = initials, 1
     while Unity.query.filter_by(code=code).first() is not None:
@@ -224,7 +229,7 @@ def _rebuild_unity_unique_constraints(inspector):
     from sqlalchemy import text
     from sqlalchemy.schema import CreateTable, CreateIndex
     from sqlalchemy import MetaData
-    from models import Classroom, Course, Subject, Holiday
+    from app.models import Classroom, Course, Subject, Holiday
 
     # (modelo, coluna que era única globalmente)
     targets = [
@@ -290,8 +295,3 @@ def _has_single_column_unique_index(conn, table_name, column):
             return True
     return False
 
-
-app = create_app()
-
-if __name__ == '__main__':
-    app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true', port=5000)

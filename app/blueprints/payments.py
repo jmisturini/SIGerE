@@ -3,16 +3,16 @@ import re
 import math
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required, current_user
-from models import User, Course, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay
-from forms import FormTeacherBasePay, FormTeacherAdditivePay, FormTeacherOvertimePay
-from extensions import db
-from unity_context import current_unity_id
+from app.models import User, Course, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay
+from app.forms import FormTeacherBasePay, FormTeacherAdditivePay, FormTeacherOvertimePay
+from app.extensions import db
+from app.unity_context import current_unity_id
 from datetime import datetime, timedelta
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
 from io import BytesIO
 from decimal import Decimal, InvalidOperation
-from permissions import require_permission
+from app.permissions import require_permission
 
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 

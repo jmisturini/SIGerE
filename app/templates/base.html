@@ -118,6 +118,37 @@
                 </li>
                 {% endif %}
 
+                {% set in_kitchen = request.endpoint and request.endpoint.startswith('kitchen.') %}
+                {% if current_user.has_permission('kitchen:read') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_kitchen else '' }}" data-bs-toggle="collapse" href="#menu-cozinha" role="button" aria-expanded="{{ 'true' if in_kitchen else 'false' }}" aria-controls="menu-cozinha">
+                        <i class="bi bi-egg-fried"></i> <span>Cozinha</span>
+                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
+                    </a>
+                    <div class="collapse {{ 'show' if in_kitchen else '' }}" id="menu-cozinha">
+                        <ul class="nav flex-column nav-submenu">
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('kitchen.sheets') }}">
+                                    <i class="bi bi-file-earmark-word"></i> <span>Ficha Técnica</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('kitchen.preparations') }}">
+                                    <i class="bi bi-journal-text"></i> <span>Preparações</span>
+                                </a>
+                            </li>
+                            {% if current_user.has_permission('kitchen:shopping_export') %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('kitchen.shopping') }}">
+                                    <i class="bi bi-cart-check"></i> <span>Compras</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 {% if current_user.has_permission('system:dashboard') %}
                 <li class="nav-section">Administração</li>
                 <li class="nav-item">
