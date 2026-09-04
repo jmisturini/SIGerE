@@ -86,6 +86,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         const dateInput = document.getElementById('date');
         const startInput = document.getElementById('start_time');
+        const endInput = document.getElementById('end_time');
         const warningBox = document.getElementById('dateWarning');
 
         function updateWarnings() {
@@ -94,9 +95,11 @@
                 const dateObj = new Date(dateInput.value + 'T00:00:00');
                 const day = dateObj.getDay();
                 if (day === 6 && startInput.value) {
-                    const startHour = parseInt(startInput.value.split(':')[0]);
-                    if (startHour >= 18) {
-                        messages.push("Aos sábados, as reservas são permitidas apenas até 18:00.");
+                    // Mesma regra do servidor: início ou término após 18:00 é inválido
+                    const lateStart = startInput.value >= '18:00';
+                    const lateEnd = endInput.value && endInput.value > '18:00';
+                    if (lateStart || lateEnd) {
+                        messages.push("Aos sábados, as reservas são permitidas apenas pela manhã e tarde (até 18:00).");
                     }
                 }
             }
@@ -121,6 +124,7 @@
         updateWarnings();
         dateInput.addEventListener('change', updateWarnings);
         startInput.addEventListener('change', updateWarnings);
+        endInput.addEventListener('change', updateWarnings);
     });
 </script>
 {% endblock %}
