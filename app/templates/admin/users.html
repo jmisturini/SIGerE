@@ -92,6 +92,7 @@
                                 <i class="bi bi-pencil"></i>
                             </a>
                             <form method="POST" action="{{ url_for('admin.toggle_user', user_id=u.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 {% if u.is_active_user %}
                                 <button class="btn btn-sm btn-outline-danger" title="Desativar Usuário" onclick="return confirm('Tem certeza que deseja desativar este usuário?')">
                                     <i class="bi bi-toggle-off"></i>

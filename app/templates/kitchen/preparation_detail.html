@@ -22,6 +22,7 @@
         {% if can_delete %}
         <form method="POST" action="{{ url_for('kitchen.delete_recipe', recipe_id=recipe.id) }}"
               onsubmit="return confirm('Excluir esta preparação e a ficha técnica de origem?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
         </form>
         {% endif %}
@@ -121,6 +122,7 @@
                                 <td class="text-end pe-4">
                                     <form method="POST" class="d-inline"
                                           action="{{ url_for('kitchen.toggle_ingredient', ingredient_id=ingredient.id) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         {% if ingredient.is_active %}
                                         <button type="submit" class="btn btn-sm btn-outline-secondary"
                                                 title="Desativar (sai da requisição de compra)">

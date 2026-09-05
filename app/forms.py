@@ -1,12 +1,11 @@
 from flask_wtf import FlaskForm
-from wtforms import (StringField, PasswordField, SubmitField, IntegerField, DateField, TimeField, TextAreaField, SelectField, BooleanField, FloatField, SelectMultipleField)
+from wtforms import (StringField, PasswordField, SubmitField, IntegerField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField)
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
 import re
 # CORREÇÃO: Holiday e Role não estavam importados — os validadores de
 # HolidayForm.validate_date e RoleForm.validate_name geravam NameError (erro 500).
-from app.models import (User, Classroom, Course, Subject, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay,
-                    RoomCategory, Holiday, Role, Unity)
+from app.models import (User, Course, Subject, RoomCategory, Holiday, Role, Unity)
 from app.unity_context import current_unity_id
 
 # =============================================================================
@@ -21,7 +20,7 @@ class LoginForm(FlaskForm):
 
 class ChangePasswordForm(FlaskForm):
     current_password = PasswordField('Senha Atual', validators=[DataRequired()])
-    password = PasswordField('Nova Senha', validators=[DataRequired(), Length(min=6)])
+    password = PasswordField('Nova Senha', validators=[DataRequired(), Length(min=8, message='A nova senha deve ter pelo menos 8 caracteres.')])
     confirm_password = PasswordField('Confirmar Nova Senha', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Atualizar Senha')
 
@@ -38,7 +37,7 @@ class TeacherForm(FlaskForm):
     department = StringField('Departamento', validators=[Optional(), Length(max=120)])
     unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
-    password = PasswordField('Senha', validators=[Length(min=6)])
+    password = PasswordField('Senha', validators=[Length(min=8, message='A senha deve ter pelo menos 8 caracteres.')])
     is_active_user = BooleanField('Ativo', default=True)
     submit = SubmitField('Salvar Professor')
 
@@ -98,7 +97,7 @@ class EmployeeForm(FlaskForm):
     unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     is_teacher = BooleanField('Também cadastrar como Professor (pode ser designado para reservas)')
-    password = PasswordField('Senha', validators=[Length(min=6)])
+    password = PasswordField('Senha', validators=[Length(min=8, message='A senha deve ter pelo menos 8 caracteres.')])
     is_active_user = BooleanField('Ativo', default=True)
     submit = SubmitField('Salvar Funcionário')
 
@@ -293,7 +292,9 @@ class HolidayForm(FlaskForm):
         self._validate_alpha_only(field, 'Nome do Feriado')
 
     def validate_date(self, field):
-        if field.data < date.today():
+        # Só bloqueia data passada na criação — na edição (obj_id definido)
+        # permitir editar/desativar feriados já ocorridos.
+        if field.data < date.today() and not getattr(self, '_obj_id', None):
             raise ValidationError('Não é possível cadastrar um feriado no passado.')
         # Unicidade por unidade: unidades distintas podem cadastrar o mesmo feriado
         existing = Holiday.query.filter_by(unity_id=current_unity_id(), date=field.data).first()

@@ -11,3 +11,7 @@ class Config:
         f'sqlite:///{os.path.join(BASE_DIR, "reservation.db")}'
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Rejeita uploads/requisições maiores que 16 MB (proteção contra DoS por upload)
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
+    # Mitiga CSRF em navegação cross-site em complemento ao token do Flask-WTF
+    SESSION_COOKIE_SAMESITE = 'Lax'

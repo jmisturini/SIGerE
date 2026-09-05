@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, make_response, abort
-from flask_login import login_required, current_user
+from flask import Blueprint, render_template, request, make_response, abort
+from flask_login import login_required
+from markupsafe import escape
 from app.models import Classroom, Reservation, RoomCategory
-from app.forms import ClassroomForm
 from app.extensions import db
 from app.unity_context import current_unity_id, current_unity
 from datetime import datetime, date, time
@@ -68,7 +68,7 @@ def get_filtered_classrooms(args):
 
 def _get_classroom_scoped(classroom_id):
     """Carrega a sala da unidade ativa — salas de outras unidades dão 404."""
-    classroom = Classroom.query.get_or_404(classroom_id)
+    classroom = db.get_or_404(Classroom, classroom_id)
     if classroom.unity_id != current_unity_id():
         abort(404)
     return classroom
@@ -109,16 +109,18 @@ def list_classrooms():
         is_filtered = True
         period_map = {
             'morning': 'Manhã',
-            'afternoon': 'Tarde', 
+            'afternoon': 'Tarde',
             'evening': 'Noite'
         }
         period_pt = period_map.get(request.args.get('available_period'), request.args.get('available_period'))
-        filter_message = f"Mostrando salas disponíveis em <strong>{request.args.get('available_date')}</strong> durante a <strong>{period_pt}</strong>."
+        # Escape obrigatório: o template exibe esta mensagem com o filtro |safe
+        raw_date = escape(request.args.get('available_date', ''))
+        filter_message = f"Mostrando salas disponíveis em <strong>{raw_date}</strong> durante a <strong>{period_pt}</strong>."
     elif request.args.get('category'):
         is_filtered = True
         cat_id = request.args.get('category', type=int)
         cat_obj = RoomCategory.query.get(cat_id) if cat_id else None
-        cat_name = cat_obj.name if cat_obj else "Categoria"
+        cat_name = escape(cat_obj.name) if cat_obj else "Categoria"
         filter_message = f"Mostrando apenas <strong>{cat_name}</strong>."
 
     return render_template(

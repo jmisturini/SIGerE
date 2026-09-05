@@ -60,6 +60,12 @@
                         <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Registrado em</th>
                         <td class="border-0 fw-medium">{{ reservation.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
                     </tr>
+                    {% if reservation.reviewer %}
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Aprovada por</th>
+                        <td class="border-0 fw-medium">{{ reservation.reviewer.full_name }}</td>
+                    </tr>
+                    {% endif %}
                 </table>
             </div>
         </div>
@@ -85,6 +91,7 @@
             {% if reservation.status == 'approved' and (reservation.date >= now.date() or current_user.has_permission('reservation:cancel_all')) %}
                 {% if current_user.has_permission('reservation:cancel_all') or (current_user.has_permission('reservation:cancel_own') and reservation.user_id == current_user.id) %}
                 <form method="POST" action="{{ url_for('reservations.cancel', reservation_id=reservation.id) }}" onsubmit="return confirm('Cancelar esta reserva? A sala ficará livre.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-warning"><i class="bi bi-x-circle me-1"></i> Cancelar Reserva</button>
                 </form>
                 {% endif %}
@@ -99,6 +106,7 @@
 
             {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'approved' %}
             <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva? Isso não pode ser desfeito.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
             </form>
             {% endif %}
@@ -106,12 +114,14 @@
             <!-- Aprovar: Apenas quem tem approve -->
             {% if current_user.has_permission('reservation:approve') and reservation.status == 'pending' %}
             <form method="POST" action="{{ url_for('reservations.approve', reservation_id=reservation.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-success"><i class="bi bi-check-circle me-1"></i> Aprovar Reserva</button>
             </form>
             {% endif %}
 
             {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'pending' %}
             <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva pendente?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
             </form>
             {% endif %}

@@ -29,7 +29,9 @@
                 </form>
             </div>
             <div class="card-footer bg-transparent text-center py-3">
+                {% if config.get('DEBUG') %}
                 <p class="mb-0 small text-muted">Contas de demonstração: <code>admin/admin123</code></p>
+                {% endif %}
                 <a href="{{ url_for('public.home') }}" class="small text-decoration-none mt-2 d-inline-block">
                     <i class="bi bi-arrow-left"></i> Voltar para o site
                 </a>

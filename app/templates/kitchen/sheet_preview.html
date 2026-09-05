@@ -25,6 +25,7 @@
         </a>
         {% if sheet.status == 'pending' and can_manage %}
         <form method="POST" action="{{ url_for('kitchen.save_sheet', sheet_id=sheet.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-success">
                 <i class="bi bi-save me-1"></i> Salvar Ficha Técnica
             </button>
@@ -33,6 +34,7 @@
         {% if can_delete %}
         <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}"
               onsubmit="return confirm('Excluir esta ficha{{ ' e a preparação gerada' if sheet.status == 'saved' else '' }}?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
         </form>
         {% endif %}

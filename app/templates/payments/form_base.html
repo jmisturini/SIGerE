@@ -19,36 +19,43 @@
                         <div class="col-md-6">
                             {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.teacher(class="form-select") }}
+                            {% for err in form.teacher.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
                             {{ form.course.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.course(class="form-select") }}
+                            {% for err in form.course.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
                             {{ form.month_start.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.month_start(class="form-control") }}
+                            {% for err in form.month_start.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
                             {{ form.month_end.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.month_end(class="form-control") }}
+                            {% for err in form.month_end.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
                             {{ form.weekly_workload.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.weekly_workload(class="form-control") }}
+                            {% for err in form.weekly_workload.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
                             {{ form.budget_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.budget_code(class="form-control") }}
+                            {% for err in form.budget_code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-12">
                             {{ form.complement.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.complement(class="form-control") }}
+                            {% for err in form.complement.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                     </div>
                     

@@ -57,6 +57,7 @@
                             {% endif %}
                             {% if current_user.has_permission('role:delete') and not r.is_system %}
                             <form method="POST" action="{{ url_for('admin.delete_role', role_id=r.id) }}" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este papel?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button class="btn btn-sm btn-outline-danger" title="Excluir">
                                     <i class="bi bi-trash"></i>
                                 </button>

@@ -4,7 +4,7 @@ from app.models import Reservation, Classroom, User, Course, Subject, Holiday
 from app.forms import ReservationForm
 from app.extensions import db
 from app.unity_context import current_unity_id
-from datetime import date, time, datetime, timedelta
+from datetime import date, datetime, timedelta
 from app.permissions import require_permission, require_permission_or_owner
 # Regras e gravação protegida contra condição de corrida vivem no serviço
 # central — mantidos aqui por re-export para compatibilidade.
@@ -33,7 +33,7 @@ def _classrooms_for_current_unity():
 
 def _get_reservation_scoped(reservation_id):
     """Carrega a reserva da unidade ativa — reservas de outras unidades dão 404."""
-    reservation = Reservation.query.get_or_404(reservation_id)
+    reservation = db.get_or_404(Reservation, reservation_id)
     if reservation.unity_id != current_unity_id():
         abort(404)
     return reservation
@@ -333,6 +333,8 @@ def approve(reservation_id):
                       f'A reserva permanece PENDENTE.', 'danger')
                 return redirect(url_for('reservations.detail', reservation_id=reservation.id))
             reservation.status = 'approved'
+            # Auditoria: registra quem aprovou (coluna antes nunca preenchida)
+            reservation.reviewed_by = current_user.id
             db.session.commit()
         flash('Reserva aprovada.', 'success')
     return redirect(url_for('reservations.detail', reservation_id=reservation.id))

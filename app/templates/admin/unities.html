@@ -59,6 +59,7 @@
                             {% if current_user.has_permission('unity:toggle') %}
                             <form method="POST" action="{{ url_for('admin.toggle_unity', unity_id=u.id) }}" class="d-inline"
                                   onsubmit="return confirm('Tem certeza que deseja {{ 'desativar' if u.is_active else 'ativar' }} esta unidade?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button class="btn btn-sm {{ 'btn-outline-danger' if u.is_active else 'btn-outline-success' }}"
                                         title="{{ 'Desativar' if u.is_active else 'Ativar' }}" {{ 'disabled' if current_unity and current_unity.id == u.id and u.is_active }}>
                                     <i class="bi {{ 'bi-power' if u.is_active else 'bi-arrow-repeat' }}"></i>

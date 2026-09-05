@@ -311,7 +311,6 @@ def _seed_demo_data():
     """Popula dados de demonstração (usuários, salas, cursos, reservas, etc.)."""
     click.echo("   Populando dados de demonstração...")
 
-    super_admin_role = Role.query.filter_by(name='super_admin').first()
     teacher_role = Role.query.filter_by(name='teacher').first()
     employee_role = Role.query.filter_by(name='employee').first()
     admin = User.query.filter_by(username='admin').first()

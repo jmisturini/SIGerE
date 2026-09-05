@@ -80,8 +80,3 @@ def reset_unity_cache():
     """Limpa o cache por-request (chamar após trocar a unidade na sessão)."""
     g.pop('_current_unity_id', None)
     g.pop('_unity_first', None)
-
-
-def scope(query, model, column_name='unity_id'):
-    """Aplica o filtro da unidade ativa a uma query do modelo informado."""
-    return query.filter(getattr(model, column_name) == current_unity_id())

@@ -1,7 +1,7 @@
 import os
 import re
 import math
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
 from app.models import User, Course, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay
 from app.forms import FormTeacherBasePay, FormTeacherAdditivePay, FormTeacherOvertimePay
@@ -31,16 +31,14 @@ def _courses_for_current_unity():
     return Course.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Course.name).all()
 
 def _get_base_pay_scoped(pay_id):
-    pay = TeacherBasePay.query.get_or_404(pay_id)
+    pay = db.get_or_404(TeacherBasePay, pay_id)
     if pay.unity_id != current_unity_id():
-        from flask import abort
         abort(404)
     return pay
 
 def _get_overtime_scoped(overtime_id):
-    overtime = TeacherOvertimePay.query.get_or_404(overtime_id)
+    overtime = db.get_or_404(TeacherOvertimePay, overtime_id)
     if overtime.unity_id != current_unity_id():
-        from flask import abort
         abort(404)
     return overtime
 
@@ -82,8 +80,17 @@ def validate_180_days_rule(created_at):
     return True
 
 def parse_currency(value_str):
-    if not value_str: return None
-    cleaned = value_str.strip().replace('.', '').replace(',', '.')
+    """Converte texto de valor monetário em Decimal.
+
+    Aceita os formatos pt-BR e en-US: '15,50', '15.50' e '1.234,56'.
+    O ponto só é tratado como separador de milhar quando há vírgula decimal
+    na string — sem vírgula, o ponto é decimal ('15.50' → 15.50, não 1550).
+    """
+    if not value_str:
+        return None
+    cleaned = value_str.strip()
+    if ',' in cleaned:
+        cleaned = cleaned.replace('.', '').replace(',', '.')
     try:
         return Decimal(cleaned)
     except InvalidOperation:
@@ -236,9 +243,8 @@ def create_additive():
 @login_required
 @require_permission('payment:delete')
 def delete_additive(additive_id):
-    additive = TeacherAdditivePayment.query.get_or_404(additive_id)
+    additive = db.get_or_404(TeacherAdditivePayment, additive_id)
     if additive.unity_id != current_unity_id():
-        from flask import abort
         abort(404)
     if not validate_180_days_rule(additive.created_at):
         return redirect(url_for('payments.list_base_pays'))
@@ -406,11 +412,17 @@ def export_excel_base():
     if not semester_base or not year_base:
         flash('Selecione o semestre e ano.', 'danger')
         return redirect(url_for('payments.list_base_pays'))
-        
+
+    try:
+        year_int = int(year_base)
+    except (TypeError, ValueError):
+        flash('Ano inválido para exportação.', 'danger')
+        return redirect(url_for('payments.list_base_pays'))
+
     if semester_base == 1:
         start_q, end_q = f'{year_base}-02', f'{year_base}-07'
     else:
-        start_q, end_q = f'{year_base}-08', f'{int(year_base)+1}-01'
+        start_q, end_q = f'{year_base}-08', f'{year_int + 1}-01'
 
     pays = TeacherBasePay.query.filter(
         TeacherBasePay.unity_id == current_unity_id(),

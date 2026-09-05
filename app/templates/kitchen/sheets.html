@@ -20,6 +20,7 @@
     <div class="card-body">
         <form method="POST" action="{{ url_for('kitchen.upload_sheets') }}" enctype="multipart/form-data"
               class="row g-3 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-lg-8">
                 <label for="files" class="form-label fw-semibold">
                     <i class="bi bi-cloud-arrow-up me-1"></i> Arquivos das fichas técnicas
@@ -45,6 +46,7 @@
     </h5>
     {% if can_manage and pending|length > 1 %}
     <form method="POST" action="{{ url_for('kitchen.save_all_sheets') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-success">
             <i class="bi bi-save me-1"></i> Salvar todas ({{ pending|length }})
         </button>
@@ -87,6 +89,7 @@
                 </a>
                 {% if can_manage %}
                 <form method="POST" action="{{ url_for('kitchen.save_sheet', sheet_id=sheet.id) }}" class="flex-grow-1">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-success w-100">
                         <i class="bi bi-save me-1"></i> Salvar Ficha Técnica
                     </button>
@@ -95,6 +98,7 @@
                 {% if can_delete %}
                 <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}"
                       onsubmit="return confirm('Descartar a ficha &quot;{{ sheet.original_filename }}&quot;?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Descartar">
                         <i class="bi bi-trash"></i>
                     </button>
@@ -124,6 +128,7 @@
                         <td class="text-end pe-4">
                             {% if can_delete %}
                             <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button class="btn btn-sm btn-outline-danger" title="Excluir arquivo"><i class="bi bi-trash"></i></button>
                             </form>
                             {% endif %}
@@ -176,6 +181,7 @@
                             {% if can_delete %}
                             <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}" class="d-inline"
                                   onsubmit="return confirm('Excluir a ficha e a preparação gerada por ela?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button class="btn btn-sm btn-outline-danger" title="Excluir ficha e preparação"><i class="bi bi-trash"></i></button>
                             </form>
                             {% endif %}

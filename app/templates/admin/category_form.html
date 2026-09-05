@@ -19,17 +19,20 @@
                         <div class="col-12">
                             {{ form.name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.name(class="form-control") }}
+                            {% for err in form.name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-8">
                             {{ form.code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.code(class="form-control") }}
+                            {% for err in form.code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                             <div class="form-text small">Usado internamente no sistema (ex: computer_lab).</div>
                         </div>
                         
                         <div class="col-md-4">
                             {{ form.abbr.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.abbr(class="form-control") }}
+                            {% for err in form.abbr.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                             <div class="form-text small">Ex: CP, CR, AU.</div>
                         </div>
                         
