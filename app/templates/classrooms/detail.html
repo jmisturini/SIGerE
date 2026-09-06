@@ -85,7 +85,14 @@
                             <td class="fw-bold text-nowrap">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
                             <td>{{ r.title }}</td>
                             <td>{{ r.teacher.full_name if r.teacher else 'N/A' }}</td>
-                            <td class="pe-4"><span class="badge status-{{ r.status }} status-badge text-capitalize">{{ r.status }}</span></td>
+                            <td class="pe-4"><span class="badge {% if r.status == 'approved' %}text-bg-success-subtle text-success border border-success-subtle
+                                                            {% elif r.status == 'pending' %}text-bg-warning-subtle text-warning border border-warning-subtle
+                                                            {% elif r.status == 'cancelled' %}text-bg-danger-subtle text-danger border border-danger-subtle
+                                                            {% else %}text-bg-secondary-subtle text-secondary border border-secondary-subtle{% endif %}">
+                                {% if r.status == 'approved' %}Aprovada
+                                {% elif r.status == 'pending' %}Pendente
+                                {% elif r.status == 'cancelled' %}Cancelada
+                                {% else %}{{ r.status }}{% endif %}</span></td>
                         </tr>
                         {% endfor %}
                         </tbody>
