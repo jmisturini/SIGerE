@@ -50,7 +50,7 @@
                     {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
                 </select>
             </div>
-            <div class="col-12 mt-3 d-flex gap-2">
+            <div class="col-12 mt-3 d-flex flex-wrap gap-2">
                 <button type="button" id="applyFilters" class="btn btn-primary" disabled><i class="bi bi-search"></i> Aplicar Filtros</button>
                 <button type="button" id="clearFilters" class="btn btn-outline-secondary"><i class="bi bi-eraser"></i> Limpar</button>
             </div>
@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         </div>
                                         <div class="mb-3">
                                             <span class="text-muted small text-uppercase fw-bold d-block">Evento</span>
-                                            <p class="mb-0 fs-5 fw-bold">${event.title}</p>
+                                            <p class="mb-0 fs-5 fw-bold text-break">${event.title}</p>
                                         </div>
                                         <div class="row">
                                             <div class="col-6 mb-2">

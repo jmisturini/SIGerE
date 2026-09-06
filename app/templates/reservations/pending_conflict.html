@@ -5,7 +5,7 @@
 <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
         <div class="card">
-            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
                 <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i> Reserva Pendente</h5>
                 <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-sm btn-outline-secondary" onclick="history.back(); return false;">
                     <i class="bi bi-arrow-left"></i> Voltar
@@ -52,7 +52,7 @@
                     </div>
                 </div>
                 
-                <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                <div class="d-flex flex-wrap justify-content-end gap-2 mt-4 pt-3 border-top">
                     <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">Ver Detalhes</a>
                     <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-primary px-4">Ver Minhas Reservas</a>
                 </div>

@@ -131,5 +131,29 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
+
+    /* No celular as 7 colunas ficam com ~40px cada: menos respiro e altura
+       para os dias continuarem legíveis sem rolagem lateral. */
+    @media (max-width: 575.98px) {
+        .calendar-grid {
+            gap: 4px;
+        }
+        .calendar-weekday {
+            font-size: 0.7rem;
+            padding-bottom: 4px;
+        }
+        .calendar-day {
+            min-height: 72px;
+            padding: 4px;
+        }
+        .day-number {
+            font-size: 0.75rem;
+            margin-bottom: 2px;
+        }
+        .event-pill {
+            font-size: 0.6rem;
+            padding: 2px 4px;
+        }
+    }
 </style>
 {% endblock %}

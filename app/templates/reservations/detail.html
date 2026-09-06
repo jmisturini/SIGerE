@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
-        <h3 class="fw-bold mb-1">{{ reservation.title }}</h3>
+        <h3 class="fw-bold mb-1 text-break">{{ reservation.title }}</h3>
         <span class="badge {% if reservation.status == 'approved' %}text-bg-success-subtle text-success border border-success-subtle
                             {% elif reservation.status == 'pending' %}text-bg-warning-subtle text-warning border border-warning-subtle
                             {% elif reservation.status == 'cancelled' %}text-bg-danger-subtle text-danger border border-danger-subtle

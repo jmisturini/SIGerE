@@ -7,7 +7,7 @@
         <h3 class="fw-bold mb-1">Salas e Espaços</h3>
         <p class="text-muted mb-0">Encontre a sala ideal para sua atividade.</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-outline-secondary" href="{{ url_for('classrooms.export_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
             <i class="bi bi-filetype-pdf me-1"></i> Exportar PDF
         </a>
@@ -46,7 +46,7 @@
                 </select>
             </div>
             <div class="col-md">
-                <div class="d-flex gap-2">
+                <div class="d-flex flex-wrap gap-2">
                     <button type="submit" id="filterBtn" class="btn btn-outline-primary flex-fill" disabled>
                         <i class="bi bi-funnel me-1"></i> Filtrar
                     </button>
