@@ -35,7 +35,9 @@
                 {% if query %}
                     {% if search_type == 'classroom' %}
                         <div class="table-responsive">
-                            <table class="table table-hover mb-0 align-middle">
+                            <!-- min-width: em telas estreitas o table-responsive rola
+                                 lateralmente em vez de esmagar a coluna Nome -->
+                            <table class="table table-hover mb-0 align-middle" style="min-width: 540px;">
                                 <thead>
                                     <tr>
                                         <th class="ps-4">Nome</th>
