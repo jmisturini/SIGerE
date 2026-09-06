@@ -348,6 +348,24 @@ body {
     background-color: rgba(255,255,255,0.1);
 }
 
+/* Seletor de unidade da topbar: inline no base.html não dá para sobrescrever,
+   então a largura vive aqui (o inline vencia qualquer media query). */
+.unity-switch {
+    max-width: 220px;
+    color: var(--bs-body-color);
+}
+
+/* Nav-tabs e paginação são flex-nowrap no Bootstrap: com 4 abas ou muitas
+   páginas elas estouravam a largura da tela no mobile. */
+.nav-tabs {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+}
+
+.pagination {
+    flex-wrap: wrap;
+}
+
 /* Sidebar toggle for mobile */
 @media (max-width: 991.98px) {
     .sidebar {
@@ -359,6 +377,22 @@ body {
     }
     .app-container.sidebar-open .sidebar {
         margin-left: 0;
+    }
+}
+
+/* Telas de celular: menos respiro nas bordas (o padding de 2rem do desktop
+   sobrava pouco conteúdo para os cards) e seletor de unidade mais estreito
+   para caber ao lado do toggle da sidebar, tema e avatar. */
+@media (max-width: 575.98px) {
+    .page-content {
+        padding: 1rem;
+    }
+    .topbar {
+        padding: 0 1rem;
+    }
+    .unity-switch {
+        max-width: 150px;
+        font-size: 0.875rem;
     }
 }
 

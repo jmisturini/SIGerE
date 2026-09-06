@@ -198,8 +198,7 @@
                 {% if current_user.is_authenticated and can_switch_unity and switchable_unities|length > 1 %}
                 <form method="POST" action="{{ url_for('main.switch_unity') }}" class="me-2">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <select name="unity_id" class="form-select form-select-sm bg-transparent border-0 fw-semibold"
-                            style="max-width: 220px; color: var(--bs-body-color);"
+                    <select name="unity_id" class="form-select form-select-sm bg-transparent border-0 fw-semibold unity-switch"
                             onchange="this.form.submit()"
                             title="Unidade ativa de operação">
                         {% for u in switchable_unities %}

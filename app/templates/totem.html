@@ -116,6 +116,17 @@
             position: relative;
         }
         .totem-header { z-index: 1000; }
+
+        /* Celulares: relógio e clima menores; sem eles o cabeçalho
+           estourava a largura de 320px. */
+        @media (max-width: 575.98px) {
+            .clock-time { font-size: 2rem; letter-spacing: -1px; }
+            .weather-widget { font-size: 1rem; }
+            .totem-header .container-fluid { flex-wrap: wrap; gap: 8px; }
+            .period-title { font-size: 1.1rem; }
+            .room-code { font-size: 1.2rem; }
+            .event-title { font-size: 1rem; }
+        }
     </style>
 </head>
 <body class="night-theme">
