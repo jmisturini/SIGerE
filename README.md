@@ -175,7 +175,7 @@ A aplicação estará disponível em: **http://localhost:5000**
 
 > **Nota:** o schema do banco é versionado com Flask-Migrate/Alembic (não é mais criado automaticamente no boot). Em uma instalação nova, execute `flask --app run db upgrade` para criar as tabelas e depois `flask --app run seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
 
-> **Atualizando uma instalação existente:** após `git pull`, execute `flask --app run db upgrade` (aplica migrações de schema novas) e `flask --app run sync-permissions` (permissões de módulos novos). Se o seu banco é de uma versão **anterior ao Alembic**, rode uma única vez `flask --app run db-legacy-upgrade` — detalhes em [Migrações de banco](#migrações-de-banco-flask-migratealembic).
+> **Atualizando uma instalação existente:** após `git pull`, execute `flask --app run db upgrade` (aplica migrações de schema novas) e `flask --app run sync-permissions` (permissões de módulos novos).
 
 ---
 
@@ -205,13 +205,21 @@ export DATABASE_URL="postgresql://user:pass@localhost/sigere"
 
 > **Obrigatório em produção:** sem `SECRET_KEY` definida (fora do modo debug), a aplicação se recusa a iniciar. Além disso, os cookies de sessão recebem o atributo `Secure` automaticamente quando `FLASK_DEBUG != true` — sirva a aplicação atrás de HTTPS.
 
-### Configurar localização do Totem (Clima)
+### Configurar localização do clima (Totem e portal)
 
-As coordenadas vêm do `Config` (ou variáveis de ambiente) e alimentam o totem e o portal:
+As unidades ficam distantes entre si, então **cada unidade tem a própria
+localização do clima**, definida no painel: **Painel → Unidades → Editar**.
+No formulário, busque as coordenadas pelo endereço (preenchimento automático
+via OpenStreetMap/Nominatim) ou informe latitude, longitude e a cidade exibida
+manualmente. O totem de cada unidade (`/totem/?unity=<id>`) e o portal usam as
+coordenadas da unidade ativa.
+
+As variáveis abaixo funcionam apenas como **fallback global** para unidades
+sem coordenadas próprias:
 
 ```bash
-export TOTEM_LATITUDE="-23.5505"    # Latitude da sua instituição
-export TOTEM_LONGITUDE="-46.6333"   # Longitude da sua instituição
+export TOTEM_LATITUDE="-23.5505"    # Latitude padrão (fallback)
+export TOTEM_LONGITUDE="-46.6333"   # Longitude padrão (fallback)
 ```
 
 ### Migrações de banco (Flask-Migrate/Alembic)
@@ -220,9 +228,8 @@ O schema é versionado no diretório `migrations/` (comittado no repositório). 
 
 | Situação | Comando |
 |---|---|
-| Instalação nova (banco vazio) | `flask --app run db upgrade` |
-| Banco já no esquema atual, mas criado antes do Alembic | `flask --app run db stamp head` |
-| Banco de uma versão anterior ao módulo multi-unidade | `flask --app run db-legacy-upgrade` (uma vez só) |
+| Instalação nova (banco vazio) | `flask --app run db upgrade` + `flask --app run seed` |
+| Banco já no esquema atual, mas sem versionamento Alembic | `flask --app run db stamp head` |
 
 Após **alterar modelos** em `app/models.py`, gere e aplique a migração:
 
@@ -231,7 +238,7 @@ flask --app run db migrate -m "descrição da mudança"   # gera o arquivo em mi
 flask --app run db upgrade                             # aplica no banco
 ```
 
-O `db migrate` compara os modelos com o banco configurado em `DATABASE_URL` — revise o arquivo gerado em `migrations/versions/` antes de aplicar. O comando `db-legacy-upgrade` é idempotente: em bancos já atualizados ele apenas registra o versionamento.
+O `db migrate` compara os modelos com o banco configurado em `DATABASE_URL` — revise o arquivo gerado em `migrations/versions/` antes de aplicar.
 
 ---
 
@@ -271,6 +278,9 @@ TOTEM_LATITUDE="-23.5505"
 TOTEM_LONGITUDE="-46.6333"
 RATELIMIT_STORAGE_URI="redis://localhost:6379/0"
 ```
+
+> **Clima:** as coordenadas acima são só o fallback global. A localização de
+> cada unidade é configurada no painel (Unidades → Editar → "Clima no Totem").
 
 > **Por que PostgreSQL?** O SQLite padrão serve para avaliação, mas em produção com múltiplos workers o recomendado é PostgreSQL (driver já incluído no `requirements.txt`).
 

@@ -2,7 +2,7 @@ import secrets
 
 import requests
 from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify, current_app
 from flask_login import login_required, current_user
 from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, TeacherForm, EmployeeForm, HolidayForm, RoleForm,
@@ -592,6 +592,9 @@ def create_unity():
     if form.validate_on_submit():
         unity = Unity(name=form.name.data, code=form.code.data.upper(),
                       address=form.address.data, phone=form.phone.data,
+                      weather_latitude=form.weather_latitude.data,
+                      weather_longitude=form.weather_longitude.data,
+                      weather_city=form.weather_city.data,
                       is_active=form.is_active.data)
         db.session.add(unity)
         db.session.commit()
@@ -610,11 +613,53 @@ def edit_unity(unity_id):
         unity.code = form.code.data.upper()
         unity.address = form.address.data
         unity.phone = form.phone.data
+        unity.weather_latitude = form.weather_latitude.data
+        unity.weather_longitude = form.weather_longitude.data
+        unity.weather_city = form.weather_city.data
         unity.is_active = form.is_active.data
         db.session.commit()
         flash('Unidade atualizada.', 'success')
         return redirect(url_for('admin.list_unities'))
     return render_template('admin/unity_form.html', form=form, title='Editar Unidade')
+
+@bp.route('/unities/geocode')
+@login_required
+@require_permission('unity:edit')
+def geocode_unity():
+    """Converte um endereço/cidade em coordenadas (busca do clima da unidade).
+
+    Usa o Nominatim (OpenStreetMap) — serviço público e sem chave; o User-Agent
+    identificando a aplicação é exigido pela política de uso deles.
+    """
+    query = (request.args.get('q') or '').strip()
+    if len(query) < 3:
+        return jsonify({'results': [], 'error': 'Informe pelo menos 3 caracteres para buscar.'}), 400
+    try:
+        resp = requests.get(
+            'https://nominatim.openstreetmap.org/search',
+            params={'q': query, 'format': 'jsonv2', 'limit': 5,
+                    'addressdetails': 1, 'accept-language': 'pt-BR'},
+            headers={'User-Agent': 'SIGerE/1.0 (painel administrativo)'},
+            timeout=8)
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.RequestException, ValueError):
+        return jsonify({'results': [], 'error': 'Falha ao consultar o serviço de endereços. Tente novamente.'}), 502
+
+    results = []
+    for item in data:
+        addr = item.get('address', {})
+        # Rótulo curto para preencher o campo "cidade exibida": cidade + estado
+        city = ', '.join(filter(None, [addr.get('city') or addr.get('town')
+                                       or addr.get('village') or addr.get('municipality'),
+                                       addr.get('state')]))
+        results.append({
+            'label': item.get('display_name'),
+            'latitude': float(item['lat']),
+            'longitude': float(item['lon']),
+            'city': city,
+        })
+    return jsonify({'results': results})
 
 @bp.route('/unities/<int:unity_id>/toggle', methods=['POST'])
 @login_required
