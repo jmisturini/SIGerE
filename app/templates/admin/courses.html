@@ -41,6 +41,7 @@
                                 <i class="bi bi-pencil"></i>
                             </a>
                             <form method="POST" action="{{ url_for('admin.toggle_course', course_id=c.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 {% if c.is_active %}
                                     <button class="btn btn-sm btn-outline-danger" title="Desativar Curso">
                                         <i class="bi bi-toggle-off"></i>

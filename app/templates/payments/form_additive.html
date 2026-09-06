@@ -19,31 +19,37 @@
                         <div class="col-12">
                             {{ form.base_release.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.base_release(class="form-select") }}
+                            {% for err in form.base_release.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-12">
                             {{ form.course.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.course(class="form-select") }}
+                            {% for err in form.course.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
                             {{ form.month_start.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.month_start(class="form-control") }}
+                            {% for err in form.month_start.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
                             {{ form.month_end.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.month_end(class="form-control") }}
+                            {% for err in form.month_end.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
                             {{ form.additional_hour.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.additional_hour(class="form-control") }}
+                            {% for err in form.additional_hour.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
                             {{ form.complement.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.complement(class="form-control") }}
+                            {% for err in form.complement.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                     </div>
                     

@@ -1,4 +1,3 @@
-import re
 from flask import Blueprint, render_template, request, abort
 from app.models import Classroom, Reservation, RoomCategory, Unity
 from datetime import date, time, datetime, timedelta

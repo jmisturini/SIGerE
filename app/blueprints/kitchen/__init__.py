@@ -34,16 +34,25 @@ ALLOWED_EXTENSIONS = {'.docx'}
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _sheet_upload_folder():
-    folder = os.path.join(current_app.root_path, 'static', 'uploads',
-                          'technical_sheets')
+    """Pasta de upload DENTRO do instance path — fora de static/, os arquivos
+    só são acessíveis pela rota autenticada de download (não servidos ao
+    público pelo roteador de estáticos do Flask)."""
+    folder = os.path.join(current_app.instance_path, 'uploads', 'technical_sheets')
     os.makedirs(folder, exist_ok=True)
     return folder
 
 
 def _sheet_file_path(sheet):
+    """Caminho do arquivo da ficha: instância nova primeiro, pasta legada
+    (app/static/uploads/technical_sheets de instalações antigas) como fallback."""
     if not sheet.stored_filename:
         return None
-    return os.path.join(_sheet_upload_folder(), sheet.stored_filename)
+    candidate = os.path.join(_sheet_upload_folder(), sheet.stored_filename)
+    if os.path.exists(candidate):
+        return candidate
+    legacy = os.path.join(current_app.root_path, 'static', 'uploads',
+                          'technical_sheets', sheet.stored_filename)
+    return legacy if os.path.exists(legacy) else candidate
 
 
 def _get_sheet_scoped(sheet_id):
@@ -585,9 +594,15 @@ def shopping_export():
         flash('Selecione ao menos uma preparação para gerar a requisição.', 'warning')
         return redirect(url_for('kitchen.shopping'))
 
+    try:
+        ids = [int(i) for i in recipe_ids]
+    except (TypeError, ValueError):
+        flash('Seleção de preparações inválida.', 'danger')
+        return redirect(url_for('kitchen.shopping'))
+
     recipes = KitchenRecipe.query.filter(
         KitchenRecipe.unity_id == current_unity_id(),
-        KitchenRecipe.id.in_([int(i) for i in recipe_ids])
+        KitchenRecipe.id.in_(ids)
     ).all()
     if not recipes:
         abort(404)

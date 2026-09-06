@@ -219,7 +219,7 @@
     setInterval(updateClock, 1000); updateClock();
 
     // Open-Meteo API
-    const lat = -27.5973; const lon = -48.5496;
+    const lat = {{ totem_lat }}; const lon = {{ totem_lon }};
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
         .then(r => r.json()).then(data => {
             if (data.current_weather) {

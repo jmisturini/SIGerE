@@ -3,12 +3,13 @@ from flask_login import login_user, logout_user, login_required, current_user
 from urllib.parse import urlparse
 from app.models import User
 from app.forms import LoginForm, ChangePasswordForm
-from app.extensions import db
+from app.extensions import db, limiter
 
 bp = Blueprint('auth', __name__)
 
 # Route for user login
 @bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit('5 per minute', methods=['POST'])
 def login():
     # Redirect to dashboard if already logged in
     if current_user.is_authenticated:

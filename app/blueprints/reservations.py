@@ -4,12 +4,15 @@ from app.models import Reservation, Classroom, User, Course, Subject, Holiday
 from app.forms import ReservationForm
 from app.extensions import db
 from app.unity_context import current_unity_id
-from datetime import date, time, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from app.permissions import require_permission, require_permission_or_owner
 # Regras e gravação protegida contra condição de corrida vivem no serviço
 # central — mantidos aqui por re-export para compatibilidade.
 from app.services.scheduling import (check_conflict, check_schedule_restrictions,
-                                     check_teacher_conflict, slot_locks)
+                                     check_teacher_conflict, slot_locks,
+                                     MAX_REPEAT_RANGE_DAYS)
+
+RESERVATIONS_PER_PAGE = 25
 
 bp = Blueprint('reservations', __name__, url_prefix='/reservations')
 
@@ -22,6 +25,42 @@ def _teachers_for_current_unity():
         (User.unity_id == uid) | (User.unity_id.is_(None))
     ).order_by(User.full_name).all()
 
+def _load_range_occupancy(classroom_id, teacher_id, start_date, end_date,
+                          unity_id, start_time, end_time):
+    """Pré-carrega a ocupação de um intervalo em 3 consultas (sala, docente,
+    feriados) — substitui as 3 queries por dia da tela de repetição.
+
+    Como o horário é fixo para todos os dias do lote, a sobreposição de janela
+    é aplicada direto no SQL. Retorna:
+        (sala_ocupada: set[date], docente_ocupado: set[date],
+         feriados: dict[date, nome])
+    """
+    room_dates = {r.date for r in Reservation.query.filter(
+        Reservation.classroom_id == classroom_id,
+        Reservation.date >= start_date, Reservation.date <= end_date,
+        Reservation.status == 'approved',
+        Reservation.start_time < end_time,
+        Reservation.end_time > start_time,
+    ).all()}
+
+    teacher_dates = set()
+    if teacher_id:
+        teacher_dates = {r.date for r in Reservation.query.filter(
+            Reservation.teacher_id == teacher_id,
+            Reservation.date >= start_date, Reservation.date <= end_date,
+            Reservation.status.in_(['approved', 'pending']),
+            Reservation.start_time < end_time,
+            Reservation.end_time > start_time,
+        ).all()}
+
+    holidays = {h.date: h.name for h in Holiday.query.filter(
+        Holiday.date >= start_date, Holiday.date <= end_date,
+        Holiday.is_active == True,
+        Holiday.unity_id == unity_id,
+    ).all()}
+
+    return room_dates, teacher_dates, holidays
+
 def _courses_for_current_unity():
     return Course.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Course.name).all()
 
@@ -33,7 +72,7 @@ def _classrooms_for_current_unity():
 
 def _get_reservation_scoped(reservation_id):
     """Carrega a reserva da unidade ativa — reservas de outras unidades dão 404."""
-    reservation = Reservation.query.get_or_404(reservation_id)
+    reservation = db.get_or_404(Reservation, reservation_id)
     if reservation.unity_id != current_unity_id():
         abort(404)
     return reservation
@@ -157,14 +196,17 @@ def my_reservations():
     query = Reservation.query.filter_by(user_id=current_user.id)
     if status != 'all':
         query = query.filter_by(status=status)
-        
-    all_res = query.order_by(Reservation.date.desc(), Reservation.start_time).all()
-    
+
+    pagination = db.paginate(query.order_by(Reservation.date.desc(), Reservation.start_time),
+                             page=request.args.get('page', 1, type=int),
+                             per_page=RESERVATIONS_PER_PAGE, error_out=False)
+
     today = date.today()
-    upcoming_reservations = [r for r in all_res if r.date >= today]
-    past_reservations = [r for r in all_res if r.date < today]
-    
-    return render_template('reservations/my_reservations.html', upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status)
+    upcoming_reservations = [r for r in pagination.items if r.date >= today]
+    past_reservations = [r for r in pagination.items if r.date < today]
+
+    return render_template('reservations/my_reservations.html', pagination=pagination,
+                           upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status)
 
 # Admin route to view all reservations
 @bp.route('/all')
@@ -175,14 +217,17 @@ def all_reservations():
     query = Reservation.query.filter_by(unity_id=current_unity_id())
     if status != 'all':
         query = query.filter_by(status=status)
-        
-    all_res = query.order_by(Reservation.date.desc(), Reservation.start_time).all()
-    
+
+    pagination = db.paginate(query.order_by(Reservation.date.desc(), Reservation.start_time),
+                             page=request.args.get('page', 1, type=int),
+                             per_page=RESERVATIONS_PER_PAGE, error_out=False)
+
     today = date.today()
-    upcoming_reservations = [r for r in all_res if r.date >= today]
-    past_reservations = [r for r in all_res if r.date < today]
-    
-    return render_template('reservations/all.html', upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status)
+    upcoming_reservations = [r for r in pagination.items if r.date >= today]
+    past_reservations = [r for r in pagination.items if r.date < today]
+
+    return render_template('reservations/all.html', pagination=pagination,
+                           upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status)
 
 # Route to view details of a specific reservation
 @bp.route('/<int:reservation_id>')
@@ -333,6 +378,8 @@ def approve(reservation_id):
                       f'A reserva permanece PENDENTE.', 'danger')
                 return redirect(url_for('reservations.detail', reservation_id=reservation.id))
             reservation.status = 'approved'
+            # Auditoria: registra quem aprovou (coluna antes nunca preenchida)
+            reservation.reviewed_by = current_user.id
             db.session.commit()
         flash('Reserva aprovada.', 'success')
     return redirect(url_for('reservations.detail', reservation_id=reservation.id))
@@ -380,22 +427,40 @@ def repeat_view(reservation_id):
             flash('A data final deve ser após a data inicial.', 'danger')
             return redirect(url_for('reservations.repeat_view', reservation_id=res.id))
 
+        if (end_date - start_date).days + 1 > MAX_REPEAT_RANGE_DAYS:
+            flash(f'O intervalo da repetição é limitado a {MAX_REPEAT_RANGE_DAYS} dias. '
+                  'Crie repetições menores dentro desse limite.', 'warning')
+            return redirect(url_for('reservations.repeat_view', reservation_id=res.id))
+
+        # Ocupação do intervalo pré-carregada em 3 consultas (sala, docente e
+        # feriados) — em vez de 3 queries por dia do intervalo.
+        room_dates, teacher_dates, holiday_names = _load_range_occupancy(
+            res.classroom_id, res.teacher_id, start_date, end_date,
+            current_unity_id(), res.start_time, res.end_time)
+
         delta = end_date - start_date
         days = []
         for i in range(delta.days + 1):
             d = start_date + timedelta(days=i)
-            
+
             if same_day and d.weekday() != original_weekday: continue
             if skip_weekend:
                 if d.weekday() == 6: continue
                 if d.weekday() == 5 and original_weekday != 5: continue
-            
-            allowed, msg = check_schedule_restrictions(d, res.start_time, res.end_time)
-            conflict = check_conflict(res.classroom_id, d, res.start_time, res.end_time)
-            teacher_conflict = False
-            if res.teacher_id:
-                teacher_conflict = check_teacher_conflict(
-                    res.teacher_id, d, res.start_time, res.end_time) is not None
+
+            # Mesmas regras de check_schedule_restrictions, com os feriados já
+            # pré-carregados (o horário é fixo no lote).
+            if d.weekday() == 6:
+                allowed, msg = False, "Reservas não podem ser agendadas aos domingos."
+            elif d in holiday_names:
+                allowed, msg = False, f"Reservas não podem ser agendadas em feriados ({holiday_names[d]})."
+            elif d.weekday() == 5 and (res.start_time >= time(18, 0) or res.end_time > time(18, 0)):
+                allowed, msg = False, "Aos sábados, as reservas são permitidas apenas pela manhã e tarde (até 18:00)."
+            else:
+                allowed, msg = True, ""
+
+            conflict = d in room_dates
+            teacher_conflict = d in teacher_dates
 
             is_available = allowed and not conflict and not teacher_conflict
             formatted_card_date = f"{dias_semana_curto[d.weekday()]}, {d.day} {meses_curto[d.month - 1]}"
@@ -467,6 +532,11 @@ def repeat_schedule_all(reservation_id):
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
     except ValueError:
         flash('Datas inválidas.', 'danger')
+        return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+
+    if (end_date - start_date).days + 1 > MAX_REPEAT_RANGE_DAYS:
+        flash(f'O intervalo da repetição é limitado a {MAX_REPEAT_RANGE_DAYS} dias. '
+              'Crie repetições menores dentro desse limite.', 'warning')
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
     scheduled_count = 0

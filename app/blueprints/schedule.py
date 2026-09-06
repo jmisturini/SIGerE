@@ -30,18 +30,22 @@ def events():
     start_str = request.args.get('initialDate') or request.args.get('start')
     end_str = request.args.get('finalDate') or request.args.get('end')
 
+    # Intervalo é obrigatório: sem ele a API devolveria TODAS as reservas da
+    # unidade de uma vez (resposta desproporcional e consulta sem limite).
+    if not (start_str and end_str):
+        return jsonify([])
+
     # Multi-unidade: apenas reservas da unidade ativa
     query = Reservation.query.filter_by(status='approved', unity_id=current_unity_id())
 
     # Filter by date range
-    if start_str and end_str:
-        try:
-            start_date = datetime.fromisoformat(start_str.replace('Z', '+00:00')).date()
-            end_date = datetime.fromisoformat(end_str.replace('Z', '+00:00')).date()
-            query = query.filter(Reservation.date >= start_date, Reservation.date <= end_date)
-        except ValueError:
-            # CORREÇÃO: Retornar lista vazia em vez de ignorar o erro e buscar tudo
-            return jsonify([])
+    try:
+        start_date = datetime.fromisoformat(start_str.replace('Z', '+00:00')).date()
+        end_date = datetime.fromisoformat(end_str.replace('Z', '+00:00')).date()
+        query = query.filter(Reservation.date >= start_date, Reservation.date <= end_date)
+    except ValueError:
+        # CORREÇÃO: Retornar lista vazia em vez de ignorar o erro e buscar tudo
+        return jsonify([])
 
     # Apply specific dropdown filters
     room_id = request.args.get('room_id', type=int)

@@ -1,13 +1,12 @@
-# CORREÇÃO: datetime.utcnow foi substituído por datetime.now(timezone.utc) em todos os
-# defaults — a função sem fuso está deprecada desde o Python 3.12 e será removida.
-from datetime import datetime, date, timedelta, timezone
+# Defaults de data/dhora usam lambda: passar datetime.now(timezone.utc) direto
+# avaliaria UMA vez no import, congelando created_at/updated_at no boot da app.
+from datetime import datetime, timezone
 import json
 import re
 
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.extensions import db, login_manager
-import math
 
 # Model representing an educational unit (campus/school) — base do multi-tenancy.
 # Cada unidade possui seus próprios salas, cursos, reservas, estoque e lançamentos.
@@ -19,7 +18,7 @@ class Unity(db.Model):
     address = db.Column(db.String(255))
     phone = db.Column(db.String(30))
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     classrooms = db.relationship('Classroom', backref='unity', lazy=True)
 
@@ -46,7 +45,7 @@ class User(UserMixin, db.Model):
     # que pode operar em qualquer unidade via seletor).
     unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_active_user = db.Column(db.Boolean, default=True)
 
     # Relationship for reservations made by this user
@@ -86,14 +85,6 @@ class User(UserMixin, db.Model):
         return self.has_permission('*') or (self.role_obj and self.role_obj.name == 'admin')
 
     @property
-    def is_room_group(self):
-        return self.has_permission('reservation:create')
-
-    @property
-    def is_viewer(self):
-        return self.role_obj and self.role_obj.name == 'viewer'
-
-    @property
     def can_book(self):
         return self.has_permission('reservation:create')
 
@@ -123,7 +114,7 @@ class Classroom(db.Model):
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
     unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationship for reservations in this room
     reservations = db.relationship('Reservation', backref='classroom', lazy=True)
@@ -154,8 +145,8 @@ class Reservation(db.Model):
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='approved') # approved, pending, cancelled
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     review_note = db.Column(db.Text)
 
@@ -229,12 +220,6 @@ class Holiday(db.Model):
     def __repr__(self):
         return f'<Holiday {self.name} on {self.date}>'
     
-# Model representing the payment level (e.g., Técnico, Superior)
-class PaymentLevel(db.Model):
-    __tablename__ = 'payment_levels'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False) 
-
 # Model for Teacher Base Pay (Semester)
 class TeacherBasePay(db.Model):
     __tablename__ = 'teacher_base_pay'
@@ -250,8 +235,8 @@ class TeacherBasePay(db.Model):
     monthly_hour = db.Column(db.Integer, default=0)
     semester_hour = db.Column(db.Integer, default=0)
     accountable_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     term_generated = db.Column(db.Integer, default=1)
 
     teacher = db.relationship('User', foreign_keys=[teacher_id])
@@ -273,8 +258,8 @@ class TeacherAdditivePayment(db.Model):
     semester_hour = db.Column(db.Integer, default=0)
     complement = db.Column(db.String(100))
     accountable_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     term_generated = db.Column(db.Integer, default=1)
 
     # CORREÇÃO: Adicionar cascade no relacionamento
@@ -297,8 +282,8 @@ class TeacherOvertimePay(db.Model):
     justification = db.Column(db.String(100))
     month_base = db.Column(db.String(7), nullable=False) # YYYY-MM
     accountable_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     teacher = db.relationship('User', foreign_keys=[teacher_id])
     accountable = db.relationship('User', foreign_keys=[accountable_id])
@@ -329,7 +314,7 @@ class Role(db.Model):
     label = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     is_system = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     permissions = db.relationship('Permission', secondary='role_permissions', backref='roles')
     # Relacionamento reverso para User (role_obj)
@@ -363,7 +348,7 @@ class TechnicalSheet(db.Model):
     original_filename = db.Column(db.String(255), nullable=False)
     stored_filename = db.Column(db.String(255), nullable=False)
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    uploaded_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    uploaded_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     # pending: aguardando "Salvar Ficha Técnica" | saved: preparação gerada
     # | error: falha na leitura do arquivo
     status = db.Column(db.String(20), nullable=False, default='pending')
@@ -404,7 +389,7 @@ class KitchenRecipe(db.Model):
     allergens = db.Column(db.Text)          # alergênicos
     references = db.Column(db.Text)         # referências bibliográficas
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     preparations = db.relationship('KitchenPreparation', backref='recipe',
                                    cascade='all, delete-orphan',

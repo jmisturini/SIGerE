@@ -1,8 +1,10 @@
+import secrets
+
 import requests
 from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, flash, abort, request
+from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, current_app
 from flask_login import login_required, current_user
-from app.models import User, Classroom, Reservation, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity
+from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, TeacherForm, EmployeeForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm)
 from app.extensions import db
@@ -11,6 +13,8 @@ from app.permissions import require_permission
 from app.unity_context import current_unity_id
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+USERS_PER_PAGE = 25
 
 def _unity_choices():
     """Opções do select de unidades (todas as ativas)."""
@@ -57,8 +61,13 @@ def list_users():
     if filter_type in ['teacher', 'employee']:
         query = query.filter_by(profile_type=filter_type)
 
-    users = query.order_by(User.role, User.full_name).all()
-    return render_template('admin/users.html', users=users, search_name=search_name, filter_type=filter_type)
+    users = db.paginate(query.order_by(User.role, User.full_name),
+                        page=request.args.get('page', 1, type=int),
+                        per_page=USERS_PER_PAGE, error_out=False)
+    # users: Pagination (iterável) usado pela tabela; pagination: mesmo objeto
+    # para os controles de página do template.
+    return render_template('admin/users.html', users=users, pagination=users,
+                           search_name=search_name, filter_type=filter_type)
 
 @bp.route('/users/create-teacher', methods=['GET', 'POST'])
 @login_required
@@ -70,7 +79,6 @@ def create_teacher():
     if not form.unity_id.data:
         form.unity_id.data = current_unity_id()
     if form.validate_on_submit():
-        teacher_role = Role.query.filter_by(name='teacher').first()
         user = User(
             username=form.username.data, email=form.email.data, full_name=form.full_name.data,
             role='room', department=form.department.data, registration=form.registration.data,
@@ -95,7 +103,6 @@ def create_employee():
     if not form.unity_id.data:
         form.unity_id.data = current_unity_id()
     if form.validate_on_submit():
-        employee_role = Role.query.filter_by(name='employee').first()
         user = User(
             username=form.username.data, email=form.email.data, full_name=form.full_name.data,
             role='viewer', sector=form.sector.data, function=form.function.data,
@@ -115,7 +122,7 @@ def create_employee():
 @login_required
 @require_permission('user:edit')
 def edit_user(user_id):
-    user = _unity_scoped_or_404(User.query.get_or_404(user_id))
+    user = _unity_scoped_or_404(db.get_or_404(User, user_id))
 
     FormClass = TeacherForm if user.profile_type == 'teacher' else EmployeeForm
     form = FormClass(obj=user)
@@ -156,7 +163,7 @@ def edit_user(user_id):
 @login_required
 @require_permission('user:toggle')
 def toggle_user(user_id):
-    user = _unity_scoped_or_404(User.query.get_or_404(user_id))
+    user = _unity_scoped_or_404(db.get_or_404(User, user_id))
     if user.id == current_user.id:
         flash('Você não pode desativar sua própria conta.', 'danger')
         return redirect(url_for('admin.list_users'))
@@ -165,9 +172,23 @@ def toggle_user(user_id):
     flash(f'Usuário {user.full_name} {"ativado" if user.is_active_user else "desativado"}.', 'success')
     return redirect(url_for('admin.list_users'))
 
+@bp.route('/users/<int:user_id>/reset-password', methods=['POST'])
+@login_required
+@require_permission('user:edit')
+def reset_user_password(user_id):
+    """Gera uma senha temporária aleatória, exibe UMA vez ao administrador e
+    força a troca no próximo login do usuário."""
+    user = _unity_scoped_or_404(db.get_or_404(User, user_id))
+    temp_password = secrets.token_urlsafe(9)
+    user.set_password(temp_password)
+    user.force_password_change = True
+    db.session.commit()
+    flash(f'Senha de {user.full_name} redefinida. Senha temporária '
+          f'(exibida apenas agora — copie e envie ao usuário): {temp_password}', 'success')
+    return redirect(url_for('admin.list_users'))
+
 # ================= ROOM MANAGEMENT =================
 
-CATEGORY_ABBR = {'classroom': 'CR', 'auditorium': 'AU', 'kitchen': 'KI', 'computer_lab': 'CP', 'health_lab': 'HL'}
 
 @bp.route('/rooms')
 @login_required
@@ -209,7 +230,7 @@ def create_room():
 @login_required
 @require_permission('room:edit')
 def edit_room(room_id):
-    classroom = _unity_scoped_or_404(Classroom.query.get_or_404(room_id))
+    classroom = _unity_scoped_or_404(db.get_or_404(Classroom, room_id))
     form = ClassroomForm(obj=classroom)
     form.category_id.choices = [(c.id, c.name) for c in RoomCategory.query.filter_by(is_active=True).order_by(RoomCategory.name).all()]
 
@@ -241,7 +262,7 @@ def edit_room(room_id):
 @login_required
 @require_permission('room:toggle')
 def toggle_room(room_id):
-    classroom = _unity_scoped_or_404(Classroom.query.get_or_404(room_id))
+    classroom = _unity_scoped_or_404(db.get_or_404(Classroom, room_id))
     classroom.is_active = not classroom.is_active
     db.session.commit()
     flash(f'Sala {classroom.code} {"ativada" if classroom.is_active else "desativada"}.', 'success')
@@ -273,7 +294,7 @@ def create_course():
 @login_required
 @require_permission('course:edit')
 def edit_course(course_id):
-    course = _unity_scoped_or_404(Course.query.get_or_404(course_id))
+    course = _unity_scoped_or_404(db.get_or_404(Course, course_id))
     form = CourseForm(obj=course); form._obj_id = course.id
     if form.validate_on_submit():
         course.name=form.name.data; course.code=form.code.data; course.description=form.description.data; course.is_active=form.is_active.data
@@ -286,7 +307,7 @@ def edit_course(course_id):
 @login_required
 @require_permission('course:toggle')
 def toggle_course(course_id):
-    course = _unity_scoped_or_404(Course.query.get_or_404(course_id))
+    course = _unity_scoped_or_404(db.get_or_404(Course, course_id))
     course.is_active = not course.is_active
     db.session.commit()
     flash(f'Curso {course.code} {"ativado" if course.is_active else "desativado"}.', 'success')
@@ -320,7 +341,7 @@ def create_subject():
 @login_required
 @require_permission('course:edit')
 def edit_subject(subject_id):
-    subj = _unity_scoped_or_404(Subject.query.get_or_404(subject_id))
+    subj = _unity_scoped_or_404(db.get_or_404(Subject, subject_id))
     form = SubjectForm(obj=subj); form._obj_id = subj.id
     form.course_id.choices = [(c.id, c.name) for c in Course.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Course.name).all()]
     form.course_id.choices.insert(0, (0, '-- Nenhum Curso Específico --'))
@@ -335,7 +356,7 @@ def edit_subject(subject_id):
 @login_required
 @require_permission('course:toggle')
 def toggle_subject(subject_id):
-    subj = _unity_scoped_or_404(Subject.query.get_or_404(subject_id))
+    subj = _unity_scoped_or_404(db.get_or_404(Subject, subject_id))
     subj.is_active = not subj.is_active
     db.session.commit()
     flash(f'Disciplina {subj.code} {"ativada" if subj.is_active else "desativada"}.', 'success')
@@ -370,7 +391,7 @@ def create_holiday():
 @login_required
 @require_permission('holiday:edit')
 def edit_holiday(holiday_id):
-    h = _unity_scoped_or_404(Holiday.query.get_or_404(holiday_id))
+    h = _unity_scoped_or_404(db.get_or_404(Holiday, holiday_id))
     form = HolidayForm(obj=h)
     if form.validate_on_submit():
         h.name=form.name.data; h.date=form.date.data; h.is_active=form.is_active.data
@@ -383,7 +404,7 @@ def edit_holiday(holiday_id):
 @login_required
 @require_permission('holiday:delete')
 def delete_holiday(holiday_id):
-    h = _unity_scoped_or_404(Holiday.query.get_or_404(holiday_id))
+    h = _unity_scoped_or_404(db.get_or_404(Holiday, holiday_id))
     db.session.delete(h)
     db.session.commit()
     flash('Feriado excluído.', 'info')
@@ -393,7 +414,6 @@ def delete_holiday(holiday_id):
 @login_required
 @require_permission('holiday:import')
 def import_holidays():
-    country = request.form.get('country', 'BR')
     year = request.form.get('year', datetime.now().year, type=int)
 
     if not (2000 <= year <= 2100):
@@ -423,8 +443,9 @@ def import_holidays():
 
         db.session.commit()
         flash(f'{imported_count} novos feriados importados. {skipped_count} ignorados.', 'success')
-    except Exception as e:
-        flash(f'Erro ao buscar a BrasilAPI: {str(e)}', 'danger')
+    except Exception:
+        current_app.logger.exception('Falha ao importar feriados da BrasilAPI')
+        flash('Erro ao buscar os feriados na BrasilAPI. Tente novamente mais tarde.', 'danger')
     return redirect(url_for('admin.list_holidays'))
 
 # ================= ROLE MANAGEMENT =================
@@ -457,7 +478,7 @@ def create_role():
 @login_required
 @require_permission('role:edit')
 def edit_role(role_id):
-    role = Role.query.get_or_404(role_id)
+    role = db.get_or_404(Role, role_id)
     form = RoleForm(obj=role)
     form.permissions.choices = [(p.id, f"{p.module}: {p.action} ({p.code})") for p in Permission.query.order_by(Permission.module, Permission.action).all()]
     
@@ -480,7 +501,7 @@ def edit_role(role_id):
 @login_required
 @require_permission('role:delete')
 def delete_role(role_id):
-    role = Role.query.get_or_404(role_id)
+    role = db.get_or_404(Role, role_id)
     if role.is_system:
         flash('Papéis do sistema não podem ser excluídos.', 'danger')
         return redirect(url_for('admin.list_roles'))
@@ -527,7 +548,7 @@ def create_category():
 @login_required
 @require_permission('room:edit')
 def edit_category(cat_id):
-    cat = RoomCategory.query.get_or_404(cat_id)
+    cat = db.get_or_404(RoomCategory, cat_id)
     form = RoomCategoryForm(obj=cat)
     if form.validate_on_submit():
         cat.name = form.name.data
@@ -543,7 +564,7 @@ def edit_category(cat_id):
 @login_required
 @require_permission('room:toggle')
 def toggle_category(cat_id):
-    cat = RoomCategory.query.get_or_404(cat_id)
+    cat = db.get_or_404(RoomCategory, cat_id)
     cat.is_active = not cat.is_active
     db.session.commit()
     flash(f'Categoria {cat.name} {"ativada" if cat.is_active else "desativada"}.', 'success')

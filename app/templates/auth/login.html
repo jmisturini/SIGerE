@@ -21,7 +21,13 @@
                     </div>
                     <div class="mb-4">
                         {{ form.password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                        {{ form.password(class="form-control", placeholder="Digite sua senha") }}
+                        <div class="input-group">
+                            {{ form.password(class="form-control", id="login-password", placeholder="Digite sua senha") }}
+                            <button class="btn btn-outline-secondary" type="button" data-password-toggle="login-password"
+                                    title="Mostrar/ocultar senha" tabindex="-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="d-grid">
                         {{ form.submit(class="btn btn-primary px-4 py-2") }}
@@ -29,7 +35,9 @@
                 </form>
             </div>
             <div class="card-footer bg-transparent text-center py-3">
+                {% if config.get('DEBUG') %}
                 <p class="mb-0 small text-muted">Contas de demonstração: <code>admin/admin123</code></p>
+                {% endif %}
                 <a href="{{ url_for('public.home') }}" class="small text-decoration-none mt-2 d-inline-block">
                     <i class="bi bi-arrow-left"></i> Voltar para o site
                 </a>

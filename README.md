@@ -53,7 +53,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
   - ❌ Domingos bloqueados
   - ❌ Feriados nacionais bloqueados (importados via BrasilAPI)
   - ⚠️ Sábados: apenas manhã e tarde (até 18h)
-- **Repetição de reservas:** crie séries de aulas com opções de "mesmo dia da semana" e "pular fins de semana"
+- **Repetição de reservas:** crie séries de aulas com opções de "mesmo dia da semana" e "pular fins de semana" (intervalo limitado a 180 dias por lote)
 - **Auto-aprovação:** reservas sem conflitos são aprovadas instantaneamente
 - **Filtros de disponibilidade:** salas disponíveis agora, em data/período específico ou por categoria
 
@@ -68,6 +68,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
   - **Professor:** departamento, matrícula, unidade
   - **Funcionário:** setor, função, unidade, com opção de "também atuar como professor"
 - **Busca e filtros:** filtrar usuários por nome ou tipo de perfil
+- **Reset de senha pelo admin:** gera uma senha temporária aleatória (exibida uma única vez) e força a troca no próximo login
 - **Segurança:** forçar troca de senha no primeiro login ou após reset administrativo
 - **Ativação/desativação:** controle de status do usuário sem exclusão de dados
 
@@ -126,6 +127,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 | **Banco de Dados** | SQLite (padrão), compatível com PostgreSQL/MySQL |
 | **Frontend** | Bootstrap 5, Bootstrap Icons, Jinja2, FullCalendar |
 | **Relatórios** | FPDF2, OpenPyXL |
+| **Rate limiting** | Flask-Limiter |
 | **APIs Externas** | [Open-Meteo](https://open-meteo.com/) (clima), [BrasilAPI](https://brasilapi.com.br/) (feriados) |
 
 ---
@@ -155,11 +157,19 @@ venv\Scripts\activate
 # 3. Instale as dependências
 pip install -r requirements.txt
 
-# 4. Execute a aplicação
+# 4. Habilite o modo desenvolvimento (ou defina uma SECRET_KEY)
+# Linux/macOS:
+export FLASK_DEBUG=true
+# Windows PowerShell:
+# $env:FLASK_DEBUG="true"
+
+# 5. Execute a aplicação
 python run.py
 ```
 
 A aplicação estará disponível em: **http://localhost:5000**
+
+> **Nota:** em produção (`FLASK_DEBUG != true`) a aplicação exige a variável `SECRET_KEY` definida e se recusa a iniciar sem ela (ver [Configuração](#️-configuração)).
 
 > **Nota:** Na primeira execução, o banco de dados é criado automaticamente. Execute `flask --app run seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
 
@@ -191,13 +201,15 @@ export SECRET_KEY="sua-chave-secreta-forte-aqui"
 export DATABASE_URL="postgresql://user:pass@localhost/sigere"
 ```
 
+> **Obrigatório em produção:** sem `SECRET_KEY` definida (fora do modo debug), a aplicação se recusa a iniciar. Além disso, os cookies de sessão recebem o atributo `Secure` automaticamente quando `FLASK_DEBUG != true` — sirva a aplicação atrás de HTTPS.
+
 ### Configurar localização do Totem (Clima)
 
-Edite `app/templates/totem.html` e ajuste as coordenadas geográficas:
+As coordenadas vêm do `Config` (ou variáveis de ambiente) e alimentam o totem e o portal:
 
-```javascript
-const lat = -23.5505;   // Latitude da sua instituição
-const lon = -46.6333;   // Longitude da sua instituição
+```bash
+export TOTEM_LATITUDE="-23.5505"    # Latitude da sua instituição
+export TOTEM_LONGITUDE="-46.6333"   # Longitude da sua instituição
 ```
 
 ---
@@ -331,12 +343,18 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 ## 🔒 Segurança
 
 - **Hash de senhas** com Werkzeug (`generate_password_hash`)
-- **Proteção CSRF** em todos os formulários via Flask-WTF
+- **Proteção CSRF global** (Flask-WTF `CSRFProtect`): todo POST exige token — formulários WTForms via `hidden_tag()` e botões de ação via `csrf_token()`
 - **Controle de acesso por permissões granulares** (ex: `reservation:create`, `payment:read`)
 - **Proteção contra auto-desativação:** administradores não podem desativar sua própria conta
 - **Troca de senha forçada** no primeiro login ou após reset administrativo
 - **Bloqueio de edição/exclusão** de reservas passadas (exceto para administradores)
 - **Regras temporais** em pagamentos: edição até 30 dias, exclusão até 180 dias
+- **`SECRET_KEY` obrigatória em produção** (fail-fast no boot fora do modo debug)
+- **Cookies de sessão endurecidos:** `Secure` fora do debug e `SameSite=Lax`
+- **Limite de upload** de 16 MB (`MAX_CONTENT_LENGTH`)
+- **Fichas técnicas fora de `static/`:** armazenadas em `instance/uploads/` e servidas apenas pela rota autenticada de download
+- **Escapagem de dados dinâmicos** em mensagens renderizadas com `|safe` (anti-XSS)
+- **Rate limiting no login** (5 tentativas por minuto por IP, via Flask-Limiter)
 
 ---
 

@@ -1,7 +1,7 @@
 import os
 import re
 import math
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
 from app.models import User, Course, TeacherBasePay, TeacherAdditivePayment, TeacherOvertimePay
 from app.forms import FormTeacherBasePay, FormTeacherAdditivePay, FormTeacherOvertimePay
@@ -15,6 +15,8 @@ from decimal import Decimal, InvalidOperation
 from app.permissions import require_permission
 
 bp = Blueprint('payments', __name__, url_prefix='/payments')
+
+PAYS_PER_PAGE = 25
 
 # ================= HELPER FUNCTIONS =================
 
@@ -31,16 +33,14 @@ def _courses_for_current_unity():
     return Course.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Course.name).all()
 
 def _get_base_pay_scoped(pay_id):
-    pay = TeacherBasePay.query.get_or_404(pay_id)
+    pay = db.get_or_404(TeacherBasePay, pay_id)
     if pay.unity_id != current_unity_id():
-        from flask import abort
         abort(404)
     return pay
 
 def _get_overtime_scoped(overtime_id):
-    overtime = TeacherOvertimePay.query.get_or_404(overtime_id)
+    overtime = db.get_or_404(TeacherOvertimePay, overtime_id)
     if overtime.unity_id != current_unity_id():
-        from flask import abort
         abort(404)
     return overtime
 
@@ -82,8 +82,17 @@ def validate_180_days_rule(created_at):
     return True
 
 def parse_currency(value_str):
-    if not value_str: return None
-    cleaned = value_str.strip().replace('.', '').replace(',', '.')
+    """Converte texto de valor monetário em Decimal.
+
+    Aceita os formatos pt-BR e en-US: '15,50', '15.50' e '1.234,56'.
+    O ponto só é tratado como separador de milhar quando há vírgula decimal
+    na string — sem vírgula, o ponto é decimal ('15.50' → 15.50, não 1550).
+    """
+    if not value_str:
+        return None
+    cleaned = value_str.strip()
+    if ',' in cleaned:
+        cleaned = cleaned.replace('.', '').replace(',', '.')
     try:
         return Decimal(cleaned)
     except InvalidOperation:
@@ -101,8 +110,12 @@ def list_base_pays():
     # chegam aqui têm payment:read e vêem tudo.
     # CORREÇÃO: a verificação anterior era dead-code — @require_permission('payment:read') já
     # garante que current_user.has_permission('payment:read') == True para qualquer request.
-    infos = TeacherBasePay.query.filter_by(unity_id=current_unity_id()).order_by(TeacherBasePay.created_at.desc()).all()
-    return render_template('payments/list_base.html', infos=infos)
+    pagination = db.paginate(
+        TeacherBasePay.query.filter_by(unity_id=current_unity_id())
+            .order_by(TeacherBasePay.created_at.desc()),
+        page=request.args.get('page', 1, type=int),
+        per_page=PAYS_PER_PAGE, error_out=False)
+    return render_template('payments/list_base.html', infos=pagination.items, pagination=pagination)
 
 @bp.route('/create', methods=['GET', 'POST'])
 @login_required
@@ -236,9 +249,8 @@ def create_additive():
 @login_required
 @require_permission('payment:delete')
 def delete_additive(additive_id):
-    additive = TeacherAdditivePayment.query.get_or_404(additive_id)
+    additive = db.get_or_404(TeacherAdditivePayment, additive_id)
     if additive.unity_id != current_unity_id():
-        from flask import abort
         abort(404)
     if not validate_180_days_rule(additive.created_at):
         return redirect(url_for('payments.list_base_pays'))
@@ -266,10 +278,13 @@ def list_overtime():
     if filter_teacher:
         query = query.filter_by(teacher_id=filter_teacher)
 
-    infos = query.order_by(TeacherOvertimePay.created_at.desc()).all()
+    pagination = db.paginate(query.order_by(TeacherOvertimePay.created_at.desc()),
+                             page=request.args.get('page', 1, type=int),
+                             per_page=PAYS_PER_PAGE, error_out=False)
     list_teachers = _teachers_for_current_unity()
-    
-    return render_template('payments/list_overtime.html', infos=infos, list_teachers=list_teachers, filter_month=filter_month, filter_teacher=filter_teacher)
+
+    return render_template('payments/list_overtime.html', infos=pagination.items, pagination=pagination,
+                           list_teachers=list_teachers, filter_month=filter_month, filter_teacher=filter_teacher)
 
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required
@@ -406,11 +421,17 @@ def export_excel_base():
     if not semester_base or not year_base:
         flash('Selecione o semestre e ano.', 'danger')
         return redirect(url_for('payments.list_base_pays'))
-        
+
+    try:
+        year_int = int(year_base)
+    except (TypeError, ValueError):
+        flash('Ano inválido para exportação.', 'danger')
+        return redirect(url_for('payments.list_base_pays'))
+
     if semester_base == 1:
         start_q, end_q = f'{year_base}-02', f'{year_base}-07'
     else:
-        start_q, end_q = f'{year_base}-08', f'{int(year_base)+1}-01'
+        start_q, end_q = f'{year_base}-08', f'{year_int + 1}-01'
 
     pays = TeacherBasePay.query.filter(
         TeacherBasePay.unity_id == current_unity_id(),

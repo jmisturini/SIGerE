@@ -1,19 +1,40 @@
-from flask import Flask, render_template, redirect, url_for, request
+from flask import Flask, render_template, redirect, url_for, request, flash
 from app.config import Config
-from app.extensions import db, login_manager
-from app.models import User
+from app.extensions import db, login_manager, csrf, limiter
 from datetime import datetime
 import os
 import sys
+
+# Valor de desenvolvimento — em produção (FLASK_DEBUG != true) a app se recusa
+# a iniciar sem um SECRET_KEY real, pois com ele é possível forjar cookies de sessão.
+DEV_SECRET_KEY = 'dev-secret-key-change-in-production'
 
 def create_app(config_class=Config):
     """Factory function to create and configure the Flask app."""
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+
+    # Fail-fast de segurança: sem SECRET_KEY forte, sessões podem ser forjadas.
+    if app.config['SECRET_KEY'] == DEV_SECRET_KEY and not debug_mode:
+        raise RuntimeError(
+            'SECRET_KEY não configurada: defina a variável de ambiente SECRET_KEY '
+            'com um valor forte e único (ou rode com FLASK_DEBUG=true em desenvolvimento).'
+        )
+
+    # Endurecimento de cookies apenas fora do modo debug (produção assumed HTTPS):
+    # Secure impede envio do cookie por HTTP puro; HttpOnly já é o padrão do Flask.
+    # Atribuição direta: o Flask já predefine SESSION_COOKIE_SECURE=False, então
+    # setdefault não teria efeito.
+    if not debug_mode:
+        app.config['SESSION_COOKIE_SECURE'] = True
+
     # Initialize Flask extensions
     db.init_app(app)
     login_manager.init_app(app)
+    csrf.init_app(app)
+    limiter.init_app(app)
 
     # Register all Blueprints
     from app.blueprints.auth import bp as auth_bp
@@ -56,10 +77,33 @@ def create_app(config_class=Config):
     def server_error(_):
         return render_template('errors/500.html'), 500
 
+    # CSRF rejeitado (token ausente/expirado — típico de sessão expirada):
+    # mensagem amigável em vez de página "Bad Request" crua.
+    from flask_wtf.csrf import CSRFError
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        flash('Sua sessão expirou ou o formulário já não é válido. '
+              'Recarregue a página e tente novamente.', 'warning')
+        return redirect(request.referrer or url_for('main.index'))
+
+    # Rate limit excedido (ex.: várias tentativas de login): aviso amigável
+    # em vez da página 429 crua.
+    from flask_limiter.errors import RateLimitExceeded
+    @app.errorhandler(RateLimitExceeded)
+    def handle_rate_limit(e):
+        flash('Muitas tentativas em pouco tempo. Aguarde um momento e tente novamente.', 'warning')
+        return redirect(url_for('auth.login'))
+
     # Context processor to inject current datetime into all templates
     @app.context_processor
     def inject_now():
         return {'now': datetime.now()}
+
+    # Coordenadas do clima (totem/portal) centralizadas no Config
+    @app.context_processor
+    def inject_weather_config():
+        return {'totem_lat': app.config['TOTEM_LATITUDE'],
+                'totem_lon': app.config['TOTEM_LONGITUDE']}
 
     # Multi-unidade: injeta a unidade ativa e o seletor de unidades nos templates
     @app.context_processor
@@ -226,9 +270,7 @@ def _rebuild_unity_unique_constraints(inspector):
     composta), copia os dados e remove a antiga. Roda apenas quando ainda
     existe índice único de coluna única do esquema antigo. Idempotente.
     """
-    from sqlalchemy import text
     from sqlalchemy.schema import CreateTable, CreateIndex
-    from sqlalchemy import MetaData
     from app.models import Classroom, Course, Subject, Holiday
 
     # (modelo, coluna que era única globalmente)

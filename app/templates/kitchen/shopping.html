@@ -11,6 +11,7 @@
 
 {% if recipes %}
 <form method="POST" action="{{ url_for('kitchen.shopping_export') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="row g-4">
         <div class="col-lg-7">
             <div class="card">
