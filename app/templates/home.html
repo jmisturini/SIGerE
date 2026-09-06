@@ -5,13 +5,43 @@
 <div class="page-header text-center mb-5">
     <h1 class="display-5 fw-bold mb-3">SIGerE</h1>
     <p class="lead text-muted col-lg-8 mx-auto">
-        Bem-vindo ao SIGerE! Sistema de reserva e visualização de salas e auditórios da escola.
-        Faça login para verificar a disponibilidade e realizar sua reserva.
+        Bem-vindo ao SIGerE! Consulte o cronograma de aulas do dia, encontre a sua aula
+        pelo curso, disciplina, professor ou sala — e faça login para gerenciar suas reservas.
     </p>
 </div>
 
 <div class="row g-4 justify-content-center">
-    <div class="col-md-6 col-lg-5 d-flex align-items-stretch">
+    <div class="col-md-6 col-lg-4 d-flex align-items-stretch">
+        <div class="card w-100 text-center hover-shadow border-0">
+            <div class="card-body d-flex flex-column justify-content-center align-items-center p-4">
+                <div class="feature-icon bg-primary-subtle text-primary mb-4">
+                    <i class="bi bi-search"></i>
+                </div>
+                <h4 class="fw-bold mb-2">Buscar Minha Aula</h4>
+                <p class="text-muted mb-4">Encontre sua aula informando o curso, a disciplina, o professor ou a sala.</p>
+                <a href="{{ url_for('public.class_search') }}" class="btn btn-primary mt-auto w-100">
+                    <i class="bi bi-search"></i> Buscar Aula
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4 d-flex align-items-stretch">
+        <div class="card w-100 text-center hover-shadow border-0">
+            <div class="card-body d-flex flex-column justify-content-center align-items-center p-4">
+                <div class="feature-icon bg-primary-subtle text-primary mb-4">
+                    <i class="bi bi-calendar-day"></i>
+                </div>
+                <h4 class="fw-bold mb-2">Cronograma de Aulas</h4>
+                <p class="text-muted mb-4">Veja as aulas do dia organizadas por manhã, tarde e noite.</p>
+                <a href="{{ url_for('public.daily_schedule') }}" class="btn btn-primary mt-auto w-100">
+                    <i class="bi bi-calendar-day"></i> Ver Cronograma
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4 d-flex align-items-stretch">
         <div class="card w-100 text-center hover-shadow border-0">
             <div class="card-body d-flex flex-column justify-content-center align-items-center p-4">
                 <div class="feature-icon bg-primary-subtle text-primary mb-4">
@@ -19,14 +49,16 @@
                 </div>
                 <h4 class="fw-bold mb-2">Entrar</h4>
                 <p class="text-muted mb-4">Acesse seu painel para gerenciar reservas e consultas.</p>
-                <a href="{{ url_for('auth.login') }}" class="btn btn-primary mt-auto w-100">
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary mt-auto w-100">
                     <i class="bi bi-unlock"></i> Fazer Login
                 </a>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <style>
     .feature-icon {
         width: 64px;
@@ -37,12 +69,12 @@
         justify-content: center;
         font-size: 1.8rem;
     }
-    .hover-shadow { 
-        transition: transform 0.2s ease, box-shadow 0.2s ease; 
+    .hover-shadow {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .hover-shadow:hover { 
-        transform: translateY(-4px); 
-        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.1) !important; 
+    .hover-shadow:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.1) !important;
     }
 </style>
 {% endblock %}

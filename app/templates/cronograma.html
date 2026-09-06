@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% import '_aula_macros.html' as aulas %}
+{% block title %}Cronograma de Aulas - SIGerE{% endblock %}
+
+{% block content %}
+<div class="page-header text-center mb-4">
+    <h3 class="fw-bold mb-2"><i class="bi bi-calendar-day text-primary me-2"></i> Cronograma de Aulas</h3>
+    <p class="text-muted mb-0">Consulte as aulas aprovadas do dia, organizadas por período.</p>
+</div>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h4 class="fw-bold mb-0">{{ aulas.rotulo_data(schedule_date, today) }}</h4>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <form method="GET" class="d-flex align-items-center gap-2">
+            {% if public_unity and public_unities|length > 1 %}
+            <input type="hidden" name="unity" value="{{ public_unity.id }}">
+            {% endif %}
+            <input type="date" name="data" class="form-control form-control-sm" value="{{ schedule_date.isoformat() }}"
+                   onchange="this.form.submit()" title="Escolher outro dia" aria-label="Data do cronograma">
+        </form>
+        {% if public_unity and public_unities|length > 1 %}
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-geo-alt me-1"></i>{{ public_unity.name }}
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                {% for u in public_unities %}
+                <li><a class="dropdown-item {{ 'active' if public_unity.id == u.id }}"
+                       href="{{ url_for('public.daily_schedule', unity=u.id, data=schedule_date.isoformat()) }}">{{ u.name }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if public_unity is none %}
+<div class="card">
+    <div class="card-body text-center text-muted p-5">
+        <i class="bi bi-buildings fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Nenhuma unidade cadastrada</h5>
+        <p class="small mb-0">O cronograma de aulas será exibido assim que uma unidade for criada no painel.</p>
+    </div>
+</div>
+{% elif schedule_count %}
+<div class="row g-4">
+    {% for p in schedule_periods %}
+    <div class="col-md-4 d-flex align-items-stretch">
+        <div class="card w-100">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="bi {{ p.icon }} text-primary me-2"></i>{{ p.label }}</span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ p.reservations|length }}</span>
+            </div>
+            {% if p.reservations %}
+            <div class="list-group list-group-flush">
+                {% for r in p.reservations %}{{ aulas.aula_item(r) }}{% endfor %}
+            </div>
+            {% else %}
+            <div class="card-body text-center text-muted small py-4">
+                <i class="bi {{ p.icon }} me-1"></i>Nenhuma aula no período
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body text-center text-muted p-5">
+        <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Sem aulas neste dia</h5>
+        <p class="small mb-0">Nenhuma aula aprovada para {{ aulas.rotulo_data(schedule_date, today) }}{% if public_unity %} na unidade {{ public_unity.name }}{% endif %}.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
