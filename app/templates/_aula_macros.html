@@ -6,7 +6,7 @@
         <span class="fw-bold"><i class="bi bi-clock text-primary me-1"></i>{{ r.start_time.strftime('%H:%M') }} – {{ r.end_time.strftime('%H:%M') }}</span>
         <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ r.classroom.code }}</span>
     </div>
-    <div class="fw-semibold mt-1">{{ r.title }}</div>
+    <div class="fw-semibold mt-1 text-break">{{ r.title }}</div>
     <div class="small text-muted">
         {% if r.course %}<span class="me-2"><i class="bi bi-mortarboard me-1"></i>{{ r.course.name }}</span>{% endif %}
         {% if r.subject %}<span class="me-2"><i class="bi bi-book me-1"></i>{{ r.subject.name }}</span>{% endif %}
