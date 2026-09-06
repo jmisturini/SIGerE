@@ -154,6 +154,10 @@ class Reservation(db.Model):
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     review_note = db.Column(db.Text)
+    # Séries de repetição: reservas geradas pela tela "Repetir" (e a origem)
+    # compartilham o mesmo repeat_group_id — permite editar/excluir o lote.
+    repeat_group_id = db.Column(db.Integer, db.ForeignKey('reservations.id'),
+                                nullable=True, index=True)
 
     # Relationship for the teacher assigned to this reservation
     teacher = db.relationship('User', foreign_keys=[teacher_id], backref='teaching_reservations')
