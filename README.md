@@ -20,6 +20,7 @@
 - [Tecnologias](#-tecnologias)
 - [Instalação](#-instalação)
 - [Configuração](#-configuração)
+- [Deploy em Produção (Gunicorn + Nginx)](#-deploy-em-produção-gunicorn--nginx)
 - [Uso](#-uso)
 - [Estrutura do Projeto](#-estrutura-do-projeto)
 - [APIs Externas](#-apis-externas)
@@ -128,6 +129,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 | **Frontend** | Bootstrap 5, Bootstrap Icons, Jinja2, FullCalendar |
 | **Relatórios** | FPDF2, OpenPyXL |
 | **Rate limiting** | Flask-Limiter |
+| **Produção** | Gunicorn (WSGI) + Nginx (proxy/TLS) |
 | **APIs Externas** | [Open-Meteo](https://open-meteo.com/) (clima), [BrasilAPI](https://brasilapi.com.br/) (feriados) |
 
 ---
@@ -171,9 +173,9 @@ A aplicação estará disponível em: **http://localhost:5000**
 
 > **Nota:** em produção (`FLASK_DEBUG != true`) a aplicação exige a variável `SECRET_KEY` definida e se recusa a iniciar sem ela (ver [Configuração](#️-configuração)).
 
-> **Nota:** Na primeira execução, o banco de dados é criado automaticamente. Execute `flask --app run seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
+> **Nota:** o schema do banco é versionado com Flask-Migrate/Alembic (não é mais criado automaticamente no boot). Em uma instalação nova, execute `flask --app run db upgrade` para criar as tabelas e depois `flask --app run seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
 
-> **Atualizando uma instalação existente:** ao receber atualizações que adicionam novos módulos, execute `flask --app run sync-permissions` para criar as novas permissões e vinculá-las aos papéis sem precisar popular o banco novamente.
+> **Atualizando uma instalação existente:** após `git pull`, execute `flask --app run db upgrade` (aplica migrações de schema novas) e `flask --app run sync-permissions` (permissões de módulos novos). Se o seu banco é de uma versão **anterior ao Alembic**, rode uma única vez `flask --app run db-legacy-upgrade` — detalhes em [Migrações de banco](#migrações-de-banco-flask-migratealembic).
 
 ---
 
@@ -211,6 +213,172 @@ As coordenadas vêm do `Config` (ou variáveis de ambiente) e alimentam o totem 
 export TOTEM_LATITUDE="-23.5505"    # Latitude da sua instituição
 export TOTEM_LONGITUDE="-46.6333"   # Longitude da sua instituição
 ```
+
+### Migrações de banco (Flask-Migrate/Alembic)
+
+O schema é versionado no diretório `migrations/` (comittado no repositório). O boot da aplicação **não** altera o schema — quem aplica é o Alembic, de forma segura até com múltiplos workers.
+
+| Situação | Comando |
+|---|---|
+| Instalação nova (banco vazio) | `flask --app run db upgrade` |
+| Banco já no esquema atual, mas criado antes do Alembic | `flask --app run db stamp head` |
+| Banco de uma versão anterior ao módulo multi-unidade | `flask --app run db-legacy-upgrade` (uma vez só) |
+
+Após **alterar modelos** em `app/models.py`, gere e aplique a migração:
+
+```bash
+flask --app run db migrate -m "descrição da mudança"   # gera o arquivo em migrations/versions/
+flask --app run db upgrade                             # aplica no banco
+```
+
+O `db migrate` compara os modelos com o banco configurado em `DATABASE_URL` — revise o arquivo gerado em `migrations/versions/` antes de aplicar. O comando `db-legacy-upgrade` é idempotente: em bancos já atualizados ele apenas registra o versionamento.
+
+---
+
+## 🚢 Deploy em Produção (Gunicorn + Nginx)
+
+O servidor de desenvolvimento do Flask (`python run.py`) **não deve ser usado em produção**. A arquitetura recomendada é: **Nginx** (proxy reverso + arquivos estáticos + TLS) → **Gunicorn** (servidor WSGI) → aplicação Flask.
+
+> **Nota:** o Gunicorn não está no `requirements.txt` porque não funciona em Windows (máquina de desenvolvimento). Instale-o apenas no servidor Linux.
+
+### 1. Preparar o servidor
+
+```bash
+# Dependências do sistema (Debian/Ubuntu)
+sudo apt update
+sudo apt install python3-venv python3-pip nginx postgresql redis-server
+
+# Código + ambiente virtual
+sudo mkdir -p /var/www/sigere && sudo chown $USER /var/www/sigere
+git clone https://github.com/jmisturini/SIGerE.git /var/www/sigere
+cd /var/www/sigere
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt gunicorn
+
+# Permissões: o Gunicorn precisa escrever o banco (se SQLite) e os uploads
+sudo chown -R www-data:www-data /var/www/sigere/instance
+```
+
+### 2. Variáveis de ambiente
+
+Crie o arquivo `/var/www/sigere/.env` (lido pelo `systemd` abaixo) — **nunca versionado**:
+
+```bash
+SECRET_KEY="gere-com: python3 -c 'import secrets; print(secrets.token_urlsafe(48))'"
+DATABASE_URL="postgresql://sigere:senha-forte@localhost:5432/sigere"
+TOTEM_LATITUDE="-23.5505"
+TOTEM_LONGITUDE="-46.6333"
+RATELIMIT_STORAGE_URI="redis://localhost:6379/0"
+```
+
+> **Por que PostgreSQL?** O SQLite padrão serve para avaliação, mas em produção com múltiplos workers o recomendado é PostgreSQL (driver já incluído no `requirements.txt`).
+
+> **Por que Redis no rate limit?** Com mais de um worker do Gunicorn, cada processo teria seu próprio contador em memória — o limite por IP ficaria N vezes mais frouxo. Com Redis, o contador é compartilhado.
+
+### 3. Gunicorn via systemd
+
+Crie `/etc/systemd/system/sigere.service`:
+
+```ini
+[Unit]
+Description=SIGerE (Gunicorn)
+After=network.target postgresql.service redis-server.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/sigere
+EnvironmentFile=/var/www/sigere/.env
+ExecStart=/var/www/sigere/venv/bin/gunicorn \
+    --chdir /var/www/sigere \
+    --bind unix:/run/sigere/sigere.sock \
+    --workers 3 --threads 2 \
+    --timeout 120 \
+    --access-logfile /var/log/sigere/access.log \
+    --error-logfile /var/log/sigere/error.log \
+    run:app
+ExecReload=/bin/kill -s HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# Socket dir e logs
+sudo mkdir -p /run/sigere /var/log/sigere
+sudo chown www-data:www-data /run/sigere /var/log/sigere
+
+# Ativar e iniciar
+sudo systemctl daemon-reload
+sudo systemctl enable --now sigere
+sudo systemctl status sigere   # deve estar "active (running)"
+```
+
+> **Workers:** use `--workers (2 x CPUs) + 1` como ponto de partida. O entrypoint é `run:app` — a variável `app = create_app()` já existe no `run.py`. Ao atualizar o código, `sudo systemctl reload sigere` aplica sem derrubar as requisições em andamento.
+
+### 4. Nginx como proxy reverso
+
+Crie `/etc/nginx/sites-available/sigere`:
+
+```nginx
+server {
+    listen 80;
+    server_name sigere.sua-instituicao.edu.br;
+    # Redirecione todo o tráfego HTTP para HTTPS após emitir o certificado (passo 5)
+
+    # Deve ser >= MAX_CONTENT_LENGTH da aplicação (16 MB)
+    client_max_body_size 16m;
+
+    # Arquivos estáticos servidos direto pelo Nginx (CSS, JS, modelos Excel)
+    location /static/ {
+        alias /var/www/sigere/app/static/;
+        expires 7d;
+        access_log off;
+    }
+
+    location / {
+        proxy_pass http://unix:/run/sigere/sigere.sock;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/sigere /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+> **Atenção:** o `proxy_set_header X-Forwarded-For` é o que permite o rate limiting do login contar por IP real do visitante. O diretório `instance/uploads/` (fichas técnicas) **não** é servido pelo Nginx de propósito — o acesso é exclusivamente pela rota autenticada da aplicação.
+
+### 5. HTTPS (obrigatório)
+
+Sem HTTPS o login **não funciona** em produção: fora do modo debug, a aplicação marca o cookie de sessão como `Secure` e o navegador o recusa em HTTP puro.
+
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d sigere.sua-instituicao.edu.br
+```
+
+Após emitir o certificado, descomente o redirecionamento 80→443 no bloco Nginx acima e adicione o bloco `listen 443 ssl` equivalente (o certbot faz isso automaticamente com `--nginx`).
+
+### 6. Atualizando a aplicação
+
+```bash
+cd /var/www/sigere
+sudo -u www-data git pull
+sudo -u www-data venv/bin/pip install -r requirements.txt gunicorn
+sudo -u www-data venv/bin/flask --app run db upgrade    # aplica migrações de schema
+sudo systemctl restart sigere
+# Se algum módulo novo trouxer permissões:
+sudo -u www-data venv/bin/flask --app run sync-permissions
+```
+
+> Na **primeira** implantação, a rotina é: `db upgrade` → `seed` (opcional, dados de demonstração) → `db stamp head` se o banco já existia de versões anteriores ao Alembic → iniciar o serviço.
 
 ---
 
