@@ -5,7 +5,10 @@
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
         <h3 class="fw-bold mb-1">{{ reservation.title }}</h3>
-        <span class="badge status-{{ reservation.status }} status-badge text-capitalize">
+        <span class="badge {% if reservation.status == 'approved' %}text-bg-success-subtle text-success border border-success-subtle
+                            {% elif reservation.status == 'pending' %}text-bg-warning-subtle text-warning border border-warning-subtle
+                            {% elif reservation.status == 'cancelled' %}text-bg-danger-subtle text-danger border border-danger-subtle
+                            {% else %}text-bg-secondary-subtle text-secondary border border-secondary-subtle{% endif %} px-2 py-1">
             {% if reservation.status == 'approved' %}Aprovada
             {% elif reservation.status == 'pending' %}Pendente
             {% elif reservation.status == 'cancelled' %}Cancelada
@@ -82,7 +85,7 @@
             
             <!-- Repetir: Dono ou quem tem edit_all -->
             {% if reservation.status == 'approved' and (reservation.user_id == current_user.id or current_user.has_permission('reservation:edit_all')) %}
-            <a href="{{ url_for('reservations.repeat_view', reservation_id=reservation.id) }}" class="btn btn-outline-info">
+            <a href="{{ url_for('reservations.repeat_view', reservation_id=reservation.id) }}" class="btn btn-outline-primary">
                 <i class="bi bi-arrow-repeat me-1"></i> Repetir
             </a>
             {% endif %}
@@ -99,14 +102,14 @@
                 {% if current_user.has_permission('reservation:cancel_all') or (current_user.has_permission('reservation:cancel_own') and reservation.user_id == current_user.id) %}
                 <form method="POST" action="{{ url_for('reservations.cancel', reservation_id=reservation.id) }}" onsubmit="return confirm('Cancelar esta reserva? A sala ficará livre.');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button class="btn btn-warning"><i class="bi bi-x-circle me-1"></i> Cancelar Reserva</button>
+                    <button class="btn btn-outline-warning"><i class="bi bi-x-circle me-1"></i> Cancelar Reserva</button>
                 </form>
                 {% endif %}
             {% endif %}
 
             <!-- Editar e Excluir: Apenas Admin (edit_all, delete_all) -->
             {% if current_user.has_permission('reservation:edit_all') and reservation.status == 'approved' %}
-            <a href="{{ url_for('reservations.edit', reservation_id=reservation.id) }}" class="btn btn-primary">
+            <a href="{{ url_for('reservations.edit', reservation_id=reservation.id) }}" class="btn btn-outline-primary">
                 <i class="bi bi-pencil me-1"></i> Editar
             </a>
             {% endif %}
@@ -114,7 +117,7 @@
             {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'approved' %}
             <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva? Isso não pode ser desfeito.');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
+                <button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
             </form>
             {% endif %}
 
@@ -129,7 +132,7 @@
             {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'pending' %}
             <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva pendente?');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
+                <button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i> Excluir</button>
             </form>
             {% endif %}
 

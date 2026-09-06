@@ -264,7 +264,9 @@ body {
 
 /* Botões: sobrescrevem TODOS os tokens internos do Bootstrap 5.3 — se
    apenas o background fosse trocado, hover/ativo/desabilitado voltariam
-   ao azul padrão (#0b5ed7/#0d6efd), como no "Aplicar Filtros" desabilitado. */
+   ao azul padrão (#0b5ed7/#0d6efd), como no "Aplicar Filtros" desabilitado.
+   Mesma métrica dos botões outline (sem padding/peso próprios): um botão
+   sólido ao lado de outlines não pode ficar maior que eles. */
 .btn-primary {
     --bs-btn-bg: var(--primary-color);
     --bs-btn-border-color: var(--primary-color);
@@ -277,8 +279,6 @@ body {
     background-color: var(--primary-color);
     border-color: var(--primary-color);
     border-radius: 8px;
-    padding: 0.5rem 1.25rem;
-    font-weight: 500;
 }
 
 [data-theme="dark"] .btn-primary {
