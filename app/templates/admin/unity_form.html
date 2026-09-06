@@ -40,6 +40,52 @@
                             {% for err in form.phone.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
+                        <div class="col-12 mt-3">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-2">
+                                <i class="bi bi-cloud-sun me-1"></i> Clima no Totem
+                            </h6>
+                            <p class="text-muted small mb-3">
+                                As unidades ficam distantes entre si — o totem de cada uma mostra o clima
+                                da própria localização. Busque pelo endereço para preencher automaticamente
+                                ou informe as coordenadas manualmente.
+                            </p>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="geocode-search">
+                                        Buscar coordenadas pelo endereço
+                                    </label>
+                                    <div class="input-group">
+                                        <input type="text" id="geocode-search" class="form-control"
+                                               placeholder="Ex: Rua X, Cidade, UF" autocomplete="off">
+                                        <button type="button" class="btn btn-outline-primary" id="geocode-btn">
+                                            <i class="bi bi-search"></i> Buscar
+                                        </button>
+                                    </div>
+                                    <div id="geocode-status" class="text-danger small mt-1 d-none"></div>
+                                    <div id="geocode-results" class="list-group mt-2 d-none"></div>
+                                </div>
+
+                                <div class="col-md-3">
+                                    {{ form.weather_latitude.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.weather_latitude(class="form-control", id="weather-lat") }}
+                                    {% for err in form.weather_latitude.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                                </div>
+
+                                <div class="col-md-3">
+                                    {{ form.weather_longitude.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.weather_longitude(class="form-control", id="weather-lon") }}
+                                    {% for err in form.weather_longitude.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                                </div>
+
+                                <div class="col-md-6">
+                                    {{ form.weather_city.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.weather_city(class="form-control", id="weather-city", placeholder="Ex: Florianópolis, SC") }}
+                                    {% for err in form.weather_city.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="col-12">
                             <div class="form-check mt-3">
                                 {{ form.is_active(class="form-check-input") }}
@@ -57,4 +103,73 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const statusBox = document.getElementById('geocode-status');
+    const resultsBox = document.getElementById('geocode-results');
+    const searchInput = document.getElementById('geocode-search');
+
+    function showStatus(message) {
+        statusBox.textContent = message;
+        statusBox.classList.remove('d-none');
+    }
+
+    function clearSearch() {
+        statusBox.classList.add('d-none');
+        resultsBox.classList.add('d-none');
+        resultsBox.innerHTML = '';
+    }
+
+    function pickResult(item) {
+        document.getElementById('weather-lat').value = item.latitude;
+        document.getElementById('weather-lon').value = item.longitude;
+        if (item.city) document.getElementById('weather-city').value = item.city;
+        clearSearch();
+    }
+
+    async function geocode() {
+        const query = searchInput.value.trim();
+        clearSearch();
+        if (query.length < 3) {
+            showStatus('Informe pelo menos 3 caracteres para buscar.');
+            return;
+        }
+        const btn = document.getElementById('geocode-btn');
+        btn.disabled = true;
+        showStatus('Buscando endereços...');
+        try {
+            const resp = await fetch('{{ url_for("admin.geocode_unity") }}?q=' + encodeURIComponent(query));
+            const data = await resp.json();
+            if (!resp.ok) {
+                showStatus(data.error || 'Falha na busca.');
+                return;
+            }
+            if (!data.results.length) {
+                showStatus('Nenhum endereço encontrado. Refine a busca ou preencha as coordenadas manualmente.');
+                return;
+            }
+            clearSearch();
+            data.results.forEach(function (item) {
+                const link = document.createElement('button');
+                link.type = 'button';
+                link.className = 'list-group-item list-group-item-action small';
+                link.textContent = item.label;
+                link.addEventListener('click', function () { pickResult(item); });
+                resultsBox.appendChild(link);
+            });
+            resultsBox.classList.remove('d-none');
+        } catch (err) {
+            showStatus('Falha ao consultar o serviço de endereços.');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    document.getElementById('geocode-btn').addEventListener('click', geocode);
+    searchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); geocode(); }
+    });
+</script>
 {% endblock %}

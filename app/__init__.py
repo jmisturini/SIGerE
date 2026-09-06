@@ -64,9 +64,6 @@ def create_app(config_class=Config):
     from app.commands import seed_command, sync_permissions_command
     app.cli.add_command(seed_command)
     app.cli.add_command(sync_permissions_command)
-    # Ponte para bancos criados antes do Alembic (ver app/legacy_migrations.py)
-    from app.legacy_migrations import legacy_upgrade_command
-    app.cli.add_command(legacy_upgrade_command)
 
     # Custom Error Handlers
     @app.errorhandler(403)
@@ -103,11 +100,20 @@ def create_app(config_class=Config):
     def inject_now():
         return {'now': datetime.now()}
 
-    # Coordenadas do clima (totem/portal) centralizadas no Config
+    # Coordenadas do clima (totem/portal): preferem a localização da unidade
+    # ativa (cada unidade tem a sua, editável no painel) e caem para as
+    # globais do Config quando a unidade não tem coordenadas próprias.
     @app.context_processor
     def inject_weather_config():
+        from app.unity_context import current_unity
+        unity = current_unity()
+        if unity and unity.weather_latitude is not None and unity.weather_longitude is not None:
+            return {'totem_lat': unity.weather_latitude,
+                    'totem_lon': unity.weather_longitude,
+                    'totem_city': unity.weather_city or 'Campus'}
         return {'totem_lat': app.config['TOTEM_LATITUDE'],
-                'totem_lon': app.config['TOTEM_LONGITUDE']}
+                'totem_lon': app.config['TOTEM_LONGITUDE'],
+                'totem_city': 'Campus'}
 
     # Multi-unidade: injeta a unidade ativa e o seletor de unidades nos templates
     @app.context_processor
@@ -131,8 +137,9 @@ def create_app(config_class=Config):
                 return redirect(url_for('auth.change_password'))
 
     # Schema gerenciado pelo Alembic (Flask-Migrate): `flask --app run db upgrade`
-    # cria/atualiza as tabelas. Nada de DDL no boot — seguro com multi-worker.
-    # O boot apenas orienta o operador quando o banco está fora do fluxo:
+    # cria o schema do zero e aplica as migrações após cada mudança de modelos.
+    # Nada de DDL no boot — seguro com multi-worker. O boot apenas orienta o
+    # operador quando o banco está fora do fluxo:
     with app.app_context():
         from sqlalchemy import inspect
         tables = inspect(db.engine).get_table_names()
@@ -141,9 +148,9 @@ def create_app(config_class=Config):
                   'criar o schema e "flask --app run seed" para os dados iniciais.',
                   file=sys.stderr)
         elif 'alembic_version' not in tables:
-            print('⚠️  Banco existente sem versionamento Alembic: rode '
-                  '"flask --app run db stamp head" — ou "flask --app run '
-                  'db-legacy-upgrade" se criado antes do módulo multi-unidade.',
+            print('⚠️  Banco existente sem versionamento Alembic: recrie o banco '
+                  '("flask --app run db upgrade" + "flask --app run seed") ou rode '
+                  '"flask --app run db stamp head" se o schema já estiver atualizado.',
                   file=sys.stderr)
 
         # Permissões/papéis novos em bancos já existentes (idempotente)

@@ -2,10 +2,9 @@
 
 Uso:
     python run.py                     # servidor de desenvolvimento (porta 5000)
-    flask --app run db upgrade        # cria/atualiza o schema (Flask-Migrate/Alembic)
-    flask --app run seed              # popula o banco com dados de demonstração
-    flask --app run sync-permissions
-    flask --app run db-legacy-upgrade # ponte p/ bancos anteriores ao Alembic
+    flask --app run db upgrade        # cria o schema do zero / aplica migrações
+    flask --app run seed              # popula o banco com dados iniciais
+    flask --app run sync-permissions  # sincroniza permissões de módulos novos
 """
 from app import create_app
 

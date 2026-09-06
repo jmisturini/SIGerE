@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, abort
+from flask import Blueprint, render_template, request, abort, current_app
 from app.models import Classroom, Reservation, RoomCategory, Unity
 from datetime import date, time, datetime, timedelta
 
@@ -14,12 +14,25 @@ def _totem_unity():
         abort(404)
     return Unity.query.filter_by(is_active=True).order_by(Unity.name).first()
 
+def _totem_weather(unity):
+    """Localização do clima: coordenadas da unidade (cada uma tem a sua) com
+    fallback para as globais do Config (TOTEM_LATITUDE/TOTEM_LONGITUDE)."""
+    if unity and unity.weather_latitude is not None and unity.weather_longitude is not None:
+        return (unity.weather_latitude, unity.weather_longitude,
+                unity.weather_city or 'Campus')
+    return (current_app.config['TOTEM_LATITUDE'],
+            current_app.config['TOTEM_LONGITUDE'],
+            (unity.weather_city if unity else None) or 'Campus')
+
 @bp.route('/')
 def display():
     unity = _totem_unity()
     if unity is None:
         # Sem unidades cadastradas, não há o que exibir
-        return render_template('totem.html', aud_reservations=[], classroom_floors={}, current_period='—')
+        return render_template('totem.html', aud_reservations=[], classroom_floors={}, current_period='—',
+                               weather_lat=current_app.config['TOTEM_LATITUDE'],
+                               weather_lon=current_app.config['TOTEM_LONGITUDE'],
+                               weather_city='Campus')
 
     today = date.today()
     now = datetime.now()
@@ -67,6 +80,10 @@ def display():
     # Lista de unidades para alternância rápida no painel (ex: uma TV por unidade)
     unities = Unity.query.filter_by(is_active=True).order_by(Unity.name).all()
 
+    weather_lat, weather_lon, weather_city = _totem_weather(unity)
+
     return render_template('totem.html', aud_reservations=aud_reservations,
                            classroom_floors=sorted_floors, current_period=current_period,
-                           totem_unity=unity, totem_unities=unities)
+                           totem_unity=unity, totem_unities=unities,
+                           weather_lat=weather_lat, weather_lon=weather_lon,
+                           weather_city=weather_city)

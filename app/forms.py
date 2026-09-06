@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import (StringField, PasswordField, SubmitField, IntegerField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField)
+from wtforms import (StringField, PasswordField, SubmitField, IntegerField, FloatField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField)
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, date
 import re
@@ -311,6 +311,9 @@ class UnityForm(FlaskForm):
     code = StringField('Código Curto (ex: CTR)', validators=[DataRequired(), Length(min=2, max=20)])
     address = StringField('Endereço', validators=[Optional(), Length(max=255)])
     phone = StringField('Telefone', validators=[Optional(), Length(max=30)])
+    weather_latitude = FloatField('Latitude', validators=[Optional(), NumberRange(min=-90, max=90, message='Latitude deve estar entre -90 e 90.')])
+    weather_longitude = FloatField('Longitude', validators=[Optional(), NumberRange(min=-180, max=180, message='Longitude deve estar entre -180 e 180.')])
+    weather_city = StringField('Cidade exibida no clima', validators=[Optional(), Length(max=120)])
     is_active = BooleanField('Ativa', default=True)
     submit = SubmitField('Salvar Unidade')
 

@@ -17,6 +17,11 @@ class Unity(db.Model):
     code = db.Column(db.String(20), unique=True, nullable=False, index=True)
     address = db.Column(db.String(255))
     phone = db.Column(db.String(30))
+    # Clima no totem: as unidades ficam distantes entre si, então cada uma tem
+    # a própria localização. NULL cai para TOTEM_LATITUDE/TOTEM_LONGITUDE (Config).
+    weather_latitude = db.Column(db.Float)
+    weather_longitude = db.Column(db.Float)
+    weather_city = db.Column(db.String(120))  # rótulo exibido (ex: "São Paulo, SP")
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
