@@ -4,19 +4,85 @@
     --sidebar-active-bg: rgba(255, 255, 255, 0.1);
     --sidebar-active-color: #fff;
     --primary-color: #004b8d;
+    --primary-color-rgb: 0, 75, 141;
     --topbar-bg: #ffffff;
     --body-bg: #f4f6f9;
     --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     --text-color: #333;
+    --text-muted: #6c757d;
+    --border-color: rgba(0, 0, 0, 0.05);
+    /* Tokens do Bootstrap alinhados à paleta institucional: sem isso, badges,
+       links, abas, paginação, checkboxes e foco de campos usam o azul padrão
+       do Bootstrap (#0d6efd), dessintonizado do azul Senac dos botões. */
+    --bs-primary: #004b8d;
+    --bs-primary-rgb: 0, 75, 141;
+    --bs-primary-bg-subtle: #d4e4f2;
+    --bs-primary-border-subtle: #a9c8e4;
+    --bs-link-color: #004b8d;
+    --bs-link-color-rgb: 0, 75, 141;
+    --bs-link-hover-color: #003a6e;
+    --bs-pagination-active-bg: #004b8d;
+    --bs-pagination-active-border-color: #004b8d;
+    --bs-dropdown-link-active-bg: #004b8d;
+    --bs-dropdown-link-active-color: #fff;
+    --bs-focus-ring-color: rgba(0, 75, 141, 0.25);
 }
 
 [data-theme="dark"] {
+    color-scheme: dark;
     --sidebar-bg: #0a1624;
     --topbar-bg: #161b22;
     --body-bg: #0d1117;
     --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     --primary-color: #2c7be5;
+    --primary-color-rgb: 44, 123, 229;
     --text-color: #c9d1d9;
+    --text-muted: #8b949e;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --bs-body-color: #c9d1d9;
+    --bs-primary: #2c7be5;
+    --bs-primary-rgb: 44, 123, 229;
+    --bs-primary-bg-subtle: rgba(44, 123, 229, 0.18);
+    --bs-primary-border-subtle: rgba(44, 123, 229, 0.45);
+    --bs-link-color: #6ea8fe;
+    --bs-link-color-rgb: 110, 168, 254;
+    --bs-link-hover-color: #9cc2ff;
+    --bs-pagination-active-bg: #2c7be5;
+    --bs-pagination-active-border-color: #2c7be5;
+    --bs-dropdown-link-active-bg: #2c7be5;
+    --bs-dropdown-link-active-color: #fff;
+    --bs-focus-ring-color: rgba(44, 123, 229, 0.35);
+    /* Cinza secundário legível no escuro: botões outline-secondary
+       ("Detalhes", "Exportar PDF") usam estes valores no Bootstrap 5.3. */
+    --bs-secondary-color: rgba(201, 209, 217, 0.75);
+    --bs-secondary-border-color: #30363d;
+    /* Badges e alertas sutis adaptados ao tema escuro */
+    --bs-success-bg-subtle: rgba(25, 135, 84, 0.22);
+    --bs-success-border-subtle: rgba(25, 135, 84, 0.45);
+    --bs-success-text-emphasis: #7fd4a6;
+    --bs-warning-bg-subtle: rgba(255, 193, 7, 0.16);
+    --bs-warning-border-subtle: rgba(255, 193, 7, 0.4);
+    --bs-warning-text-emphasis: #ffd66b;
+    --bs-danger-bg-subtle: rgba(220, 53, 69, 0.22);
+    --bs-danger-border-subtle: rgba(220, 53, 69, 0.45);
+    --bs-danger-text-emphasis: #ff9aa5;
+    --bs-info-bg-subtle: rgba(13, 202, 240, 0.16);
+    --bs-info-border-subtle: rgba(13, 202, 240, 0.4);
+    --bs-info-text-emphasis: #7fe0f2;
+    --bs-secondary-bg-subtle: rgba(139, 148, 158, 0.18);
+    --bs-secondary-border-subtle: rgba(139, 148, 158, 0.4);
+    --bs-secondary-text-emphasis: #c9d1d9;
+    /* Paginação legível no escuro */
+    --bs-pagination-bg: transparent;
+    --bs-pagination-color: #c9d1d9;
+    --bs-pagination-border-color: #30363d;
+    --bs-pagination-hover-bg: rgba(255, 255, 255, 0.06);
+    --bs-pagination-hover-color: #fff;
+    --bs-pagination-hover-border-color: #30363d;
+    --bs-pagination-focus-bg: rgba(255, 255, 255, 0.06);
+    --bs-pagination-disabled-bg: transparent;
+    --bs-pagination-disabled-color: #6e7681;
+    --bs-pagination-disabled-border-color: #30363d;
 }
 
 body {
@@ -196,7 +262,18 @@ body {
     color: var(--text-color);
 }
 
+/* Botões: sobrescrevem TODOS os tokens internos do Bootstrap 5.3 — se
+   apenas o background fosse trocado, hover/ativo/desabilitado voltariam
+   ao azul padrão (#0b5ed7/#0d6efd), como no "Aplicar Filtros" desabilitado. */
 .btn-primary {
+    --bs-btn-bg: var(--primary-color);
+    --bs-btn-border-color: var(--primary-color);
+    --bs-btn-hover-bg: #003d70;
+    --bs-btn-hover-border-color: #003d70;
+    --bs-btn-active-bg: #003361;
+    --bs-btn-active-border-color: #003361;
+    --bs-btn-disabled-bg: var(--primary-color);
+    --bs-btn-disabled-border-color: var(--primary-color);
     background-color: var(--primary-color);
     border-color: var(--primary-color);
     border-radius: 8px;
@@ -204,10 +281,54 @@ body {
     font-weight: 500;
 }
 
+[data-theme="dark"] .btn-primary {
+    --bs-btn-hover-bg: #4a93ec;
+    --bs-btn-hover-border-color: #4a93ec;
+    --bs-btn-active-bg: #61a4f0;
+    --bs-btn-active-border-color: #61a4f0;
+}
+
 .btn-outline-primary {
-    color: var(--primary-color);
-    border-color: var(--primary-color);
+    --bs-btn-color: var(--primary-color);
+    --bs-btn-border-color: var(--primary-color);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--primary-color);
+    --bs-btn-hover-border-color: var(--primary-color);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--primary-color);
+    --bs-btn-active-border-color: var(--primary-color);
+    --bs-btn-disabled-color: var(--primary-color);
+    --bs-btn-disabled-border-color: var(--primary-color);
     border-radius: 8px;
+}
+
+[data-theme="dark"] .btn-outline-primary {
+    --bs-btn-color: #6ea8fe;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-color: #6ea8fe;
+}
+
+/* .btn-link herda --bs-link-color do Bootstrap 5.3 — corrigido pelos tokens
+   acima; nada a fazer aqui. Checkbox e foco de formulário seguem a paleta: */
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: rgba(var(--primary-color-rgb), 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.2);
+}
+
+.form-check-input:focus {
+    border-color: rgba(var(--primary-color-rgb), 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.2);
+}
+
+.progress-bar {
+    background-color: var(--primary-color);
 }
 
 [data-theme="dark"] .text-muted {
@@ -282,4 +403,41 @@ h1, h2, h3, h4, h5, h6 {
     color: #c9d1d9;
     border-color: #2c7be5;
     box-shadow: 0 0 0 0.2rem rgba(44, 123, 229, 0.25);
+}
+
+/* Campos de seleção continuavam brancos no tema escuro (o override acima só
+   cobria .form-control). Seta clara: o SVG padrão do Bootstrap é cinza-escuro. */
+[data-theme="dark"] .form-select {
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23c9d1d9' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+[data-theme="dark"] .form-select:focus {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    border-color: #2c7be5;
+    box-shadow: 0 0 0 0.2rem rgba(44, 123, 229, 0.25);
+}
+
+[data-theme="dark"] .input-group-text {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+}
+
+/* Botões outline (cor estática #6c757d no Bootstrap) ficavam quase
+   invisíveis sobre os cards escuros. */
+[data-theme="dark"] .btn-outline-secondary {
+    --bs-btn-color: #c9d1d9;
+    --bs-btn-border-color: #30363d;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #30363d;
+    --bs-btn-hover-border-color: #6e7681;
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: #3d444d;
+    --bs-btn-active-border-color: #6e7681;
+    --bs-btn-disabled-color: #6e7681;
+    --bs-btn-disabled-border-color: #30363d;
 }
