@@ -53,7 +53,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
   - ❌ Domingos bloqueados
   - ❌ Feriados nacionais bloqueados (importados via BrasilAPI)
   - ⚠️ Sábados: apenas manhã e tarde (até 18h)
-- **Repetição de reservas:** crie séries de aulas com opções de "mesmo dia da semana" e "pular fins de semana"
+- **Repetição de reservas:** crie séries de aulas com opções de "mesmo dia da semana" e "pular fins de semana" (intervalo limitado a 180 dias por lote)
 - **Auto-aprovação:** reservas sem conflitos são aprovadas instantaneamente
 - **Filtros de disponibilidade:** salas disponíveis agora, em data/período específico ou por categoria
 
@@ -68,6 +68,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
   - **Professor:** departamento, matrícula, unidade
   - **Funcionário:** setor, função, unidade, com opção de "também atuar como professor"
 - **Busca e filtros:** filtrar usuários por nome ou tipo de perfil
+- **Reset de senha pelo admin:** gera uma senha temporária aleatória (exibida uma única vez) e força a troca no próximo login
 - **Segurança:** forçar troca de senha no primeiro login ou após reset administrativo
 - **Ativação/desativação:** controle de status do usuário sem exclusão de dados
 
@@ -126,6 +127,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 | **Banco de Dados** | SQLite (padrão), compatível com PostgreSQL/MySQL |
 | **Frontend** | Bootstrap 5, Bootstrap Icons, Jinja2, FullCalendar |
 | **Relatórios** | FPDF2, OpenPyXL |
+| **Rate limiting** | Flask-Limiter |
 | **APIs Externas** | [Open-Meteo](https://open-meteo.com/) (clima), [BrasilAPI](https://brasilapi.com.br/) (feriados) |
 
 ---
@@ -203,11 +205,11 @@ export DATABASE_URL="postgresql://user:pass@localhost/sigere"
 
 ### Configurar localização do Totem (Clima)
 
-Edite `app/templates/totem.html` e ajuste as coordenadas geográficas:
+As coordenadas vêm do `Config` (ou variáveis de ambiente) e alimentam o totem e o portal:
 
-```javascript
-const lat = -23.5505;   // Latitude da sua instituição
-const lon = -46.6333;   // Longitude da sua instituição
+```bash
+export TOTEM_LATITUDE="-23.5505"    # Latitude da sua instituição
+export TOTEM_LONGITUDE="-46.6333"   # Longitude da sua instituição
 ```
 
 ---
@@ -352,6 +354,7 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 - **Limite de upload** de 16 MB (`MAX_CONTENT_LENGTH`)
 - **Fichas técnicas fora de `static/`:** armazenadas em `instance/uploads/` e servidas apenas pela rota autenticada de download
 - **Escapagem de dados dinâmicos** em mensagens renderizadas com `|safe` (anti-XSS)
+- **Rate limiting no login** (5 tentativas por minuto por IP, via Flask-Limiter)
 
 ---
 

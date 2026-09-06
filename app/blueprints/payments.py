@@ -16,6 +16,8 @@ from app.permissions import require_permission
 
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 
+PAYS_PER_PAGE = 25
+
 # ================= HELPER FUNCTIONS =================
 
 def _teachers_for_current_unity():
@@ -108,8 +110,12 @@ def list_base_pays():
     # chegam aqui têm payment:read e vêem tudo.
     # CORREÇÃO: a verificação anterior era dead-code — @require_permission('payment:read') já
     # garante que current_user.has_permission('payment:read') == True para qualquer request.
-    infos = TeacherBasePay.query.filter_by(unity_id=current_unity_id()).order_by(TeacherBasePay.created_at.desc()).all()
-    return render_template('payments/list_base.html', infos=infos)
+    pagination = db.paginate(
+        TeacherBasePay.query.filter_by(unity_id=current_unity_id())
+            .order_by(TeacherBasePay.created_at.desc()),
+        page=request.args.get('page', 1, type=int),
+        per_page=PAYS_PER_PAGE, error_out=False)
+    return render_template('payments/list_base.html', infos=pagination.items, pagination=pagination)
 
 @bp.route('/create', methods=['GET', 'POST'])
 @login_required
@@ -272,10 +278,13 @@ def list_overtime():
     if filter_teacher:
         query = query.filter_by(teacher_id=filter_teacher)
 
-    infos = query.order_by(TeacherOvertimePay.created_at.desc()).all()
+    pagination = db.paginate(query.order_by(TeacherOvertimePay.created_at.desc()),
+                             page=request.args.get('page', 1, type=int),
+                             per_page=PAYS_PER_PAGE, error_out=False)
     list_teachers = _teachers_for_current_unity()
-    
-    return render_template('payments/list_overtime.html', infos=infos, list_teachers=list_teachers, filter_month=filter_month, filter_teacher=filter_teacher)
+
+    return render_template('payments/list_overtime.html', infos=pagination.items, pagination=pagination,
+                           list_teachers=list_teachers, filter_month=filter_month, filter_teacher=filter_teacher)
 
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required

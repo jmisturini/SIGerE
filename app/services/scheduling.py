@@ -27,6 +27,10 @@ from app.unity_context import current_unity_id
 _slot_locks = {}
 _slot_locks_guard = threading.Lock()
 
+# Limite do intervalo da repetição de reservas (protege contra lotes enormes
+# de Inserts e contra telas que iterariam milhares de dias).
+MAX_REPEAT_RANGE_DAYS = 180
+
 
 def _lock_key(classroom_id, d):
     date_str = d.isoformat() if hasattr(d, 'isoformat') else str(d)

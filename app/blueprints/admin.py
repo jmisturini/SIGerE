@@ -1,3 +1,5 @@
+import secrets
+
 import requests
 from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, current_app
@@ -11,6 +13,8 @@ from app.permissions import require_permission
 from app.unity_context import current_unity_id
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+USERS_PER_PAGE = 25
 
 def _unity_choices():
     """Opções do select de unidades (todas as ativas)."""
@@ -57,8 +61,13 @@ def list_users():
     if filter_type in ['teacher', 'employee']:
         query = query.filter_by(profile_type=filter_type)
 
-    users = query.order_by(User.role, User.full_name).all()
-    return render_template('admin/users.html', users=users, search_name=search_name, filter_type=filter_type)
+    users = db.paginate(query.order_by(User.role, User.full_name),
+                        page=request.args.get('page', 1, type=int),
+                        per_page=USERS_PER_PAGE, error_out=False)
+    # users: Pagination (iterável) usado pela tabela; pagination: mesmo objeto
+    # para os controles de página do template.
+    return render_template('admin/users.html', users=users, pagination=users,
+                           search_name=search_name, filter_type=filter_type)
 
 @bp.route('/users/create-teacher', methods=['GET', 'POST'])
 @login_required
@@ -161,6 +170,21 @@ def toggle_user(user_id):
     user.is_active_user = not user.is_active_user
     db.session.commit()
     flash(f'Usuário {user.full_name} {"ativado" if user.is_active_user else "desativado"}.', 'success')
+    return redirect(url_for('admin.list_users'))
+
+@bp.route('/users/<int:user_id>/reset-password', methods=['POST'])
+@login_required
+@require_permission('user:edit')
+def reset_user_password(user_id):
+    """Gera uma senha temporária aleatória, exibe UMA vez ao administrador e
+    força a troca no próximo login do usuário."""
+    user = _unity_scoped_or_404(db.get_or_404(User, user_id))
+    temp_password = secrets.token_urlsafe(9)
+    user.set_password(temp_password)
+    user.force_password_change = True
+    db.session.commit()
+    flash(f'Senha de {user.full_name} redefinida. Senha temporária '
+          f'(exibida apenas agora — copie e envie ao usuário): {temp_password}', 'success')
     return redirect(url_for('admin.list_users'))
 
 # ================= ROOM MANAGEMENT =================

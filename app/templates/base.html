@@ -299,7 +299,7 @@
         if(timeEl) timeEl.textContent = timeStr;
     }
     setInterval(updateNavClock, 1000); updateNavClock();
-    const lat = -23.5505; const lon = -46.6333;
+    const lat = {{ totem_lat }}; const lon = {{ totem_lon }};
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
         .then(r => r.json()).then(data => {
             if (data.current_weather) {
@@ -311,6 +311,18 @@
         }).catch(() => document.getElementById('nav-weather-city').textContent = 'Indisponível');
 </script>
 {% endif %}
+<script>
+    // Mostrar/ocultar senha em qualquer campo com [data-password-toggle]
+    document.querySelectorAll('[data-password-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const input = document.getElementById(btn.dataset.passwordToggle);
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+        });
+    });
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

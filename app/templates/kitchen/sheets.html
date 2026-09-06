@@ -127,7 +127,7 @@
                         <td class="text-danger small">{{ sheet.parse_error or 'Erro desconhecido.' }}</td>
                         <td class="text-end pe-4">
                             {% if can_delete %}
-                            <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}" class="d-inline">
+                            <form method="POST" action="{{ url_for('kitchen.delete_sheet', sheet_id=sheet.id) }}" class="d-inline" onsubmit="return confirm('Excluir esta ficha técnica? A preparação vinculada também será removida.');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button class="btn btn-sm btn-outline-danger" title="Excluir arquivo"><i class="bi bi-trash"></i></button>
                             </form>

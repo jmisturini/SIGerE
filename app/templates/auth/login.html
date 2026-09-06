@@ -21,7 +21,13 @@
                     </div>
                     <div class="mb-4">
                         {{ form.password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                        {{ form.password(class="form-control", placeholder="Digite sua senha") }}
+                        <div class="input-group">
+                            {{ form.password(class="form-control", id="login-password", placeholder="Digite sua senha") }}
+                            <button class="btn btn-outline-secondary" type="button" data-password-toggle="login-password"
+                                    title="Mostrar/ocultar senha" tabindex="-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="d-grid">
                         {{ form.submit(class="btn btn-primary px-4 py-2") }}

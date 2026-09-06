@@ -1,6 +1,6 @@
 from flask import Flask, render_template, redirect, url_for, request, flash
 from app.config import Config
-from app.extensions import db, login_manager, csrf
+from app.extensions import db, login_manager, csrf, limiter
 from datetime import datetime
 import os
 import sys
@@ -34,6 +34,7 @@ def create_app(config_class=Config):
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
+    limiter.init_app(app)
 
     # Register all Blueprints
     from app.blueprints.auth import bp as auth_bp
@@ -85,10 +86,24 @@ def create_app(config_class=Config):
               'Recarregue a página e tente novamente.', 'warning')
         return redirect(request.referrer or url_for('main.index'))
 
+    # Rate limit excedido (ex.: várias tentativas de login): aviso amigável
+    # em vez da página 429 crua.
+    from flask_limiter.errors import RateLimitExceeded
+    @app.errorhandler(RateLimitExceeded)
+    def handle_rate_limit(e):
+        flash('Muitas tentativas em pouco tempo. Aguarde um momento e tente novamente.', 'warning')
+        return redirect(url_for('auth.login'))
+
     # Context processor to inject current datetime into all templates
     @app.context_processor
     def inject_now():
         return {'now': datetime.now()}
+
+    # Coordenadas do clima (totem/portal) centralizadas no Config
+    @app.context_processor
+    def inject_weather_config():
+        return {'totem_lat': app.config['TOTEM_LATITUDE'],
+                'totem_lon': app.config['TOTEM_LONGITUDE']}
 
     # Multi-unidade: injeta a unidade ativa e o seletor de unidades nos templates
     @app.context_processor

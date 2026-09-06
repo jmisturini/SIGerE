@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_pagination.html' import render_pagination %}
 {% block title %}Horas Extras{% endblock %}
 
 {% block content %}
@@ -135,4 +136,5 @@ document.addEventListener('DOMContentLoaded', function() {
     teacherSelect.addEventListener('change', updateExportBtn);
 });
 </script>
+{{ render_pagination(pagination, 'payments.list_overtime') }}
 {% endblock %}
