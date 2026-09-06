@@ -173,9 +173,9 @@ A aplicação estará disponível em: **http://localhost:5000**
 
 > **Nota:** em produção (`FLASK_DEBUG != true`) a aplicação exige a variável `SECRET_KEY` definida e se recusa a iniciar sem ela (ver [Configuração](#️-configuração)).
 
-> **Nota:** Na primeira execução, o banco de dados é criado automaticamente. Execute `flask --app run seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
+> **Nota:** o schema do banco é versionado com Flask-Migrate/Alembic (não é mais criado automaticamente no boot). Em uma instalação nova, execute `flask --app run db upgrade` para criar as tabelas e depois `flask --app run seed` para popular com dados de demonstração (100 usuários, 27 salas, 50 cursos, 50 disciplinas e 20 reservas).
 
-> **Atualizando uma instalação existente:** ao receber atualizações que adicionam novos módulos, execute `flask --app run sync-permissions` para criar as novas permissões e vinculá-las aos papéis sem precisar popular o banco novamente.
+> **Atualizando uma instalação existente:** após `git pull`, execute `flask --app run db upgrade` (aplica migrações de schema novas) e `flask --app run sync-permissions` (permissões de módulos novos). Se o seu banco é de uma versão **anterior ao Alembic**, rode uma única vez `flask --app run db-legacy-upgrade` — detalhes em [Migrações de banco](#migrações-de-banco-flask-migratealembic).
 
 ---
 
@@ -213,6 +213,25 @@ As coordenadas vêm do `Config` (ou variáveis de ambiente) e alimentam o totem 
 export TOTEM_LATITUDE="-23.5505"    # Latitude da sua instituição
 export TOTEM_LONGITUDE="-46.6333"   # Longitude da sua instituição
 ```
+
+### Migrações de banco (Flask-Migrate/Alembic)
+
+O schema é versionado no diretório `migrations/` (comittado no repositório). O boot da aplicação **não** altera o schema — quem aplica é o Alembic, de forma segura até com múltiplos workers.
+
+| Situação | Comando |
+|---|---|
+| Instalação nova (banco vazio) | `flask --app run db upgrade` |
+| Banco já no esquema atual, mas criado antes do Alembic | `flask --app run db stamp head` |
+| Banco de uma versão anterior ao módulo multi-unidade | `flask --app run db-legacy-upgrade` (uma vez só) |
+
+Após **alterar modelos** em `app/models.py`, gere e aplique a migração:
+
+```bash
+flask --app run db migrate -m "descrição da mudança"   # gera o arquivo em migrations/versions/
+flask --app run db upgrade                             # aplica no banco
+```
+
+O `db migrate` compara os modelos com o banco configurado em `DATABASE_URL` — revise o arquivo gerado em `migrations/versions/` antes de aplicar. O comando `db-legacy-upgrade` é idempotente: em bancos já atualizados ele apenas registra o versionamento.
 
 ---
 
@@ -353,10 +372,13 @@ Após emitir o certificado, descomente o redirecionamento 80→443 no bloco Ngin
 cd /var/www/sigere
 sudo -u www-data git pull
 sudo -u www-data venv/bin/pip install -r requirements.txt gunicorn
+sudo -u www-data venv/bin/flask --app run db upgrade    # aplica migrações de schema
 sudo systemctl restart sigere
 # Se algum módulo novo trouxer permissões:
 sudo -u www-data venv/bin/flask --app run sync-permissions
 ```
+
+> Na **primeira** implantação, a rotina é: `db upgrade` → `seed` (opcional, dados de demonstração) → `db stamp head` se o banco já existia de versões anteriores ao Alembic → iniciar o serviço.
 
 ---
 
