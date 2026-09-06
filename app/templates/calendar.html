@@ -94,6 +94,12 @@ document.addEventListener('DOMContentLoaded', function() {
         applyBtn.disabled = !hasFilter;
     }
 
+    // Os dados das reservas (título, curso, professor, sala...) são digitados
+    // por usuários: escapar antes de interpolá-los no HTML montado via innerHTML.
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+
     // Fetch data from API
     function fetchData() {
         let url = '{{ url_for("schedule.events") }}';
@@ -149,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             const formattedDate = dateObj.toLocaleDateString('pt-BR', options);
 
-            html += `<div class="mb-5"><h4 class="mb-3 border-bottom pb-2 text-capitalize"><i class="bi bi-calendar3 text-primary"></i> ${formattedDate}</h4>`;
+            html += `<div class="mb-5"><h4 class="mb-3 border-bottom pb-2 text-capitalize"><i class="bi bi-calendar3 text-primary"></i> ${esc(formattedDate)}</h4>`;
 
             // Agrupar por andar
             const floors = {};
@@ -164,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const sortedFloors = Object.keys(floors).sort((a, b) => (floorOrder[a] || 99) - (floorOrder[b] || 99));
 
             sortedFloors.forEach(floorName => {
-                html += `<div class="col-12 mt-3"><h6 class="text-muted border-bottom pb-1 text-uppercase small"><i class="bi bi-layers"></i> ${floorName}</h6></div>`;
+                html += `<div class="col-12 mt-3"><h6 class="text-muted border-bottom pb-1 text-uppercase small"><i class="bi bi-layers"></i> ${esc(floorName)}</h6></div>`;
                 html += `<div class="row g-3">`;
                 
                 // Ordenar salas por número dentro do andar
@@ -180,25 +186,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     html += `
                         <div class="col-md-6 col-xl-4">
-                            <a href="${event.url}" class="text-decoration-none text-reset">
+                            <a href="${esc(event.url)}" class="text-decoration-none text-reset">
                                 <div class="card h-100 hover-shadow border-primary border-start border-4 border-top-0 border-end-0 border-bottom-0">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center mb-3">
-                                            <span class="fs-4 fw-bold text-primary"><i class="bi bi-door-closed"></i> ${event.classroom_code}</span>
-                                            <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-clock"></i> ${startTime} - ${endTime}</span>
+                                            <span class="fs-4 fw-bold text-primary"><i class="bi bi-door-closed"></i> ${esc(event.classroom_code)}</span>
+                                            <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-clock"></i> ${esc(startTime)} - ${esc(endTime)}</span>
                                         </div>
                                         <div class="mb-3">
                                             <span class="text-muted small text-uppercase fw-bold d-block">Evento</span>
-                                            <p class="mb-0 fs-5 fw-bold text-break">${event.title}</p>
+                                            <p class="mb-0 fs-5 fw-bold text-break">${esc(event.title)}</p>
                                         </div>
                                         <div class="row">
                                             <div class="col-6 mb-2">
                                                 <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
-                                                <p class="mb-0 text-truncate">${event.course}</p>
+                                                <p class="mb-0 text-truncate">${esc(event.course)}</p>
                                             </div>
                                             <div class="col-6 mb-2">
                                                 <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
-                                                <p class="mb-0 text-truncate">${event.teacher}</p>
+                                                <p class="mb-0 text-truncate">${esc(event.teacher)}</p>
                                             </div>
                                         </div>
                                     </div>
