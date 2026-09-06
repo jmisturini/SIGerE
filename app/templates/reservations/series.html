@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block title %}Gerenciar Série de Repetição{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
+        <h5 class="mb-0"><i class="bi bi-collection text-primary me-2"></i> Gerenciar Série de Repetição</h5>
+        <a href="{{ url_for('reservations.detail', reservation_id=res.id) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+    <div class="card-body p-4">
+
+        <div class="alert alert-primary-subtle text-primary border border-primary-subtle d-flex align-items-center mb-4" role="alert">
+            <i class="bi bi-info-circle-fill me-3 fs-5"></i>
+            <div>
+                As reservas abaixo foram geradas a partir do evento
+                <strong>{{ res.title }}</strong> ({{ res.classroom.code }} —
+                {{ res.date.strftime('%d/%m/%Y') }}, {{ res.start_time.strftime('%H:%M') }}-{{ res.end_time.strftime('%H:%M') }}).
+                Selecione as que deseja editar ou excluir em lote.
+            </div>
+        </div>
+
+        {% if can_edit or can_cancel or can_delete %}
+        <form method="POST" id="series-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- ============ EDITAR EM LOTE ============ -->
+            {% if can_edit %}
+            <h6 class="text-uppercase text-muted small fw-bold mb-2">
+                <i class="bi bi-pencil-square me-1"></i> Editar em lote as selecionadas
+            </h6>
+            <div class="row g-3 align-items-end mb-4">
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Início</label>
+                    <input type="time" name="start_time" class="form-control">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Término</label>
+                    <input type="time" name="end_time" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Sala</label>
+                    <select name="classroom_id" class="form-select">
+                        <option value="">Manter sala atual</option>
+                        {% for c in classrooms %}
+                        <option value="{{ c.id }}">{{ c.code }} — {{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Título</label>
+                    <input type="text" name="title" class="form-control" maxlength="200" placeholder="Manter atual">
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button type="submit" formaction="{{ url_for('reservations.series_edit', reservation_id=res.id) }}"
+                            class="btn btn-primary"
+                            onclick="return confirmApply('Aplicar as alterações às reservas selecionadas?');">
+                        <i class="bi bi-save me-1"></i> Aplicar
+                    </button>
+                </div>
+                <div class="col-12">
+                    <div class="form-text mb-0">Deixe em branco o que não deve mudar. Reservas com conflito de sala ficam de fora e são informadas.</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ============ PRÓXIMAS ============ -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="text-uppercase text-muted small fw-bold mb-0">
+                    <i class="bi bi-calendar-check me-1"></i> Próximas ({{ upcoming|length }})
+                </h6>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="select-all">
+                    <label class="form-check-label small fw-medium" for="select-all">Selecionar todas</label>
+                </div>
+            </div>
+            <div class="table-responsive mb-4">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 2rem;"></th>
+                            <th>Data</th>
+                            <th>Horário</th>
+                            <th>Sala</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in upcoming %}
+                        <tr>
+                            <td><input type="checkbox" class="form-check-input series-check" name="selected" value="{{ m.id }}"></td>
+                            <td class="fw-medium">{{ m.date.strftime('%d/%m/%Y') }} <span class="text-muted small">{{ ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'][m.date.weekday()] }}</span></td>
+                            <td>{{ m.start_time.strftime('%H:%M') }} - {{ m.end_time.strftime('%H:%M') }}</td>
+                            <td>{{ m.classroom.code }}</td>
+                            <td>
+                                {% if m.status == 'approved' %}<span class="badge bg-success-subtle text-success">Aprovada</span>
+                                {% elif m.status == 'pending' %}<span class="badge bg-warning-subtle text-warning-emphasis">Pendente</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">Cancelada</span>{% endif %}
+                            </td>
+                            <td class="text-end"><a href="{{ url_for('reservations.detail', reservation_id=m.id) }}" class="small"><i class="bi bi-box-arrow-up-right"></i> Ver</a></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">Nenhuma reserva futura na série.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ============ EXCLUIR / CANCELAR EM LOTE ============ -->
+            {% if can_cancel or can_delete %}
+            <div class="d-flex flex-wrap gap-2 border-top pt-3">
+                {% if can_cancel %}
+                <button type="submit" formaction="{{ url_for('reservations.series_delete', reservation_id=res.id) }}"
+                        class="btn btn-outline-warning"
+                        onclick="setMode('cancel'); return confirm('Cancelar as reservas selecionadas? A sala voltará a ficar livre nestas datas.');">
+                    <i class="bi bi-x-circle me-1"></i> Cancelar selecionadas
+                </button>
+                {% endif %}
+                {% if can_delete %}
+                <button type="submit" formaction="{{ url_for('reservations.series_delete', reservation_id=res.id) }}"
+                        class="btn btn-outline-danger"
+                        onclick="setMode('delete'); return confirm('EXCLUIR PERMANENTEMENTE as reservas selecionadas? Isso não pode ser desfeito.');">
+                    <i class="bi bi-trash me-1"></i> Excluir permanentemente
+                </button>
+                {% endif %}
+                <input type="hidden" name="mode" id="delete-mode" value="cancel">
+            </div>
+            {% endif %}
+        </form>
+        {% endif %}
+
+        <!-- ============ PASSADAS / CANCELADAS ============ -->
+        {% if finished %}
+        <h6 class="text-uppercase text-muted small fw-bold mt-4 mb-2">
+            <i class="bi bi-archive me-1"></i> Passadas / Canceladas ({{ finished|length }})
+        </h6>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle text-muted">
+                <tbody>
+                    {% for m in finished %}
+                    <tr>
+                        <td>{{ m.date.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ m.start_time.strftime('%H:%M') }} - {{ m.end_time.strftime('%H:%M') }}</td>
+                        <td>{{ m.classroom.code }}</td>
+                        <td>
+                            {% if m.status == 'cancelled' %}<span class="badge bg-secondary-subtle text-secondary">Cancelada</span>
+                            {% else %}<span class="badge bg-light text-muted border">Realizada</span>{% endif %}
+                        </td>
+                        <td class="text-end"><a href="{{ url_for('reservations.detail', reservation_id=m.id) }}" class="small">Ver</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Seleção em massa
+    const selectAll = document.getElementById('select-all');
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            document.querySelectorAll('.series-check').forEach(cb => cb.checked = selectAll.checked);
+        });
+    }
+
+    // Modo do botão de exclusão (cancelar = soft, excluir = permanente)
+    function setMode(mode) {
+        document.getElementById('delete-mode').value = mode;
+    }
+
+    // Exigir ao menos uma seleção antes de aplicar edições
+    function confirmApply(message) {
+        if (!document.querySelectorAll('.series-check:checked').length) {
+            alert('Selecione ao menos uma reserva.');
+            return false;
+        }
+        return confirm(message);
+    }
+</script>
+{% endblock %}

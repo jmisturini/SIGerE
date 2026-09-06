@@ -87,6 +87,13 @@
             </a>
             {% endif %}
 
+            <!-- Gerenciar série: reserva faz parte de um lote de repetição -->
+            {% if series_count > 1 %}
+            <a href="{{ url_for('reservations.series_manage', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-collection me-1"></i> Gerenciar Série ({{ series_count }})
+            </a>
+            {% endif %}
+
             <!-- Cancelar: Dono (cancel_own) ou Global (cancel_all) -->
             {% if reservation.status == 'approved' and (reservation.date >= now.date() or current_user.has_permission('reservation:cancel_all')) %}
                 {% if current_user.has_permission('reservation:cancel_all') or (current_user.has_permission('reservation:cancel_own') and reservation.user_id == current_user.id) %}

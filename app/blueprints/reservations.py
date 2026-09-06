@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
+from contextlib import ExitStack
 from app.models import Reservation, Classroom, User, Course, Subject, Holiday
 from app.forms import ReservationForm
 from app.extensions import db
@@ -238,7 +239,9 @@ def detail(reservation_id):
     if not current_user.has_permission('reservation:read_all'):
         if not (current_user.has_permission('reservation:read_own') and reservation.user_id == current_user.id):
             abort(403)
-    return render_template('reservations/detail.html', reservation=reservation)
+    series_count = _series_count(reservation)
+    return render_template('reservations/detail.html', reservation=reservation,
+                           series_count=series_count)
 
 # Route to edit a reservation (Admin or Owner)
 @bp.route('/<int:reservation_id>/edit', methods=['GET', 'POST'])
@@ -469,9 +472,9 @@ def repeat_view(reservation_id):
                 'message': msg if not allowed else ("Sala Ocupada" if conflict else "Professor Ocupado" if teacher_conflict else "Disponível")
             })
 
-        return render_template('reservations/repeat.html', res=res, start_date=start_date, end_date=end_date, days=days, same_day=same_day, skip_weekend=skip_weekend, res_weekday_str=res_weekday_str)
+        return render_template('reservations/repeat.html', res=res, start_date=start_date, end_date=end_date, days=days, same_day=same_day, skip_weekend=skip_weekend, res_weekday_str=res_weekday_str, series_count=_series_count(res))
 
-    return render_template('reservations/repeat.html', res=res, start_date=start_date, days=None, same_day=None, skip_weekend=None, res_weekday_str=res_weekday_str)
+    return render_template('reservations/repeat.html', res=res, start_date=start_date, days=None, same_day=None, skip_weekend=None, res_weekday_str=res_weekday_str, series_count=_series_count(res))
 
 @bp.route('/<int:reservation_id>/repeat_schedule', methods=['POST'])
 @login_required
@@ -503,11 +506,15 @@ def repeat_schedule(reservation_id):
             flash(f'Conflito de sala em {new_date}.', 'danger')
             return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
+        # Série de repetição: origem e geradas compartilham o mesmo grupo
+        if res.repeat_group_id is None:
+            res.repeat_group_id = res.id
         new_res = Reservation(
             user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
             subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
             description=res.description, date=new_date, start_time=res.start_time,
-            end_time=res.end_time, status='approved', unity_id=res.unity_id
+            end_time=res.end_time, status='approved', unity_id=res.unity_id,
+            repeat_group_id=res.repeat_group_id
         )
         db.session.add(new_res)
         db.session.commit()
@@ -573,11 +580,15 @@ def repeat_schedule_all(reservation_id):
                         teacher_conflict = check_teacher_conflict(
                             res.teacher_id, current_date, res.start_time, res.end_time) is not None
                     if not teacher_conflict:
+                        # Série de repetição: origem e geradas no mesmo grupo
+                        if res.repeat_group_id is None:
+                            res.repeat_group_id = res.id
                         new_res = Reservation(
                             user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
                             subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
                             description=res.description, date=current_date, start_time=res.start_time,
-                            end_time=res.end_time, status='approved', unity_id=res.unity_id
+                            end_time=res.end_time, status='approved', unity_id=res.unity_id,
+                            repeat_group_id=res.repeat_group_id
                         )
                         db.session.add(new_res)
                         scheduled_count += 1
@@ -586,3 +597,225 @@ def repeat_schedule_all(reservation_id):
         db.session.commit()
     flash(f'{scheduled_count} novas reservas agendadas com sucesso.', 'success')
     return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+
+# ================= SERIES MANAGEMENT (agendamentos repetidos) =================
+
+def _series_members(res):
+    """Reservas da série de repetição (origem + geradas pela tela Repetir).
+
+    A origem recebe repeat_group_id = próprio id no momento em que a primeira
+    repetição é criada; toda reserva gerada carrega o mesmo grupo.
+    """
+    group_id = res.repeat_group_id or res.id
+    members = Reservation.query.filter(
+        Reservation.repeat_group_id == group_id
+    ).order_by(Reservation.date, Reservation.start_time).all()
+    return group_id, members
+
+
+def _series_count(res):
+    group_id = res.repeat_group_id or res.id
+    return db.session.query(Reservation.id).filter(
+        Reservation.repeat_group_id == group_id).count()
+
+
+def _check_series_view_access(res):
+    """Ver a série: dono da reserva ou quem lê todas."""
+    if res.user_id != current_user.id and not current_user.has_permission('reservation:read_all'):
+        abort(403)
+
+
+@bp.route('/<int:reservation_id>/series')
+@login_required
+def series_manage(reservation_id):
+    res = _get_reservation_scoped(reservation_id)
+    _check_series_view_access(res)
+
+    _, members = _series_members(res)
+    if len(members) < 2:
+        flash('Esta reserva não possui repetições geradas.', 'info')
+        return redirect(url_for('reservations.detail', reservation_id=res.id))
+
+    today = date.today()
+    upcoming = [m for m in members if m.date >= today and m.status != 'cancelled']
+    upcoming_ids = {m.id for m in upcoming}
+    finished = [m for m in members if m.id not in upcoming_ids]
+
+    return render_template('reservations/series.html', res=res,
+                           upcoming=upcoming, finished=finished,
+                           classrooms=_classrooms_for_current_unity(),
+                           can_edit=(res.user_id == current_user.id
+                                     or current_user.has_permission('reservation:edit_all')),
+                           can_cancel=(current_user.has_permission('reservation:cancel_all')
+                                       or (current_user.has_permission('reservation:cancel_own')
+                                           and res.user_id == current_user.id)),
+                           can_delete=current_user.has_permission('reservation:delete_all'))
+
+@bp.route('/<int:reservation_id>/series/edit', methods=['POST'])
+@login_required
+def series_edit(reservation_id):
+    res = _get_reservation_scoped(reservation_id)
+    _check_series_view_access(res)
+    if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
+        abort(403)
+
+    selected = _selected_series_members(res)
+    today = date.today()
+    is_admin = current_user.has_permission('reservation:edit_all')
+    targets = [m for m in selected
+               if m.date >= today and m.status != 'cancelled'
+               and (is_admin or m.user_id == current_user.id)]
+    if not targets:
+        flash('Selecione ao menos uma reserva futura da série para editar.', 'warning')
+        return redirect(url_for('reservations.series_manage', reservation_id=res.id))
+
+    def _parse_time(value):
+        """time a partir de 'HH:MM'; None quando vazio; erro se inválido."""
+        if not value:
+            return None
+        try:
+            return datetime.strptime(value, '%H:%M').time()
+        except ValueError:
+            raise ValueError('Horário inválido.')
+
+    try:
+        new_start = _parse_time(request.form.get('start_time'))
+        new_end = _parse_time(request.form.get('end_time'))
+    except ValueError:
+        flash('Horário inválido.', 'danger')
+        return redirect(url_for('reservations.series_manage', reservation_id=res.id))
+    if new_start and new_end and new_end <= new_start:
+        flash('O horário de término deve ser após o início.', 'danger')
+        return redirect(url_for('reservations.series_manage', reservation_id=res.id))
+
+    # Campos opcionais: vazio = mantém o valor atual de cada reserva
+    title = (request.form.get('title') or '').strip() or None
+    if title and len(title) > 200:
+        flash('O título deve ter no máximo 200 caracteres.', 'danger')
+        return redirect(url_for('reservations.series_manage', reservation_id=res.id))
+    description = (request.form.get('description') or '').strip() or None
+
+    classroom = None
+    classroom_id = request.form.get('classroom_id', type=int)
+    if classroom_id:
+        classroom = db.session.get(Classroom, classroom_id)
+        if not classroom or classroom.unity_id != current_unity_id():
+            flash('Sala inválida para a unidade ativa.', 'danger')
+            return redirect(url_for('reservations.series_manage', reservation_id=res.id))
+
+    # Agrupa por sala-alvo (a nova, se escolhida; senão a atual de cada uma)
+    by_classroom = {}
+    for m in targets:
+        by_classroom.setdefault(classroom.id if classroom else m.classroom_id, []).append(m)
+
+    updated, skipped = [], []
+    with ExitStack() as stack:
+        for room_id, room_targets in by_classroom.items():
+            stack.enter_context(slot_locks(room_id, [m.date for m in room_targets]))
+        for room_targets in by_classroom.values():
+            for m in room_targets:
+                start = new_start or m.start_time
+                end = new_end or m.end_time
+                allowed, msg = check_schedule_restrictions(m.date, start, end)
+                if not allowed:
+                    skipped.append((m, msg))
+                    continue
+                conflict = check_conflict(m.classroom_id if classroom is None else classroom.id,
+                                          m.date, start, end, exclude_id=m.id)
+                if conflict:
+                    skipped.append((m, f'Sala ocupada por "{conflict.title}"'))
+                    continue
+                if classroom:
+                    m.classroom_id = classroom.id
+                    m.unity_id = classroom.unity_id
+                m.start_time = start
+                m.end_time = end
+                if title:
+                    m.title = title
+                if description:
+                    m.description = description
+                # Docente sobreposto após a mudança → mesma regra da edição
+                # individual: a reserva volta a PENDENTE para revisão.
+                if m.teacher_id and check_teacher_conflict(
+                        m.teacher_id, m.date, m.start_time, m.end_time,
+                        exclude_id=m.id) and m.status == 'approved':
+                    m.status = 'pending'
+                updated.append(m)
+        db.session.commit()
+
+    if updated:
+        flash(f'{len(updated)} reservas da série atualizadas.', 'success')
+    if skipped:
+        datas = ', '.join(m.date.strftime('%d/%m') for m, _ in skipped)
+        flash(f'{len(skipped)} reserva(s) não alterada(s) ({datas}).', 'warning')
+    if not updated and not skipped:
+        flash('Nenhuma alteração a aplicar.', 'info')
+    return redirect(url_for('reservations.series_manage', reservation_id=res.id))
+
+@bp.route('/<int:reservation_id>/series/delete', methods=['POST'])
+@login_required
+def series_delete(reservation_id):
+    res = _get_reservation_scoped(reservation_id)
+    _check_series_view_access(res)
+
+    mode = request.form.get('mode')
+    selected = _selected_series_members(res)
+    if not selected:
+        flash('Selecione ao menos uma reserva da série.', 'warning')
+        return redirect(url_for('reservations.series_manage', reservation_id=res.id))
+
+    today = date.today()
+
+    if mode == 'delete':
+        # Exclusão permanente: mesmo critério da exclusão individual (admin)
+        if not current_user.has_permission('reservation:delete_all'):
+            abort(403)
+        for m in selected:
+            db.session.delete(m)
+        db.session.commit()
+        flash(f'{len(selected)} reserva(s) da série excluída(s) permanentemente.', 'success')
+        if any(m.id == res.id for m in selected):
+            return redirect(url_for('reservations.all_reservations')
+                            if current_user.has_permission('reservation:read_all')
+                            else url_for('reservations.my_reservations'))
+        return redirect(url_for('reservations.series_manage', reservation_id=res.id))
+
+    # Cancelamento (soft) — mesma regra da rota individual de cancelamento
+    is_admin_cancel = current_user.has_permission('reservation:cancel_all')
+    if not (is_admin_cancel or (current_user.has_permission('reservation:cancel_own')
+                                and res.user_id == current_user.id)):
+        abort(403)
+
+    cancelled, skipped_past, skipped_other = 0, 0, 0
+    for m in selected:
+        if m.status == 'cancelled':
+            continue
+        if m.date < today and not is_admin_cancel:
+            skipped_past += 1
+            continue
+        if not is_admin_cancel and m.user_id != current_user.id:
+            skipped_other += 1
+            continue
+        m.status = 'cancelled'
+        cancelled += 1
+    db.session.commit()
+
+    flash(f'{cancelled} reserva(s) da série cancelada(s).', 'info')
+    if skipped_past:
+        flash(f'{skipped_past} reserva(s) passada(s) não cancelada(s) — apenas quem '
+              'tem cancelamento global pode cancelar reservas passadas.', 'warning')
+    if skipped_other:
+        flash(f'{skipped_other} reserva(s) de outro usuário não cancelada(s).', 'warning')
+    return redirect(url_for('reservations.series_manage', reservation_id=res.id))
+
+
+def _selected_series_members(res):
+    """Reservas do formulário (ids em 'selected') limitadas à série da reserva.
+
+    O filtro pelo grupo é o que impede que ids arbitrários de reservas fora da
+    série sejam editados/excluídos via POST forjado.
+    """
+    _, members = _series_members(res)
+    by_id = {m.id: m for m in members}
+    ids = {v for v in request.form.getlist('selected') if str(v).isdigit()}
+    return [by_id[int(i)] for i in ids if int(i) in by_id]
