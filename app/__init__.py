@@ -1,3 +1,4 @@
+import click
 from flask import Flask, render_template, redirect, url_for, request, flash
 from app.config import Config
 from app.extensions import db, login_manager, csrf, limiter, migrate
@@ -5,19 +6,32 @@ from datetime import datetime
 import os
 import sys
 
-# Valor de desenvolvimento — em produção (FLASK_DEBUG != true) a app se recusa
-# a iniciar sem um SECRET_KEY real, pois com ele é possível forjar cookies de sessão.
+# Valor de desenvolvimento — ao servir requisições sem FLASK_DEBUG, a app se
+# recusa a iniciar sem um SECRET_KEY real, pois com ele é possível forjar
+# cookies de sessão.
 DEV_SECRET_KEY = 'dev-secret-key-change-in-production'
+
+def debug_enabled() -> bool:
+    """True se FLASK_DEBUG indicar modo desenvolvimento.
+
+    Tolerante a variações comuns de escrita (1/true/yes/on, maiúsculas e
+    espaços nas bordas — `set FLASK_DEBUG=true ` no CMD deixa espaço final).
+    """
+    return os.environ.get('FLASK_DEBUG', '').strip().lower() in ('1', 'true', 'yes', 'on')
 
 def create_app(config_class=Config):
     """Factory function to create and configure the Flask app."""
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    debug_mode = debug_enabled()
 
     # Fail-fast de segurança: sem SECRET_KEY forte, sessões podem ser forjadas.
-    if app.config['SECRET_KEY'] == DEV_SECRET_KEY and not debug_mode:
+    # Vale apenas para quem SERVE requisições (python run.py, gunicorn...):
+    # pela CLI do Flask (db upgrade, seed, sync-permissions) não há HTTP e,
+    # portanto, nenhum cookie de sessão para proteger.
+    under_cli = click.get_current_context(silent=True) is not None
+    if app.config['SECRET_KEY'] == DEV_SECRET_KEY and not debug_mode and not under_cli:
         raise RuntimeError(
             'SECRET_KEY não configurada: defina a variável de ambiente SECRET_KEY '
             'com um valor forte e único (ou rode com FLASK_DEBUG=true em desenvolvimento).'
