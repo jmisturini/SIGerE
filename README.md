@@ -190,17 +190,18 @@ venv\Scripts\activate
 # 3. Instale as dependências
 pip install -r requirements.txt
 
-# 4. Habilite o modo desenvolvimento (ou defina uma SECRET_KEY)
+# 4. Crie o schema do banco (Flask-Migrate/Alembic)
+# Comandos de manutenção da CLI não exigem SECRET_KEY nem FLASK_DEBUG
+flask --app run db upgrade
+
+# 5. Popule o banco (cria o admin; dados de demonstração são opcionais)
+flask --app run seed
+
+# 6. Em desenvolvimento, habilite o modo debug antes de servir a aplicação
 # Linux/macOS:
 export FLASK_DEBUG=true
 # Windows PowerShell:
 # $env:FLASK_DEBUG="true"
-
-# 5. Crie o schema do banco (Flask-Migrate/Alembic)
-flask --app run db upgrade
-
-# 6. Popule o banco (cria o admin; dados de demonstração são opcionais)
-flask --app run seed
 
 # 7. Execute a aplicação
 python run.py

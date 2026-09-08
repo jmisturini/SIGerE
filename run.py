@@ -6,10 +6,9 @@ Uso:
     flask --app run seed              # popula o banco com dados iniciais
     flask --app run sync-permissions  # sincroniza permissões de módulos novos
 """
-from app import create_app
+from app import create_app, debug_enabled
 
 app = create_app()
 
 if __name__ == '__main__':
-    import os
-    app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true', port=5000)
+    app.run(debug=debug_enabled(), port=5000)
