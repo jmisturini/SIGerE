@@ -4,7 +4,7 @@ from flask.cli import with_appcontext
 from app.extensions import db
 from app.models import (
     User, Classroom, Reservation, Course, Subject,
-    TeacherBasePay, Role, Permission, RoomCategory, Unity
+    TeacherOvertimePay, Role, Permission, RoomCategory, Unity
 )
 from datetime import datetime, date, time, timedelta
 import random
@@ -526,20 +526,22 @@ def _seed_demo_data():
 
     click.echo("   ✅ 20 reservas criadas.")
 
-    # 6. Pagamentos
+    # 6. Pagamentos (hora extra)
     sample_teachers = teachers_list[:3]
     for i, teacher in enumerate(sample_teachers):
-        base_pay = TeacherBasePay(
+        overtime = TeacherOvertimePay(
             teacher_id=teacher.id,
-            course_id=courses_list[i].id,
             unity_id=teacher.unity_id,
-            month_start='2024-02',
-            month_end='2024-07',
-            budget_code=95000,
-            complement='Contrato Inicial',
-            weekly_workload=20,
+            teaching_level=random.choice(['Técnico', 'Superior']),
+            weekly_workload=random.choice([2, 4, 6]),
+            hourly_value=random.choice([15.50, 22.30, 30.00]),
+            budget_code='950001234',
+            shift=random.choice(['Matutino', 'Vespertino', 'Noturno']),
+            multiple_dates=f"2024-08-{10 + i:02d}, 2024-08-{17 + i:02d}",
+            justification='Substituicao de aula',
+            month_base='2024-08',
             accountable_id=admin.id
         )
-        db.session.add(base_pay)
+        db.session.add(overtime)
 
-    click.echo("   ✅ Lançamentos de pagamento base criados.")
+    click.echo("   ✅ Lançamentos de hora extra criados.")

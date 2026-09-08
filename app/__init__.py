@@ -61,6 +61,7 @@ def create_app(config_class=Config):
     from app.blueprints.schedule import bp as schedule_bp
     from app.blueprints.public import bp as public_bp
     from app.blueprints.payments import bp as payments_bp
+    from app.blueprints.vt import bp as vt_bp
     from app.blueprints.kitchen import bp as kitchen_bp
 
     app.register_blueprint(auth_bp)
@@ -72,6 +73,7 @@ def create_app(config_class=Config):
     app.register_blueprint(schedule_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(payments_bp)
+    app.register_blueprint(vt_bp)
     app.register_blueprint(kitchen_bp)
 
     # ── Register CLI commands ──

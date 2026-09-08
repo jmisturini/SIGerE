@@ -8,6 +8,8 @@
 - schedule     API JSON para o FullCalendar
 - totem        Display de quiosque para TVs
 - public       Portal público (home, busca)
-- payments     Pagamentos docentes (base, aditivo, hora extra)
+- payments     Pagamentos docentes (hora extra)
+- vt           Vale Transporte (Financeiro): importação do Pedido de Compra,
+               edição e exportação da planilha de pagamento
 - kitchen      Cozinha (fichas técnicas, preparações, requisição de compra)
 """
