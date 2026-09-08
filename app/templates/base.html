@@ -332,6 +332,60 @@
         });
     });
 </script>
+<script>
+    // Marcação visual de campos obrigatórios: asterisco no rótulo de todo
+    // campo [required] e legenda "Campos com * são obrigatórios." no form.
+    // Cobre tanto os forms WTForms (required vem do servidor) quanto os
+    // formulários manuais que já declaram o atributo.
+    (function () {
+        // Rótulo do campo: primeiro via label[for=id]; se não casar (alguns
+        // templates sobrescrevem o id do input), sobe até o contêiner que
+        // guarda o par label+campo.
+        function acharRotulo(campo) {
+            if (campo.id) {
+                const direto = document.querySelector('label[for="' + CSS.escape(campo.id) + '"]');
+                if (direto) return direto;
+            }
+            let cont = campo.parentElement;
+            for (let i = 0; i < 4 && cont && cont !== document.body; i++) {
+                const rotulo = cont.querySelector('label');
+                if (rotulo) return rotulo;
+                cont = cont.parentElement;
+            }
+            return null;
+        }
+
+        function marcarObrigatorios() {
+            const formsMarcados = new Set();
+            document.querySelectorAll('form [required]').forEach(function (campo) {
+                const form = campo.closest('form');
+                if (form && !formsMarcados.has(form)) {
+                    formsMarcados.add(form);
+                    if (!form.querySelector('.legenda-obrigatorios')) {
+                        const nota = document.createElement('div');
+                        nota.className = 'legenda-obrigatorios form-text text-muted mt-1 mb-2';
+                        nota.innerHTML = 'Campos com <span class="text-danger fw-bold">*</span> são obrigatórios.';
+                        form.prepend(nota);
+                    }
+                }
+                // Evita duplicar o asterisco em rótulos que já o trazem no texto
+                const rotulo = acharRotulo(campo);
+                if (rotulo && !rotulo.querySelector('.asterisco-obrigatorio') && !rotulo.textContent.includes('*')) {
+                    const asterisco = document.createElement('span');
+                    asterisco.className = 'asterisco-obrigatorio text-danger fw-bold ms-1';
+                    asterisco.title = 'Campo obrigatório';
+                    asterisco.textContent = '*';
+                    rotulo.appendChild(asterisco);
+                }
+            });
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', marcarObrigatorios);
+        } else {
+            marcarObrigatorios();
+        }
+    })();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
