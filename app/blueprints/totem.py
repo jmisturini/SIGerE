@@ -31,10 +31,11 @@ def _totem_weather(unity):
 def _category_sections(unity, today, p_start, p_end):
     """Monta as seções do totem a partir das categorias cadastradas.
 
-    Toda categoria ativa com espaço na unidade vira um bloco — o recorte de
-    tempo (período atual ou próximos 7 dias) e a aparência (cor/ícone) vêm do
-    cadastro, e nenhuma categoria é citada pelo código. Cadastrar a quadra,
-    por exemplo, faz o bloco dela aparecer aqui sem deploy.
+    Cada categoria ativa com espaço na unidade E atividade no seu recorte de
+    tempo vira um bloco — o recorte (período atual ou próximos 7 dias) e a
+    aparência (cor/ícone) vêm do cadastro, e nenhuma categoria é citada pelo
+    código. Cadastrar a quadra, por exemplo, faz o bloco dela aparecer aqui
+    sem deploy; grupos sem atividade não entram na tela.
     """
     categories = (RoomCategory.query
                   .join(Classroom, Classroom.category_id == RoomCategory.id)
@@ -75,13 +76,20 @@ def _category_sections(unity, today, p_start, p_end):
         for r in period_res:
             period_by_cat.setdefault(r.classroom.category_id, []).append(r)
 
+    # Apenas categorias COM atividade entram na tela: blocos vazios somem e
+    # o espaço restante se redistribui entre os grupos com reservas.
     sections = []
     for cat in week_cats:
-        sections.append({'category': cat, 'window': 'week',
-                         'reservations': week_by_cat.get(cat.id, [])})
+        reservations = week_by_cat.get(cat.id, [])
+        if reservations:
+            sections.append({'category': cat, 'window': 'week',
+                             'reservations': reservations})
     for cat in period_cats:
+        bucket = period_by_cat.get(cat.id, [])
+        if not bucket:
+            continue
         grouped = {}
-        for r in period_by_cat.get(cat.id, []):
+        for r in bucket:
             floor_name = r.classroom.floor or "Outros"
             grouped.setdefault(floor_name, []).append(r)
         sorted_floors = dict(sorted(grouped.items(),
