@@ -9,19 +9,99 @@ from app.models import (User, Course, Subject, RoomCategory, Holiday, Role, Unit
 from app.unity_context import current_unity_id
 
 # =============================================================================
+# BASE COMUM A TODOS OS FORMULÁRIOS
+# =============================================================================
+
+# Traduções pt-BR para as mensagens padrão do WTForms (validadores sem
+# message= explícita e falhas de conversão de campo) — sem este mapa o usuário
+# recebia textos como "This field is required." ou "Not a valid choice.".
+_TRADUCOES = {
+    # Validadores
+    'This field is required.': 'Este campo é obrigatório.',
+    'Invalid email address.': 'Endereço de e-mail inválido.',
+    'Field must be equal to %(other_name)s.': 'Deve ser igual ao campo %(other_name)s.',
+    'Field must be at least %(min)d character long.': 'O campo deve ter pelo menos %(min)d caractere.',
+    'Field must be at least %(min)d characters long.': 'O campo deve ter pelo menos %(min)d caracteres.',
+    'Field cannot be longer than %(max)d character.': 'O campo não pode ter mais de %(max)d caractere.',
+    'Field cannot be longer than %(max)d characters.': 'O campo não pode ter mais de %(max)d caracteres.',
+    'Field must be exactly %(max)d character long.': 'O campo deve ter exatamente %(max)d caractere.',
+    'Field must be exactly %(max)d characters long.': 'O campo deve ter exatamente %(max)d caracteres.',
+    'Field must be between %(min)d and %(max)d characters long.': 'O campo deve ter entre %(min)d e %(max)d caracteres.',
+    'Number must be at least %(min)s.': 'O número deve ser maior ou igual a %(min)s.',
+    'Number must be at most %(max)s.': 'O número deve ser menor ou igual a %(max)s.',
+    'Number must be between %(min)s and %(max)s.': 'O número deve estar entre %(min)s e %(max)s.',
+    'Invalid input.': 'Valor inválido.',
+    'Invalid URL.': 'URL inválida.',
+    'Invalid UUID.': 'UUID inválido.',
+    'Invalid IP address.': 'Endereço IP inválido.',
+    'Invalid value, must be one of: %(values)s.': 'Valor inválido; deve ser um de: %(values)s.',
+    "Invalid value, can't be any of: %(values)s.": 'Valor inválido; não pode ser nenhum de: %(values)s.',
+    # Falhas de conversão dos campos
+    'Not a valid integer value.': 'Informe um número inteiro válido.',
+    'Not a valid decimal value.': 'Informe um número decimal válido.',
+    'Not a valid float value.': 'Informe um número válido.',
+    'Not a valid choice.': 'Selecione uma opção válida.',
+    'Invalid Choice: could not coerce.': 'Opção inválida: não foi possível interpretar o valor.',
+    'Not a valid datetime value.': 'Informe uma data e hora válidas.',
+    'Not a valid date value.': 'Informe uma data válida.',
+    'Not a valid time value.': 'Informe um horário válido.',
+    'Not a valid week value.': 'Informe uma semana válida.',
+    # flask_wtf (campo CSRF, exibido quando form.errors é renderizado)
+    'The CSRF token is missing.': 'O token de segurança (CSRF) está ausente.',
+    'The CSRF session token is missing.': 'O token de segurança da sessão está ausente.',
+    'The CSRF token is invalid.': 'O token de segurança (CSRF) é inválido.',
+    'The CSRF token has expired.': 'O token de segurança (CSRF) expirou.',
+}
+
+
+class _TraducoesPTBR:
+    """Objeto de traduções pt-BR entregue ao WTForms via Meta.get_translations.
+    É por aqui que passam TODAS as mensagens dos validadores e dos campos."""
+
+    def gettext(self, string):
+        return _TRADUCOES.get(string, string)
+
+    def ngettext(self, singular, plural, n):
+        chave = singular if n == 1 else plural
+        return _TRADUCOES.get(chave, chave)
+
+
+class MetaPTBR(FlaskForm.Meta):
+    """Meta comum: traduz as mensagens padrão do WTForms para pt-BR e
+    renderiza o atributo required nos campos obrigatórios."""
+
+    _traducoes = _TraducoesPTBR()
+
+    def get_translations(self, form):
+        return self._traducoes
+
+    def render_field(self, field, render_kw):
+        # Campos com DataRequired/InputRequired ganham o atributo required no
+        # HTML (os forms usam novalidate, então a validação continua no
+        # servidor; o atributo serve de gancho para a marcação visual).
+        if field.flags.required:
+            render_kw.setdefault('required', True)
+        return super().render_field(field, render_kw)
+
+
+class BaseForm(FlaskForm):
+    Meta = MetaPTBR
+
+
+# =============================================================================
 # LOGIN & PASSWORD FORMS
 # =============================================================================
 
-class LoginForm(FlaskForm):
+class LoginForm(BaseForm):
     username = StringField('Nome de Usuário', validators=[DataRequired(), Length(max=64)])
     password = PasswordField('Senha', validators=[DataRequired()])
     submit = SubmitField('Entrar')
 
 
-class ChangePasswordForm(FlaskForm):
+class ChangePasswordForm(BaseForm):
     current_password = PasswordField('Senha Atual', validators=[DataRequired()])
     password = PasswordField('Nova Senha', validators=[DataRequired(), Length(min=8, message='A nova senha deve ter pelo menos 8 caracteres.')])
-    confirm_password = PasswordField('Confirmar Nova Senha', validators=[DataRequired(), EqualTo('password')])
+    confirm_password = PasswordField('Confirmar Nova Senha', validators=[DataRequired(), EqualTo('password', message='As senhas não coincidem.')])
     submit = SubmitField('Atualizar Senha')
 
 
@@ -29,7 +109,7 @@ class ChangePasswordForm(FlaskForm):
 # TEACHER FORM
 # =============================================================================
 
-class TeacherForm(FlaskForm):
+class TeacherForm(BaseForm):
     username = StringField('Nome de Usuário', validators=[DataRequired(), Length(min=3, max=64)])
     email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
     full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
@@ -48,9 +128,14 @@ class TeacherForm(FlaskForm):
         # causando falsa detecção de duplicidade nas validações de username/email/registration.
         obj = kwargs.get('obj', None)
         self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
-        # Senha obrigatória apenas na criação (sem obj_id)
+        # Senha obrigatória apenas na criação (sem obj_id). NÃO usar
+        # validators.insert(): Field compartilha a lista com a definição de
+        # classe e o insert vazaria o DataRequired para as instâncias de
+        # edição seguintes. O flag também é ajustado à mão — os campos já
+        # foram vinculados em super().__init__.
         if not self._obj_id:
-            self.password.validators.insert(0, DataRequired())
+            self.password.validators = [DataRequired()] + list(self.password.validators)
+            self.password.flags.required = True
 
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
@@ -87,7 +172,7 @@ class TeacherForm(FlaskForm):
 # EMPLOYEE FORM
 # =============================================================================
 
-class EmployeeForm(FlaskForm):
+class EmployeeForm(BaseForm):
     username = StringField('Nome de Usuário', validators=[DataRequired(), Length(min=3, max=64)])
     email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
     full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
@@ -107,9 +192,14 @@ class EmployeeForm(FlaskForm):
         # quando obj_id não é passado explicitamente como kwarg.
         obj = kwargs.get('obj', None)
         self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
-        # Senha obrigatória apenas na criação (sem obj_id)
+        # Senha obrigatória apenas na criação (sem obj_id). NÃO usar
+        # validators.insert(): Field compartilha a lista com a definição de
+        # classe e o insert vazaria o DataRequired para as instâncias de
+        # edição seguintes. O flag também é ajustado à mão — os campos já
+        # foram vinculados em super().__init__.
         if not self._obj_id:
-            self.password.validators.insert(0, DataRequired())
+            self.password.validators = [DataRequired()] + list(self.password.validators)
+            self.password.flags.required = True
 
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
@@ -149,7 +239,7 @@ class EmployeeForm(FlaskForm):
 # CLASSROOM FORM
 # =============================================================================
 
-class ClassroomForm(FlaskForm):
+class ClassroomForm(BaseForm):
     name = StringField('Nome da Sala', validators=[DataRequired(), Length(max=64)])
     room_number = StringField('Número da Sala', validators=[DataRequired(), Length(max=20)])
     building = StringField('Prédio', validators=[Optional(), Length(max=120)])
@@ -176,7 +266,7 @@ class ClassroomForm(FlaskForm):
 # RESERVATION FORM
 # =============================================================================
 
-class ReservationForm(FlaskForm):
+class ReservationForm(BaseForm):
     classroom = SelectField('Sala', coerce=int, validators=[DataRequired()])
     course = SelectField('Curso', coerce=int, validators=[Optional()])
     subject = SelectField('Disciplina', coerce=int, validators=[Optional()])
@@ -215,7 +305,7 @@ class ReservationForm(FlaskForm):
 # COURSE FORM
 # =============================================================================
 
-class CourseForm(FlaskForm):
+class CourseForm(BaseForm):
     name = StringField('Nome do Curso', validators=[DataRequired(), Length(max=120)])
     code = StringField('Código do Curso', validators=[DataRequired(), Length(max=20)])
     description = TextAreaField('Descrição', validators=[Optional()])
@@ -244,7 +334,7 @@ class CourseForm(FlaskForm):
 # SUBJECT FORM
 # =============================================================================
 
-class SubjectForm(FlaskForm):
+class SubjectForm(BaseForm):
     name = StringField('Nome da Disciplina', validators=[DataRequired(), Length(max=120)])
     code = StringField('Código da Disciplina', validators=[DataRequired(), Length(max=20)])
     course_id = SelectField('Pertence ao Curso', coerce=int, validators=[Optional()])
@@ -274,7 +364,7 @@ class SubjectForm(FlaskForm):
 # HOLIDAY FORM
 # =============================================================================
 
-class HolidayForm(FlaskForm):
+class HolidayForm(BaseForm):
     name = StringField('Nome do Feriado', validators=[DataRequired(), Length(max=120)])
     date = DateField('Data', validators=[DataRequired()])
     is_active = BooleanField('Ativo (Bloquear Reservas)', default=True)
@@ -306,7 +396,7 @@ class HolidayForm(FlaskForm):
 # UNITY FORM (Multi-unidade)
 # =============================================================================
 
-class UnityForm(FlaskForm):
+class UnityForm(BaseForm):
     name = StringField('Nome da Unidade (ex: Unidade Centro)', validators=[DataRequired(), Length(max=120)])
     code = StringField('Código Curto (ex: CTR)', validators=[DataRequired(), Length(min=2, max=20)])
     address = StringField('Endereço', validators=[Optional(), Length(max=255)])
@@ -347,7 +437,7 @@ class UnityForm(FlaskForm):
 # TEACHER BASE PAY FORM
 # =============================================================================
 
-class FormTeacherBasePay(FlaskForm):
+class FormTeacherBasePay(BaseForm):
     teacher = SelectField('Professor', coerce=int, validators=[DataRequired()])
     course = SelectField('Curso', coerce=int, validators=[Optional()])
     month_start = StringField('Mês Início (YYYY-MM)', validators=[DataRequired()])
@@ -382,7 +472,7 @@ class FormTeacherBasePay(FlaskForm):
 # TEACHER ADDITIVE PAY FORM
 # =============================================================================
 
-class FormTeacherAdditivePay(FlaskForm):
+class FormTeacherAdditivePay(BaseForm):
     base_release = SelectField('Lançamento Base', coerce=int, validators=[DataRequired()])
     course = SelectField('Curso', coerce=int, validators=[Optional()])
     month_start = StringField('Mês Início (YYYY-MM)', validators=[DataRequired()])
@@ -416,7 +506,7 @@ class FormTeacherAdditivePay(FlaskForm):
 # TEACHER OVERTIME PAY FORM
 # =============================================================================
 
-class FormTeacherOvertimePay(FlaskForm):
+class FormTeacherOvertimePay(BaseForm):
     teacher = SelectField('Professor', coerce=int, validators=[DataRequired()])
     teaching_level = SelectField('Nível de Ensino', choices=[
         ('Técnico', 'Técnico'), 
@@ -462,7 +552,7 @@ class FormTeacherOvertimePay(FlaskForm):
 # ROLE FORM
 # =============================================================================
 
-class RoleForm(FlaskForm):
+class RoleForm(BaseForm):
     name = StringField('Nome do Sistema (ex: coordinator)', validators=[DataRequired(), Length(max=50)])
     label = StringField('Rótulo de Exibição (ex: Coordenador)', validators=[DataRequired(), Length(max=100)])
     description = TextAreaField('Descrição', validators=[Optional()])
@@ -493,7 +583,7 @@ class RoleForm(FlaskForm):
 # ROOM CATEGORY FORM
 # =============================================================================
 
-class RoomCategoryForm(FlaskForm):
+class RoomCategoryForm(BaseForm):
     name = StringField('Nome da Categoria (ex: Laboratório de Informática)', validators=[DataRequired(), Length(max=50)])
     code = StringField('Código Interno (ex: computer_lab)', validators=[DataRequired(), Length(max=20)])
     abbr = StringField('Abreviação para Código de Sala (ex: LI - máx 3 letras)', validators=[Optional(), Length(max=3)])

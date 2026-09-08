@@ -11,6 +11,12 @@ from app.permissions import require_permission
 
 bp = Blueprint('classrooms', __name__, url_prefix='/classrooms')
 
+# Nomes dos meses em pt-BR: calendar.month_name depende do locale do servidor
+# (em um host em inglês exibiria "January", "February"...), então usamos a
+# lista fixa em todos os calendários e PDFs.
+MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+
 # Helper function to apply filters and return a query
 def get_filtered_classrooms(args):
     # Multi-unidade: apenas salas da unidade ativa
@@ -238,7 +244,7 @@ def availability(classroom_id):
 
     return render_template(
         'classrooms/availability.html', classroom=classroom, year=year, month=month,
-        month_name=calendar.month_name[month], month_days=month_days,
+        month_name=MESES_PT[month - 1], month_days=month_days,
         reservations_by_day=reservations_by_day, today=today,
         prev_year=prev_year, prev_month=prev_month, next_year=next_year, next_month=next_month
     )
@@ -276,8 +282,7 @@ def export_availability(classroom_id):
     pdf.add_page()
     
     # Get month name in Portuguese
-    meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-    month_name = meses[month - 1]
+    month_name = MESES_PT[month - 1]
     
     # Title
     pdf.set_font("Helvetica", 'B', 16)
