@@ -124,7 +124,9 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 - **Exportação Excel:** planilha formatada com modelo pré-definido (`base_pagamento_extra.xlsx`)
 
 ### 🚌 Vale Transporte (`/vt`)
-- **Importação do Pedido de Compra:** upload de um arquivo `.xlsx`; o sistema lê a aba "Vale Transporte" inteira (todas as 16 colunas: matrícula, nome, optante, vínculo, unidade, empresas A/B com valores e passes, totais) e grava tudo para revisão — mesmo fluxo das fichas técnicas da Cozinha (importar → revisar/editar → exportar)
+Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora Extra e Vale Transporte):
+- **Importação (`/vt/`):** upload do arquivo `.xlsx` do Pedido de Compra; o sistema lê a aba "Vale Transporte" inteira (todas as 16 colunas: matrícula, nome, optante, vínculo, unidade, empresas A/B com valores e passes, totais) e grava tudo para revisão — mesmo fluxo das fichas técnicas da Cozinha (importar → revisar/editar → exportar). Ao concluir, leva direto para a listagem
+- **Colaboradores (`/vt/colaboradores`):** listagem com filtros e exportação:
 - **Padronização de nomes:** nomes fora do padrão "iniciais maiúsculas" (ex.: `JOÃO ALFREDO MISTURINI` → `João Alfredo Misturini`) são formatados automaticamente na importação/edição, com o original preservado no selo "nome ajustado" da listagem
 - **Marcação de inconsistências:** linhas com **nome repetido** ou **matrícula repetida** ficam destacadas com selos de aviso (a verificação cobre toda a base da unidade, mesmo com filtros ativos)
 - **Filtros e organização:** busca por nome, filtros por vínculo e unidade, ordenação por nome/matrícula/valor total e opção de esconder não optantes com valor R$ 0,00
@@ -553,7 +555,7 @@ SIGerE/
         ├── classrooms/        # Listagem, detalhes, disponibilidade mensal
         ├── reservations/      # Criar, editar, detalhes, minhas reservas, repetição, séries
         ├── payments/          # Formulário e listagem de horas extras
-        ├── vt/                # Vale Transporte: listagem importada e edição
+        ├── vt/                # Vale Transporte: importação, colaboradores e edição
         ├── kitchen/           # Fichas técnicas, preparações e compras
         └── errors/            # Páginas 403, 404, 500
 ```

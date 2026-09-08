@@ -19,7 +19,7 @@
                     <span class="text-muted">{{ record.full_name }}</span>
                     <small class="text-muted fw-normal">(Matrícula {{ record.registration }})</small>
                 </h5>
-                <a href="{{ url_for('vt.index') }}" class="btn btn-sm btn-outline-secondary">
+                <a href="{{ url_for('vt.records') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
             </div>
@@ -68,7 +68,7 @@
                     </div>
 
                     <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-                        <a href="{{ url_for('vt.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <a href="{{ url_for('vt.records') }}" class="btn btn-outline-secondary">Cancelar</a>
                         {{ form.submit(class="btn btn-primary px-4") }}
                     </div>
                 </form>

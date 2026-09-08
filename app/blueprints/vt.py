@@ -1,17 +1,19 @@
 """Módulo Vale Transporte do Financeiro.
 
-Adaptação web do "Gerador Unificado" (script local de vale transporte):
+Adaptação web do "Gerador Unificado" (script local de vale transporte),
+organizado em duas páginas:
 
-1. Upload: o usuário envia o "Pedido de Compra" (.xlsx); a aba
+1. Importação (/vt/): upload do "Pedido de Compra" (.xlsx); a aba
    "Vale Transporte" é lida inteira (todas as colunas A–P, uma linha por
-   colaborador) e gravada em VtRecord para revisão/edição — mesma ideia das
-   fichas técnicas da Cozinha (importar, revisar, depois exportar);
-2. Edição: cada colaborador pode ter todos os campos corrigidos na tela;
-3. Exportação: os colaboradores elegíveis (Optante VT = "Sim" e passes > 0,
-   critérios do script original) são escritos na planilha_base_vt.xlsx
-   (aba "Vale Transporte", a partir da linha 5: Matrícula, Nome, Total),
-   filtráveis pelos grupos do gerador: Técnico-Administrativo (Faculdade),
-   Professores e Técnico-Administrativo (Restaurante/Lanchonete).
+   colaborador) e gravada em VtRecord — mesma ideia das fichas técnicas da
+   Cozinha (importar, revisar, depois exportar);
+2. Colaboradores (/vt/colaboradores): listagem com filtros (vínculo,
+   unidade, nome), ordenação, marcação de inconsistências (nome fora do
+   padrão, nome/matrícula repetidos) e a exportação da planilha de pagamento
+   (planilha_base_vt.xlsx, Matrícula/Nome/Total a partir da linha 5),
+   filtrável pelos grupos do gerador: Técnico-Administrativo (Faculdade),
+   Professores e Técnico-Administrativo (Restaurante/Lanchonete) — apenas
+   Optante VT "Sim" com passes > 0, critérios do script original.
 """
 import io
 import os
@@ -231,6 +233,17 @@ def _money_text(value):
 @login_required
 @require_permission('payment:read')
 def index():
+    """Página de importação: apenas o upload do Pedido de Compra. Após ler o
+    arquivo, o usuário é levado à listagem de colaboradores para revisão."""
+    total = VtRecord.query.filter_by(unity_id=current_unity_id()).count()
+    return render_template('vt/index.html', total=total,
+                           can_manage=current_user.has_permission('payment:create'))
+
+
+@bp.route('/colaboradores')
+@login_required
+@require_permission('payment:read')
+def records():
     search = (request.args.get('q') or '').strip()
     group_filter = request.args.get('group') or ''
     link_filter = (request.args.get('link') or '').strip()
@@ -282,14 +295,13 @@ def index():
     flagged = any(r.original_name or r.duplicate_name or r.duplicate_registration
                   for r in records)
 
-    return render_template('vt/index.html', records=records, search=search,
+    return render_template('vt/records.html', records=records, search=search,
                            group_filter=group_filter, group_counts=group_counts,
                            group_labels=GROUP_LABELS,
                            link_filter=link_filter, unity_filter=unity_filter,
                            links=links, unities=unities,
                            sort=sort, hide_without_vt=hide_without_vt,
                            flagged=flagged,
-                           can_manage=current_user.has_permission('payment:create'),
                            can_edit=current_user.has_permission('payment:edit'),
                            can_delete=current_user.has_permission('payment:delete'),
                            can_export=current_user.has_permission('payment:export'))
@@ -304,13 +316,13 @@ def upload():
     form = FormVtUpload()
     if not form.validate_on_submit():
         flash('Selecione um arquivo .xlsx do Pedido de Compra.', 'warning')
-        return redirect(url_for('vt.index'))
+        return redirect(url_for('vt.records'))
 
     try:
         data = parse_vt_sheet(form.file.data.stream)
     except ValueError as exc:
         flash(f'Erro na leitura: {exc}', 'danger')
-        return redirect(url_for('vt.index'))
+        return redirect(url_for('vt.records'))
 
     # Substituição completa: os dados importados são a fonte única vigente.
     replaced = VtRecord.query.filter_by(unity_id=current_unity_id()).delete()
@@ -335,7 +347,7 @@ def upload():
         flash(f'Importação concluída: {len(data)} colaborador(es) lidos. '
               f'{adjusted} nome(s) padronizado(s) automaticamente — linhas '
               'destacadas na listagem.', 'success')
-    return redirect(url_for('vt.index'))
+    return redirect(url_for('vt.records'))
 
 
 @bp.route('/<int:record_id>/editar', methods=['GET', 'POST'])
@@ -357,7 +369,7 @@ def edit_record(record_id):
         _apply_record_form(record, form)
         db.session.commit()
         flash(f'Registro de {record.full_name} atualizado.', 'success')
-        return redirect(url_for('vt.index'))
+        return redirect(url_for('vt.records'))
 
     return render_template('vt/form.html', form=form, record=record)
 
@@ -371,7 +383,7 @@ def delete_record(record_id):
     db.session.delete(record)
     db.session.commit()
     flash(f'Registro de {name} excluído.', 'info')
-    return redirect(url_for('vt.index'))
+    return redirect(url_for('vt.records'))
 
 
 @bp.route('/limpar', methods=['POST'])
@@ -382,7 +394,7 @@ def clear_all():
     removed = VtRecord.query.filter_by(unity_id=current_unity_id()).delete()
     db.session.commit()
     flash(f'{removed} registro(s) removido(s).', 'info')
-    return redirect(url_for('vt.index'))
+    return redirect(url_for('vt.records'))
 
 
 @bp.route('/exportar')
@@ -405,7 +417,7 @@ def export():
         flash('Nenhum colaborador elegível para o grupo selecionado '
               '(é preciso estar como Optante VT "Sim" e com passes maior que 0).',
               'warning')
-        return redirect(url_for('vt.index'))
+        return redirect(url_for('vt.records'))
 
     template_path = os.path.join(current_app.root_path, 'static',
                                  'templates_excel', VT_TEMPLATE_FILE)
@@ -414,7 +426,7 @@ def export():
     except FileNotFoundError:
         flash(f'Modelo do Excel não encontrado no servidor ({VT_TEMPLATE_FILE}).',
               'danger')
-        return redirect(url_for('vt.index'))
+        return redirect(url_for('vt.records'))
 
     worksheet = workbook[VT_SOURCE_SHEET]
 
