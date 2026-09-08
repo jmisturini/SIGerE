@@ -54,14 +54,10 @@
             box-shadow: var(--shadow-light);
             color: var(--text-main-light);
         }
-        body.day-theme .room-card.occupied {
-            border-left: 5px solid var(--danger-light);
-            background: linear-gradient(90deg, rgba(239, 68, 68, 0.05) 0%, var(--card-bg-light) 100%);
-        }
-        body.day-theme .aud-card {
-            border-left: 5px solid var(--primary-light);
-            background: linear-gradient(90deg, rgba(0, 75, 141, 0.05) 0%, var(--card-bg-light) 100%);
-        }
+        /* A cor da borda esquerda vem do cadastro da categoria (inline); o
+           fallback abaixo cobre categorias sem cor definida. */
+        body.day-theme .room-card.occupied { border-left: 5px solid var(--primary-light); }
+        body.day-theme .aud-card { border-left: 5px solid var(--primary-light); }
         body.day-theme .category-badge { background: #e2e8f0; color: #475569; }
         body.day-theme .event-time { color: var(--text-muted-light); }
         body.day-theme .clock-date { color: var(--text-muted-light); }
@@ -83,14 +79,8 @@
             box-shadow: var(--shadow-dark);
             color: var(--text-main-dark);
         }
-        body.night-theme .room-card.occupied {
-            border-left: 5px solid var(--danger-dark);
-            background: linear-gradient(90deg, rgba(248, 113, 113, 0.1) 0%, var(--card-bg-dark) 100%);
-        }
-        body.night-theme .aud-card {
-            border-left: 5px solid var(--primary-dark);
-            background: linear-gradient(90deg, rgba(44, 123, 229, 0.1) 0%, var(--card-bg-dark) 100%);
-        }
+        body.night-theme .room-card.occupied { border-left: 5px solid var(--primary-dark); }
+        body.night-theme .aud-card { border-left: 5px solid var(--primary-dark); }
         body.night-theme .category-badge { background: #21262d; color: #c9d1d9; }
         body.night-theme .event-time { color: var(--text-muted-dark); }
         body.night-theme .clock-date { color: var(--text-muted-dark); }
@@ -165,59 +155,68 @@
 
 <div class="container-fluid mt-4">
     <div class="row g-4">
-        <!-- TOP BLOCK: Auditoriums (Week) -->
-        <div class="col-12">
-            <div class="period-title"><i class="bi bi-buildings"></i> Auditórios (Próximos 7 dias)</div>
-            <div class="totem-scroll">
-                {% if aud_reservations %}
-                    <div class="row g-3">
-                        {% for r in aud_reservations %}
-                        <div class="col-md-6 col-lg-4">
-                            <div class="aud-card h-100">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="room-code">{{ r.classroom.code }}</span>
-                                    <span class="badge bg-primary fs-6">{{ r.date.strftime('%d/%m') }}</span>
-                                </div>
-                                <div class="mt-2">
-                                    <div class="event-title">{{ r.title }}</div>
-                                    <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
-                                </div>
+    {% for sec in category_sections %}
+    <div class="col-12 mb-4">
+        {% set cat = sec.category %}
+        <div class="period-title" style="border-color: {{ cat.display_color }};">
+            <i class="bi {{ cat.display_icon }}"></i>
+            {{ cat.name }}
+            {% if sec.window == 'week' %}(Próximos 7 dias){% else %}({{ current_period }}){% endif %}
+        </div>
+        <div class="totem-scroll">
+        {% if sec.window == 'week' %}
+            {% if sec.reservations %}
+                <div class="row g-3">
+                    {% for r in sec.reservations %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="aud-card h-100" style="border-left-color: {{ cat.display_color }};">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="room-code">{{ r.classroom.code }}</span>
+                                <span class="badge fs-6" style="background-color: {{ cat.display_color }};">{{ r.date.strftime('%d/%m') }}</span>
+                            </div>
+                            <div class="mt-2">
+                                <div class="event-title">{{ r.title }}</div>
+                                <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="room-card text-center text-muted py-4"><i class="bi bi-emoji-smile fs-4 d-block mb-2"></i><h5>Nenhum espaço de {{ cat.name }} reservado na semana</h5></div>
+            {% endif %}
+        {% else %}
+            {% if sec.floors %}
+                <div class="row g-3">
+                    {% for floor_name, reservations in sec.floors.items() %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="category-badge"><i class="bi bi-layers"></i> {{ floor_name }}</div>
+                        {% for r in reservations %}
+                        <div class="room-card occupied mb-3" style="border-left-color: {{ cat.display_color }};">
+                            <div class="d-flex justify-content-between align-items-center"><span class="room-code">{{ r.classroom.code }}</span></div>
+                            <div class="mt-2">
+                                <div class="event-title">{{ r.title }}</div>
+                                <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
-                {% else %}
-                    <div class="room-card text-center text-muted py-4"><i class="bi bi-emoji-smile fs-4 d-block mb-2"></i><h5>Nenhum auditório reservado para a semana</h5></div>
-                {% endif %}
-            </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="room-card text-center text-muted py-4"><i class="bi bi-emoji-smile fs-4 d-block mb-2"></i><h5>Nenhum espaço de {{ cat.name }} ocupado neste período</h5></div>
+            {% endif %}
+        {% endif %}
         </div>
-
-        <!-- BOTTOM BLOCK: Classrooms (Current Period) -->
-        <div class="col-12">
-            <div class="period-title"><i class="bi bi-door-closed"></i> Salas de Aula ({{ current_period }})</div>
-            <div class="totem-scroll">
-                {% if classroom_floors %}
-                    <div class="row g-3">
-                        {% for floor_name, reservations in classroom_floors.items() %}
-                        <div class="col-md-6 col-lg-4">
-                            <div class="category-badge"><i class="bi bi-layers"></i> {{ floor_name }}</div>
-                            {% for r in reservations %}
-                            <div class="room-card occupied mb-3">
-                                <div class="d-flex justify-content-between align-items-center"><span class="room-code">{{ r.classroom.code }}</span></div>
-                                <div class="mt-2">
-                                    <div class="event-title">{{ r.title }}</div>
-                                    <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="room-card text-center text-muted py-4"><i class="bi bi-emoji-smile fs-4 d-block mb-2"></i><h5>Nenhuma sala ocupada neste período</h5></div>
-                {% endif %}
-            </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="room-card text-center text-muted py-5">
+            <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
+            <h5>Nenhum espaço cadastrado nesta unidade</h5>
         </div>
+    </div>
+    {% endfor %}
     </div>
 </div>
 

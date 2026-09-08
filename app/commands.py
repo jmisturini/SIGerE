@@ -398,13 +398,22 @@ def _seed_demo_data():
     db.session.flush()
     click.echo(f"   ✅ {users_created} usuários criados.")
 
-    # 2. Categorias
+    # 2. Categorias — cor/ícone alimentam o totem, que se monta a partir
+    #    destes cadastros (nenhuma categoria é fixa no código).
     categories = [
-        RoomCategory(name="Sala de Aula", code="classroom", abbr="SA"),
-        RoomCategory(name="Auditório", code="auditorium", abbr="AU"),
-        RoomCategory(name="Cozinha", code="kitchen", abbr="CO"),
-        RoomCategory(name="Laboratório de Informática", code="computer_lab", abbr="LI"),
-        RoomCategory(name="Laboratório de Saúde", code="health_lab", abbr="LS")
+        RoomCategory(name="Sala de Aula", code="classroom", abbr="SA",
+                     color="#0d6efd", icon="bi-door-closed"),
+        RoomCategory(name="Auditório", code="auditorium", abbr="AU",
+                     color="#004b8d", icon="bi-buildings",
+                     totem_window=RoomCategory.TOTEM_WINDOW_WEEK),
+        RoomCategory(name="Cozinha", code="kitchen", abbr="CO",
+                     color="#f0ad4e", icon="bi-cup-hot"),
+        RoomCategory(name="Laboratório de Informática", code="computer_lab", abbr="LI",
+                     color="#0dcaf0", icon="bi-pc-display"),
+        RoomCategory(name="Laboratório de Saúde", code="health_lab", abbr="LS",
+                     color="#dc3545", icon="bi-heart-pulse"),
+        RoomCategory(name="Quadra de Esportes", code="sports_court", abbr="QE",
+                     color="#198754", icon="bi-volleyball")
     ]
     db.session.add_all(categories)
     db.session.flush()
@@ -414,10 +423,12 @@ def _seed_demo_data():
     cat_kitchen = RoomCategory.query.filter_by(code='kitchen').first()
     cat_comp = RoomCategory.query.filter_by(code='computer_lab').first()
     cat_health = RoomCategory.query.filter_by(code='health_lab').first()
+    cat_sports = RoomCategory.query.filter_by(code='sports_court').first()
 
     # 3. Salas
     room_data = [
         {"name": "Auditório Principal", "category_id": cat_aud.id, "capacity": 150, "floor": "1º Andar", "computer_count": 0, "room_number": "101"},
+        {"name": "Quadra Poliesportiva", "category_id": cat_sports.id, "capacity": 100, "floor": "Térreo", "computer_count": 0, "room_number": "001"},
         {"name": "Cozinha Experimental A", "category_id": cat_kitchen.id, "capacity": 15, "floor": "1º Andar", "computer_count": 0, "room_number": "102"},
         {"name": "Cozinha Experimental B", "category_id": cat_kitchen.id, "capacity": 15, "floor": "1º Andar", "computer_count": 0, "room_number": "103"},
         {"name": "Sala de Aula 104", "category_id": cat_classroom.id, "capacity": 30, "floor": "1º Andar", "computer_count": 0, "room_number": "104"},

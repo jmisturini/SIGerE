@@ -35,7 +35,31 @@
                             {% for err in form.abbr.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                             <div class="form-text small">Ex: CP, CR, AU.</div>
                         </div>
-                        
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-uppercase text-muted mb-1">Aparência no Totem</label>
+                            <div class="row g-3 align-items-center">
+                                <div class="col-auto">
+                                    {{ form.color(class="form-control form-control-color", id="category_color") }}
+                                    <div class="form-text small">Cor de destaque.</div>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="input-group">
+                                        {{ form.icon(class="form-select", id="category_icon", **{"aria-label": "Ícone da categoria"}) }}
+                                        <span class="input-group-text"><i id="icon-preview" class="bi bi-tag fs-5"></i></span>
+                                    </div>
+                                    <div class="form-text small">Ícone exibido junto ao nome.</div>
+                                </div>
+                                <div class="col-md-5">
+                                    {{ form.totem_window(class="form-select") }}
+                                    <div class="form-text small">Recorte de tempo desta categoria no totem.</div>
+                                </div>
+                            </div>
+                            {% for err in form.color.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            {% for err in form.icon.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            {% for err in form.totem_window.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+
                         <div class="col-12">
                             <div class="form-check mt-2">
                                 {{ form.is_active(class="form-check-input") }}
@@ -53,4 +77,13 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Pré-visualização do ícone escolhido, para o admin ver o resultado antes de salvar.
+document.getElementById('category_icon').addEventListener('change', function () {
+    document.getElementById('icon-preview').className = 'bi ' + this.value + ' fs-5';
+});
+</script>
 {% endblock %}

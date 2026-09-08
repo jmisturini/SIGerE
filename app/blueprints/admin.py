@@ -534,8 +534,11 @@ def create_category():
             flash('Já existe uma categoria com este código.', 'danger')
         else:
             cat = RoomCategory(
-                name=form.name.data, code=form.code.data, 
-                abbr=form.abbr.data.upper() if form.abbr.data else None, 
+                name=form.name.data, code=form.code.data,
+                abbr=form.abbr.data.upper() if form.abbr.data else None,
+                color=(form.color.data or '').lower() or None,
+                icon=form.icon.data or None,
+                totem_window=form.totem_window.data,
                 is_active=form.is_active.data
             )
             db.session.add(cat)
@@ -554,6 +557,9 @@ def edit_category(cat_id):
         cat.name = form.name.data
         cat.code = form.code.data
         cat.abbr = form.abbr.data.upper() if form.abbr.data else None
+        cat.color = (form.color.data or '').lower() or None
+        cat.icon = form.icon.data or None
+        cat.totem_window = form.totem_window.data
         cat.is_active = form.is_active.data
         db.session.commit()
         flash('Categoria atualizada.', 'success')

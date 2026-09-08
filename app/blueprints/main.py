@@ -40,15 +40,24 @@ def index():
         Reservation.end_time > period_start
     ).order_by(Reservation.start_time).all()
 
-    # Split into Classrooms and Auditoriums for separate display blocks
-    # r.classroom.category is a RoomCategory object — compare via .code, not the object itself
-    aud_res = [r for r in today_reservations if r.classroom.category and r.classroom.category.code == 'auditorium']
-    cls_res = [r for r in today_reservations if not r.classroom.category or r.classroom.category.code != 'auditorium']
+    # Seções montadas a partir das categorias cadastradas (nome, ícone e cor
+    # vêm do banco) — nenhuma categoria é citada no código, então cadastrar
+    # uma nova (ex: Quadra de Esportes) já a exibe no painel.
+    sections_by_cat = {}
+    for r in today_reservations:
+        cat = r.classroom.category
+        if cat is None:  # defensivo: o schema exige category_id na sala
+            continue
+        sections_by_cat.setdefault(cat, []).append(r)
+
+    category_sections = [
+        {'category': cat, 'reservations': res}
+        for cat, res in sorted(sections_by_cat.items(), key=lambda kv: kv[0].name.lower())
+    ]
 
     return render_template(
         'index.html',
-        auditorium_reservations=aud_res,
-        classroom_reservations=cls_res,
+        category_sections=category_sections,
         current_period=current_period,
         formatted_today=formatted_today # Pass the pre-formatted string
     )

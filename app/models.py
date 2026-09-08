@@ -347,6 +347,34 @@ class RoomCategory(db.Model):
     # Abreviação para gerar o código da sala automaticamente (ex: CP, CR, AU)
     abbr = db.Column(db.String(3), nullable=True)
 
+    # Aparência no totem/dashboard: a tela se monta a partir das categorias
+    # cadastradas, sem lógica fixa por tipo de espaço.
+    color = db.Column(db.String(7))              # hex '#rrggbb'; NULL usa o padrão
+    icon = db.Column(db.String(50))              # classe Bootstrap Icons (ex: bi-buildings)
+    # Janela de tempo exibida no totem: 'period' = reservas do período atual
+    # (manhã/tarde/noite); 'week' = próximos 7 dias (ex: agenda de auditórios).
+    totem_window = db.Column(db.String(20), default='period')
+
+    # Janelas de exibição do totem
+    TOTEM_WINDOW_PERIOD = 'period'
+    TOTEM_WINDOW_WEEK = 'week'
+
+    # Fallbacks visuais para categorias cadastradas antes de cor/ícone existirem
+    DEFAULT_COLOR = '#0d6efd'
+    DEFAULT_ICON = 'bi-tag'
+
+    @property
+    def display_color(self):
+        return self.color or self.DEFAULT_COLOR
+
+    @property
+    def display_icon(self):
+        return self.icon or self.DEFAULT_ICON
+
+    @property
+    def totem_window_label(self):
+        return 'Próximos 7 dias' if self.totem_window == self.TOTEM_WINDOW_WEEK else 'Período atual'
+
     def __repr__(self):
         return f'<RoomCategory {self.name}>'
 
