@@ -57,6 +57,14 @@ def change_password():
             flash('Erro de sessão. Faça login novamente.', 'danger')
             return redirect(url_for('auth.logout'))
 
+        # SECURITY: block reuse of the current password. On the forced
+        # first-login change this is the initial password issued by the
+        # admin; hashes are salted, so compare via check_password instead
+        # of comparing strings/hashes directly.
+        if user.check_password(form.password.data):
+            flash('A nova senha não pode ser igual à senha atual. Escolha uma senha diferente.', 'danger')
+            return render_template('auth/change_password.html', form=form)
+
         # Update password and flag
         user.set_password(form.password.data)
         user.force_password_change = False
