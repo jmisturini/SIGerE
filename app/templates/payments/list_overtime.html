@@ -49,6 +49,12 @@
                 <button type="submit" class="btn btn-outline-primary flex-grow-1">
                     <i class="bi bi-funnel me-1"></i> Filtrar
                 </button>
+                <a href="{{ url_for('payments.list_overtime') }}"
+                   class="btn btn-outline-secondary {{ '' if (filter_month or filter_teacher) else 'disabled' }}"
+                   {{ '' if (filter_month or filter_teacher) else 'aria-disabled="true" tabindex="-1"' }}
+                   title="Limpar os filtros aplicados e voltar à listagem completa">
+                    <i class="bi bi-x-circle me-1"></i> Limpar
+                </a>
                 <button type="submit" formaction="{{ url_for('payments.export_excel_overtime') }}" id="exportBtn" class="btn btn-success flex-grow-1" disabled>
                     <i class="bi bi-file-excel me-1"></i> Exportar
                 </button>
