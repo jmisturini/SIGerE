@@ -229,53 +229,6 @@ class Holiday(db.Model):
     def __repr__(self):
         return f'<Holiday {self.name} on {self.date}>'
     
-# Model for Teacher Base Pay (Semester)
-class TeacherBasePay(db.Model):
-    __tablename__ = 'teacher_base_pay'
-    id = db.Column(db.Integer, primary_key=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
-    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
-    month_start = db.Column(db.String(7), nullable=False) # YYYY-MM
-    month_end = db.Column(db.String(7), nullable=False)
-    budget_code = db.Column(db.Integer, nullable=False)
-    complement = db.Column(db.String(100))
-    weekly_workload = db.Column(db.Integer, nullable=False)
-    monthly_hour = db.Column(db.Integer, default=0)
-    semester_hour = db.Column(db.Integer, default=0)
-    accountable_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    term_generated = db.Column(db.Integer, default=1)
-
-    teacher = db.relationship('User', foreign_keys=[teacher_id])
-    course = db.relationship('Course')
-    accountable = db.relationship('User', foreign_keys=[accountable_id])
-
-# Model for Teacher Additive Payment
-class TeacherAdditivePayment(db.Model):
-    __tablename__ = 'teacher_additive_payment'
-    id = db.Column(db.Integer, primary_key=True)
-    # CORREÇÃO: Adicionar ondelete='CASCADE' para excluir aditivos se o lançamento base for excluído
-    base_release_id = db.Column(db.Integer, db.ForeignKey('teacher_base_pay.id', ondelete='CASCADE'), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey('courses.id', ondelete='SET NULL'), nullable=True)
-    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
-    month_start = db.Column(db.String(7), nullable=False)
-    month_end = db.Column(db.String(7), nullable=False)
-    additional_hour = db.Column(db.Integer, nullable=False)
-    monthly_hour = db.Column(db.Integer, default=0)
-    semester_hour = db.Column(db.Integer, default=0)
-    complement = db.Column(db.String(100))
-    accountable_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    term_generated = db.Column(db.Integer, default=1)
-
-    # CORREÇÃO: Adicionar cascade no relacionamento
-    base_release = db.relationship('TeacherBasePay', backref=db.backref('additives', cascade='all, delete-orphan'))
-    course = db.relationship('Course')
-    accountable = db.relationship('User', foreign_keys=[accountable_id])
-
 # Model for Teacher Overtime Pay
 class TeacherOvertimePay(db.Model):
     __tablename__ = 'teacher_overtime_pay'
@@ -296,6 +249,58 @@ class TeacherOvertimePay(db.Model):
 
     teacher = db.relationship('User', foreign_keys=[teacher_id])
     accountable = db.relationship('User', foreign_keys=[accountable_id])
+
+# Registro do módulo Vale Transporte (Financeiro): uma linha por colaborador,
+# espelhando todas as colunas da aba "Vale Transporte" do Pedido de Compra
+# enviado (A–P) para que possam ser revisadas/editadas antes da exportação.
+class VtRecord(db.Model):
+    __tablename__ = 'vt_records'
+    id = db.Column(db.Integer, primary_key=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
+    registration = db.Column(db.String(20), nullable=False)          # A: Matricula
+    full_name = db.Column(db.String(255), nullable=False)            # B: Nome
+    optant = db.Column(db.String(3), nullable=False, default='Não')  # C: Optante VT (Sim/Não)
+    link = db.Column(db.String(50))                                  # D: Vínculo
+    unity = db.Column(db.String(100))                                # E: Unidade (do Pedido de Compra)
+    company_count = db.Column(db.Integer, default=0)                 # F: Empresas
+    company_a_name = db.Column(db.String(100))                       # G: Empresa A
+    company_a_value = db.Column(db.Numeric(10, 2))                   # H: Valor VT A
+    company_a_passes = db.Column(db.Integer)                         # I: VT A
+    company_a_total = db.Column(db.Numeric(10, 2))                   # J: Valor Total Empresa A
+    company_b_name = db.Column(db.String(100))                       # K: Empresa B
+    company_b_value = db.Column(db.Numeric(10, 2))                   # L: Valor VT B
+    company_b_passes = db.Column(db.Integer)                         # M: VT B
+    company_b_total = db.Column(db.Numeric(10, 2))                   # N: Valor Total Empresa B
+    total_passes = db.Column(db.Integer, default=0)                  # O: Total de Passes
+    total_value = db.Column(db.Numeric(10, 2))                       # P: Valor Total dos Passes
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Grupos de exportação do gerador unificado: a planilha final separa os
+    # colaboradores por vínculo/unidade (opções 1, 2 e 3 do script original).
+    GROUP_FACULDADE = 'faculdade'
+    GROUP_PROFESSORES = 'professores'
+    GROUP_RESTAURANTE = 'restaurante'
+    RESTAURANTE_UNITIES = ('Lanchonete - ALESC/Unidade Administrativa',
+                           'Restaurante - ALESC/Palácio Barriga Verde')
+
+    @property
+    def group(self):
+        """Classificação do colaborador para a exportação (ou None se fora
+        dos grupos do gerador)."""
+        if self.link == 'Professor(a)':
+            return self.GROUP_PROFESSORES
+        if self.link == 'Técnico - Administrativo':
+            if self.unity == 'Faculdade':
+                return self.GROUP_FACULDADE
+            if self.unity in self.RESTAURANTE_UNITIES:
+                return self.GROUP_RESTAURANTE
+        return None
+
+    # Exportável = os mesmos critérios do script: optante "Sim" e passes > 0.
+    @property
+    def is_exportable(self):
+        return self.optant == 'Sim' and bool(self.total_passes)
 
 # Tabela de junção entre Roles e Permissions
 role_permissions = db.Table('role_permissions',

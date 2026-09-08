@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Editar Vale Transporte{% endblock %}
+
+{% macro field(field, col='col-md-6') %}
+<div class="{{ col }}">
+    {{ field.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+    {{ field(class="form-control" if field.type != 'SelectField' else 'form-select') }}
+    {% for err in field.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10 col-md-12">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-bus-front text-primary me-2"></i>Editar —
+                    <span class="text-muted">{{ record.full_name }}</span>
+                    <small class="text-muted fw-normal">(Matrícula {{ record.registration }})</small>
+                </h5>
+                <a href="{{ url_for('vt.index') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <h6 class="text-muted text-uppercase small fw-bold mb-3">
+                        <i class="bi bi-person me-1"></i> Identificação
+                    </h6>
+                    <div class="row g-3">
+                        {{ field(form.registration, 'col-md-3') }}
+                        {{ field(form.full_name, 'col-md-5') }}
+                        {{ field(form.optant, 'col-md-2') }}
+                        {{ field(form.link, 'col-md-2') }}
+                        {{ field(form.unity, 'col-md-4') }}
+                        {{ field(form.company_count, 'col-md-2') }}
+                    </div>
+
+                    <h6 class="text-muted text-uppercase small fw-bold mt-4 mb-3">
+                        <i class="bi bi-bus-front me-1"></i> Empresa A
+                    </h6>
+                    <div class="row g-3">
+                        {{ field(form.company_a_name, 'col-md-6') }}
+                        {{ field(form.company_a_value, 'col-md-2') }}
+                        {{ field(form.company_a_passes, 'col-md-2') }}
+                        {{ field(form.company_a_total, 'col-md-2') }}
+                    </div>
+
+                    <h6 class="text-muted text-uppercase small fw-bold mt-4 mb-3">
+                        <i class="bi bi-bus-front me-1"></i> Empresa B
+                    </h6>
+                    <div class="row g-3">
+                        {{ field(form.company_b_name, 'col-md-6') }}
+                        {{ field(form.company_b_value, 'col-md-2') }}
+                        {{ field(form.company_b_passes, 'col-md-2') }}
+                        {{ field(form.company_b_total, 'col-md-2') }}
+                    </div>
+
+                    <h6 class="text-muted text-uppercase small fw-bold mt-4 mb-3">
+                        <i class="bi bi-calculator me-1"></i> Totais
+                    </h6>
+                    <div class="row g-3">
+                        {{ field(form.total_passes, 'col-md-3') }}
+                        {{ field(form.total_value, 'col-md-3') }}
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('vt.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

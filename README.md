@@ -38,7 +38,7 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 
 - 🏛️ **Reservas de espaços físicos** — salas de aula, auditórios, laboratórios de informática/saúde, cozinhas
 - 👨‍🏫 **Cronogramas de professores** com detecção automática de conflitos de horário
-- 💰 **Pagamentos docentes** — remuneração base semestral, aditivos e horas extras
+- 💰 **Financeiro** — horas extras docentes e Vale Transporte (importação do Pedido de Compra, revisão/editação dos dados e exportação da planilha de pagamento)
 - 🍳 **Cozinha** — fichas técnicas (.docx), preparações e requisição de compra
 - 📺 **Totens digitais** para corredores com exibição em tempo real de ocupação de salas
 - 📆 **Calendário interativo** com filtros avançados e visualização mensal
@@ -116,16 +116,17 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 - Eventos coloridos com detalhes ao clicar (link para a reserva)
 - Adaptação automática ao tema claro/escuro
 
-### 💰 Gestão de Pagamentos Docentes
-- **Remuneração Base (Semestral):** lançamento por professor, curso, carga horária semanal e código orçamentário
-- **Aditivos:** horas adicionais vinculadas a um lançamento base existente
+### 💰 Financeiro
 - **Horas Extras:** com nível de ensino, valor hora, turno e múltiplas datas
 - **Regras de negócio:**
-  - Bloqueio de lançamentos em meses anteriores
-  - Bloqueio de edição após 30 dias
-  - Bloqueio de exclusão após 180 dias
-  - Horas extras só até o dia 25 do mês corrente
-- **Exportação Excel:** planilhas formatadas com modelos pré-definidos (`baseplanilhaCHsemestral.xlsx` para base, `base_pagamento_extra.xlsx` para horas extras)
+  - Bloqueio de edição/exclusão de meses anteriores ou com mais de 30 dias
+  - Lançamentos do mês corrente só até o dia 25
+- **Exportação Excel:** planilha formatada com modelo pré-definido (`base_pagamento_extra.xlsx`)
+
+### 🚌 Vale Transporte (`/vt`)
+- **Importação do Pedido de Compra:** upload de um arquivo `.xlsx`; o sistema lê a aba "Vale Transporte" inteira (todas as 16 colunas: matrícula, nome, optante, vínculo, unidade, empresas A/B com valores e passes, totais) e grava tudo para revisão — mesmo fluxo das fichas técnicas da Cozinha (importar → revisar/editar → exportar)
+- **Edição individual:** cada colaborador pode ter todos os campos corrigidos pela tela (valores monetários aceitam vírgula decimal); um novo upload substitui os dados vigentes e há botão "Limpar tudo"
+- **Exportação por grupo:** gera a planilha de pagamento preenchendo o modelo `planilha_base_vt.xlsx` (Matrícula, Nome e Valor Total a partir da linha 5), filtrável pelos grupos do gerador original — Técnico-Administrativo (Faculdade), Professores e Técnico-Administrativo (Restaurante/Lanchonete) — incluindo apenas Optante "Sim" com passes maior que zero; a coluna UO e a tabela de códigos de unidades do modelo são preservadas intactas
 
 ### 🍳 Cozinha (`/kitchen`)
 - **Ficha Técnica:** envio de múltiplos arquivos `.docx` de fichas técnicas operacionais de uma vez; o sistema lê o conteúdo (nome da preparação, equipamentos, utensílios, tempo de preparo, rendimento, tabelas de insumos, modo de preparo e notas técnicas) e um botão **Salvar Ficha Técnica** gera a preparação; também é possível **criar a ficha manualmente** pelo botão "Criar Ficha Técnica", no mesmo modelo
@@ -483,8 +484,8 @@ Administradores com permissão `unity:switch` (ou `*`) veem o **seletor de unida
 
 - **Salas:** `/classrooms/export_pdf` (PDF)
 - **Disponibilidade mensal:** `/classrooms/<id>/export_availability` (PDF)
-- **Pagamentos base:** `/payments/export/base` (Excel)
 - **Horas extras:** `/payments/export/overtime` (Excel)
+- **Vale Transporte:** `/vt/exportar?group=faculdade|professores|restaurante` (Excel, modelo `planilha_base_vt.xlsx`)
 - **Requisição de compra:** `/kitchen/compras/export` (Excel, via seleção de preparações)
 
 ---
@@ -522,7 +523,8 @@ SIGerE/
     │   ├── schedule.py        # Calendário FullCalendar + API JSON de eventos
     │   ├── totem.py           # Display de quiosque para TVs
     │   ├── public.py          # Portal público (home, cronograma, busca de aula, busca geral)
-    │   ├── payments.py        # Pagamentos docentes (base, aditivo, hora extra)
+    │   ├── payments.py        # Pagamentos docentes (hora extra)
+    │   ├── vt.py              # Vale Transporte: upload, parser, edição e exportação
     │   └── kitchen/           # Módulo Cozinha
     │       ├── __init__.py    # Rotas: fichas técnicas, preparações e compras
     │       ├── parser.py      # Parser das Fichas Técnicas (.docx)
@@ -530,7 +532,7 @@ SIGerE/
     │
     ├── static/
     │   ├── css/style.css      # Estilos globais e variáveis de tema
-    │   └── templates_excel/   # Modelos .xlsx (pagamentos, horas extras, requisição de compra)
+    │   └── templates_excel/   # Modelos .xlsx (hora extra, requisição de compra)
     │
     └── templates/
         ├── base.html          # Layout principal, navbar, toggle de tema, seletor de unidade
@@ -547,7 +549,8 @@ SIGerE/
         ├── admin/             # Dashboard admin, usuários, salas, categorias, cursos, disciplinas, feriados, papéis, unidades
         ├── classrooms/        # Listagem, detalhes, disponibilidade mensal
         ├── reservations/      # Criar, editar, detalhes, minhas reservas, repetição, séries
-        ├── payments/          # Formulários e listagens de pagamentos
+        ├── payments/          # Formulário e listagem de horas extras
+        ├── vt/                # Vale Transporte: listagem importada e edição
         ├── kitchen/           # Fichas técnicas, preparações e compras
         └── errors/            # Páginas 403, 404, 500
 ```
@@ -566,7 +569,7 @@ SIGerE/
 
 ## 👤 Contas de Demonstração
 
-O comando `flask --app run seed` sempre cria o administrador e, **interativamente**, pergunta se você quer popular dados de demonstração. Com a demonstração ativa, são criados: **3 unidades educacionais** (Centro, Norte e Sul), **100 usuários** (80 professores e 20 funcionários — dois deles também atuam como professores), **5 categorias de sala**, **28 salas**, **50 cursos**, **50 disciplinas**, **20 reservas** e lançamentos de pagamento base. Todos os usuários de demonstração são distribuídos entre as unidades.
+O comando `flask --app run seed` sempre cria o administrador e, **interativamente**, pergunta se você quer popular dados de demonstração. Com a demonstração ativa, são criados: **3 unidades educacionais** (Centro, Norte e Sul), **100 usuários** (80 professores e 20 funcionários — dois deles também atuam como professores), **5 categorias de sala**, **28 salas**, **50 cursos**, **50 disciplinas**, **20 reservas** e lançamentos de hora extra. Todos os usuários de demonstração são distribuídos entre as unidades.
 
 | Perfil | Usuário | Senha | Permissões |
 |--------|---------|-------|------------|
@@ -586,7 +589,7 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 |-------|-----------|
 | **Super Administrador** | Acesso irrestrito a todas as funcionalidades (`*`) |
 | **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis e cozinha |
-| **Administrador Financeiro** | Gestão de pagamentos, lançamentos e exportações |
+| **Administrador Financeiro** | Financeiro: horas extras, Vale Transporte e exportações |
 | **Coordenador Pedagógico** | Aprovação de reservas, gestão de cursos e disciplinas |
 | **Gestor de Salas** | Criação e gestão de salas, todas as reservas |
 | **Professor** | Criar reservas, editar/cancelar próprias reservas, ver pagamentos, Cozinha |
@@ -639,7 +642,7 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 - **Proteção contra auto-desativação:** administradores não podem desativar sua própria conta
 - **Troca de senha forçada** no primeiro login ou após reset administrativo
 - **Bloqueio de edição/exclusão** de reservas passadas (exceto para administradores)
-- **Regras temporais** em pagamentos: edição até 30 dias, exclusão até 180 dias
+- **Regras temporais** em hora extra: edição/exclusão até 30 dias e bloqueio de meses anteriores
 - **`SECRET_KEY` obrigatória em produção** (fail-fast no boot fora do modo debug)
 - **Cookies de sessão endurecidos:** `Secure` fora do debug e `SameSite=Lax`
 - **Limite de upload** de 16 MB (`MAX_CONTENT_LENGTH`)

@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% block title %}Vale Transporte{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-bus-front text-primary me-2"></i>Vale Transporte</h3>
+        <p class="text-muted mb-0">Envie o Pedido de Compra (.xlsx), revise os dados importados e exporte a
+            planilha de pagamento por grupo de colaboradores.</p>
+    </div>
+</div>
+
+{% if can_manage %}
+<div class="card mb-4 border-primary-subtle">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('vt.upload') }}" enctype="multipart/form-data"
+              class="row g-3 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-lg-8">
+                <label for="file" class="form-label fw-semibold">
+                    <i class="bi bi-cloud-arrow-up me-1"></i> Pedido de Compra (.xlsx)
+                </label>
+                <input type="file" class="form-control" id="file" name="file" accept=".xlsx" required>
+                <div class="form-text">O sistema lê a aba <strong>"Vale Transporte"</strong> inteira — todos os
+                    campos ficam disponíveis para edição. Um novo arquivo substitui os dados atuais.</div>
+            </div>
+            <div class="col-lg-4">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-file-earmark-arrow-up me-1"></i> Importar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if records %}
+<div class="card mb-4 border-success-subtle">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small fw-bold mb-3">
+            <i class="bi bi-file-earmark-excel me-1"></i> Exportar planilha de pagamento
+        </h6>
+        <form method="GET" action="{{ url_for('vt.export') }}" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Grupo de colaboradores</label>
+                <select name="group" class="form-select">
+                    <option value="">Todos os grupos</option>
+                    {% for key, label in group_labels.items() %}
+                    <option value="{{ key }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6 d-flex gap-2">
+                <button type="submit" class="btn btn-success flex-grow-1" {% if not can_export %}disabled{% endif %}>
+                    <i class="bi bi-file-excel me-1"></i> Exportar
+                </button>
+            </div>
+        </form>
+        <div class="small text-muted mt-2">
+            <i class="bi bi-info-circle me-1"></i>
+            Exportáveis (Optante "Sim" e passes &gt; 0):
+            {% for key, label in group_labels.items() %}
+            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle me-1">
+                {{ label }}: {{ group_counts[key] }}
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <form method="GET" action="{{ url_for('vt.index') }}" class="d-flex gap-2 flex-grow-1" style="max-width: 480px;">
+        <input type="text" name="q" class="form-control" placeholder="Buscar por nome…" value="{{ search }}">
+        <button type="submit" class="btn btn-outline-primary"><i class="bi bi-search"></i></button>
+    </form>
+    {% if can_delete and records %}
+    <form method="POST" action="{{ url_for('vt.clear_all') }}" onsubmit="return confirm('Remover TODOS os registros importados da unidade ativa?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-danger" title="Apagar todos os registros importados">
+            <i class="bi bi-eraser me-1"></i> Limpar tudo
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Matrícula</th>
+                        <th>Nome</th>
+                        <th>Optante</th>
+                        <th>Vínculo</th>
+                        <th>Unidade</th>
+                        <th>Empresas</th>
+                        <th>Passes</th>
+                        <th>Valor Total</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in records %}
+                    <tr>
+                        <td class="ps-4">{{ r.registration }}</td>
+                        <td class="fw-bold">{{ r.full_name }}</td>
+                        <td>
+                            {% if r.optant == 'Sim' %}
+                            <span class="badge text-bg-success-subtle text-success border border-success-subtle">Sim</span>
+                            {% else %}
+                            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Não</span>
+                            {% endif %}
+                        </td>
+                        <td><small>{{ r.link or '—' }}</small></td>
+                        <td><small>{{ r.unity or '—' }}</small></td>
+                        <td>
+                            {% if r.company_a_name %}<span class="badge text-bg-light border" title="R$ {{ '%.2f'|format(r.company_a_value or 0) }} × {{ r.company_a_passes }}">{{ r.company_a_name }}</span>{% endif %}
+                            {% if r.company_b_name %}<span class="badge text-bg-light border" title="R$ {{ '%.2f'|format(r.company_b_value or 0) }} × {{ r.company_b_passes }}">{{ r.company_b_name }}</span>{% endif %}
+                            {% if not r.company_a_name and not r.company_b_name %}—{% endif %}
+                        </td>
+                        <td>{{ r.total_passes or 0 }}</td>
+                        <td>R$ {{ '%.2f'|format(r.total_value or 0) }}</td>
+                        <td class="text-end pe-4 text-nowrap">
+                            {% if can_edit %}
+                            <a href="{{ url_for('vt.edit_record', record_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% endif %}
+                            {% if can_delete %}
+                            <form method="POST" action="{{ url_for('vt.delete_record', record_id=r.id) }}" class="d-inline" onsubmit="return confirm('Excluir o registro de {{ r.full_name }}?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted p-5">
+                            <i class="bi bi-bus-front fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhum colaborador importado</h5>
+                            <p class="small mb-0">Envie o arquivo .xlsx do Pedido de Compra acima para começar.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
