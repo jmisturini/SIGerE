@@ -2,6 +2,7 @@
 {% block title %}Vale Transporte — Colaboradores{% endblock %}
 
 {% block content %}
+{% set filters_active = search or link_filter or unity_filter or hide_without_vt or sort %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
         <h3 class="fw-bold mb-1"><i class="bi bi-people text-primary me-2"></i>Colaboradores</h3>
@@ -90,10 +91,16 @@
                     </label>
                 </div>
             </div>
-            <div class="col-lg-4 d-grid">
-                <button type="submit" class="btn btn-outline-primary">
+            <div class="col-lg-4 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary flex-grow-1">
                     <i class="bi bi-funnel me-1"></i> Aplicar filtros
                 </button>
+                <a href="{{ url_for('vt.records') }}"
+                   class="btn btn-outline-secondary {{ '' if filters_active else 'disabled' }}"
+                   {{ '' if filters_active else 'aria-disabled="true" tabindex="-1"' }}
+                   title="Limpar os filtros aplicados e voltar à listagem completa">
+                    <i class="bi bi-x-circle me-1"></i> Limpar
+                </a>
             </div>
         </div>
     </div>
