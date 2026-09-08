@@ -33,8 +33,12 @@
 
         body {
             font-family: 'Inter', sans-serif;
-            overflow-x: hidden;
-            min-height: 100vh;
+            /* Totem em tela cheia: a página nunca rola — as seções com
+               atividade dividem entre si a altura do viewport */
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
             transition: background-color 0.5s ease, color 0.5s ease;
         }
 
@@ -89,18 +93,43 @@
         /* Componentes */
         .clock-time { font-size: 3.5rem; font-weight: 800; letter-spacing: -2px; }
         .weather-widget { font-size: 1.5rem; font-weight: 600; }
-        .period-title { font-size: 1.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border-bottom: 3px solid var(--primary-dark); padding-bottom: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .period-title { font-size: 1.4rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border-bottom: 3px solid var(--primary-dark); padding-bottom: 8px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
         body.day-theme .period-title { border-color: var(--primary-light); }
-        
-        .category-badge { font-size: 1rem; padding: 6px 14px; border-radius: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 15px; }
-        .room-card { border-radius: 12px; padding: 18px; margin-bottom: 15px; transition: transform 0.2s; }
-        .room-code { font-size: 1.6rem; font-weight: 800; }
-        .event-title { font-size: 1.2rem; font-weight: 600; }
-        .event-time { font-size: 1rem; display: flex; align-items: center; gap: 5px; }
-        .aud-card { border-radius: 12px; padding: 18px; margin-bottom: 10px; }
-        
+
+        /* A altura restante é dividida igualmente entre as seções com
+           atividade; sem nenhuma, a mensagem ocupa a tela centralizada. */
+        .totem-content {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding-top: 12px;
+            padding-bottom: 12px;
+        }
+        .totem-section {
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .totem-section .period-title { flex: 0 0 auto; }
+        .totem-empty { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; }
+
+        .category-badge { font-size: 0.95rem; padding: 4px 12px; border-radius: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .room-card { border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; transition: transform 0.2s; }
+        .room-card:last-child { margin-bottom: 0; }
+        .room-code { font-size: 1.5rem; font-weight: 800; }
+        .event-title { font-size: 1.1rem; font-weight: 600; }
+        .event-time { font-size: 0.95rem; display: flex; align-items: center; gap: 5px; }
+        .aud-card { border-radius: 12px; padding: 12px 16px; }
+
+        /* Rolagem interna POR seção: só anima quando as atividades daquela
+           categoria não cabem na fatia de tela dela — a página em si nunca
+           rola */
         .totem-scroll {
-            max-height: 38vh;
+            flex: 1 1 auto;
+            min-height: 0;
             overflow-y: hidden;
             padding-right: 10px;
             position: relative;
@@ -114,6 +143,7 @@
             .weather-widget { font-size: 1rem; }
             .totem-header .container-fluid { flex-wrap: wrap; gap: 8px; }
             .period-title { font-size: 1.1rem; }
+            .totem-content { gap: 8px; padding-top: 8px; padding-bottom: 8px; }
             .room-code { font-size: 1.2rem; }
             .event-title { font-size: 1rem; }
         }
@@ -153,11 +183,10 @@
     </div>
 </div>
 
-<div class="container-fluid mt-4">
-    <div class="row g-4">
+<div class="totem-content container-fluid">
     {% for sec in category_sections %}
-    <div class="col-12 mb-4">
-        {% set cat = sec.category %}
+    {% set cat = sec.category %}
+    <section class="totem-section">
         <div class="period-title" style="border-color: {{ cat.display_color }};">
             <i class="bi {{ cat.display_icon }}"></i>
             {{ cat.name }}
@@ -165,59 +194,50 @@
         </div>
         <div class="totem-scroll">
         {% if sec.window == 'week' %}
-            {% if sec.reservations %}
-                <div class="row g-3">
-                    {% for r in sec.reservations %}
-                    <div class="col-md-6 col-lg-4">
-                        <div class="aud-card h-100" style="border-left-color: {{ cat.display_color }};">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="room-code">{{ r.classroom.code }}</span>
-                                <span class="badge fs-6" style="background-color: {{ cat.display_color }};">{{ r.date.strftime('%d/%m') }}</span>
-                            </div>
-                            <div class="mt-2">
-                                <div class="event-title">{{ r.title }}</div>
-                                <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
-                            </div>
+            <div class="row g-3">
+                {% for r in sec.reservations %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="aud-card" style="border-left-color: {{ cat.display_color }};">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="room-code">{{ r.classroom.code }}</span>
+                            <span class="badge fs-6" style="background-color: {{ cat.display_color }};">{{ r.date.strftime('%d/%m') }}</span>
+                        </div>
+                        <div class="mt-2">
+                            <div class="event-title">{{ r.title }}</div>
+                            <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
                         </div>
                     </div>
-                    {% endfor %}
                 </div>
-            {% else %}
-                <div class="room-card text-center text-muted py-4"><i class="bi bi-emoji-smile fs-4 d-block mb-2"></i><h5>Nenhum espaço de {{ cat.name }} reservado na semana</h5></div>
-            {% endif %}
+                {% endfor %}
+            </div>
         {% else %}
-            {% if sec.floors %}
-                <div class="row g-3">
-                    {% for floor_name, reservations in sec.floors.items() %}
-                    <div class="col-md-6 col-lg-4">
-                        <div class="category-badge"><i class="bi bi-layers"></i> {{ floor_name }}</div>
-                        {% for r in reservations %}
-                        <div class="room-card occupied mb-3" style="border-left-color: {{ cat.display_color }};">
-                            <div class="d-flex justify-content-between align-items-center"><span class="room-code">{{ r.classroom.code }}</span></div>
-                            <div class="mt-2">
-                                <div class="event-title">{{ r.title }}</div>
-                                <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
-                            </div>
+            <div class="row g-3">
+                {% for floor_name, reservations in sec.floors.items() %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="category-badge"><i class="bi bi-layers"></i> {{ floor_name }}</div>
+                    {% for r in reservations %}
+                    <div class="room-card occupied" style="border-left-color: {{ cat.display_color }};">
+                        <div class="d-flex justify-content-between align-items-center"><span class="room-code">{{ r.classroom.code }}</span></div>
+                        <div class="mt-2">
+                            <div class="event-title">{{ r.title }}</div>
+                            <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
                         </div>
-                        {% endfor %}
                     </div>
                     {% endfor %}
                 </div>
-            {% else %}
-                <div class="room-card text-center text-muted py-4"><i class="bi bi-emoji-smile fs-4 d-block mb-2"></i><h5>Nenhum espaço de {{ cat.name }} ocupado neste período</h5></div>
-            {% endif %}
+                {% endfor %}
+            </div>
         {% endif %}
         </div>
-    </div>
+    </section>
     {% else %}
-    <div class="col-12">
-        <div class="room-card text-center text-muted py-5">
-            <i class="bi bi-emoji-smile fs-4 d-block mb-2"></i>
-            <h5>Nenhum espaço cadastrado nesta unidade</h5>
+    <div class="totem-empty">
+        <div class="text-center text-muted">
+            <i class="bi bi-emoji-smile fs-1 d-block mb-3"></i>
+            <h3>Nenhuma atividade em andamento no momento</h3>
         </div>
     </div>
     {% endfor %}
-    </div>
 </div>
 
 <script>

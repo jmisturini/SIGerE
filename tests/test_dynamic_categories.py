@@ -142,6 +142,22 @@ class DynamicCategoriesTestCase(unittest.TestCase):
         resp = self.client.get('/totem/')
         self.assertNotIn('Van', resp.data.decode('utf-8'))
 
+    def test_totem_esconde_grupo_sem_atividade(self):
+        """Categoria com sala cadastrada mas sem reservas não gera bloco:
+        a tela exibe apenas os grupos que têm atividades."""
+        with self.app.app_context():
+            cat = RoomCategory(name='Espaço Ocioso', code='ocioso')
+            db.session.add(cat)
+            db.session.flush()
+            db.session.add(Classroom(name='Sala Ociosa', code='OC001', capacity=10,
+                                     category_id=cat.id, unity_id=self.unity_id))
+            db.session.commit()
+
+        page = self.client.get('/totem/').data.decode('utf-8')
+        self.assertNotIn('Espaço Ocioso', page)
+        # A categoria que tem atividade continua na tela
+        self.assertIn('Quadra de Esportes', page)
+
     def test_totem_respeita_janela_de_semana(self):
         """Categoria com janela 'week' exibe reserva dos próximos dias —
         recorte que antes era exclusivo do código de auditório."""
