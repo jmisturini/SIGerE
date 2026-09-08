@@ -23,6 +23,7 @@
                         <th class="ps-4">Nome</th>
                         <th>Código Interno</th>
                         <th>Abreviação (p/ Sala)</th>
+                        <th>Aparência no Totem</th>
                         <th>Status</th>
                         <th class="text-end pe-4">Ações</th>
                     </tr>
@@ -38,6 +39,13 @@
                             {% else %}
                                 -
                             {% endif %}
+                        </td>
+                        <td>
+                            <span class="d-inline-flex align-items-center gap-2">
+                                <span class="d-inline-block rounded-circle border border-secondary-subtle" style="width: 1rem; height: 1rem; background-color: {{ c.display_color }};" title="{{ c.display_color }}"></span>
+                                <i class="bi {{ c.display_icon }} fs-5" title="{{ c.display_icon }}"></i>
+                                <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ c.totem_window_label }}</span>
+                            </span>
                         </td>
                         <td>
                             {% if c.is_active %}
@@ -66,7 +74,7 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted p-5">
+                        <td colspan="6" class="text-center text-muted p-5">
                             <i class="bi bi-tags fs-2 d-block mb-2"></i>
                             <h5 class="mb-1">Nenhuma categoria encontrada</h5>
                             <p class="small mb-0">Clique em "Adicionar Categoria" para começar.</p>

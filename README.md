@@ -73,8 +73,9 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 - **Filtros de disponibilidade:** salas disponíveis agora, em data/período específico ou por categoria
 
 ### 🏛️ Gestão de Salas e Categorias
-- **Categorias com CRUD completo** no painel (Painel → Categorias): nome, sigla e código
-- **Categorias padrão da seed:** Sala de Aula (`SA`), Auditório (`AU`), Cozinha (`CO`), Laboratório de Informática (`LI`), Laboratório de Saúde (`LS`)
+- **Categorias com CRUD completo** no painel (Painel → Categorias): nome, sigla, código, **cor de destaque, ícone e janela de exibição no totem** (período atual ou próximos 7 dias)
+- **Categorias são dados, não código:** totem, dashboard e listagem se montam a partir do cadastro — criar a categoria "Quadra de Esportes" e vinculá-la a uma sala faz ela aparecer nas telas sem qualquer alteração no sistema
+- **Categorias padrão da seed:** Sala de Aula (`SA`), Auditório (`AU`), Cozinha (`CO`), Laboratório de Informática (`LI`), Laboratório de Saúde (`LS`) e Quadra de Esportes (`QE`)
 - **Código automático:** geração de códigos no formato `SA101`, `AU101`, `LI105`, `LS301` (sigla da categoria + número da sala)
 - **Atributos da sala:** capacidade, andar, bloco, número e quantidade de computadores
 - **Visualização mensal:** calendário de ocupação por sala com navegação entre meses
@@ -97,7 +98,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 - Ativação/desativação de registros sem exclusão
 
 ### 🎓 Dashboard Interno (`/dashboard`)
-- Cronograma do dia separado por **auditorios** e **salas de aula**
+- Cronograma do dia separado em **uma seção por categoria cadastrada** (nome, ícone e cor vindos do cadastro)
 - Destaque para o **período atual** (manhã/tarde/noite) com as reservas aprovadas em andamento
 - Escopado na unidade ativa
 
@@ -105,8 +106,8 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 - Interface otimizada para **TVs de corredor**
 - **Tema automático:** claro durante o dia, escuro à noite
 - **Clima em tempo real** via Open-Meteo, usando a localização da unidade exibida
-- Agrupamento de salas ocupadas por **andar**
-- Exibição de reservas de auditórios para os próximos 7 dias
+- **Blocos dinâmicos por categoria:** a tela consulta as categorias cadastradas e monta as seções sozinha, usando a **cor e o ícone** de cada uma para diferenciação visual — cada categoria define seu recorte de tempo (**período atual** ou **próximos 7 dias**)
+- Agrupamento de salas ocupadas por **andar** dentro de cada categoria do período
 - Alternância rápida de unidade por parâmetro (`?unity=<id>`) — uma TV por unidade
 
 ### 🗓️ Calendário Interativo (`/calendar`)
@@ -483,7 +484,7 @@ Administradores com permissão `unity:switch` (ou `*`) veem o **seletor de unida
 | Cronograma do dia | `/cronograma` | Aulas aprovadas do dia por período (manhã/tarde/noite) |
 | Busca de aula | `/buscar-aula?q=` | Aula por título, curso, disciplina, professor ou sala |
 | Busca de salas/professores | `/search?q=&type=classroom\|teacher` | Salas por nome/código, professores por nome |
-| Totem | `/totem/?unity=<id>` | Display de corredor (clima, andares, auditórios) |
+| Totem | `/totem/?unity=<id>` | Display de corredor (clima, blocos por categoria) |
 
 ### Exportar relatórios
 
@@ -574,7 +575,7 @@ SIGerE/
 
 ## 👤 Contas de Demonstração
 
-O comando `flask --app run seed` sempre cria o administrador e, **interativamente**, pergunta se você quer popular dados de demonstração. Com a demonstração ativa, são criados: **3 unidades educacionais** (Centro, Norte e Sul), **100 usuários** (80 professores e 20 funcionários — dois deles também atuam como professores), **5 categorias de sala**, **28 salas**, **50 cursos**, **50 disciplinas**, **20 reservas** e lançamentos de hora extra. Todos os usuários de demonstração são distribuídos entre as unidades.
+O comando `flask --app run seed` sempre cria o administrador e, **interativamente**, pergunta se você quer popular dados de demonstração. Com a demonstração ativa, são criados: **3 unidades educacionais** (Centro, Norte e Sul), **100 usuários** (80 professores e 20 funcionários — dois deles também atuam como professores), **6 categorias de sala**, **29 salas**, **50 cursos**, **50 disciplinas**, **20 reservas** e lançamentos de hora extra. Todos os usuários de demonstração são distribuídos entre as unidades.
 
 | Perfil | Usuário | Senha | Permissões |
 |--------|---------|-------|------------|

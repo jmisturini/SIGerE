@@ -515,10 +515,43 @@ class RoleForm(BaseForm):
 # ROOM CATEGORY FORM
 # =============================================================================
 
+# Ícones Bootstrap Icons oferecidos no cadastro — a lista é curada para o
+# admin não precisar decorar nomes de classes (e evitar ícones inexistentes).
+ROOM_CATEGORY_ICONS = [
+    ('bi-tag', 'Padrão (etiqueta)'),
+    ('bi-door-closed', 'Sala de aula'),
+    ('bi-buildings', 'Auditório'),
+    ('bi-cup-hot', 'Cozinha'),
+    ('bi-pc-display', 'Laboratório de informática'),
+    ('bi-heart-pulse', 'Laboratório de saúde'),
+    ('bi-volleyball', 'Quadra de esportes'),
+    ('bi-book', 'Biblioteca'),
+    ('bi-bus-front', 'Van / transporte'),
+    ('bi-tools', 'Oficina'),
+    ('bi-music-note', 'Música'),
+    ('bi-people', 'Reunião / evento'),
+]
+
+
 class RoomCategoryForm(BaseForm):
     name = StringField('Nome da Categoria (ex: Laboratório de Informática)', validators=[DataRequired(), Length(max=50)])
     code = StringField('Código Interno (ex: computer_lab)', validators=[DataRequired(), Length(max=20)])
     abbr = StringField('Abreviação para Código de Sala (ex: LI - máx 3 letras)', validators=[Optional(), Length(max=3)])
+    # Aparência usada pelo totem e pelo dashboard — a tela se monta a partir
+    # do cadastro, sem lógica fixa por tipo de espaço.
+    color = StringField('Cor de destaque',
+                        render_kw={'type': 'color'},
+                        validators=[Optional(), Length(max=7)])
+    icon = SelectField('Ícone', choices=ROOM_CATEGORY_ICONS, validators=[Optional()])
+    totem_window = SelectField(
+        'Janela exibida no Totem',
+        choices=[
+            ('period', 'Período atual (manhã/tarde/noite)'),
+            ('week', 'Próximos 7 dias'),
+        ],
+        default='period',
+        validators=[DataRequired()],
+    )
     is_active = BooleanField('Ativo', default=True)
     submit = SubmitField('Salvar Categoria')
 
@@ -535,6 +568,10 @@ class RoomCategoryForm(BaseForm):
 
     def validate_abbr(self, field):
         self._validate_alpha_only(field, 'Abreviação')
+
+    def validate_color(self, field):
+        if field.data and not re.match(r'^#[0-9a-fA-F]{6}$', field.data):
+            raise ValidationError('A cor deve estar no formato hexadecimal #rrggbb.')
 
     def validate_code(self, field):
         existing = RoomCategory.query.filter_by(code=field.data).first()
