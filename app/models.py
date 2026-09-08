@@ -259,6 +259,9 @@ class VtRecord(db.Model):
     unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     registration = db.Column(db.String(20), nullable=False)          # A: Matricula
     full_name = db.Column(db.String(255), nullable=False)            # B: Nome
+    # Nome como veio no Pedido de Compra, quando a padronização automática
+    # (iniciais maiúsculas) alterou o texto — None se o nome já estava certo.
+    original_name = db.Column(db.String(255))
     optant = db.Column(db.String(3), nullable=False, default='Não')  # C: Optante VT (Sim/Não)
     link = db.Column(db.String(50))                                  # D: Vínculo
     unity = db.Column(db.String(100))                                # E: Unidade (do Pedido de Compra)

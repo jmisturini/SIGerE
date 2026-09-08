@@ -125,6 +125,9 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 
 ### 🚌 Vale Transporte (`/vt`)
 - **Importação do Pedido de Compra:** upload de um arquivo `.xlsx`; o sistema lê a aba "Vale Transporte" inteira (todas as 16 colunas: matrícula, nome, optante, vínculo, unidade, empresas A/B com valores e passes, totais) e grava tudo para revisão — mesmo fluxo das fichas técnicas da Cozinha (importar → revisar/editar → exportar)
+- **Padronização de nomes:** nomes fora do padrão "iniciais maiúsculas" (ex.: `JOÃO ALFREDO MISTURINI` → `João Alfredo Misturini`) são formatados automaticamente na importação/edição, com o original preservado no selo "nome ajustado" da listagem
+- **Marcação de inconsistências:** linhas com **nome repetido** ou **matrícula repetida** ficam destacadas com selos de aviso (a verificação cobre toda a base da unidade, mesmo com filtros ativos)
+- **Filtros e organização:** busca por nome, filtros por vínculo e unidade, ordenação por nome/matrícula/valor total e opção de esconder não optantes com valor R$ 0,00
 - **Edição individual:** cada colaborador pode ter todos os campos corrigidos pela tela (valores monetários aceitam vírgula decimal); um novo upload substitui os dados vigentes e há botão "Limpar tudo"
 - **Exportação por grupo:** gera a planilha de pagamento preenchendo o modelo `planilha_base_vt.xlsx` (Matrícula, Nome e Valor Total a partir da linha 5), filtrável pelos grupos do gerador original — Técnico-Administrativo (Faculdade), Professores e Técnico-Administrativo (Restaurante/Lanchonete) — incluindo apenas Optante "Sim" com passes maior que zero; a coluna UO e a tabela de códigos de unidades do modelo são preservadas intactas
 
