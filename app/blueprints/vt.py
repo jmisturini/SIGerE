@@ -15,6 +15,7 @@ Adaptação web do "Gerador Unificado" (script local de vale transporte):
 """
 import io
 import os
+from collections import Counter
 from datetime import datetime
 
 from flask import (Blueprint, abort, current_app, flash, redirect,
@@ -46,7 +47,41 @@ GROUP_LABELS = {
 }
 
 
-# ── Parser do Pedido de Compra ───────────────────────────────────────────────
+# ── Padronização de nomes ────────────────────────────────────────────────────
+
+# Partículas que ficam em minúscula (exceto quando primeira palavra) no
+# padrão "João Alfredo Misturini".
+_NAME_PARTICLES = {'de', 'da', 'do', 'das', 'dos', 'e'}
+
+
+def normalize_name(raw):
+    """Formata o nome no padrão apenas-com-iniciais-maiúsculas:
+    'JÉSSICA ROCHA DE SOUZA PEREIRA' → 'Jéssica Rocha de Souza Pereira'."""
+    formatted = []
+    for index, word in enumerate((raw or '').strip().split()):
+        lowered = word.lower()
+        if index > 0 and lowered in _NAME_PARTICLES:
+            formatted.append(lowered)
+        else:
+            formatted.append('-'.join(
+                part[:1].upper() + part[1:] for part in lowered.split('-')))
+    return ' '.join(formatted)
+
+
+def is_name_standard(raw):
+    """Verifica se o nome já está no padrão (iniciais maiúsculas) —
+    usada na importação e na edição para decidir pela formatação."""
+    return normalize_name(raw) == (raw or '').strip()
+
+
+def _matricula_sort_key(record):
+    """Chave de ordenação da matrícula que aceita valores numéricos e de
+    texto na mesma lista (números primeiro, em ordem crescente)."""
+    value = record.registration or ''
+    if value.isdigit():
+        return (0, int(value), '')
+    return (1, 0, value)
+
 
 def _cell_text(value):
     """Texto normalizado da célula: erros de fórmula e zeros viram None."""
@@ -160,8 +195,13 @@ def _get_record_scoped(record_id):
 
 
 def _apply_record_form(record, form):
+    raw_name = form.full_name.data.strip()[:255]
+    # Padroniza o nome (iniciais maiúsculas) e guarda o original quando
+    # houver ajuste, para auditoria na listagem.
+    normalized = normalize_name(raw_name)
+    record.original_name = raw_name if normalized != raw_name else None
+    record.full_name = normalized
     record.registration = form.registration.data.strip()[:20]
-    record.full_name = form.full_name.data.strip()[:255]
     record.optant = form.optant.data
     record.link = form.link.data or None
     record.unity = form.unity.data or None
@@ -193,11 +233,44 @@ def _money_text(value):
 def index():
     search = (request.args.get('q') or '').strip()
     group_filter = request.args.get('group') or ''
+    link_filter = (request.args.get('link') or '').strip()
+    unity_filter = (request.args.get('unity') or '').strip()
+    sort = request.args.get('sort') or ''
+    hide_without_vt = request.args.get('ocultar_sem_vt') == '1'
 
-    query = VtRecord.query.filter_by(unity_id=current_unity_id())
+    uid = current_unity_id()
+    records = VtRecord.query.filter_by(unity_id=uid).all()
+
+    # Valores distintos presentes na base para os selects de filtro.
+    links = sorted({r.link for r in records if r.link})
+    unities = sorted({r.unity for r in records if r.unity})
+
+    # Duplicados são marcados sobre a base inteira da unidade — assim um
+    # registro continua marcado mesmo quando o par fica fora do filtro.
+    name_counts = Counter(r.full_name.casefold() for r in records)
+    registration_counts = Counter(r.registration for r in records)
+    for record in records:
+        record.duplicate_name = name_counts[record.full_name.casefold()] > 1
+        record.duplicate_registration = registration_counts[record.registration] > 1
+
+    # ── Filtros ──
     if search:
-        query = query.filter(VtRecord.full_name.ilike(f'%{search}%'))
-    records = query.order_by(VtRecord.full_name).all()
+        records = [r for r in records if search.casefold() in r.full_name.casefold()]
+    if link_filter:
+        records = [r for r in records if r.link == link_filter]
+    if unity_filter:
+        records = [r for r in records if r.unity == unity_filter]
+    if hide_without_vt:
+        records = [r for r in records
+                   if r.optant == 'Sim' and r.total_value is not None and r.total_value > 0]
+
+    # ── Ordenação (padrão: ordem de importação) ──
+    if sort == 'nome':
+        records.sort(key=lambda r: r.full_name.casefold())
+    elif sort == 'matricula':
+        records.sort(key=_matricula_sort_key)
+    elif sort == 'valor':
+        records.sort(key=lambda r: float(r.total_value or 0), reverse=True)
 
     # Contagem por grupo do gerador (colaboradores exportáveis), como nas
     # opções 1/2/3 do script original.
@@ -206,9 +279,16 @@ def index():
         if record.is_exportable and record.group:
             group_counts[record.group] += 1
 
+    flagged = any(r.original_name or r.duplicate_name or r.duplicate_registration
+                  for r in records)
+
     return render_template('vt/index.html', records=records, search=search,
                            group_filter=group_filter, group_counts=group_counts,
                            group_labels=GROUP_LABELS,
+                           link_filter=link_filter, unity_filter=unity_filter,
+                           links=links, unities=unities,
+                           sort=sort, hide_without_vt=hide_without_vt,
+                           flagged=flagged,
                            can_manage=current_user.has_permission('payment:create'),
                            can_edit=current_user.has_permission('payment:edit'),
                            can_delete=current_user.has_permission('payment:delete'),
@@ -235,16 +315,26 @@ def upload():
     # Substituição completa: os dados importados são a fonte única vigente.
     replaced = VtRecord.query.filter_by(unity_id=current_unity_id()).delete()
     for item in data:
+        raw_name = item['full_name']
+        normalized = normalize_name(raw_name)
+        if normalized != raw_name:
+            item['original_name'] = raw_name
+            item['full_name'] = normalized
         db.session.add(VtRecord(unity_id=current_unity_id(), **item))
     db.session.commit()
+
+    adjusted = sum(1 for r in VtRecord.query.filter_by(unity_id=current_unity_id())
+                   if r.original_name)
 
     if replaced:
         flash(f'Importação concluída: {len(data)} colaborador(es) lidos '
               f'({replaced} registro(s) anterior(is) substituído(s)). '
-              'Revise os dados antes de exportar.', 'success')
+              f'{adjusted} nome(s) padronizado(s) automaticamente — linhas '
+              'destacadas na listagem.', 'success')
     else:
         flash(f'Importação concluída: {len(data)} colaborador(es) lidos. '
-              'Revise os dados antes de exportar.', 'success')
+              f'{adjusted} nome(s) padronizado(s) automaticamente — linhas '
+              'destacadas na listagem.', 'success')
     return redirect(url_for('vt.index'))
 
 
