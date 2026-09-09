@@ -454,7 +454,9 @@ class FormTeacherOvertimePay(BaseForm):
     shift = SelectField('Turno', choices=[('Matutino', 'Matutino'), ('Vespertino', 'Vespertino'), ('Noturno', 'Noturno')], validators=[DataRequired()])
     multiple_dates = StringField('Múltiplas Datas', validators=[Optional(), Length(max=255)])
     justification = StringField('Justificativa', validators=[Optional(), Length(max=100)])
-    month_base = StringField('Mês Base', validators=[DataRequired()], render_kw={'type': 'month'})
+    # Renderizado como campo oculto: a interface usa dois selects (mês e ano)
+    # porque o Firefox não tem seletor nativo para <input type="month">.
+    month_base = StringField('Mês Base', validators=[DataRequired()], render_kw={'type': 'hidden'})
     submit = SubmitField('Lançar Hora Extra')
 
     def _validate_alpha_only(self, field, field_name):
