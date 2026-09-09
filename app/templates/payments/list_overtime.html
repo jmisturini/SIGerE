@@ -4,13 +4,12 @@
 
 {% block content %}
 
-<!-- Aviso sobre o navegador -->
-<div class="alert alert-warning border border-warning-subtle alert-dismissible fade show d-flex align-items-center mb-4" role="alert">
-    <i class="bi bi-exclamation-triangle-fill me-3 fs-5"></i>
+<!-- Aviso sobre o navegador: compacto e sem botão de fechar -->
+<div class="alert alert-warning border border-warning-subtle d-flex align-items-center gap-2 py-2 px-3 mb-4 small" role="alert">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
     <div>
-        <strong>Aviso:</strong> Para a melhor experiência e funcionamento correto do calendário nesta página, recomenda-se o uso do Google Chrome, Edge ou Safari. Evite utilizar o Mozilla Firefox.
+        <strong>Aviso:</strong> para o correto funcionamento do calendário, recomenda-se o uso do Google Chrome, Edge ou Safari. Evite o Mozilla Firefox.
     </div>
-    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
 
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
@@ -33,8 +32,13 @@
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-md-4">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Mês Base (YYYY-MM)</label>
-                <input type="text" id="month_base" name="month_base" class="form-control" value="{{ filter_month }}" placeholder="Ex: 2024-05">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Mês Base</label>
+                <select id="month_base" name="month_base" class="form-select">
+                    <option value="">Todos os meses</option>
+                    {% for value, label in month_options %}
+                        <option value="{{ value }}" {{ 'selected' if filter_month == value }}>{{ label }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="col-md-4">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1">Professor</label>
@@ -52,10 +56,11 @@
                 <a href="{{ url_for('payments.list_overtime') }}"
                    class="btn btn-outline-secondary {{ '' if (filter_month or filter_teacher) else 'disabled' }}"
                    {{ '' if (filter_month or filter_teacher) else 'aria-disabled="true" tabindex="-1"' }}
-                   title="Limpar os filtros aplicados e voltar à listagem completa">
+                   title="Limpar os filtros aplicados e voltar à consulta do mês atual">
                     <i class="bi bi-x-circle me-1"></i> Limpar
                 </a>
-                <button type="submit" formaction="{{ url_for('payments.export_excel_overtime') }}" id="exportBtn" class="btn btn-success flex-grow-1" disabled>
+                <button type="submit" formaction="{{ url_for('payments.export_excel_overtime') }}" id="exportBtn" class="btn btn-success flex-grow-1" disabled
+                        title="Exporta a planilha com os filtros aplicados (mês e/ou professor)">
                     <i class="bi bi-file-excel me-1"></i> Exportar
                 </button>
             </div>
@@ -88,7 +93,7 @@
                         <td>{{ o.teaching_level }}</td>
                         <td><small class="text-muted">{{ o.multiple_dates or '-' }}</small></td>
                         <td>{{ o.shift }}</td>
-                        <td>{{ o.budget_code }}</td>
+                        <td>{{ o.budget_code | budget_code }}</td>
                         <td>{{ o.weekly_workload }}</td>
                         <td>R$ {{ "%.2f"|format(o.hourly_value) }}</td>
                         <td class="text-end pe-4 text-nowrap">
@@ -123,13 +128,13 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const monthInput = document.getElementById('month_base');
+    const monthSelect = document.getElementById('month_base');
     const teacherSelect = document.getElementById('teacher_filter');
     const exportBtn = document.getElementById('exportBtn');
 
     // Função para ativar/desativar o botão de exportar
     function updateExportBtn() {
-        if (monthInput.value || teacherSelect.value) {
+        if (monthSelect.value || teacherSelect.value) {
             exportBtn.disabled = false;
         } else {
             exportBtn.disabled = true;
@@ -138,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Executa ao carregar a página e a cada mudança nos campos
     updateExportBtn();
-    monthInput.addEventListener('input', updateExportBtn);
+    monthSelect.addEventListener('change', updateExportBtn);
     teacherSelect.addEventListener('change', updateExportBtn);
 });
 </script>

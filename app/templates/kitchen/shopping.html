@@ -35,6 +35,12 @@
                                     <td>
                                         <label class="form-check-label fw-semibold text-decoration-none w-100" for="recipe-{{ recipe.id }}">
                                             {{ recipe.name }}
+                                            {% if recipe.scale_factor != 1.0 %}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle ms-1"
+                                                  title="Recálculo salvo na preparação: a requisição usa as quantidades para esta quantidade de porções">
+                                                <i class="bi bi-calculator me-1"></i>quantidades para {{ recipe.scaled_portions|qtyfmt }} porç{{ 'ões' if recipe.scaled_portions != 1 else 'ão' }}
+                                            </span>
+                                            {% endif %}
                                             <div class="small text-muted fw-normal">
                                                 {{ recipe.preparations|length }} preparação(ões) ·
                                                 {{ recipe.ingredient_count }} ingrediente(s) ·

@@ -92,6 +92,9 @@ def aggregate_ingredients(recipes):
     """
     groups = {}
     for recipe in recipes:
+        # Escala salva na preparação ("Salvar quantidades" do recálculo de
+        # porções): multiplica as quantidades originais da ficha.
+        recipe_factor = recipe.scale_factor
         for preparation in recipe.preparations:
             for ingredient in preparation.ingredients:
                 # Ingredientes desativados ficam fora da requisição de compra.
@@ -111,7 +114,7 @@ def aggregate_ingredients(recipes):
                 converted = UNIT_MAP.get(_normalize_unit(ingredient.unit))
                 if converted and ingredient.quantity is not None:
                     base_unit, factor, _ = converted
-                    group['totals'][base_unit] += ingredient.quantity * factor
+                    group['totals'][base_unit] += ingredient.quantity * recipe_factor * factor
                 else:
                     group['no_quantity'] = True
 

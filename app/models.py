@@ -434,6 +434,11 @@ class KitchenRecipe(db.Model):
     allergens = db.Column(db.Text)          # alergênicos
     references = db.Column(db.Text)         # referências bibliográficas
     is_active = db.Column(db.Boolean, default=True)
+    # Porções desejadas salvas pelo botão "Salvar quantidades" do recálculo:
+    # as quantidades exibidas e a requisição de compras passam a usar
+    # quantidade × (scaled_portions ÷ base_portions). None = quantidades
+    # originais da ficha.
+    scaled_portions = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     preparations = db.relationship('KitchenPreparation', backref='recipe',
@@ -455,6 +460,23 @@ class KitchenRecipe(db.Model):
         if not numbers:
             return None
         return min(float(n.replace(',', '.')) for n in numbers)
+
+    @property
+    def scale_factor(self):
+        """Fator de escala em vigor sobre as quantidades originais: porções
+        salvas ÷ rendimento base (1.0 sem escala salva)."""
+        base = self.base_portions
+        if self.scaled_portions and base and base > 0:
+            return self.scaled_portions / base
+        return 1.0
+
+    @property
+    def effective_portions(self):
+        """Porções em vigor na preparação: a escala salva ou o rendimento base."""
+        base = self.base_portions
+        if self.scaled_portions and base and base > 0:
+            return self.scaled_portions
+        return base
 
     @property
     def ingredient_count(self):

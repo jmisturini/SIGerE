@@ -548,7 +548,7 @@ def _seed_demo_data():
             hourly_value=random.choice([15.50, 22.30, 30.00]),
             budget_code='950001234',
             shift=random.choice(['Matutino', 'Vespertino', 'Noturno']),
-            multiple_dates=f"2024-08-{10 + i:02d}, 2024-08-{17 + i:02d}",
+            multiple_dates=f"{10 + i}, {17 + i}",
             justification='Substituicao de aula',
             month_base='2024-08',
             accountable_id=admin.id

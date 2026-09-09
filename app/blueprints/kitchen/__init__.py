@@ -419,6 +419,54 @@ def edit_recipe(recipe_id):
     return render_template('kitchen/recipe_form.html', recipe=recipe)
 
 
+@bp.route('/preparacoes/<int:recipe_id>/porcoes/salvar', methods=['POST'])
+@login_required
+@require_permission('kitchen:sheet_create')
+def save_portions(recipe_id):
+    """Persiste o recálculo de quantidades: guarda as porções desejadas na
+    preparação e o fator passa a valer na exibição e na requisição de compras
+    (as quantidades originais da ficha permanecem intactas)."""
+    recipe = _get_recipe_scoped(recipe_id)
+    base = recipe.base_portions
+    if base is None:
+        flash('Esta preparação não tem rendimento com número de porções.', 'warning')
+        return redirect(url_for('kitchen.preparation_detail', recipe_id=recipe.id))
+
+    raw = (request.form.get('portions') or '').strip().replace(',', '.')
+    try:
+        portions = float(raw)
+    except ValueError:
+        flash('Informe um número de porções válido.', 'warning')
+        return redirect(url_for('kitchen.preparation_detail', recipe_id=recipe.id))
+    if portions <= 0:
+        flash('O número de porções deve ser maior que zero.', 'warning')
+        return redirect(url_for('kitchen.preparation_detail', recipe_id=recipe.id))
+
+    if abs(portions - base) < 1e-9:
+        recipe.scaled_portions = None
+        db.session.commit()
+        flash('Quantidades restauradas ao rendimento original da ficha.', 'info')
+        return redirect(url_for('kitchen.preparation_detail', recipe_id=recipe.id))
+
+    recipe.scaled_portions = portions
+    db.session.commit()
+    flash(f'Quantidades recalculadas para {quantity_format(portions)} porções e salvas — '
+          'a requisição de compras usará os novos valores.', 'success')
+    return redirect(url_for('kitchen.preparation_detail', recipe_id=recipe.id))
+
+
+@bp.route('/preparacoes/<int:recipe_id>/porcoes/restaurar', methods=['POST'])
+@login_required
+@require_permission('kitchen:sheet_create')
+def restore_portions(recipe_id):
+    """Descarta a escala salva: as quantidades voltam às originais da ficha."""
+    recipe = _get_recipe_scoped(recipe_id)
+    recipe.scaled_portions = None
+    db.session.commit()
+    flash('Quantidades originais da ficha restauradas.', 'info')
+    return redirect(url_for('kitchen.preparation_detail', recipe_id=recipe.id))
+
+
 # ── Ingredientes (edição e ativação) ─────────────────────────────────────────
 
 def _parse_form_quantity(raw):

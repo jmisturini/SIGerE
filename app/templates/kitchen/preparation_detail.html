@@ -38,16 +38,38 @@
                 <label for="scale-portions" class="small fw-semibold mb-0 text-nowrap">
                     <i class="bi bi-calculator text-primary me-1"></i>Porções desejadas:
                 </label>
-                <input type="number" id="scale-portions" class="form-control form-control-sm"
-                       style="width: 90px;" min="0" step="any" value="{{ recipe.base_portions|qtyfmt }}">
-                <button type="button" id="btn-recalc" class="btn btn-sm btn-outline-primary text-nowrap">
-                    <i class="bi bi-arrow-repeat me-1"></i> Recalcular quantidades
-                </button>
-                <button type="button" id="btn-reset-scale" class="btn btn-sm btn-outline-secondary d-none"
-                        title="Voltar às quantidades originais">
-                    <i class="bi bi-arrow-counterclockwise"></i>
-                </button>
+                <form method="POST" action="{{ url_for('kitchen.save_portions', recipe_id=recipe.id) }}"
+                      id="form-save-scale" class="d-flex flex-wrap align-items-center gap-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="number" id="scale-portions" name="portions" class="form-control form-control-sm"
+                           style="width: 90px;" min="0" step="any" value="{{ recipe.effective_portions|qtyfmt }}">
+                    <button type="button" id="btn-recalc" class="btn btn-sm btn-outline-primary text-nowrap">
+                        <i class="bi bi-arrow-repeat me-1"></i> Recalcular quantidades
+                    </button>
+                    {% if can_edit %}
+                    <button type="submit" id="btn-save-scale" class="btn btn-sm btn-success text-nowrap"
+                            title="Salva as quantidades recalculadas — a requisição de compras usará os novos valores">
+                        <i class="bi bi-save me-1"></i> Salvar quantidades
+                    </button>
+                    {% endif %}
+                </form>
+                {% if can_edit and recipe.scaled_portions and recipe.scale_factor != 1.0 %}
+                <form method="POST" action="{{ url_for('kitchen.restore_portions', recipe_id=recipe.id) }}"
+                      onsubmit="return confirm('Restaurar as quantidades originais da ficha técnica?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap"
+                            title="Descarta a escala salva e volta às quantidades originais">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Restaurar originais
+                    </button>
+                </form>
+                {% endif %}
                 <span class="small text-muted ms-auto text-nowrap">
+                    {% if recipe.scale_factor != 1.0 %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle me-1"
+                          title="Escala salva: a requisição de compras usa estes valores">
+                        <i class="bi bi-check-lg"></i> Salvo: {{ recipe.scaled_portions|qtyfmt }} porç{{ 'ões' if recipe.scaled_portions != 1 else 'ão' }}
+                    </span>
+                    {% endif %}
                     Rendimento base: {{ recipe.base_portions|qtyfmt }} porç{{ 'ões' if recipe.base_portions != 1 else 'ão' }}
                     (menor valor do rendimento informado)
                 </span>
@@ -116,7 +138,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="small text-muted">{{ ingredient.specification or '—' }}</td>
-                                <td class="text-center" {% if ingredient.quantity is not none %}data-qty="{{ ingredient.quantity }}"{% endif %}><span class="qty-text">{{ ingredient.quantity|qtyfmt if ingredient.quantity is not none else (ingredient.quantity_raw or '—') }}</span></td>
+                                <td class="text-center" {% if ingredient.quantity is not none %}data-qty="{{ ingredient.quantity }}"{% endif %}><span class="qty-text">{{ (ingredient.quantity * recipe.scale_factor)|qtyfmt if ingredient.quantity is not none else (ingredient.quantity_raw or '—') }}</span></td>
                                 <td class="text-end {{ '' if can_edit else 'pe-4' }}">{{ ingredient.unit or '—' }}</td>
                                 {% if can_edit %}
                                 <td class="text-end pe-4">
@@ -224,9 +246,13 @@
 {% block scripts %}
 {% if recipe.base_portions %}
 <script>
-    // Recálculo proporcional das quantidades exibidas: fator = porções desejadas
-    // ÷ rendimento base (menor valor quando o rendimento é uma faixa).
+    // Recálculo proporcional das quantidades exibidas (PREVIA no navegador):
+    // fator = porções desejadas ÷ rendimento base. Só vale depois de clicar em
+    // "Salvar quantidades", que persiste as porções na preparação — a partir
+    // daí a exibição e a requisição de compras usam os novos valores.
     const basePortions = {{ recipe.base_portions }};
+    const savedFactor = {{ recipe.scale_factor }};
+    const effectivePortions = {{ recipe.effective_portions }};
     const fmtQty = (v) => {
         if (Math.abs(v - Math.trunc(v)) < 1e-9) return String(Math.trunc(v));
         return (Math.round(v * 100) / 100).toFixed(2).replace(/0$/, '').replace('.', ',');
@@ -240,15 +266,6 @@
         qtyCells().forEach(td => {
             td.querySelector('.qty-text').textContent = fmtQty(parseFloat(td.dataset.qty) * factor);
         });
-        document.getElementById('btn-reset-scale').classList.remove('d-none');
-    });
-
-    document.getElementById('btn-reset-scale').addEventListener('click', () => {
-        document.getElementById('scale-portions').value = basePortions;
-        qtyCells().forEach(td => {
-            td.querySelector('.qty-text').textContent = fmtQty(parseFloat(td.dataset.qty));
-        });
-        document.getElementById('btn-reset-scale').classList.add('d-none');
     });
 </script>
 {% endif %}
