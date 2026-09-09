@@ -153,6 +153,7 @@ Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora
 
 ### 🎨 UI/UX
 - **Tema Claro/Escuro:** alternância global com persistência no `localStorage`
+- **Menu lateral contrátil:** botão no cabeçalho alterna entre expandido e modo compacto de ícones (desktop), com preferência salva no navegador; clicar num grupo com submenu reexpande o menu
 - **Design responsivo:** Bootstrap 5, todas as páginas adaptadas a mobile, tablet e desktop
 - **Interface em Português:** todo o sistema localizado para pt-BR
 - **Paginação** reutilizável em listagens (`_pagination.html`)
