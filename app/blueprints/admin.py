@@ -220,7 +220,9 @@ def create_room():
             return render_template('admin/room_form.html', form=form, title='Criar Sala')
 
         classroom = Classroom(
-            name=form.name.data, code=generated_code, room_number=form.room_number.data,
+            # Nome opcional: sem ele, o próprio código identifica a sala.
+            name=(form.name.data or '').strip() or generated_code,
+            code=generated_code, room_number=form.room_number.data,
             building=form.building.data, floor=form.floor.data, capacity=form.capacity.data,
             category_id=form.category_id.data, unity_id=current_unity_id(),
             computer_count=form.computer_count.data if cat.code == 'computer_lab' else 0,
@@ -249,7 +251,7 @@ def edit_room(room_id):
             flash('Uma sala com este código já existe nesta unidade.', 'danger')
             return render_template('admin/room_form.html', form=form, title='Editar Sala')
 
-        classroom.name = form.name.data
+        classroom.name = (form.name.data or '').strip() or generated_code
         classroom.code = generated_code
         classroom.room_number = form.room_number.data
         classroom.building = form.building.data
