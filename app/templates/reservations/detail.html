@@ -81,10 +81,18 @@
         {% endif %}
 
         <!-- Action Buttons Baseados em Permissão -->
+        {% set is_past = reservation.date < now.date() %}
         <div class="mt-4 pt-3 border-top d-flex gap-2 flex-wrap justify-content-end">
-            
+
+            {% if is_past %}
+            {# Reserva passada é registro histórico: nenhuma ação de alteração #}
+            <div class="small text-muted me-auto align-self-center">
+                <i class="bi bi-lock me-1"></i> Reserva passada — registro histórico (somente leitura).
+            </div>
+            {% endif %}
+
             <!-- Repetir: Dono ou quem tem edit_all -->
-            {% if reservation.status == 'approved' and (reservation.user_id == current_user.id or current_user.has_permission('reservation:edit_all')) %}
+            {% if reservation.status == 'approved' and not is_past and (reservation.user_id == current_user.id or current_user.has_permission('reservation:edit_all')) %}
             <a href="{{ url_for('reservations.repeat_view', reservation_id=reservation.id) }}" class="btn btn-outline-primary">
                 <i class="bi bi-arrow-repeat me-1"></i> Repetir
             </a>
@@ -98,7 +106,7 @@
             {% endif %}
 
             <!-- Cancelar: Dono (cancel_own) ou Global (cancel_all) -->
-            {% if reservation.status == 'approved' and (reservation.date >= now.date() or current_user.has_permission('reservation:cancel_all')) %}
+            {% if reservation.status == 'approved' and not is_past %}
                 {% if current_user.has_permission('reservation:cancel_all') or (current_user.has_permission('reservation:cancel_own') and reservation.user_id == current_user.id) %}
                 <form method="POST" action="{{ url_for('reservations.cancel', reservation_id=reservation.id) }}" onsubmit="return confirm('Cancelar esta reserva? A sala ficará livre.');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -108,13 +116,13 @@
             {% endif %}
 
             <!-- Editar e Excluir: Apenas Admin (edit_all, delete_all) -->
-            {% if current_user.has_permission('reservation:edit_all') and reservation.status == 'approved' %}
+            {% if current_user.has_permission('reservation:edit_all') and reservation.status == 'approved' and not is_past %}
             <a href="{{ url_for('reservations.edit', reservation_id=reservation.id) }}" class="btn btn-outline-primary">
                 <i class="bi bi-pencil me-1"></i> Editar
             </a>
             {% endif %}
 
-            {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'approved' %}
+            {% if current_user.has_permission('reservation:delete_all') and reservation.status == 'approved' and not is_past %}
             <form method="POST" action="{{ url_for('reservations.delete', reservation_id=reservation.id) }}" onsubmit="return confirm('EXCLUIR PERMANENTEMENTE esta reserva? Isso não pode ser desfeito.');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i> Excluir</button>

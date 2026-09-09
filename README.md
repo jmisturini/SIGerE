@@ -69,6 +69,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 - **Repetição de reservas:** crie séries de aulas com opções de "mesmo dia da semana" e "pular fins de semana" (intervalo limitado a 180 dias por lote)
 - **Gerenciamento de série:** edite ou cancele/exclua em lote as reservas geradas por uma repetição (horário, sala, título — com validação de conflito por data) na opção **"Gerenciar Série"** da reserva ou da tela de repetição
 - **Auto-aprovação:** reservas sem conflitos são aprovadas instantaneamente
+- **Reservas passadas são registro:** com a data anterior a hoje, o detalhe fica somente leitura (sem repetir, cancelar, editar ou excluir) e as rotas recusam as alterações — inclusive para administradores
 - **Ciclo de vida:** aprovar, cancelar (status `cancelled` mantém histórico) e excluir permanentemente (admins)
 - **Filtros de disponibilidade:** salas disponíveis agora, em data/período específico ou por categoria
 

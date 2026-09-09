@@ -337,10 +337,11 @@ def cancel(reservation_id):
     if reservation.status == 'cancelled':
         flash('Esta reserva já está cancelada.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
-    if reservation.date < date.today() and not current_user.has_permission('reservation:cancel_all'):
+    if reservation.date < date.today():
+        # Reserva passada é registro histórico — ninguém altera, nem admin.
         flash('Não é possível cancelar uma reserva passada.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
-    
+
     reservation.status = 'cancelled'
     db.session.commit()
     flash('Reserva cancelada.', 'info')
@@ -354,6 +355,10 @@ def cancel(reservation_id):
 @require_permission('reservation:delete_all')
 def delete(reservation_id):
     reservation = _get_reservation_scoped(reservation_id)
+    if reservation.status == 'approved' and reservation.date < date.today():
+        # Reserva passada é registro do sistema: fica fora da exclusão.
+        flash('Reservas passadas servem como registro e não podem ser excluídas.', 'warning')
+        return redirect(url_for('reservations.detail', reservation_id=reservation.id))
     db.session.delete(reservation)
     db.session.commit()
     flash('Reserva excluída permanentemente.', 'info')
