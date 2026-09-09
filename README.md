@@ -118,11 +118,13 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 - Adaptação automática ao tema claro/escuro
 
 ### 💰 Financeiro
-- **Horas Extras:** com nível de ensino, valor hora, turno e múltiplas datas
+- **Horas Extras:** com nível de ensino, valor hora, turno e dias selecionados no calendário (gravados apenas como dia, separados por vírgula — o mês/ano vêm do Mês Base)
 - **Regras de negócio:**
-  - Bloqueio de edição/exclusão de meses anteriores ou com mais de 30 dias
+  - Bloqueio de lançamento em meses anteriores ao atual (mensagem de erro visível) e de edição/exclusão de meses anteriores ou com mais de 30 dias
   - Lançamentos do mês corrente só até o dia 25
-- **Exportação Excel:** planilha formatada com modelo pré-definido (`base_pagamento_extra.xlsx`)
+- **Consulta:** filtro de Mês Base em caixa de seleção (meses já lançados + mês atual, abrindo no mês atual, com opção "Todos os meses") combinado com filtro por professor
+- **Código Orçamentário:** máscara automática com pontos — `xx.xx.xxxx.xx` (9-10 dígitos) ou `xx.xx.xxxx.xx.xxxx` (14 dígitos), aplicada no cadastro e na exportação
+- **Exportação Excel:** planilha formatada com modelo pré-definido (`base_pagamento_extra.xlsx`), filtrável por mês e/ou professor
 
 ### 🚌 Vale Transporte (`/vt`)
 Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora Extra e Vale Transporte):
@@ -136,7 +138,7 @@ Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora
 
 ### 🍳 Cozinha (`/kitchen`)
 - **Ficha Técnica:** envio de múltiplos arquivos `.docx` de fichas técnicas operacionais de uma vez; o sistema lê o conteúdo (nome da preparação, equipamentos, utensílios, tempo de preparo, rendimento, tabelas de insumos, modo de preparo e notas técnicas) e um botão **Salvar Ficha Técnica** gera a preparação; também é possível **criar a ficha manualmente** pelo botão "Criar Ficha Técnica", no mesmo modelo
-- **Preparações:** cada ficha salva gera uma receita visualizável em **cards ou lista** (à escolha do usuário, persistida no navegador), com busca por nome; a visualização completa traz equipamentos, utensílios, tempo, rendimento, ingredientes por preparação (especificação, quantidade e unidade), modo de preparo geral, alergênicos, observações e referências; os ingredientes podem ser **editados e ativados/desativados** — desativados, ficam de fora da requisição de compra; há **recálculo das quantidades por porções desejadas** (base = menor rendimento informado, ex.: "4 a 6 porções" usa 4) e **edição de todos os campos da preparação**
+- **Preparações:** cada ficha salva gera uma receita visualizável em **cards ou lista** (à escolha do usuário, persistida no navegador), com busca por nome; a visualização completa traz equipamentos, utensílios, tempo, rendimento, ingredientes por preparação (especificação, quantidade e unidade), modo de preparo geral, alergênicos, observações e referências; os ingredientes podem ser **editados e ativados/desativados** — desativados, ficam de fora da requisição de compra; há **recálculo das quantidades por porções desejadas** (base = menor rendimento informado, ex.: "4 a 6 porções" usa 4) com prévia instantânea e botão **Salvar quantidades**, que persiste a escala na preparação — a partir daí a exibição e a requisição de compra usam os novos valores, com "Restaurar originais" para voltar ao rendimento da ficha — e **edição de todos os campos da preparação**
 - **Compras:** seleção de múltiplas preparações e **soma dos ingredientes por similaridade** (acentos, plurais e parênteses normalizados), com conversão automática de unidades (g→KG, ml→L, un→UN) e exportação da **requisição de compra em Excel** preenchendo o modelo `app/static/templates_excel/base_planilha_compras.xlsx` ("REQUISIÇÃO DE COMPRA - GASTRONOMIA", com aba de centros de custo); a coluna OBSERVAÇÃO é exportada em branco, com as linhas da grade, para ser preenchida posteriormente
 - **Multi-unidade:** fichas e preparações são isoladas por unidade educacional
 - **Armazenamento seguro:** os `.docx` enviados ficam em `instance/uploads/`, fora de `static/`, servidos apenas por rota autenticada de download

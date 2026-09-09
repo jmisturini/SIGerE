@@ -470,10 +470,15 @@ class FormTeacherOvertimePay(BaseForm):
             raise ValidationError('Formato inválido. Use números com vírgula ou ponto decimal (ex: 15,50).')
 
     def validate_budget_code(self, field):
-        if not field.data.isdigit():
+        # A máscara formata o campo com pontos (xx.xx.xxxx.xx...): aceita
+        # dígitos e pontos e valida pelo total de dígitos.
+        if not re.match(r'^[\d.]*$', field.data or ''):
             raise ValidationError('O código orçamentário deve conter apenas números.')
-        if len(field.data) < 9:
+        digits = re.sub(r'\D', '', field.data or '')
+        if len(digits) < 9:
             raise ValidationError('O código orçamentário deve ter pelo menos 9 dígitos.')
+        if len(digits) > 14:
+            raise ValidationError('O código orçamentário deve ter no máximo 14 dígitos.')
 
     def validate_month_base(self, field):
         if not re.match(r'^\d{4}-(0[1-9]|1[0-2])$', field.data):

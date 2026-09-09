@@ -122,6 +122,10 @@
         .room-code { font-size: 1.5rem; font-weight: 800; }
         .event-title { font-size: 1.1rem; font-weight: 600; }
         .event-time { font-size: 0.95rem; display: flex; align-items: center; gap: 5px; }
+        .event-info { display: flex; flex-direction: column; gap: 2px; font-size: 1rem; line-height: 1.35; }
+        .info-line { overflow-wrap: anywhere; }
+        .info-label { color: var(--text-muted-light); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 8px; }
+        body.night-theme .info-label { color: var(--text-muted-dark); }
         .aud-card { border-radius: 12px; padding: 12px 16px; }
 
         /* Rolagem interna POR seção: só anima quando as atividades daquela
@@ -146,6 +150,7 @@
             .totem-content { gap: 8px; padding-top: 8px; padding-bottom: 8px; }
             .room-code { font-size: 1.2rem; }
             .event-title { font-size: 1rem; }
+            .event-info { font-size: 0.9rem; }
         }
     </style>
 </head>
@@ -202,9 +207,12 @@
                             <span class="room-code">{{ r.classroom.code }}</span>
                             <span class="badge fs-6" style="background-color: {{ cat.display_color }};">{{ r.date.strftime('%d/%m') }}</span>
                         </div>
-                        <div class="mt-2">
-                            <div class="event-title">{{ r.title }}</div>
-                            <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
+                        <div class="event-info mt-2">
+                            <div class="info-line"><span class="info-label">Horário</span><span class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</span></div>
+                            {% if r.teacher %}<div class="info-line"><span class="info-label">Professor</span>{{ r.teacher.full_name }}</div>{% endif %}
+                            {% if r.course %}<div class="info-line"><span class="info-label">Curso</span>{{ r.course.name }}</div>{% endif %}
+                            {% if r.subject %}<div class="info-line"><span class="info-label">Disciplina</span>{{ r.subject.name }}</div>{% endif %}
+                            <div class="info-line"><span class="info-label">Assunto</span><span class="event-title">{{ r.title }}</span></div>
                         </div>
                     </div>
                 </div>
@@ -217,10 +225,15 @@
                     <div class="category-badge"><i class="bi bi-layers"></i> {{ floor_name }}</div>
                     {% for r in reservations %}
                     <div class="room-card occupied" style="border-left-color: {{ cat.display_color }};">
-                        <div class="d-flex justify-content-between align-items-center"><span class="room-code">{{ r.classroom.code }}</span></div>
-                        <div class="mt-2">
-                            <div class="event-title">{{ r.title }}</div>
-                            <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="room-code">{{ r.classroom.code }}</span>
+                            <span class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</span>
+                        </div>
+                        <div class="event-info mt-2">
+                            {% if r.teacher %}<div class="info-line"><span class="info-label">Professor</span>{{ r.teacher.full_name }}</div>{% endif %}
+                            {% if r.course %}<div class="info-line"><span class="info-label">Curso</span>{{ r.course.name }}</div>{% endif %}
+                            {% if r.subject %}<div class="info-line"><span class="info-label">Disciplina</span>{{ r.subject.name }}</div>{% endif %}
+                            <div class="info-line"><span class="info-label">Assunto</span><span class="event-title">{{ r.title }}</span></div>
                         </div>
                     </div>
                     {% endfor %}

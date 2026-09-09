@@ -2,6 +2,14 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
+<!-- Aviso sobre o navegador: compacto e sem botão de fechar -->
+<div class="alert alert-warning border border-warning-subtle d-flex align-items-center gap-2 py-2 px-3 mb-4 small" role="alert">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+    <div>
+        <strong>Aviso:</strong> para o correto funcionamento do calendário, recomenda-se o uso do Google Chrome, Edge ou Safari. Evite o Mozilla Firefox.
+    </div>
+</div>
+
 <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
         <div class="card">
@@ -53,15 +61,16 @@
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.budget_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
-                            {{ form.budget_code(class="form-control") }}
+                            {{ form.budget_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.budget_code(class="form-control", maxlength=18, inputmode="numeric", placeholder="Ex: 95.00.0123.40") }}
+                            <div class="form-text small">Formatado automaticamente: xx.xx.xxxx.xx (9-10 dígitos) ou xx.xx.xxxx.xx.xxxx (14 dígitos).</div>
                             {% for err in form.budget_code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-12">
                             {{ form.multiple_dates.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
                             {{ form.multiple_dates(class="form-control", placeholder="Clique aqui para abrir o calendário") }}
-                            <div class="form-text small">O calendário se adaptará automaticamente ao Mês Base selecionado.</div>
+                            <div class="form-text small">O calendário se limita ao Mês Base; apenas o dia é gravado, separado por vírgula (ex: 10, 17, 25).</div>
                         </div>
                         
                         <div class="col-12">
@@ -91,12 +100,48 @@ document.addEventListener('DOMContentLoaded', function() {
     const monthBaseInput = document.getElementById('month_base');
     const datesInput = document.getElementById('multiple_dates');
 
+    // O campo grava apenas os dias ("10, 17, 25") — o mês e o ano vêm do Mês
+    // Base. Registros antigos com a data completa ("17/09/2026" ou
+    // "2026-09-17") são convertidos quando o mês/ano coincide com o Mês Base.
+    function diasSalvos(raw, mesBase) {
+        if (!raw) return [];
+        const partes = (mesBase || '').split('-');
+        const ano = Number(partes[0]), mes = Number(partes[1]);
+        const dias = [];
+        for (const token of raw.split(',')) {
+            const t = token.trim();
+            let m;
+            if ((m = t.match(/^(\d{1,2})$/))) {
+                dias.push(Number(m[1]));
+            } else if ((m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)) &&
+                       Number(m[3]) === ano && Number(m[2]) === mes) {
+                dias.push(Number(m[1]));
+            } else if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)) &&
+                       Number(m[1]) === ano && Number(m[2]) === mes) {
+                dias.push(Number(m[3]));
+            }
+        }
+        return [...new Set(dias)].filter(d => d >= 1 && d <= 31).sort((a, b) => a - b);
+    }
+
+    // Reconstrói as datas selecionadas a partir dos dias salvos e limpa o
+    // campo: o flatpickr reescreve o valor no formato "só dias".
+    const datasIniciais = [];
+    if (monthBaseInput.value) {
+        const [ano, mes] = monthBaseInput.value.split('-').map(Number);
+        for (const dia of diasSalvos(datesInput.value, monthBaseInput.value)) {
+            datasIniciais.push(new Date(ano, mes - 1, dia));
+        }
+    }
+    datesInput.value = '';
+
     // Inicializa o calendário Flatpickr
     const fp = flatpickr(datesInput, {
         mode: "multiple",
-        dateFormat: "d/m/Y",
+        dateFormat: "j",
         locale: "pt",
         disableMobile: "true",
+        defaultDate: datasIniciais,
         onOpen: function() {
             syncCalendarMonth();
         },
@@ -125,6 +170,21 @@ document.addEventListener('DOMContentLoaded', function() {
     monthBaseInput.addEventListener('input', function() {
         fp.clear();
         autoResize();
+    });
+
+    // Máscara do Código Orçamentário: agrupa os dígitos em 2.2.4.2 (.4) —
+    // xx.xx.xxxx.xx para 9-10 dígitos e xx.xx.xxxx.xx.xxxx para 14.
+    const budgetInput = document.getElementById('budget_code');
+    const budgetGroups = [2, 2, 4, 2, 4];
+    budgetInput.addEventListener('input', function() {
+        const digits = this.value.replace(/\D/g, '').slice(0, 14);
+        let masked = '', pos = 0;
+        for (const size of budgetGroups) {
+            if (pos >= digits.length) break;
+            masked += (masked ? '.' : '') + digits.slice(pos, pos + size);
+            pos += size;
+        }
+        this.value = masked;
     });
 
     // Ajusta o tamanho ao carregar a página (útil se vier de um formulário inválido)

@@ -17,6 +17,14 @@ bp = Blueprint('payments', __name__, url_prefix='/payments')
 
 PAYS_PER_PAGE = 25
 
+# Máscara do Código Orçamentário: grupos 2.2.4.2 formam xx.xx.xxxx.xx (código
+# curto, 9-10 dígitos) e 2.2.4.2.4 forma xx.xx.xxxx.xx.xxxx (código longo, 14).
+BUDGET_CODE_GROUPS = (2, 2, 4, 2, 4)
+BUDGET_CODE_LENGTHS = (9, 10, 14)
+
+MONTH_NAMES_PT = ('Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro')
+
 # ================= HELPER FUNCTIONS =================
 
 def _teachers_for_current_unity():
@@ -27,6 +35,50 @@ def _teachers_for_current_unity():
         User.is_active_user == True,
         (User.unity_id == uid) | (User.unity_id.is_(None))
     ).order_by(User.full_name).all()
+
+def format_budget_code(value):
+    """Aplica a máscara de pontos ao Código Orçamentário.
+
+    Códigos com 9 ou 10 dígitos viram xx.xx.xxxx.xx e com 14 dígitos viram
+    xx.xx.xxxx.xx.xxxx. Qualquer outro formato é devolvido sem alterações.
+    """
+    if not value:
+        return value
+    digits = re.sub(r'\D', '', value)
+    if len(digits) not in BUDGET_CODE_LENGTHS:
+        return value.strip()
+    groups, pos = [], 0
+    for size in BUDGET_CODE_GROUPS:
+        if pos >= len(digits):
+            break
+        groups.append(digits[pos:pos + size])
+        pos += size
+    return '.'.join(groups)
+
+
+@bp.app_template_filter('budget_code')
+def budget_code_filter(value):
+    """Máscara do Código Orçamentário para exibição nas listagens."""
+    return format_budget_code(value)
+
+
+def _month_options():
+    """Meses para a caixa de seleção da consulta: os que já possuem lançamentos
+    na unidade + o mês atual, do mais recente para o mais antigo."""
+    rows = (TeacherOvertimePay.query.with_entities(TeacherOvertimePay.month_base)
+            .filter_by(unity_id=current_unity_id()).distinct().all())
+    months = {row[0] for row in rows if row[0]}
+    months.add(datetime.now().strftime('%Y-%m'))
+    options = []
+    for value in sorted(months, reverse=True):
+        try:
+            parsed = datetime.strptime(value, '%Y-%m')
+        except ValueError:
+            options.append((value, value))
+            continue
+        options.append((value, f'{MONTH_NAMES_PT[parsed.month - 1]}/{parsed.year}'))
+    return options
+
 
 def _get_overtime_scoped(overtime_id):
     overtime = db.get_or_404(TeacherOvertimePay, overtime_id)
@@ -63,7 +115,11 @@ def parse_currency(value_str):
 @login_required
 @require_permission('payment:read')
 def list_overtime():
-    filter_month = request.args.get('month_base', '')
+    # A consulta abre no mês atual; a caixa de seleção permite escolher outro
+    # mês ou "Todos os meses" (valor vazio).
+    filter_month = request.args.get('month_base')
+    if filter_month is None:
+        filter_month = datetime.now().strftime('%Y-%m')
     filter_teacher = request.args.get('teacher_filter', type=int)
 
     # CORREÇÃO: a condição anterior era dead-code — @require_permission('payment:read') já garante
@@ -81,7 +137,8 @@ def list_overtime():
     list_teachers = _teachers_for_current_unity()
 
     return render_template('payments/list_overtime.html', infos=pagination.items, pagination=pagination,
-                           list_teachers=list_teachers, filter_month=filter_month, filter_teacher=filter_teacher)
+                           list_teachers=list_teachers, month_options=_month_options(),
+                           filter_month=filter_month, filter_teacher=filter_teacher)
 
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required
@@ -107,6 +164,12 @@ def create_overtime():
             flash('Erro: O Mês Base inserido não é uma data válida.', 'danger')
             return redirect(url_for('payments.create_overtime'))
 
+        # Meses anteriores já foram fechados: bloqueia com mensagem visível
+        # (antes, o lançamento era gravado silenciosamente).
+        if month_base_str < current_date.strftime('%Y-%m'):
+            flash('Erro: Não é possível lançar Hora Extra de meses anteriores ao mês atual.', 'danger')
+            return redirect(url_for('payments.create_overtime'))
+
         if month_base.year == current_date.year and month_base.month == current_date.month and current_date.day > 25:
             flash('Erro: Lançamentos do mês atual só podem ser feitos até o dia 25.', 'danger')
             return redirect(url_for('payments.create_overtime'))
@@ -120,7 +183,7 @@ def create_overtime():
             teacher_id=form.teacher.data, teaching_level=form.teaching_level.data,
             unity_id=current_unity_id(),
             weekly_workload=form.weekly_workload.data, hourly_value=hourly_value,
-            budget_code=form.budget_code.data, shift=form.shift.data,
+            budget_code=format_budget_code(form.budget_code.data), shift=form.shift.data,
             multiple_dates=form.multiple_dates.data, justification=form.justification.data,
             month_base=form.month_base.data, accountable_id=current_user.id
         )
@@ -166,6 +229,10 @@ def edit_overtime(overtime_id):
             flash('Erro: O Mês Base inserido não é uma data válida.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
+        if month_base_str < now.strftime('%Y-%m'):
+            flash('Erro: Não é possível definir o Mês Base para um mês anterior ao atual.', 'danger')
+            return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
+
         hourly_value = parse_currency(form.hourly_value.data)
         if hourly_value is None or hourly_value <= 0:
             flash('Erro: O Valor H/a deve ser maior que 0.', 'danger')
@@ -175,7 +242,7 @@ def edit_overtime(overtime_id):
         overtime.teaching_level = form.teaching_level.data
         overtime.weekly_workload = form.weekly_workload.data
         overtime.hourly_value = hourly_value
-        overtime.budget_code = form.budget_code.data
+        overtime.budget_code = format_budget_code(form.budget_code.data)
         overtime.shift = form.shift.data
         overtime.multiple_dates = form.multiple_dates.data
         overtime.justification = form.justification.data
@@ -270,7 +337,7 @@ def export_excel_overtime():
             (4, float(data.hourly_value) if data.hourly_value else 0),
             (5, data.multiple_dates or ''),
             (6, data.shift),
-            (7, data.budget_code),
+            (7, format_budget_code(data.budget_code)),
             (8, data.justification or '')
         ]
 
