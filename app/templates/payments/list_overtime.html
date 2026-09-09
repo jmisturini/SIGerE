@@ -78,6 +78,7 @@
                         <th>Mês Base</th>
                         <th>Nível</th>
                         <th>Dias Selecionados</th>
+                        <th>Justificativa</th>
                         <th>Turno</th>
                         <th>Código</th>
                         <th>Horas</th>
@@ -92,6 +93,8 @@
                         <td>{{ o.month_base }}</td>
                         <td>{{ o.teaching_level }}</td>
                         <td><small class="text-muted">{{ o.multiple_dates or '-' }}</small></td>
+                        <td><small class="d-inline-block text-truncate align-middle text-muted" style="max-width: 180px;"
+                                   title="{{ o.justification or '' }}">{{ o.justification or '-' }}</small></td>
                         <td>{{ o.shift }}</td>
                         <td>{{ o.budget_code | budget_code }}</td>
                         <td>{{ o.weekly_workload }}</td>
@@ -114,7 +117,7 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="9" class="text-center text-muted p-5">
+                        <td colspan="10" class="text-center text-muted p-5">
                             <i class="bi bi-cash-stack fs-2 d-block mb-2"></i>
                             <h5 class="mb-1">Nenhuma hora extra encontrada</h5>
                             <p class="small mb-0">Nenhum registro encontrado para os filtros selecionados.</p>
