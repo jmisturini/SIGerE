@@ -7,6 +7,10 @@
         if (localStorage.getItem('theme') === 'dark') {
             document.documentElement.setAttribute('data-theme', 'dark');
         }
+        // Modo contraído da sidebar (só tem efeito no desktop; ver CSS)
+        if (localStorage.getItem('sidebar-collapsed') === '1') {
+            document.documentElement.classList.add('sidebar-collapsed');
+        }
     </script>
     <title>{% block title %}SIGerE{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,27 +25,33 @@
     <!-- Sidebar -->
     <nav class="sidebar">
         <div class="sidebar-header">
-            <a class="sidebar-brand" href="{{ url_for('main.index') if current_user.is_authenticated else url_for('public.home') }}">
-                <i class="bi bi-building"></i>
-                <span class="brand-text">SIGerE</span>
-            </a>
+            <div class="d-flex justify-content-between align-items-center gap-1">
+                <a class="sidebar-brand" href="{{ url_for('main.index') if current_user.is_authenticated else url_for('public.home') }}">
+                    <i class="bi bi-building"></i>
+                    <span class="brand-text">SIGerE</span>
+                </a>
+                <button type="button" id="sidebar-collapse" class="sidebar-collapse-btn d-none d-lg-block"
+                        title="Contrair menu" aria-expanded="true" aria-label="Contrair ou expandir o menu lateral">
+                    <i class="bi bi-chevron-double-left"></i>
+                </button>
+            </div>
         </div>
         
         <div class="sidebar-menu">
             <ul class="nav flex-column">
                 {% if current_user.is_authenticated %}
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('main.index') }}">
+                    <a class="nav-link" title="Painel" href="{{ url_for('main.index') }}">
                         <i class="bi bi-speedometer2"></i> <span>Painel</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('schedule.view') }}">
+                    <a class="nav-link" title="Calendário" href="{{ url_for('schedule.view') }}">
                         <i class="bi bi-calendar3"></i> <span>Calendário</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('classrooms.list_classrooms') }}">
+                    <a class="nav-link" title="Salas" href="{{ url_for('classrooms.list_classrooms') }}">
                         <i class="bi bi-door-open"></i> <span>Salas</span>
                     </a>
                 </li>
@@ -49,7 +59,7 @@
                 {% set in_reservations = request.endpoint and request.endpoint.startswith('reservations.') %}
                 {% if current_user.has_permission('reservation:create') or current_user.has_permission('reservation:read_all') or current_user.has_permission('reservation:read_own') %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_reservations else '' }}" data-bs-toggle="collapse" href="#menu-reservas" role="button" aria-expanded="{{ 'true' if in_reservations else 'false' }}" aria-controls="menu-reservas">
+                    <a class="nav-link {{ 'active' if in_reservations else '' }}" title="Reservas" data-bs-toggle="collapse" href="#menu-reservas" role="button" aria-expanded="{{ 'true' if in_reservations else 'false' }}" aria-controls="menu-reservas">
                         <i class="bi bi-calendar-week"></i> <span>Reservas</span>
                         <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
                     </a>
@@ -86,7 +96,7 @@
                 {# Ambos os módulos do Financeiro usam as permissões payment:* #}
                 {% if current_user.has_permission('payment:read') %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_overtime else '' }}" data-bs-toggle="collapse" href="#menu-hora-extra" role="button" aria-expanded="{{ 'true' if in_overtime else 'false' }}" aria-controls="menu-hora-extra">
+                    <a class="nav-link {{ 'active' if in_overtime else '' }}" title="Hora Extra" data-bs-toggle="collapse" href="#menu-hora-extra" role="button" aria-expanded="{{ 'true' if in_overtime else 'false' }}" aria-controls="menu-hora-extra">
                         <i class="bi bi-cash-stack"></i> <span>Hora Extra</span>
                         <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
                     </a>
@@ -108,7 +118,7 @@
                     </div>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_vt else '' }}" data-bs-toggle="collapse" href="#menu-vt" role="button" aria-expanded="{{ 'true' if in_vt else 'false' }}" aria-controls="menu-vt">
+                    <a class="nav-link {{ 'active' if in_vt else '' }}" title="Vale Transporte" data-bs-toggle="collapse" href="#menu-vt" role="button" aria-expanded="{{ 'true' if in_vt else 'false' }}" aria-controls="menu-vt">
                         <i class="bi bi-bus-front"></i> <span>Vale Transporte</span>
                         <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
                     </a>
@@ -132,7 +142,7 @@
                 {% set in_kitchen = request.endpoint and request.endpoint.startswith('kitchen.') %}
                 {% if current_user.has_permission('kitchen:read') %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_kitchen else '' }}" data-bs-toggle="collapse" href="#menu-cozinha" role="button" aria-expanded="{{ 'true' if in_kitchen else 'false' }}" aria-controls="menu-cozinha">
+                    <a class="nav-link {{ 'active' if in_kitchen else '' }}" title="Cozinha" data-bs-toggle="collapse" href="#menu-cozinha" role="button" aria-expanded="{{ 'true' if in_kitchen else 'false' }}" aria-controls="menu-cozinha">
                         <i class="bi bi-egg-fried"></i> <span>Cozinha</span>
                         <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
                     </a>
@@ -163,14 +173,14 @@
                 {% if current_user.has_permission('system:dashboard') %}
                 <li class="nav-section">Administração</li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('admin.dashboard') }}">
+                    <a class="nav-link" title="Painel Admin" href="{{ url_for('admin.dashboard') }}">
                         <i class="bi bi-gear"></i> <span>Painel Admin</span>
                     </a>
                 </li>
                 {% endif %}
                 {% if current_user.has_permission('unity:read') %}
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('admin.list_unities') }}">
+                    <a class="nav-link" title="Unidades" href="{{ url_for('admin.list_unities') }}">
                         <i class="bi bi-buildings"></i> <span>Unidades</span>
                     </a>
                 </li>
@@ -303,6 +313,31 @@
     if(sidebarToggle) {
         sidebarToggle.addEventListener('click', () => {
             appContainer.classList.toggle('sidebar-open');
+        });
+    }
+
+    // Contrair/expandir a sidebar no desktop (preferência salva no navegador)
+    const collapseBtn = document.getElementById('sidebar-collapse');
+    function setSidebarCollapsed(collapsed) {
+        document.documentElement.classList.toggle('sidebar-collapsed', collapsed);
+        localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+        if (collapseBtn) {
+            collapseBtn.title = collapsed ? 'Expandir menu' : 'Contrair menu';
+            collapseBtn.setAttribute('aria-expanded', String(!collapsed));
+        }
+    }
+    if (collapseBtn) {
+        setSidebarCollapsed(document.documentElement.classList.contains('sidebar-collapsed'));
+        collapseBtn.addEventListener('click', () =>
+            setSidebarCollapsed(!document.documentElement.classList.contains('sidebar-collapsed')));
+        // Contraído, os grupos com submenu não têm espaço: clicar neles
+        // reexpande o menu para escolher o item
+        document.querySelectorAll('.sidebar-menu .nav-link[data-bs-toggle="collapse"]').forEach(link => {
+            link.addEventListener('click', () => {
+                if (document.documentElement.classList.contains('sidebar-collapsed')) {
+                    setSidebarCollapsed(false);
+                }
+            });
         });
     }
 </script>
