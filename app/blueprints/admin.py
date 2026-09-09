@@ -78,6 +78,9 @@ def create_teacher():
     form.unity_id.choices = _unity_choices()
     if not form.unity_id.data:
         form.unity_id.data = current_unity_id()
+    # O nome de usuário é a parte anterior ao @ do e-mail informado.
+    if request.method == 'POST':
+        form.username.data = (request.form.get('email') or '').strip().split('@')[0]
     if form.validate_on_submit():
         user = User(
             username=form.username.data, email=form.email.data, full_name=form.full_name.data,
@@ -102,6 +105,9 @@ def create_employee():
     form.unity_id.choices = _unity_choices()
     if not form.unity_id.data:
         form.unity_id.data = current_unity_id()
+    # O nome de usuário é a parte anterior ao @ do e-mail informado.
+    if request.method == 'POST':
+        form.username.data = (request.form.get('email') or '').strip().split('@')[0]
     if form.validate_on_submit():
         user = User(
             username=form.username.data, email=form.email.data, full_name=form.full_name.data,

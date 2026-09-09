@@ -22,21 +22,18 @@
                             {% for err in form.full_name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
-                        <div class="col-md-6">
-                            {{ form.username.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                            {{ form.username(class="form-control") }}
-                            {% for err in form.username.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
-                        </div>
-                        
-                        <div class="col-md-6">
+                        <div class="col-12">
                             {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.email(class="form-control") }}
+                            <div class="form-text small">O nome de usuário para login será a parte antes do @ deste e-mail.</div>
                             {% for err in form.email.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            {% for err in form.username.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
-                        
+
                         <div class="col-md-4">
                             {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.registration(class="form-control") }}
+                            {% for err in form.registration.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-4">
