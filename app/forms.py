@@ -241,7 +241,9 @@ class EmployeeForm(BaseForm):
 # =============================================================================
 
 class ClassroomForm(BaseForm):
-    name = StringField('Nome da Sala', validators=[DataRequired(), Length(max=64)])
+    # Nome é opcional: sem ele, a sala é identificada pelo código gerado
+    # (categoria + número), gravado também como nome no servidor.
+    name = StringField('Nome da Sala (opcional)', validators=[Optional(), Length(max=64)])
     room_number = StringField('Número da Sala', validators=[DataRequired(), Length(max=20)])
     building = StringField('Prédio', validators=[Optional(), Length(max=120)])
     floor = StringField('Andar', validators=[Optional(), Length(max=20)])
