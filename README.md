@@ -123,7 +123,7 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
   - Bloqueio de lançamento em meses anteriores ao atual (mensagem de erro visível) e de edição/exclusão de meses anteriores ou com mais de 30 dias
   - Lançamentos do mês corrente só até o dia 25
 - **Consulta:** filtro de Mês Base em caixa de seleção (meses já lançados + mês atual, abrindo no mês atual, com opção "Todos os meses") combinado com filtro por professor
-- **Código Orçamentário:** máscara automática com pontos — `xx.xx.xxxx.xx` (9-10 dígitos) ou `xx.xx.xxxx.xx.xxxx` (14 dígitos), aplicada no cadastro e na exportação
+- **Código Orçamentário:** máscara automática com pontos — `xx.xx.xxxx.x` (9 dígitos) ou `xx.xx.xxxx.xx.xxxx` (14 dígitos), aplicada no cadastro e na exportação
 - **Exportação Excel:** planilha formatada com modelo pré-definido (`base_pagamento_extra.xlsx`), filtrável por mês e/ou professor
 
 ### 🚌 Vale Transporte (`/vt`)

@@ -113,7 +113,7 @@ class PaymentsTestCase(unittest.TestCase):
             'shift': 'Noturno',
             'weekly_workload': '4',
             'hourly_value': '25,50',
-            'budget_code': '9500012340',
+            'budget_code': '950001234',
             'multiple_dates': '10/09/2026',
             'justification': 'Substituicao de aula',
             'month_base': datetime.now().strftime('%Y-%m'),
@@ -124,7 +124,7 @@ class PaymentsTestCase(unittest.TestCase):
     def _previous_month(self):
         return (datetime.now().replace(day=1) - timedelta(days=1)).strftime('%Y-%m')
 
-    def _add_overtime(self, month_base, teacher_id=None, budget_code='9500012340'):
+    def _add_overtime(self, month_base, teacher_id=None, budget_code='950001234'):
         with self.app.app_context():
             record = TeacherOvertimePay(
                 teacher_id=teacher_id or self.teacher_id, teaching_level='Superior',
@@ -139,9 +139,10 @@ class PaymentsTestCase(unittest.TestCase):
     def test_format_budget_code(self):
         from app.blueprints.payments import format_budget_code
         self.assertEqual(format_budget_code('950001234'), '95.00.0123.4')
-        self.assertEqual(format_budget_code('9500012340'), '95.00.0123.40')
         self.assertEqual(format_budget_code('95000123401234'), '95.00.0123.40.1234')
-        self.assertEqual(format_budget_code('95.00.0123.40'), '95.00.0123.40')
+        self.assertEqual(format_budget_code('95.00.0123.4'), '95.00.0123.4')
+        # 10 dígitos não existe: volta sem alteração (a validação rejeita)
+        self.assertEqual(format_budget_code('9500012340'), '9500012340')
         self.assertEqual(format_budget_code('12345'), '12345')
         self.assertIsNone(format_budget_code(None))
 
@@ -164,7 +165,7 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
         with self.app.app_context():
             record = db.session.query(TeacherOvertimePay).first()
-            self.assertEqual(record.budget_code, '95.00.0123.40')
+            self.assertEqual(record.budget_code, '95.00.0123.4')
 
     def test_create_accepts_masked_budget_code(self):
         # O campo formatado pela máscara (com pontos) passa na validação
@@ -223,7 +224,7 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('Professora Teste', names)
         self.assertNotIn('Outro Professor', names)
         # Código Orçamentário sai formatado mesmo para registros antigos
-        self.assertEqual(ws.cell(row=7, column=7).value, '95.00.0123.40')
+        self.assertEqual(ws.cell(row=7, column=7).value, '95.00.0123.4')
 
     # ---------- Aviso de navegador ----------
 

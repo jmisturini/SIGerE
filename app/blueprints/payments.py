@@ -17,10 +17,11 @@ bp = Blueprint('payments', __name__, url_prefix='/payments')
 
 PAYS_PER_PAGE = 25
 
-# Máscara do Código Orçamentário: grupos 2.2.4.2 formam xx.xx.xxxx.xx (código
-# curto, 9-10 dígitos) e 2.2.4.2.4 forma xx.xx.xxxx.xx.xxxx (código longo, 14).
+# Máscara do Código Orçamentário: o código curto tem 9 dígitos
+# (xx.xx.xxxx.x) e o longo tem 14 (xx.xx.xxxx.xx.xxxx). Os grupos avançam
+# 2.2.4.2.4 — no curto, o 4º grupo fica com 1 dígito.
 BUDGET_CODE_GROUPS = (2, 2, 4, 2, 4)
-BUDGET_CODE_LENGTHS = (9, 10, 14)
+BUDGET_CODE_LENGTHS = (9, 14)
 
 MONTH_NAMES_PT = ('Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro')
@@ -39,7 +40,7 @@ def _teachers_for_current_unity():
 def format_budget_code(value):
     """Aplica a máscara de pontos ao Código Orçamentário.
 
-    Códigos com 9 ou 10 dígitos viram xx.xx.xxxx.xx e com 14 dígitos viram
+    Códigos com 9 dígitos viram xx.xx.xxxx.x e com 14 dígitos viram
     xx.xx.xxxx.xx.xxxx. Qualquer outro formato é devolvido sem alterações.
     """
     if not value:
