@@ -114,7 +114,7 @@ class TeacherForm(BaseForm):
     username = StringField('Nome de Usuário', validators=[DataRequired(), Length(min=3, max=64)])
     email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
     full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
-    registration = StringField('Matrícula / ID do Professor', validators=[Optional(), Length(max=50)])
+    registration = StringField('Matrícula / ID do Professor', validators=[DataRequired(message='Informe a matrícula/ID do professor.'), Length(max=50)])
     department = StringField('Departamento', validators=[Optional(), Length(max=120)])
     unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
@@ -145,8 +145,8 @@ class TeacherForm(BaseForm):
     def validate_username(self, field):
         # CORREÇÃO: regex anterior barrava usernames com números ou underscore (ex: joao_silva, prof2).
         # Username agora aceita letras, números, underscore e espaços.
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9_\s]+$', field.data):
-            raise ValidationError('Nome de Usuário deve conter apenas letras, números e underscore.')
+        if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9_.\-\s]+$', field.data):
+            raise ValidationError('Nome de Usuário deve conter apenas letras, números, ponto, hífen e underscore.')
         existing = User.query.filter_by(username=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
             raise ValidationError('Este nome de usuário já está em uso.')
@@ -177,7 +177,7 @@ class EmployeeForm(BaseForm):
     username = StringField('Nome de Usuário', validators=[DataRequired(), Length(min=3, max=64)])
     email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
     full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
-    registration = StringField('Matrícula / ID do Funcionário', validators=[Optional(), Length(max=50)])
+    registration = StringField('Matrícula / ID do Funcionário', validators=[DataRequired(message='Informe a matrícula/ID do funcionário.'), Length(max=50)])
     sector = StringField('Setor', validators=[Optional(), Length(max=120)])
     function = StringField('Função', validators=[Optional(), Length(max=120)])
     unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
@@ -209,8 +209,8 @@ class EmployeeForm(BaseForm):
     def validate_username(self, field):
         # CORREÇÃO: regex anterior barrava usernames com números ou underscore (ex: joao_silva, func2).
         # Username agora aceita letras, números, underscore e espaços.
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9_\s]+$', field.data):
-            raise ValidationError('Nome de Usuário deve conter apenas letras, números e underscore.')
+        if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9_.\-\s]+$', field.data):
+            raise ValidationError('Nome de Usuário deve conter apenas letras, números, ponto, hífen e underscore.')
         existing = User.query.filter_by(username=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
             raise ValidationError('Este nome de usuário já está em uso.')
