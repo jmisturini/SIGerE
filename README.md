@@ -205,7 +205,10 @@ pip install -r requirements.txt
 # Comandos de manutenção da CLI não exigem SECRET_KEY nem FLASK_DEBUG
 flask --app run db upgrade
 
-# 5. Popule o banco (cria o admin; dados de demonstração são opcionais)
+# 5. Popule o banco — escolha UMA das opções:
+#    a) cria o admin com senha definida por você (sem dados de demonstração):
+flask --app run seed-admin
+#    b) cria o admin padrão (admin/admin123) e pergunta sobre dados de demonstração:
 flask --app run seed
 
 # 6. Em desenvolvimento, habilite o modo debug antes de servir a aplicação
@@ -223,6 +226,8 @@ A aplicação estará disponível em: **http://localhost:5000**
 > **Nota:** o schema do banco é versionado com Flask-Migrate/Alembic (não é criado automaticamente no boot). O boot apenas avisa no terminal quando o banco está vazio ou fora do fluxo de migrações.
 
 > **Nota:** o comando `seed` cria sempre o administrador (`admin`/`admin123`) e, em seguida, **pergunta interativamente** se você quer popular dados de demonstração (responda `y` para receber também as contas `teacher1` e `employee1`). Veja detalhes em [Contas de Demonstração](#-contas-de-demonstração).
+
+> **Implantação real:** prefira o comando `flask --app run seed-admin` — cria **apenas** a conta do administrador (sem dados de demonstração) e **solicita que você defina a senha** no terminal (mínimo de 8 caracteres, digitação oculta).
 
 > **Atualizando uma instalação existente:** após `git pull`, execute `flask --app run db upgrade` (aplica migrações de schema novas) e `flask --app run sync-permissions` (permissões de módulos novos).
 
@@ -290,7 +295,7 @@ O schema é versionado no diretório `migrations/` (comittado no repositório). 
 
 | Situação | Comando |
 |---|---|
-| Instalação nova (banco vazio) | `flask --app run db upgrade` + `flask --app run seed` |
+| Instalação nova (banco vazio) | `flask --app run db upgrade` + `flask --app run seed-admin` (ou `seed`, com demonstração) |
 | Banco já no esquema atual, mas sem versionamento Alembic | `flask --app run db stamp head` |
 
 Após **alterar modelos** em `app/models.py`, gere e aplique a migração:

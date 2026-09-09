@@ -288,7 +288,7 @@ def _seed_permissions():
     click.echo("   ✅ Permissões e roles criadas.")
 
 
-def _seed_admin():
+def _seed_admin(password='admin123'):
     """Cria apenas o usuário administrador."""
     click.echo("   Criando usuário administrador...")
 
@@ -301,10 +301,58 @@ def _seed_admin():
         force_password_change=False,
         role_id=super_admin_role.id
     )
-    admin.set_password('admin123')
+    admin.set_password(password)
     db.session.add(admin)
     db.session.flush()
     click.echo("   ✅ Administrador criado.")
+
+
+@click.command('seed-admin')
+@with_appcontext
+def seed_admin_command():
+    """Cria apenas a conta do administrador, solicitando uma senha.
+
+    Alternativa ao `seed` para implantações reais: cria as permissões/papéis
+    e o usuário 'admin' — sem nenhum dado de demonstração — com a senha
+    definida interativamente (mínimo de 8 caracteres, digitação oculta).
+    """
+    if User.query.filter_by(username='admin').first() is not None:
+        click.echo(click.style(
+            "⚠️  A conta 'admin' já existe. Nada foi alterado.",
+            fg="yellow"
+        ))
+        return
+
+    click.echo(click.style("🌱 Criando a conta do administrador...", fg="green", bold=True))
+
+    try:
+        while True:
+            password = click.prompt(
+                click.style("Digite a senha do administrador", fg="yellow"),
+                hide_input=True,
+                confirmation_prompt=click.style("Confirme a senha", fg="yellow"),
+            )
+            if len(password) >= 8:
+                break
+            click.echo(click.style(
+                "❌ A senha deve ter pelo menos 8 caracteres. Tente novamente.",
+                fg="red"
+            ))
+
+        _seed_permissions()
+        _seed_admin(password=password)
+        db.session.commit()
+        click.echo(click.style(
+            "✅ Administrador criado com sucesso! Faça login com o usuário 'admin' "
+            "e a senha que você definiu.", fg="green", bold=True
+        ))
+    except Exception as exc:
+        db.session.rollback()
+        click.echo(click.style(
+            f"❌ Falha ao criar o administrador.\n   Erro: {exc}",
+            fg="red", bold=True
+        ))
+        raise click.ClickException(str(exc))
 
 
 def _seed_demo_data():
