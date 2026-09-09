@@ -97,6 +97,10 @@
                         <td>{{ o.weekly_workload }}</td>
                         <td>R$ {{ "%.2f"|format(o.hourly_value) }}</td>
                         <td class="text-end pe-4 text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                                    data-bs-target="#view-overtime-{{ o.id }}" title="Ver informações do lançamento">
+                                <i class="bi bi-eye"></i>
+                            </button>
                             <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
@@ -122,6 +126,71 @@
         </div>
     </div>
 </div>
+
+{% for o in infos %}
+<div class="modal fade" id="view-overtime-{{ o.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye text-primary me-2"></i>Lançamento de Hora Extra</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Professor</div>
+                        <div class="fw-semibold">{{ o.teacher.full_name }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Mês Base</div>
+                        <div>{{ o.month_base }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Nível de Ensino</div>
+                        <div>{{ o.teaching_level }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Turno</div>
+                        <div>{{ o.shift }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Carga Horária</div>
+                        <div>{{ o.weekly_workload }} h</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Valor H/a</div>
+                        <div>R$ {{ "%.2f"|format(o.hourly_value) }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Código Orçamentário</div>
+                        <div>{{ o.budget_code | budget_code }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Dias Selecionados</div>
+                        <div>{{ o.multiple_dates or '—' }}</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="small fw-bold text-uppercase text-muted">Justificativa</div>
+                        <div>{{ o.justification or '—' }}</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="small fw-bold text-uppercase text-muted">Responsável pelo Lançamento</div>
+                        <div>{{ o.accountable.full_name if o.accountable else '—' }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                {% if current_user.has_permission('payment:edit') %}
+                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id) }}" class="btn btn-primary">
+                    <i class="bi bi-pencil me-1"></i> Editar
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
 
 {% endblock %}
 
