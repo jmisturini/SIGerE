@@ -77,10 +77,12 @@ def create_app(config_class=Config):
     app.register_blueprint(kitchen_bp)
 
     # ── Register CLI commands ──
-    from app.commands import seed_command, seed_admin_command, sync_permissions_command
+    from app.commands import (seed_command, seed_admin_command,
+                              sync_permissions_command, seed_unidades_command)
     app.cli.add_command(seed_command)
     app.cli.add_command(seed_admin_command)
     app.cli.add_command(sync_permissions_command)
+    app.cli.add_command(seed_unidades_command)
 
     # Custom Error Handlers
     @app.errorhandler(403)
