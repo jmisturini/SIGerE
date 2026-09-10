@@ -124,13 +124,12 @@ def display():
 
     category_sections = _category_sections(unity, today, p_start, p_end)
 
-    # Lista de unidades para alternância rápida no painel (ex: uma TV por unidade)
-    unities = Unity.query.filter_by(is_active=True).order_by(Unity.name).all()
-
     weather_lat, weather_lon, weather_city = _totem_weather(unity)
 
+    # A troca de unidade é feita pelo parâmetro ?unity=<id> (uma TV por unidade);
+    # o cabeçalho apenas sinaliza qual unidade está sendo exibida.
     return render_template('totem.html', category_sections=category_sections,
                            current_period=current_period,
-                           totem_unity=unity, totem_unities=unities,
+                           totem_unity=unity,
                            weather_lat=weather_lat, weather_lon=weather_lon,
                            weather_city=weather_city)
