@@ -74,11 +74,11 @@ class SetupChecklistTestCase(unittest.TestCase):
     def test_checklist_shows_all_steps_pending_on_empty_system(self):
         page = self.client.get('/admin/').get_data(as_text=True)
         self.assertIn('Configuração inicial', page)
-        self.assertIn('0 de 7 concluídos', page)
+        self.assertIn('0 de 8 concluídos', page)
         for passo in ('Cadastrar Unidade', 'Cadastrar Categorias de Sala',
                       'Cadastrar Sala', 'Cadastrar Professor',
-                      'Cadastrar Funcionário', 'Cadastrar Curso e Disciplina',
-                      'Importar os feriados'):
+                      'Cadastrar Funcionário', 'Cadastrar Curso',
+                      'Cadastrar Disciplina', 'Importar os feriados'):
             self.assertIn(passo, page)
         # Nenhum passo concluído: sem riscado
         self.assertNotIn('text-decoration-line-through', page)
@@ -96,7 +96,7 @@ class SetupChecklistTestCase(unittest.TestCase):
             db.session.commit()
 
         page = self.client.get('/admin/').get_data(as_text=True)
-        self.assertIn('3 de 7 concluídos', page)
+        self.assertIn('3 de 8 concluídos', page)
         self.assertIn('text-decoration-line-through', page)
         # Os 4 passos restantes seguem com botão de cadastro
         self.assertIn('Cadastrar Professor', page)
