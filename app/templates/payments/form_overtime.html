@@ -79,7 +79,7 @@
                         <div class="col-md-6">
                             {{ form.budget_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.budget_code(class="form-control", maxlength=18, inputmode="numeric", placeholder="Ex: 95.00.0123.4") }}
-                            <div class="form-text small">Formatado automaticamente: xx.xx.xxxx.x (9 dígitos) ou xx.xx.xxxx.xx.xxxx (14 dígitos).</div>
+                            <div class="form-text small">Máscara automática: 9 ou 14 dígitos.</div>
                             {% for err in form.budget_code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
