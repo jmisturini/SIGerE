@@ -21,6 +21,7 @@
                 <thead>
                     <tr>
                         <th class="ps-4">Unidade</th>
+                        <th>ID (Totem)</th>
                         <th>Código</th>
                         <th>Salas</th>
                         <th>Usuários</th>
@@ -38,6 +39,9 @@
                                 <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle mt-1">Unidade ativa</span>
                             {% endif %}
                             {% if u.address %}<div class="small text-muted">{{ u.address }}</div>{% endif %}
+                        </td>
+                        <td>
+                            <code class="text-body" title="Use no totem: /totem/?unity={{ u.id }}">{{ u.id }}</code>
                         </td>
                         <td><span class="badge text-bg-light border">{{ u.code }}</span></td>
                         <td>{{ room_counts.get(u.id, 0) }}</td>
@@ -70,7 +74,7 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted p-5">
+                        <td colspan="8" class="text-center text-muted p-5">
                             <i class="bi bi-building fs-2 d-block mb-2"></i>
                             <h5 class="mb-1">Nenhuma unidade cadastrada</h5>
                             <p class="small mb-0">Crie a primeira unidade educacional para organizar os dados do sistema.</p>
