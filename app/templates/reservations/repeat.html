@@ -42,7 +42,7 @@
                     <label class="form-label small fw-bold text-uppercase text-muted mb-1">Selecione a Data Final</label>
                     <input type="date" name="end_date" class="form-control" min="{{ start_date.strftime('%Y-%m-%d') }}" required>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-3 d-flex flex-column justify-content-end">
                     <div class="form-check mb-2">
                         <input type="checkbox" class="form-check-input" id="same_day" name="same_day" value="true">
                         <label class="form-check-label fw-medium" for="same_day">Apenas {{ res_weekday_str }}s</label>
@@ -52,7 +52,7 @@
                         <label class="form-check-label fw-medium" for="skip_weekend">Pular Finais de Semana</label>
                     </div>
                 </div>
-                <div class="col-md-2 d-grid">
+                <div class="col-md-2 d-grid align-self-end">
                     <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Verificar Dias</button>
                 </div>
             </div>

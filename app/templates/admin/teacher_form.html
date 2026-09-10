@@ -30,7 +30,7 @@
                             {% for err in form.username.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
-                        <div class="col-md-4">
+                        <div class="col-md-4 d-flex flex-column justify-content-end">
                             {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.registration(class="form-control") }}
                             {% for err in form.registration.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
