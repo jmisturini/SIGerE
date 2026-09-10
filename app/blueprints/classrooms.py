@@ -174,7 +174,7 @@ def export_pdf():
         row_data = [
             c.name[:35], c.code, c.category.name.title(),
             c.building or 'N/A', c.floor or 'N/A', str(c.capacity),
-            str(c.computer_count) if c.category.code == 'computer_lab' else '0'
+            str(c.computer_count) if c.category.controla_computadores else '0'
         ]
         for i, data in enumerate(row_data):
             pdf.cell(col_widths[i], 7, data, border=1, align='C', fill=True)

@@ -10,6 +10,7 @@ from app.forms import (ClassroomForm, CourseForm, SubjectForm, TeacherForm, Empl
 from app.extensions import db
 from wtforms.validators import Optional
 from app.permissions import require_permission
+from app.utils import gerar_slug, slug_unico
 from app.unity_context import current_unity_id
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -225,7 +226,7 @@ def create_room():
             code=generated_code, room_number=form.room_number.data,
             building=form.building.data, floor=form.floor.data, capacity=form.capacity.data,
             category_id=form.category_id.data, unity_id=current_unity_id(),
-            computer_count=form.computer_count.data if cat.code == 'computer_lab' else 0,
+            computer_count=form.computer_count.data if cat.controla_computadores else 0,
             description=form.description.data, is_active=form.is_active.data
         )
         db.session.add(classroom)
@@ -258,7 +259,7 @@ def edit_room(room_id):
         classroom.floor = form.floor.data
         classroom.capacity = form.capacity.data
         classroom.category_id = form.category_id.data
-        classroom.computer_count = form.computer_count.data if cat.code == 'computer_lab' else 0
+        classroom.computer_count = form.computer_count.data if cat.controla_computadores else 0
         classroom.description = form.description.data
         classroom.is_active = form.is_active.data
         db.session.commit()
@@ -473,7 +474,10 @@ def create_role():
     form.permissions.choices = [(p.id, f"{p.module}: {p.action} ({p.code})") for p in Permission.query.order_by(Permission.module, Permission.action).all()]
     
     if form.validate_on_submit():
-        role = Role(name=form.name.data, label=form.label.data, description=form.description.data, is_system=False)
+        # Nome de sistema gerado automaticamente do rótulo (slug único).
+        names = {r.name for r in Role.query.all()}
+        role = Role(name=slug_unico(gerar_slug(form.label.data), names),
+                    label=form.label.data, description=form.description.data, is_system=False)
         if form.permissions.data:
             role.permissions = Permission.query.filter(Permission.id.in_(form.permissions.data)).all()
         db.session.add(role)
@@ -537,22 +541,23 @@ def list_categories():
 def create_category():
     form = RoomCategoryForm()
     if form.validate_on_submit():
-        exists = RoomCategory.query.filter_by(code=form.code.data).first()
-        if exists:
-            flash('Já existe uma categoria com este código.', 'danger')
-        else:
-            cat = RoomCategory(
-                name=form.name.data, code=form.code.data,
-                abbr=form.abbr.data.upper() if form.abbr.data else None,
-                color=(form.color.data or '').lower() or None,
-                icon=form.icon.data or None,
-                totem_window=form.totem_window.data,
-                is_active=form.is_active.data
-            )
-            db.session.add(cat)
-            db.session.commit()
-            flash('Categoria criada com sucesso.', 'success')
-            return redirect(url_for('admin.list_categories'))
+        # Código interno é gerado automaticamente do nome (slug único) — o
+        # usuário final só informa o nome da categoria.
+        codes = {c.code for c in RoomCategory.query.all()}
+        cat = RoomCategory(
+            name=form.name.data,
+            code=slug_unico(gerar_slug(form.name.data), codes),
+            abbr=form.abbr.data.upper() if form.abbr.data else None,
+            color=(form.color.data or '').lower() or None,
+            icon=form.icon.data or None,
+            totem_window=form.totem_window.data,
+            controla_computadores=form.controla_computadores.data,
+            is_active=form.is_active.data
+        )
+        db.session.add(cat)
+        db.session.commit()
+        flash('Categoria criada com sucesso.', 'success')
+        return redirect(url_for('admin.list_categories'))
     return render_template('admin/category_form.html', form=form, title='Criar Categoria')
 
 @bp.route('/categories/<int:cat_id>/edit', methods=['GET', 'POST'])
@@ -563,11 +568,11 @@ def edit_category(cat_id):
     form = RoomCategoryForm(obj=cat)
     if form.validate_on_submit():
         cat.name = form.name.data
-        cat.code = form.code.data
         cat.abbr = form.abbr.data.upper() if form.abbr.data else None
         cat.color = (form.color.data or '').lower() or None
         cat.icon = form.icon.data or None
         cat.totem_window = form.totem_window.data
+        cat.controla_computadores = form.controla_computadores.data
         cat.is_active = form.is_active.data
         db.session.commit()
         flash('Categoria atualizada.', 'success')

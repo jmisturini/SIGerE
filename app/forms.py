@@ -492,7 +492,8 @@ class FormTeacherOvertimePay(BaseForm):
 # =============================================================================
 
 class RoleForm(BaseForm):
-    name = StringField('Nome do Sistema (ex: coordinator)', validators=[DataRequired(), Length(max=50)])
+    # Sem campo de nome de sistema: ele é gerado automaticamente do rótulo
+    # (slug) pela rota — o usuário final só informa o rótulo exibido.
     label = StringField('Rótulo de Exibição (ex: Coordenador)', validators=[DataRequired(), Length(max=100)])
     description = TextAreaField('Descrição', validators=[Optional()])
     permissions = SelectMultipleField('Permissões', coerce=int, validators=[Optional()])
@@ -508,14 +509,9 @@ class RoleForm(BaseForm):
 
     def validate_label(self, field):
         self._validate_alpha_only(field, 'Rótulo de Exibição')
-
-    def validate_name(self, field):
-        # Nome do sistema: apenas minúsculas, underscore e números (snake_case)
-        if not re.match(r'^[a-z0-9_]+$', field.data):
-            raise ValidationError('O nome do sistema deve conter apenas letras minúsculas, números e underscore (ex: course_manager).')
-        existing = Role.query.filter_by(name=field.data).first()
+        existing = Role.query.filter_by(label=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Este nome de sistema já está em uso.')
+            raise ValidationError('Já existe um papel com este nome.')
 
 
 # =============================================================================
@@ -542,7 +538,8 @@ ROOM_CATEGORY_ICONS = [
 
 class RoomCategoryForm(BaseForm):
     name = StringField('Nome da Categoria (ex: Laboratório de Informática)', validators=[DataRequired(), Length(max=50)])
-    code = StringField('Código Interno (ex: computer_lab)', validators=[DataRequired(), Length(max=20)])
+    controla_computadores = BooleanField(
+        'Esta categoria controla computadores (laboratório de informática)')
     abbr = StringField('Abreviação para Código de Sala (ex: LI - máx 3 letras)', validators=[Optional(), Length(max=3)])
     # Aparência usada pelo totem e pelo dashboard — a tela se monta a partir
     # do cadastro, sem lógica fixa por tipo de espaço.
@@ -572,6 +569,9 @@ class RoomCategoryForm(BaseForm):
 
     def validate_name(self, field):
         self._validate_alpha_only(field, 'Nome da Categoria')
+        existing = RoomCategory.query.filter_by(name=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Já existe uma categoria com este nome.')
 
     def validate_abbr(self, field):
         self._validate_alpha_only(field, 'Abreviação')
@@ -580,10 +580,7 @@ class RoomCategoryForm(BaseForm):
         if field.data and not re.match(r'^#[0-9a-fA-F]{6}$', field.data):
             raise ValidationError('A cor deve estar no formato hexadecimal #rrggbb.')
 
-    def validate_code(self, field):
-        existing = RoomCategory.query.filter_by(code=field.data).first()
-        if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Este código interno já está em uso.')
+
 
 
 

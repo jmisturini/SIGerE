@@ -87,7 +87,7 @@ class User(UserMixin, db.Model):
     # Propriedades legado atualizadas para compatibilidade
     @property
     def is_admin(self):
-        return self.has_permission('*') or (self.role_obj and self.role_obj.name == 'admin')
+        return self.has_permission('*')
 
     @property
     def can_book(self):
@@ -346,6 +346,10 @@ class RoomCategory(db.Model):
 
     # Abreviação para gerar o código da sala automaticamente (ex: CP, CR, AU)
     abbr = db.Column(db.String(3), nullable=True)
+    # Regra explícita: categorias que controlam computadores exibem/gravam a
+    # contagem de máquinas (substitui a comparação fixa ao código antigo).
+    controla_computadores = db.Column(db.Boolean, nullable=False, default=False,
+                                      server_default='0')
 
     # Aparência no totem/dashboard: a tela se monta a partir das categorias
     # cadastradas, sem lógica fixa por tipo de espaço.

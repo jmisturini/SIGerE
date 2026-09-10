@@ -23,9 +23,10 @@
                         </div>
                         
                         <div class="col-md-8">
-                            {{ form.code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                            {{ form.code(class="form-control") }}
-                            {% for err in form.code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            <div class="form-check mt-2">
+                                {{ form.controla_computadores(class="form-check-input") }}
+                                {{ form.controla_computadores.label(class="form-check-label fw-medium") }}
+                            </div>
                             <div class="form-text small">Usado internamente no sistema (ex: computer_lab).</div>
                         </div>
                         
