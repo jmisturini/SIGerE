@@ -666,13 +666,28 @@ def toggle_category(cat_id):
 @login_required
 @require_permission('unity:read')
 def list_unities():
-    unities = Unity.query.order_by(Unity.name).all()
+    unities = Unity.query.all()
     # Contagem de recursos por unidade para exibição na listagem
     counts = {u.id: Classroom.query.filter_by(unity_id=u.id).count() for u in unities}
     users_count = {}
     for u in unities:
         users_count[u.id] = User.query.filter(User.unity_id == u.id).count()
-    return render_template('admin/unities.html', unities=unities, room_counts=counts, users_count=users_count)
+
+    # Ordenação clicando nos cabeçalhos (?sort=<campo>&dir=asc|desc)
+    sort = request.args.get('sort', 'name')
+    reverse = request.args.get('dir', 'asc') == 'desc'
+    chaves = {
+        'id': lambda u: u.id,
+        'name': lambda u: u.name.lower(),
+        'code': lambda u: (u.code or '').lower(),
+        'rooms': lambda u: counts.get(u.id, 0),
+        'users': lambda u: users_count.get(u.id, 0),
+        'status': lambda u: 0 if u.is_active else 1,  # asc = ativas primeiro
+    }
+    unities = sorted(unities, key=chaves.get(sort, chaves['name']), reverse=reverse)
+
+    return render_template('admin/unities.html', unities=unities, room_counts=counts,
+                           users_count=users_count, sort=sort, reverse=reverse)
 
 @bp.route('/unities/create', methods=['GET', 'POST'])
 @login_required
