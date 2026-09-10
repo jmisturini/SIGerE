@@ -21,7 +21,7 @@
                 <thead>
                     <tr>
                         <th class="ps-4">Nome</th>
-                        <th>Código Interno</th>
+                        <th>Computadores</th>
                         <th>Abreviação (p/ Sala)</th>
                         <th>Aparência no Totem</th>
                         <th>Status</th>
@@ -32,7 +32,7 @@
                 {% for c in categories %}
                     <tr>
                         <td class="ps-4 fw-bold">{{ c.name }}</td>
-                        <td><code>{{ c.code }}</code></td>
+                        <td>{% if c.controla_computadores %}<span class="badge text-bg-info-subtle text-info border border-info-subtle"><i class="bi bi-pc-display me-1"></i>Computadores</span>{% else %}—{% endif %}</td>
                         <td>
                             {% if c.abbr %}
                                 <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ c.abbr }}</span>

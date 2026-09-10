@@ -21,7 +21,6 @@
                 <thead>
                     <tr>
                         <th class="ps-4">Rótulo</th>
-                        <th>Nome no Sistema</th>
                         <th>Descrição</th>
                         <th>Permissões</th>
                         <th>Usuários</th>
@@ -37,7 +36,6 @@
                                 <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle ms-1">Sistema</span>
                             {% endif %}
                         </td>
-                        <td><code>{{ r.name }}</code></td>
                         <td class="text-muted small">{{ r.description or '-' }}</td>
                         <td>
                             <span class="badge text-bg-info-subtle text-info border border-info-subtle">
@@ -67,7 +65,7 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted p-5">
+                        <td colspan="5" class="text-center text-muted p-5">
                             <i class="bi bi-shield-lock fs-2 d-block mb-2"></i>
                             <h5 class="mb-1">Nenhum papel encontrado</h5>
                             <p class="small mb-0">Crie um novo papel para começar a gerenciar permissões.</p>

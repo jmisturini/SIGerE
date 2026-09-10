@@ -12,7 +12,7 @@
             <i class="bi bi-filetype-pdf me-1"></i> Exportar PDF
         </a>
 
-        {% if current_user.is_admin %}
+        {% if current_user.has_permission('room:create') %}
         <a href="{{ url_for('admin.create_room') }}" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i> Adicionar Sala
         </a>
@@ -101,7 +101,7 @@
                         <!-- Ícone e cor vêm do cadastro da categoria -->
                         <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">
                             <i class="bi {{ c.category.display_icon }} me-1" style="color: {{ c.category.display_color }};"></i>
-                            {{ c.category.name }}{% if c.category.code == 'computer_lab' %} ({{ c.computer_count }} PCs){% endif %}
+                            {{ c.category.name }}{% if c.category.controla_computadores %} ({{ c.computer_count }} PCs){% endif %}
                         </span>
                         {% else %}
                         <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-tag me-1"></i> Sem Categoria</span>

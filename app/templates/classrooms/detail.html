@@ -23,7 +23,7 @@
             Solicitar Alteração
         </button>
         {% endif %}
-        {% if current_user.is_admin %}
+        {% if current_user.has_permission('room:edit') %}
         <a href="{{ url_for('admin.edit_room', room_id=classroom.id) }}" class="btn btn-outline-primary">
             <i class="bi bi-pencil me-1"></i> Editar
         </a>
@@ -41,7 +41,7 @@
                     <li class="mb-2">
                         <i class="bi bi-check-circle-fill text-success me-2"></i> 
                         {{ classroom.category.name }}
-                        {% if classroom.category.code == 'computer_lab' and classroom.computer_count > 0 %}
+                        {% if classroom.category.controla_computadores and classroom.computer_count > 0 %}
                             <small class="text-muted">({{ classroom.computer_count }} PCs)</small>
                         {% endif %}
                     </li>
