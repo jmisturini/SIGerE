@@ -459,6 +459,27 @@ def import_holidays():
 
 # ================= ROLE MANAGEMENT =================
 
+# Rótulos amigáveis dos módulos de permissão (agrupamento da tela de papéis)
+MODULO_LABELS = {
+    'course': 'Cursos', 'holiday': 'Feriados', 'kitchen': 'Cozinha',
+    'payment': 'Financeiro', 'reservation': 'Reservas', 'role': 'Papéis',
+    'room': 'Salas', 'system': 'Sistema', 'unity': 'Unidades',
+    'user': 'Usuários',
+}
+
+
+def _grupos_de_permissoes():
+    """Permissões agrupadas por módulo — [(rótulo, [Permission...]), ...] —
+    alimentando a grade de checkboxes (com marcar/limpar por módulo)."""
+    grupos, ordem = {}, []
+    for p in Permission.query.order_by(Permission.module, Permission.action).all():
+        if p.module not in grupos:
+            grupos[p.module] = []
+            ordem.append(p.module)
+        grupos[p.module].append(p)
+    return [(MODULO_LABELS.get(m, m.title()), grupos[m]) for m in ordem]
+
+
 @bp.route('/roles')
 @login_required
 @require_permission('role:read')
@@ -484,7 +505,8 @@ def create_role():
         db.session.commit()
         flash('Papel criado com sucesso.', 'success')
         return redirect(url_for('admin.list_roles'))
-    return render_template('admin/role_form.html', form=form, title='Criar Papel')
+    return render_template('admin/role_form.html', form=form, title='Criar Papel',
+                           grupos_permissoes=_grupos_de_permissoes())
 
 @bp.route('/roles/<int:role_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -507,7 +529,8 @@ def edit_role(role_id):
         db.session.commit()
         flash('Papel atualizado com sucesso.', 'success')
         return redirect(url_for('admin.list_roles'))
-    return render_template('admin/role_form.html', form=form, title='Editar Papel')
+    return render_template('admin/role_form.html', form=form, title='Editar Papel',
+                           grupos_permissoes=_grupos_de_permissoes())
 
 @bp.route('/roles/<int:role_id>/delete', methods=['POST'])
 @login_required

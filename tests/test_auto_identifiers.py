@@ -183,6 +183,30 @@ class AutoIdentifiersTestCase(unittest.TestCase):
         page = self.client.get('/admin/roles').get_data(as_text=True)
         self.assertNotIn('Nome no Sistema', page)
 
+    def test_role_form_groups_permissions_by_module(self):
+        page = self.client.get('/admin/roles/create').get_data(as_text=True)
+        for rotulo in ('Usuários', 'Reservas', 'Cozinha', 'Financeiro', 'Salas'):
+            self.assertIn(rotulo, page)
+        self.assertIn('Marcar todas', page)
+        self.assertIn('Limpar', page)
+        self.assertIn('name="permissions"', page)
+
+    def test_role_created_with_permissions_from_checkboxes(self):
+        with self.app.app_context():
+            perms = [Permission.query.filter_by(code=c).first().id
+                     for c in ('user:read', 'user:create')]
+        response = self.client.post('/admin/roles/create',
+                                    data={'label': 'Recursos Humanos',
+                                          'description': 'Gestão de pessoas',
+                                          'permissions': perms},
+                                    follow_redirects=True)
+        self.assertIn('Papel criado com sucesso', response.get_data(as_text=True))
+        with self.app.app_context():
+            role = Role.query.filter_by(label='Recursos Humanos').first()
+            self.assertEqual(role.name, 'recursos_humanos')
+            self.assertEqual({p.code for p in role.permissions},
+                             {'user:read', 'user:create'})
+
 
 if __name__ == '__main__':
     unittest.main()

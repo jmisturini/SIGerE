@@ -22,11 +22,6 @@
                             {% for err in form.label.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
-                        <div class="col-md-6">
-
-                            <div class="form-text small">Nome interno sem espaços (ex: financial_admin).</div>
-                        </div>
-                        
                         <div class="col-12">
                             {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.description(class="form-control", rows=2) }}
@@ -34,10 +29,37 @@
                         </div>
                         
                         <div class="col-12">
-                            {{ form.permissions.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                            {{ form.permissions(class="form-select", size="15") }}
+                            <h6 class="fw-bold mb-2"><i class="bi bi-key text-primary me-1"></i> Permissões</h6>
                             {% for err in form.permissions.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
-                            <div class="form-text small">Segure CTRL (Windows) ou CMD (Mac) para selecionar múltiplas permissões.</div>
+                            <div class="row g-3">
+                                {% for rotulo, perms in grupos_permissoes %}
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-header py-2 d-flex justify-content-between align-items-center gap-2">
+                                            <span class="fw-bold small text-uppercase">{{ rotulo }}</span>
+                                            <span class="d-flex gap-1">
+                                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 perm-toggle"
+                                                        data-modulo="{{ rotulo }}" data-marcar="1">Marcar todas</button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 perm-toggle"
+                                                        data-modulo="{{ rotulo }}" data-marcar="0">Limpar</button>
+                                            </span>
+                                        </div>
+                                        <div class="card-body py-2">
+                                            {% for p in perms %}
+                                            <div class="form-check">
+                                                <input class="form-check-input perm-check" type="checkbox" name="permissions"
+                                                       value="{{ p.id }}" id="perm-{{ p.id }}" data-modulo="{{ rotulo }}"
+                                                       {% if p.id in (form.permissions.data or []) %}checked{% endif %}>
+                                                <label class="form-check-label small" for="perm-{{ p.id }}">
+                                                    {{ p.description or p.action }} <small class="text-muted">({{ p.code }})</small>
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
                     
@@ -50,4 +72,17 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Marca/limpa todas as permissões de um módulo
+    document.querySelectorAll('.perm-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const marcar = btn.dataset.marcar === '1';
+            document.querySelectorAll(`.perm-check[data-modulo="${btn.dataset.modulo}"]`)
+                .forEach(c => c.checked = marcar);
+        });
+    });
+</script>
 {% endblock %}
