@@ -1,4 +1,7 @@
 """Comandos CLI customizados para o Flask."""
+import json
+import os
+
 import click
 from flask.cli import with_appcontext
 from app.extensions import db
@@ -353,6 +356,91 @@ def seed_admin_command():
             fg="red", bold=True
         ))
         raise click.ClickException(str(exc))
+
+
+# Caminho padrão do JSON de unidades extraído do portal do Senac SC.
+UNIDADES_JSON_PADRAO = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'docs', 'unidades-senac-sc.json'
+)
+
+
+def _seed_unidades(json_path):
+    """Upsert idempotente das unidades a partir do JSON (retorna contadores).
+
+    Casa cada registro pelo `code` e, na ausência, pelo `name`. Na atualização
+    não toca em `is_active` (uma unidade desativada de propósito não é
+    reativada) nem nas coordenadas de clima (ausentes no JSON).
+    """
+    with open(json_path, encoding='utf-8') as fh:
+        data = json.load(fh)
+
+    criadas, atualizadas, ignorados = 0, 0, []
+    for registro in data.get('unidades', []):
+        sugestao = registro.get('cadastro_sugerido')
+        if not sugestao:
+            ignorados.append(registro.get('nome', '(sem nome)'))
+            continue
+
+        unity = Unity.query.filter_by(code=sugestao['code']).first()
+        if not unity:
+            unity = Unity.query.filter_by(name=sugestao['name']).first()
+        if not unity:
+            unity = Unity(name=sugestao['name'], code=sugestao['code'],
+                          is_active=True)
+            db.session.add(unity)
+            criadas += 1
+        else:
+            atualizadas += 1
+
+        unity.name = sugestao['name']
+        unity.code = sugestao['code']
+        unity.address = sugestao.get('address')
+        unity.phone = sugestao.get('phone')
+        unity.weather_city = sugestao.get('weather_city')
+
+    return criadas, atualizadas, ignorados
+
+
+@click.command('seed-unidades')
+@click.option('--file', 'json_path', default=UNIDADES_JSON_PADRAO,
+              metavar='CAMINHO',
+              help='JSON de origem (padrão: docs/unidades-senac-sc.json).')
+@with_appcontext
+def seed_unidades_command(json_path):
+    """Cadastra as unidades do Senac SC extraídas do portal.
+
+    Lê docs/unidades-senac-sc.json e cria as unidades ausentes, atualizando
+    endereço/telefone das existentes. Registros sem `cadastro_sugerido`
+    (ex.: Direção Regional) são ignorados. Idempotente: pode ser executado
+    mais de uma vez sem duplicar.
+
+    Uso: flask --app run seed-unidades
+    """
+    if not os.path.exists(json_path):
+        raise click.ClickException(f"Arquivo não encontrado: {json_path}")
+
+    click.echo(click.style("🌱 Cadastrando unidades do Senac SC...", fg="green", bold=True))
+    try:
+        criadas, atualizadas, ignorados = _seed_unidades(json_path)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        click.echo(click.style(
+            f"❌ Falha ao cadastrar as unidades. Alterações revertidas.\n   Erro: {exc}",
+            fg="red", bold=True
+        ))
+        raise click.ClickException(str(exc))
+
+    click.echo(click.style(
+        f"✅ Unidades cadastradas! Criadas: {criadas} | Atualizadas: {atualizadas}",
+        fg="green", bold=True
+    ))
+    if ignorados:
+        click.echo(click.style(
+            "ℹ️  Ignorados (sem cadastro_sugerido no JSON): " + ", ".join(ignorados),
+            fg="yellow"
+        ))
 
 
 def _seed_demo_data():

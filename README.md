@@ -231,6 +231,8 @@ A aplicação estará disponível em: **http://localhost:5000**
 
 > **Implantação real:** prefira o comando `flask --app run seed-admin` — cria **apenas** a conta do administrador (sem dados de demonstração) e **solicita que você defina a senha** no terminal (mínimo de 8 caracteres, digitação oculta).
 
+> **Unidades do Senac SC:** para cadastrar as unidades educacionais reais (extraídas do portal https://portal.sc.senac.br/unidades), execute `flask --app run seed-unidades` — cria as unidades ausentes e atualiza endereço/telefone das existentes a partir de `docs/unidades-senac-sc.json`. O comando é idempotente e pode ser executado mais de uma vez.
+
 > **Atualizando uma instalação existente:** após `git pull`, execute `flask --app run db upgrade` (aplica migrações de schema novas) e `flask --app run sync-permissions` (permissões de módulos novos).
 
 ---
