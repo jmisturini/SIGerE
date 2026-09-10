@@ -47,6 +47,8 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 
 O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissões granulares, tema claro/escuro persistente, exportação de relatórios em PDF/Excel, layout responsivo (mobile/tablet/desktop) e seed opcional de dados de demonstração.
 
+**Primeira implantação:** após o `seed-admin`, o painel do super-admin exibe um **checklist de configuração inicial** (unidade, categorias, salas, professores, funcionários, cursos/disciplinas e feriados) — cada passo confere dados reais do banco, marca o que já existe e some quando a implantação está completa.
+
 ---
 
 ## ✨ Funcionalidades

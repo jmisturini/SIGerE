@@ -27,6 +27,44 @@ def _unity_scoped_or_404(obj):
         abort(404)
     return obj
 
+def _setup_checklist():
+    """Passos da configuração inicial do sistema, cada um com o estado real
+    dos dados no banco — aparece no painel do super-admin enquanto houver
+    pendências e desaparece sozinho quando tudo estiver cadastrado."""
+    funcionarios = User.query.filter(
+        User.profile_type == 'employee', User.id != current_user.id).count()
+    return [
+        {'titulo': 'Cadastrar Unidade',
+         'descricao': 'A unidade educacional à qual salas, usuários e reservas pertencem.',
+         'url': url_for('admin.create_unity'),
+         'concluido': Unity.query.count() > 0},
+        {'titulo': 'Cadastrar Categorias de Sala',
+         'descricao': 'Tipos de espaço (sala de aula, laboratório, auditório...) com cor e ícone no totem.',
+         'url': url_for('admin.create_category'),
+         'concluido': RoomCategory.query.count() > 0},
+        {'titulo': 'Cadastrar Sala',
+         'descricao': 'Os espaços físicos que receberão as reservas.',
+         'url': url_for('admin.create_room'),
+         'concluido': Classroom.query.count() > 0},
+        {'titulo': 'Cadastrar Professor',
+         'descricao': 'Docentes que podem ser designados nas reservas.',
+         'url': url_for('admin.create_teacher'),
+         'concluido': User.query.filter_by(profile_type='teacher').count() > 0},
+        {'titulo': 'Cadastrar Funcionário',
+         'descricao': 'Equipe administrativa e de apoio.',
+         'url': url_for('admin.create_employee'),
+         'concluido': funcionarios > 0},
+        {'titulo': 'Cadastrar Curso e Disciplina',
+         'descricao': 'Cursos e suas disciplinas, vinculáveis às reservas.',
+         'url': url_for('admin.create_course'),
+         'concluido': Course.query.count() > 0 and Subject.query.count() > 0},
+        {'titulo': 'Importar os feriados',
+         'descricao': 'Feriados nacionais (via BrasilAPI) bloqueiam reservas nas datas.',
+         'url': url_for('admin.list_holidays'),
+         'concluido': Holiday.query.count() > 0},
+    ]
+
+
 # Admin dashboard route
 @bp.route('/')
 @login_required
@@ -39,12 +77,18 @@ def dashboard():
     courses_count = Course.query.filter_by(unity_id=uid).count()
     subjects_count = Subject.query.filter_by(unity_id=uid).count()
 
+    # Checklist de configuração inicial: apenas o super-admin (curinga *).
+    setup_checklist = _setup_checklist() if current_user.has_permission('*') else None
+    if setup_checklist and all(p['concluido'] for p in setup_checklist):
+        setup_checklist = None  # tudo pronto: o painel volta ao normal
+
     return render_template('admin/dashboard.html',
                            users_count=users_count,
                            rooms_count=rooms_count,
                            active_rooms=active_rooms,
                            courses_count=courses_count,
-                           subjects_count=subjects_count)
+                           subjects_count=subjects_count,
+                           setup_checklist=setup_checklist)
 
 # ================= USER MANAGEMENT =================
 

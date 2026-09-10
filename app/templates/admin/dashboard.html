@@ -7,6 +7,45 @@
     <p class="text-muted mb-0">Gerencie usuários, salas, cursos e configurações do sistema.</p>
 </div>
 
+{% if setup_checklist %}
+{% set concluidos = setup_checklist | selectattr('concluido') | list | length %}
+{% set total = setup_checklist | length %}
+<!-- Checklist de configuração inicial (super-admin, some quando completo) -->
+<div class="card border-primary shadow-sm mb-4">
+    <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h5 class="mb-0"><i class="bi bi-list-check text-primary me-2"></i> Configuração inicial</h5>
+        <span class="small text-muted">{{ concluidos }} de {{ total }} concluídos</span>
+    </div>
+    <div class="card-body py-3">
+        <div class="progress mb-3" style="height: 6px;">
+            <div class="progress-bar bg-success"
+                 style="width: {{ ((concluidos / total * 100) | round(1)) }}%"></div>
+        </div>
+        <div class="list-group list-group-flush">
+            {% for passo in setup_checklist %}
+            <div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2 px-0 bg-transparent {% if passo.concluido %}text-muted{% endif %}">
+                <div>
+                    {% if passo.concluido %}
+                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                    <span class="text-decoration-line-through">{{ passo.titulo }}</span>
+                    {% else %}
+                    <i class="bi bi-circle me-2"></i>
+                    <span class="fw-semibold">{{ passo.titulo }}</span>
+                    <div class="small text-muted ms-4">{{ passo.descricao }}</div>
+                    {% endif %}
+                </div>
+                {% if not passo.concluido %}
+                <a href="{{ passo.url }}" class="btn btn-sm btn-outline-primary flex-shrink-0">
+                    <i class="bi bi-plus-lg me-1"></i> Cadastrar
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Grupo 1: Usuários -->
 <div class="d-flex align-items-center mb-3">
     <i class="bi bi-people-fill text-primary me-2 fs-5"></i>
