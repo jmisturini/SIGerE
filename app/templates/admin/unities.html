@@ -18,15 +18,27 @@
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
+                {% macro th_sort(rotulo, campo, classe='') %}
+                <th class="{{ classe }}">
+                    <a class="text-decoration-none text-body d-inline-flex align-items-center gap-1"
+                       href="{{ url_for('admin.list_unities', sort=campo, dir=('desc' if (sort == campo and not reverse) else 'asc')) }}"
+                       title="Ordenar por {{ rotulo }}">
+                        {{ rotulo }}
+                        {% if sort == campo %}
+                        <i class="bi {{ 'bi-caret-up-fill' if not reverse else 'bi-caret-down-fill' }}"></i>
+                        {% endif %}
+                    </a>
+                </th>
+                {% endmacro %}
                 <thead>
                     <tr>
-                        <th class="ps-4">Unidade</th>
-                        <th>ID (Totem)</th>
-                        <th>Código</th>
-                        <th>Salas</th>
-                        <th>Usuários</th>
+                        {{ th_sort('Unidade', 'name', 'ps-4') }}
+                        {{ th_sort('ID (Totem)', 'id') }}
+                        {{ th_sort('Código', 'code') }}
+                        {{ th_sort('Salas', 'rooms') }}
+                        {{ th_sort('Usuários', 'users') }}
                         <th>Contato</th>
-                        <th>Status</th>
+                        {{ th_sort('Status', 'status') }}
                         <th class="text-end pe-4">Ações</th>
                     </tr>
                 </thead>
