@@ -165,6 +165,25 @@ class KitchenScaleTestCase(unittest.TestCase):
         quantities = [ws.cell(row=row, column=2).value for row in range(10, ws.max_row + 1)]
         self.assertIn(3.0, quantities)   # 400 g × 7,5 → 3 KG
 
+    def test_exported_xlsx_grid_border_and_centered_columns(self):
+        self.client.post(f'/kitchen/preparacoes/{self.recipe_id}/porcoes/salvar',
+                         data={'portions': '30'})
+        response = self.client.post('/kitchen/compras/export',
+                                    data={'recipe_ids': str(self.recipe_id),
+                                          'professor': 'Cozinheiro Teste',
+                                          'class_date': '2026-09-10'})
+        self.assertEqual(response.status_code, 200)
+        workbook = load_workbook(BytesIO(response.data))
+        ws = workbook[workbook.sheetnames[0]]
+        # Primeira linha de dados da requisição (Farinha de Trigo, 3, KG).
+        for column in range(1, 5):
+            border = ws.cell(row=10, column=column).border
+            for side in ('left', 'right', 'top', 'bottom'):
+                self.assertEqual(getattr(border, side).style, 'thin',
+                                 f'coluna {column} sem borda "{side}"')
+        self.assertEqual(ws.cell(row=10, column=2).alignment.horizontal, 'center')
+        self.assertEqual(ws.cell(row=10, column=3).alignment.horizontal, 'center')
+
 
 if __name__ == '__main__':
     unittest.main()

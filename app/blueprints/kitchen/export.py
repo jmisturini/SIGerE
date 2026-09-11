@@ -8,10 +8,12 @@ GASTRONOMIA"):
     Prof / Data da aula / Curso / Período
     PRODUTO | QUANTIDADE | UNIDADE | OBSERVAÇÃO   (g→KG, ml→L, un→UN)
 
-A coluna OBSERVAÇÃO é deixada em branco, com linhas leves na tonalidade da
-grade do Excel — as informações serão incluídas posteriormente. Ingredientes
-de nome similar em unidades incompatíveis (g × ml × un) geram linhas
-separadas por unidade. Água não é incluída na requisição.
+Todas as colunas da tabela recebem linhas leves na tonalidade da grade do
+Excel (o modelo só tem grade no cabeçalho) e QUANTIDADE e UNIDADE ficam
+centralizadas; a coluna OBSERVAÇÃO é deixada em branco — as informações
+serão incluídas posteriormente. Ingredientes de nome similar em unidades
+incompatíveis (g × ml × un) geram linhas separadas por unidade. Água não é
+incluída na requisição.
 """
 import os
 import re
@@ -21,23 +23,26 @@ from io import BytesIO
 
 from flask import current_app
 from openpyxl import load_workbook
-from openpyxl.styles import Border, Side
+from openpyxl.styles import Alignment, Border, Side
 
 # Modelo da requisição (mesmo padrão dos templates do módulo de Pagamentos).
 TEMPLATE_PATH_PARTS = ('static', 'templates_excel', 'base_planilha_compras.xlsx')
 SHEET_NAME = 'Aula dia '  # aba do modelo (com espaço no final, igual ao original)
 DATA_START_ROW = 10       # primeira linha livre após o cabeçalho (linha 9)
 
-# Linhas leves na coluna OBSERVAÇÃO, na mesma tonalidade da grade base do
-# Excel — a coluna fica visualmente igual às demais e pronta para receber
+# Linhas leves na tonalidade da grade base do Excel, aplicadas a todas as
+# colunas da tabela (o modelo só tem grade no cabeçalho) — a requisição fica
+# visualmente igual à grade e a coluna OBSERVAÇÃO, pronta para receber
 # informações posteriormente.
 _GRID_GRAY = 'FFD4D4D4'
-_OBSERVATION_BORDER = Border(
+_GRID_BORDER = Border(
     left=Side(style='thin', color=_GRID_GRAY),
     right=Side(style='thin', color=_GRID_GRAY),
     top=Side(style='thin', color=_GRID_GRAY),
     bottom=Side(style='thin', color=_GRID_GRAY),
 )
+# Centraliza QUANTIDADE e UNIDADE, acompanhando o cabeçalho da linha 9.
+_CENTER = Alignment(horizontal='center')
 
 # Produtos que não fazem sentido na requisição de compra.
 EXCLUDED_INGREDIENTS = {'agua'}
@@ -164,14 +169,20 @@ def build_purchase_xlsx(rows, professor, class_date, course, period):
     ws['A7'] = f'Curso: {course}' if course else 'Curso:'
     ws['D7'] = period or ''
 
-    # PRODUTO | QUANTIDADE | UNIDADE — OBSERVAÇÃO (coluna 4) fica em branco,
-    # com as linhas da grade para receber informações posteriormente.
+    # PRODUTO | QUANTIDADE | UNIDADE — OBSERVAÇÃO (coluna 4) fica em branco.
+    # Todas as colunas recebem as linhas leves da grade; QUANTIDADE e UNIDADE
+    # ficam centralizadas, como o cabeçalho.
     for index, row in enumerate(rows, start=DATA_START_ROW):
-        ws.cell(row=index, column=1, value=row['nome'])
+        produto = ws.cell(row=index, column=1, value=row['nome'])
+        quantidade = ws.cell(row=index, column=2)
         if row['quantidade'] is not None:
-            ws.cell(row=index, column=2, value=row['quantidade'])
-        ws.cell(row=index, column=3, value=row['unidade'])
-        ws.cell(row=index, column=4).border = _OBSERVATION_BORDER
+            quantidade.value = row['quantidade']
+        unidade = ws.cell(row=index, column=3, value=row['unidade'])
+        observacao = ws.cell(row=index, column=4)
+        for cell in (produto, quantidade, unidade, observacao):
+            cell.border = _GRID_BORDER
+        quantidade.alignment = _CENTER
+        unidade.alignment = _CENTER
 
     output = BytesIO()
     workbook.save(output)
