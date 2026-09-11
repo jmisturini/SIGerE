@@ -187,7 +187,8 @@ class KitchenSheetFlowTestCase(unittest.TestCase):
             db.session.flush()
 
             perms = [Permission(code=code, module='kitchen', action=code.split(':')[1])
-                     for code in ('kitchen:read', 'kitchen:sheet_create')]
+                     for code in ('kitchen:read', 'kitchen:sheet_create',
+                                  'kitchen:sheet_delete')]
             db.session.add_all(perms)
             role = Role(name='cozinheiro-teste', label='Cozinha Teste', permissions=perms)
             db.session.add(role)
@@ -282,6 +283,37 @@ class KitchenSheetFlowTestCase(unittest.TestCase):
             self.assertEqual(recipe.step_list,
                              ['Cortar o pão.', 'Gratinar.'])
             self.assertEqual(recipe.allergens, 'Contém glúten')
+
+    def test_delete_all_saved_sheets_removes_recipes_and_files(self):
+        for name in ('Pizza Marguerita.docx', 'Cópia Pizza Marguerita.docx'):
+            self.client.post(
+                '/kitchen/fichas/upload',
+                data={'files': (_ficha_marguerita(), name)},
+                content_type='multipart/form-data',
+                follow_redirects=True,
+            )
+        self.client.post('/kitchen/fichas/salvar-todas', follow_redirects=True)
+
+        with self.app.app_context():
+            self.assertEqual(TechnicalSheet.query.count(), 2)
+            self.assertEqual(KitchenRecipe.query.count(), 2)
+            folder = os.path.join(self.app.instance_path, 'uploads',
+                                  'technical_sheets')
+            stored = [s.stored_filename for s in TechnicalSheet.query.all()]
+        for filename in stored:
+            self.assertTrue(os.path.exists(os.path.join(folder, filename)))
+
+        response = self.client.post('/kitchen/fichas/excluir-todas',
+                                    follow_redirects=True)
+        self.assertIn('2 ficha(s) salva(s) excluída(s)',
+                      response.get_data(as_text=True))
+
+        with self.app.app_context():
+            self.assertEqual(TechnicalSheet.query.count(), 0)
+            self.assertEqual(KitchenRecipe.query.count(), 0)
+        # Os arquivos enviados ("downloads") também são removidos do disco.
+        for filename in stored:
+            self.assertFalse(os.path.exists(os.path.join(folder, filename)))
 
 
 if __name__ == '__main__':
