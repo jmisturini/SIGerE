@@ -1,0 +1,134 @@
+"""Testes da página de disponibilidade da sala nas três visões (dia, semana
+e mês): rota, navegação anterior/próxima e exibição das reservas aprovadas.
+"""
+import os
+import tempfile
+import unittest
+from datetime import date, time
+
+from app import create_app
+from app.blueprints.classrooms import MESES_PT
+from app.config import Config
+from app.extensions import db
+from app.models import (Classroom, Permission, Reservation, Role, RoomCategory,
+                        Unity, User)
+
+USERNAME = 'super.teste'
+PASSWORD = 'SenhaForte123'
+
+
+class TestConfig(Config):
+    SECRET_KEY = 'chave-de-teste-nao-usar-o-valor-dev'
+    TESTING = True
+    WTF_CSRF_ENABLED = False
+    RATELIMIT_ENABLED = False
+
+
+class AvailabilityViewsTestCase(unittest.TestCase):
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        TestConfig.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + self.db_path.replace('\\', '/')
+        self.app = create_app(TestConfig)
+        self.app.config['SESSION_COOKIE_SECURE'] = False
+        self.client = self.app.test_client()
+
+        with self.app.app_context():
+            db.create_all()
+            curinga = Permission(code='*', module='system', action='all')
+            db.session.add(curinga)
+            db.session.flush()
+            role = Role(name='super_teste', label='Super Teste', permissions=[curinga])
+            db.session.add(role)
+            db.session.flush()
+            user = User(
+                username=USERNAME, email='super@escola.edu', full_name='Super Teste',
+                role='admin', profile_type='employee', role_id=role.id,
+                force_password_change=False, is_active_user=True,
+            )
+            user.set_password(PASSWORD)
+            db.session.add(user)
+
+            unity = Unity(name='Unidade Centro', code='CTR', is_active=True)
+            db.session.add(unity)
+            db.session.flush()
+            category = RoomCategory(name='Sala de Aula', code='SA')
+            db.session.add(category)
+            db.session.flush()
+            self.classroom = Classroom(name='Sala 101', code='S101',
+                                       capacity=30, category_id=category.id,
+                                       unity_id=unity.id, is_active=True)
+            db.session.add(self.classroom)
+            db.session.flush()
+            self.reservation = Reservation(
+                user_id=user.id, classroom_id=self.classroom.id,
+                title='Aula de Teste', date=date(2026, 9, 10),
+                start_time=time(8, 0), end_time=time(10, 0),
+                status='approved', unity_id=unity.id,
+            )
+            db.session.add(self.reservation)
+            db.session.commit()
+            self.classroom_id = self.classroom.id
+        self._login()
+
+    def tearDown(self):
+        with self.app.app_context():
+            db.session.remove()
+            db.engine.dispose()
+        for suffix in ('', '-wal', '-shm'):
+            path = self.db_path + suffix
+            if os.path.exists(path):
+                os.remove(path)
+
+    def _login(self):
+        response = self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+                                    follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+
+    def _get(self, **kwargs):
+        response = self.client.get(f'/classrooms/{self.classroom_id}/availability',
+                                   query_string=kwargs)
+        self.assertEqual(response.status_code, 200)
+        return response.get_data(as_text=True)
+
+    def test_visao_mensal_e_o_padrao(self):
+        page = self._get(year=2026, month=9)
+        self.assertIn('Setembro de 2026', page)
+        self.assertIn('Aula de Teste', page)
+        # Sem parâmetros: cai no mês atual, sem quebrar
+        page = self._get()
+        self.assertIn(MESES_PT[date.today().month - 1], page)
+
+    def test_visao_diaria_mostra_reserva_e_dia_vazio(self):
+        page = self._get(view='day', year=2026, month=9, day=10)
+        self.assertIn('Quinta-feira, 10/09/2026', page)
+        self.assertIn('Aula de Teste', page)
+        self.assertIn('08:00 – 10:00', page)
+
+        page = self._get(view='day', year=2026, month=9, day=11)
+        self.assertIn('Nenhuma reserva neste dia', page)
+        self.assertNotIn('Aula de Teste', page)
+
+    def test_visao_semanal_mostra_os_sete_dias_e_a_reserva(self):
+        page = self._get(view='week', year=2026, month=9, day=10)
+        self.assertIn('06/09', page)   # domingo da semana de 10/09/2026
+        self.assertIn('12/09/2026', page)  # sábado no título do período
+        self.assertIn('Aula de Teste', page)
+
+    def test_visao_invalida_cai_no_mensal(self):
+        page = self._get(view='ano', year=2026, month=9)
+        self.assertIn('Setembro de 2026', page)
+
+    def test_navegacao_anterior_proxima_preserva_a_visao(self):
+        page = self._get(view='day', year=2026, month=9, day=10)
+        self.assertIn('day=9', page)      # Anterior → 09/09/2026
+        self.assertIn('day=11', page)     # Próximo → 11/09/2026
+        page = self._get(view='week', year=2026, month=9, day=10)
+        self.assertIn('day=13', page)     # semana seguinte começa em 13/09
+        page = self._get(year=2026, month=9)  # mês navega sem o parâmetro day
+        self.assertIn('month=8', page)
+        self.assertIn('month=10', page)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -4,7 +4,7 @@ from markupsafe import escape
 from app.models import Classroom, Reservation, RoomCategory
 from app.extensions import db
 from app.unity_context import current_unity_id, current_unity
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 import calendar
 from fpdf import FPDF
 from app.permissions import require_permission
@@ -16,6 +16,10 @@ bp = Blueprint('classrooms', __name__, url_prefix='/classrooms')
 # lista fixa em todos os calendários e PDFs.
 MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+
+# Nomes dos dias em pt-BR para a visão diária (weekday(): 0=segunda ... 6=domingo)
+DIAS_SEMANA_PT = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira',
+                  'Sexta-feira', 'Sábado', 'Domingo']
 
 # Helper function to apply filters and return a query
 def get_filtered_classrooms(args):
@@ -199,54 +203,76 @@ def detail(classroom_id):
     ).order_by(Reservation.date, Reservation.start_time).all()
     return render_template('classrooms/detail.html', classroom=classroom, upcoming=upcoming)
 
-# Route to view monthly availability of a classroom
+# Route to view availability of a classroom (dia, semana ou mês)
 @bp.route('/<int:classroom_id>/availability')
 @login_required
 def availability(classroom_id):
     classroom = _get_classroom_scoped(classroom_id)
+    today = date.today()
+
+    view = request.args.get('view', 'month')
+    if view not in ('day', 'week', 'month'):
+        view = 'month'
+
     req_year = request.args.get('year', type=int)
     req_month = request.args.get('month', type=int)
-    today = date.today()
+    req_day = request.args.get('day', type=int)
     if req_year and req_month:
-        year, month = req_year, req_month
+        year, month, day = req_year, req_month, req_day or 1
     else:
-        year, month = today.year, today.month
+        year, month, day = today.year, today.month, today.day
+    try:
+        anchor = date(year, month, day)
+    except ValueError:
+        anchor = today
 
-    first_day = date(year, month, 1)
-    last_day_num = calendar.monthrange(year, month)[1]
-    last_day = date(year, month, last_day_num)
+    def reservas_entre(inicio, fim):
+        """Reservas aprovadas da sala no intervalo fechado [inicio, fim]."""
+        return Reservation.query.filter(
+            Reservation.classroom_id == classroom_id,
+            Reservation.date >= inicio,
+            Reservation.date <= fim,
+            Reservation.status == 'approved'
+        ).order_by(Reservation.date, Reservation.start_time).all()
 
-    month_reservations = Reservation.query.filter(
-        Reservation.classroom_id == classroom_id,
-        Reservation.date >= first_day,
-        Reservation.date <= last_day,
-        Reservation.status == 'approved'
-    ).order_by(Reservation.date, Reservation.start_time).all()
-
+    month_days = None
     reservations_by_day = {}
-    for r in month_reservations:
-        if r.date.day not in reservations_by_day:
-            reservations_by_day[r.date.day] = []
-        reservations_by_day[r.date.day].append(r)
+    days = []
+    title_periodo = ''
 
-    cal = calendar.Calendar(firstweekday=6)
-    month_days = cal.monthdayscalendar(year, month)
-
-    if month == 1:
-        prev_month, prev_year = 12, year - 1
-        next_month, next_year = 2, year      # CORRIGIDO: Fevereiro é do mesmo ano
-    elif month == 12:
-        prev_month, prev_year = 11, year
-        next_month, next_year = 1, year + 1  # Janeiro é do ano seguinte
-    else:
-        prev_month, prev_year = month - 1, year
-        next_month, next_year = month + 1, year
+    if view == 'day':
+        days = [(anchor, reservas_entre(anchor, anchor))]
+        prev_date, next_date = anchor - timedelta(days=1), anchor + timedelta(days=1)
+        title_periodo = (f"{DIAS_SEMANA_PT[anchor.weekday()]}, "
+                         f"{anchor.strftime('%d/%m/%Y')}")
+    elif view == 'week':
+        # Semana começando no domingo, igual ao calendário mensal (firstweekday=6)
+        week_start = anchor - timedelta(days=(anchor.weekday() + 1) % 7)
+        week_end = week_start + timedelta(days=6)
+        reservas = reservas_entre(week_start, week_end)
+        days = [(week_start + timedelta(days=i),
+                 [r for r in reservas if r.date == week_start + timedelta(days=i)])
+                for i in range(7)]
+        prev_date, next_date = week_start - timedelta(days=7), week_end + timedelta(days=1)
+        title_periodo = (f"{week_start.strftime('%d/%m')} – "
+                         f"{week_end.strftime('%d/%m/%Y')}")
+    else:  # month (padrão)
+        first_day = date(anchor.year, anchor.month, 1)
+        last_day = date(anchor.year, anchor.month,
+                        calendar.monthrange(anchor.year, anchor.month)[1])
+        for r in reservas_entre(first_day, last_day):
+            reservations_by_day.setdefault(r.date.day, []).append(r)
+        month_days = calendar.Calendar(firstweekday=6).monthdayscalendar(
+            anchor.year, anchor.month)
+        prev_date, next_date = first_day - timedelta(days=1), last_day + timedelta(days=1)
+        title_periodo = f"{MESES_PT[anchor.month - 1]} de {anchor.year}"
 
     return render_template(
-        'classrooms/availability.html', classroom=classroom, year=year, month=month,
-        month_name=MESES_PT[month - 1], month_days=month_days,
-        reservations_by_day=reservations_by_day, today=today,
-        prev_year=prev_year, prev_month=prev_month, next_year=next_year, next_month=next_month
+        'classrooms/availability.html', classroom=classroom, view=view,
+        anchor=anchor, today=today, days=days, title_periodo=title_periodo,
+        month_days=month_days, reservations_by_day=reservations_by_day,
+        prev_date=prev_date, next_date=next_date,
+        year=anchor.year, month=anchor.month,
     )
 
 # Route to export a specific classroom's monthly reservations to PDF

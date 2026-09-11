@@ -6,7 +6,7 @@
     <div>
         <h3 class="fw-bold mb-1">Disponibilidade: {{ classroom.name }}</h3>
         <p class="text-muted mb-0">
-            <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle me-1">{{ classroom.code }}</span> 
+            <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle me-1">{{ classroom.code }}</span>
             Verifique os horários ocupados e livres desta sala.
         </p>
     </div>
@@ -15,27 +15,47 @@
     </a>
 </div>
 
+{% set nav_prev = {'view': view, 'year': prev_date.year, 'month': prev_date.month}
+                   if view == 'month' else
+                   {'view': view, 'year': prev_date.year, 'month': prev_date.month, 'day': prev_date.day} %}
+{% set nav_next = {'view': view, 'year': next_date.year, 'month': next_date.month}
+                   if view == 'month' else
+                   {'view': view, 'year': next_date.year, 'month': next_date.month, 'day': next_date.day} %}
+
 <div class="card">
     <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
-        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, year=prev_year, month=prev_month) }}" class="btn btn-sm btn-outline-secondary">
+        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, **nav_prev) }}" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-chevron-left"></i> Anterior
         </a>
-        
+
         <div class="text-center">
-            <h5 class="mb-2 fw-bold text-capitalize">
-                {% if month == 1 %}Janeiro{% elif month == 2 %}Fevereiro{% elif month == 3 %}Março{% elif month == 4 %}Abril{% elif month == 5 %}Maio{% elif month == 6 %}Junho{% elif month == 7 %}Julho{% elif month == 8 %}Agosto{% elif month == 9 %}Setembro{% elif month == 10 %}Outubro{% elif month == 11 %}Novembro{% else %}Dezembro{% endif %} {{ year }}
-            </h5>
-            <a href="{{ url_for('classrooms.export_availability', classroom_id=classroom.id, year=year, month=month) }}" class="btn btn-sm btn-outline-danger">
-                <i class="bi bi-filetype-pdf me-1"></i> Exportar Reservas do Mês (PDF)
-            </a>
+            <h5 class="mb-2 fw-bold">{{ title_periodo }}</h5>
+            <div class="btn-group btn-group-sm mb-2" role="group" aria-label="Modo de visualização">
+                {% for v, rotulo, icone in [('day', 'Dia', 'bi-calendar-day'), ('week', 'Semana', 'bi-calendar-week'), ('month', 'Mês', 'bi-calendar3')] %}
+                {% set args = {'view': v, 'year': anchor.year, 'month': anchor.month}
+                              if v == 'month' else
+                              {'view': v, 'year': anchor.year, 'month': anchor.month, 'day': anchor.day} %}
+                <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, **args) }}"
+                   class="btn btn-sm {{ 'btn-primary' if view == v else 'btn-outline-secondary' }}"
+                   {% if view == v %}aria-current="true"{% endif %}>
+                    <i class="bi {{ icone }} me-1"></i>{{ rotulo }}
+                </a>
+                {% endfor %}
+            </div>
+            <div>
+                <a href="{{ url_for('classrooms.export_availability', classroom_id=classroom.id, year=year, month=month) }}" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-filetype-pdf me-1"></i> Exportar Reservas do Mês (PDF)
+                </a>
+            </div>
         </div>
-        
-        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, year=next_year, month=next_month) }}" class="btn btn-sm btn-outline-secondary">
+
+        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, **nav_next) }}" class="btn btn-sm btn-outline-secondary">
             Próximo <i class="bi bi-chevron-right"></i>
         </a>
     </div>
-    
+
     <div class="card-body">
+        {% if view == 'month' %}
         <!-- Cabeçalho dos dias da semana -->
         <div class="calendar-grid mb-2">
             <div class="calendar-weekday">Dom</div>
@@ -60,7 +80,7 @@
                         <div class="events-container">
                             {% for ev in reservations_by_day[day] %}
                             <div class="event-pill" title="{{ ev.title }}">
-                                <strong>{{ ev.start_time.strftime('%H:%M') }}</strong> 
+                                <strong>{{ ev.start_time.strftime('%H:%M') }}</strong>
                                 {{ ev.title | truncate(15, true) }}
                             </div>
                             {% endfor %}
@@ -71,6 +91,63 @@
                 {% endfor %}
             {% endfor %}
         </div>
+
+        {% elif view == 'week' %}
+        <!-- Semana: 7 colunas, domingo a sábado -->
+        <div class="calendar-grid mb-2">
+            {% for dia, reservas_dia in days %}
+            <div class="calendar-weekday {{ 'text-primary' if dia == today }}">
+                {{ ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][(dia.weekday() + 1) % 7] }}<br>
+                <span class="fw-normal">{{ dia.strftime('%d/%m') }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="calendar-grid">
+            {% for dia, reservas_dia in days %}
+            <div class="calendar-day {% if dia == today %}today{% endif %}">
+                <div class="day-number">{{ dia.day }}</div>
+                <div class="events-container">
+                    {% for ev in reservas_dia %}
+                    <div class="event-pill" title="{{ ev.title }}">
+                        <strong>{{ ev.start_time.strftime('%H:%M') }}</strong>
+                        {{ ev.title | truncate(15, true) }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <!-- Dia: lista detalhada das reservas -->
+        {% set reservas_dia = days[0][1] %}
+        {% if reservas_dia %}
+        <div class="list-group">
+            {% for ev in reservas_dia %}
+            <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">
+                    {{ ev.start_time.strftime('%H:%M') }} – {{ ev.end_time.strftime('%H:%M') }}
+                </span>
+                <div class="flex-grow-1">
+                    <div class="fw-bold">{{ ev.title }}</div>
+                    <div class="small text-muted">
+                        {%- if ev.course %}{{ ev.course.name }}{% endif -%}
+                        {%- if ev.course and ev.subject %} · {% endif -%}
+                        {%- if ev.subject %}{{ ev.subject.name }}{% endif -%}
+                        {%- if ev.teacher %}{% if ev.course or ev.subject %} · {% endif %}{{ ev.teacher.full_name }}{% endif -%}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted p-5">
+            <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
+            <h5 class="mb-1">Nenhuma reserva neste dia</h5>
+            <p class="small mb-0">Todos os horários da sala estão livres para reservas aprovadas.</p>
+        </div>
+        {% endif %}
+        {% endif %}
     </div>
 </div>
 
