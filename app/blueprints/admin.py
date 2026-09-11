@@ -1,3 +1,4 @@
+import os
 import secrets
 
 import requests
@@ -8,6 +9,7 @@ from app.models import User, Classroom, Course, Subject, Holiday, Role, Permissi
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, TeacherForm, EmployeeForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm)
 from app.extensions import db
+from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
 from wtforms.validators import Optional
 from app.permissions import require_permission
 from app.utils import gerar_slug, slug_unico
@@ -688,6 +690,29 @@ def list_unities():
 
     return render_template('admin/unities.html', unities=unities, room_counts=counts,
                            users_count=users_count, sort=sort, reverse=reverse)
+
+@bp.route('/unities/sync', methods=['POST'])
+@login_required
+@require_permission('unity:create')
+def sync_unities():
+    """Relê docs/unidades-senac-sc.json pela mesma lógica do comando
+    `seed-unidades`: cria as unidades ausentes e atualiza endereço/telefone
+    das existentes, sem duplicar (idempotente)."""
+    if not os.path.exists(UNIDADES_JSON_PADRAO):
+        flash(f'Arquivo de unidades não encontrado: {UNIDADES_JSON_PADRAO}', 'danger')
+        return redirect(url_for('admin.list_unities'))
+    try:
+        criadas, atualizadas, ignorados = _seed_unidades(UNIDADES_JSON_PADRAO)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception('Falha ao reler o arquivo de unidades.')
+        flash(f'Falha ao reler o arquivo de unidades: {exc}', 'danger')
+        return redirect(url_for('admin.list_unities'))
+    flash(f'Unidades atualizadas do arquivo do portal. Criadas: {criadas} | Atualizadas: {atualizadas}.', 'success')
+    if ignorados:
+        flash('Ignorados (sem cadastro_sugerido no JSON): ' + ', '.join(ignorados), 'info')
+    return redirect(url_for('admin.list_unities'))
 
 @bp.route('/unities/create', methods=['GET', 'POST'])
 @login_required

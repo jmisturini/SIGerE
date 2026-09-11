@@ -8,9 +8,18 @@
         <p class="text-muted mb-0">Cada unidade possui salas, cursos, reservas, estoque e lançamentos próprios.</p>
     </div>
     {% if current_user.has_permission('unity:create') %}
-    <a href="{{ url_for('admin.create_unity') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> Nova Unidade
-    </a>
+    <div class="d-flex flex-wrap gap-2">
+        <form method="POST" action="{{ url_for('admin.sync_unities') }}"
+              onsubmit="return confirm('Reler o arquivo de unidades do portal (docs/unidades-senac-sc.json)? Unidades ausentes serão criadas e endereço/telefone das existentes atualizados.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-outline-secondary" title="Relê docs/unidades-senac-sc.json: cria as unidades ausentes e atualiza endereço/telefone das existentes, sem duplicar.">
+                <i class="bi bi-arrow-repeat me-1"></i> Reler arquivo
+            </button>
+        </form>
+        <a href="{{ url_for('admin.create_unity') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Nova Unidade
+        </a>
+    </div>
     {% endif %}
 </div>
 
