@@ -238,6 +238,9 @@ class KitchenSheetFlowTestCase(unittest.TestCase):
         self.assertIn('Ficha Técnica salva', page)
         self.assertIn('Muçarela', page)
         self.assertIn('Especificações', page)
+        # Opção de ordem alfabética dos ingredientes com o nome na linha
+        self.assertIn('btn-sort-alpha', page)
+        self.assertIn('data-name="Muçarela"', page)
 
         with self.app.app_context():
             recipe = KitchenRecipe.query.one()

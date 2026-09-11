@@ -14,6 +14,10 @@
         <a href="{{ url_for('kitchen.preparations') }}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left me-1"></i> Voltar
         </a>
+        <button type="button" id="btn-sort-alpha" class="btn btn-outline-primary" aria-pressed="false"
+                title="Ordenar os ingredientes alfabeticamente — a escolha fica salva no navegador">
+            <i class="bi bi-sort-alpha-down me-1"></i> Ordem A–Z
+        </button>
         {% if can_edit %}
         <a href="{{ url_for('kitchen.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-outline-primary">
             <i class="bi bi-pencil-square me-1"></i> Editar preparação
@@ -127,9 +131,10 @@
                                 {% if can_edit %}<th class="text-end pe-4">Situação</th>{% endif %}
                             </tr>
                         </thead>
-                        <tbody>
+                    <tbody class="ing-tbody">
                         {% for ingredient in preparation.ingredients %}
-                            <tr class="{{ 'text-muted' if not ingredient.is_active }}">
+                            <tr class="{{ 'text-muted' if not ingredient.is_active }}"
+                                data-name="{{ ingredient.name }}">
                                 <td class="ps-4 fw-semibold">
                                     {{ ingredient.name }}
                                     {% if not ingredient.is_active %}
@@ -269,4 +274,40 @@
     });
 </script>
 {% endif %}
+<script>
+    // Ordem de exibição dos ingredientes (ordem da ficha ou alfabética) —
+    // escolha do usuário fica salva no navegador, como o modo cards/lista.
+    const SORT_KEY = 'kitchen_ingredients_sort';
+    const sortBtn = document.getElementById('btn-sort-alpha');
+    const collator = new Intl.Collator('pt-BR', {sensitivity: 'base', numeric: true});
+
+    // Guarda a posição original de cada linha para voltar à ordem da ficha.
+    document.querySelectorAll('.ing-tbody').forEach(tbody => {
+        tbody.querySelectorAll('tr').forEach((row, index) => {
+            row.dataset.origIndex = index;
+        });
+    });
+
+    function applyIngredientSort(mode) {
+        const alpha = mode === 'alpha';
+        sortBtn.setAttribute('aria-pressed', String(alpha));
+        sortBtn.classList.toggle('btn-primary', alpha);
+        sortBtn.classList.toggle('btn-outline-primary', !alpha);
+        document.querySelectorAll('.ing-tbody').forEach(tbody => {
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            rows.sort((a, b) => alpha
+                ? collator.compare(a.dataset.name || '', b.dataset.name || '')
+                : a.dataset.origIndex - b.dataset.origIndex);
+            rows.forEach(row => tbody.appendChild(row));
+        });
+        localStorage.setItem(SORT_KEY, mode);
+    }
+
+    sortBtn.addEventListener('click', () => {
+        const active = sortBtn.getAttribute('aria-pressed') === 'true';
+        applyIngredientSort(active ? 'ficha' : 'alpha');
+    });
+
+    applyIngredientSort(localStorage.getItem(SORT_KEY) === 'alpha' ? 'alpha' : 'ficha');
+</script>
 {% endblock %}
