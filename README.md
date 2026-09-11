@@ -220,7 +220,7 @@ export FLASK_DEBUG=true
 # $env:FLASK_DEBUG="true"
 
 # 7. Execute a aplicação
-python run.py
+flask run --host=0.0.0.0
 ```
 
 A aplicação estará disponível em: **http://localhost:5000**
