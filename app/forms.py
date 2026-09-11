@@ -410,6 +410,10 @@ class UnityForm(BaseForm):
     weather_latitude = FloatField('Latitude', validators=[Optional(), NumberRange(min=-90, max=90, message='Latitude deve estar entre -90 e 90.')])
     weather_longitude = FloatField('Longitude', validators=[Optional(), NumberRange(min=-180, max=180, message='Longitude deve estar entre -180 e 180.')])
     weather_city = StringField('Cidade exibida no clima', validators=[Optional(), Length(max=120)])
+    # Módulos opcionais da unidade (Reservas de Sala é o core e não é
+    # configurável). Marcados por padrão: unidade nova começa com tudo ligado.
+    kitchen_enabled = BooleanField('Cozinha (fichas técnicas, preparações e compras)', default=True)
+    finance_enabled = BooleanField('Financeiro (hora extra e vale transporte)', default=True)
     is_active = BooleanField('Ativa', default=True)
     submit = SubmitField('Salvar Unidade')
 

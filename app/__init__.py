@@ -140,11 +140,12 @@ def create_app(config_class=Config):
     @app.context_processor
     def inject_unity_context():
         from app.unity_context import (current_unity, switchable_unities,
-                                   can_switch_unity)
+                                   can_switch_unity, unity_module_enabled)
         return {
             'current_unity': current_unity(),
             'switchable_unities': switchable_unities(),
             'can_switch_unity': can_switch_unity(),
+            'unity_module_enabled': unity_module_enabled,
         }
 
     # Security Hook: Force password change on first login or admin reset

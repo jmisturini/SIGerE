@@ -96,7 +96,8 @@
                 {% set in_overtime = request.endpoint and request.endpoint.startswith('payments.') %}
                 {% set in_vt = request.endpoint and request.endpoint.startswith('vt.') %}
                 {# Ambos os módulos do Financeiro usam as permissões payment:* #}
-                {% if current_user.has_permission('payment:read') %}
+                {# O módulo Financeiro pode ser desligado por unidade (edição da unidade) #}
+                {% if current_user.has_permission('payment:read') and unity_module_enabled('finance') %}
                 <li class="nav-section">Financeiro</li>
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if in_overtime else '' }}" title="Hora Extra" data-bs-toggle="collapse" href="#menu-hora-extra" role="button" aria-expanded="{{ 'true' if in_overtime else 'false' }}" aria-controls="menu-hora-extra">
@@ -142,7 +143,8 @@
                 </li>
                 {% endif %}
 
-                {% if current_user.has_permission('kitchen:read') %}
+                {# O módulo Cozinha pode ser desligado por unidade (edição da unidade) #}
+                {% if current_user.has_permission('kitchen:read') and unity_module_enabled('kitchen') %}
                 <li class="nav-section">Cozinha</li>
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'kitchen.sheets' }}" title="Ficha Técnica" href="{{ url_for('kitchen.sheets') }}">

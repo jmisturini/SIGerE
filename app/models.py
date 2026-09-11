@@ -23,9 +23,37 @@ class Unity(db.Model):
     weather_longitude = db.Column(db.Float)
     weather_city = db.Column(db.String(120))  # rótulo exibido (ex: "São Paulo, SP")
     is_active = db.Column(db.Boolean, default=True)
+    # Módulos opcionais por unidade: cada administrador liga/desliga no painel
+    # apenas o que a unidade usa (códigos 'kitchen' e 'finance' em
+    # TOGGLEABLE_MODULES). default True mantém as instalações antigas com tudo
+    # ligado até que alguém desative.
+    kitchen_enabled = db.Column(db.Boolean, nullable=False, default=True,
+                                server_default='1')
+    finance_enabled = db.Column(db.Boolean, nullable=False, default=True,
+                                server_default='1')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
+    # Módulos opcionais (Reservas de Sala é o core do sistema: não pode ser
+    # desativado e por isso não está na lista — is_module_enabled trata todo
+    # código fora dela como sempre ativo).
+    MODULE_KITCHEN = 'kitchen'
+    MODULE_FINANCE = 'finance'
+    TOGGLEABLE_MODULES = (
+        {'code': MODULE_KITCHEN, 'label': 'Cozinha', 'attr': 'kitchen_enabled',
+         'description': 'Fichas técnicas, preparações e requisição de compras'},
+        {'code': MODULE_FINANCE, 'label': 'Financeiro', 'attr': 'finance_enabled',
+         'description': 'Hora extra e vale transporte'},
+    )
+
     classrooms = db.relationship('Classroom', backref='unity', lazy=True)
+
+    def is_module_enabled(self, code):
+        """Estado do módulo opcional nesta unidade; códigos fora da lista de
+        alternáveis (ex: reservas, o core) são sempre ativos."""
+        for module in self.TOGGLEABLE_MODULES:
+            if module['code'] == code:
+                return bool(getattr(self, module['attr']))
+        return True
 
     def __repr__(self):
         return f'<Unity {self.code}>'

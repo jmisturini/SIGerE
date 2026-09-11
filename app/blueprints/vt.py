@@ -28,7 +28,7 @@ from app.extensions import db
 from flask_login import current_user, login_required
 from app.forms import FormVtRecord, FormVtUpload
 from app.models import VtRecord
-from app.permissions import require_permission
+from app.permissions import require_module, require_permission
 from app.unity_context import current_unity_id
 from app.blueprints.payments import parse_currency
 
@@ -232,6 +232,7 @@ def _money_text(value):
 @bp.route('/')
 @login_required
 @require_permission('payment:read')
+@require_module('finance')
 def index():
     """Página de importação: apenas o upload do Pedido de Compra. Após ler o
     arquivo, o usuário é levado à listagem de colaboradores para revisão."""
@@ -243,6 +244,7 @@ def index():
 @bp.route('/colaboradores')
 @login_required
 @require_permission('payment:read')
+@require_module('finance')
 def records():
     search = (request.args.get('q') or '').strip()
     group_filter = request.args.get('group') or ''
@@ -310,6 +312,7 @@ def records():
 @bp.route('/upload', methods=['POST'])
 @login_required
 @require_permission('payment:create')
+@require_module('finance')
 def upload():
     """Lê o Pedido de Compra e substitui os registros da unidade ativa —
     cada arquivo traz a lista completa do mês/competência."""
@@ -353,6 +356,7 @@ def upload():
 @bp.route('/<int:record_id>/editar', methods=['GET', 'POST'])
 @login_required
 @require_permission('payment:edit')
+@require_module('finance')
 def edit_record(record_id):
     record = _get_record_scoped(record_id)
     form = FormVtRecord(obj=record)
@@ -377,6 +381,7 @@ def edit_record(record_id):
 @bp.route('/<int:record_id>/excluir', methods=['POST'])
 @login_required
 @require_permission('payment:delete')
+@require_module('finance')
 def delete_record(record_id):
     record = _get_record_scoped(record_id)
     name = record.full_name
@@ -389,6 +394,7 @@ def delete_record(record_id):
 @bp.route('/limpar', methods=['POST'])
 @login_required
 @require_permission('payment:delete')
+@require_module('finance')
 def clear_all():
     """Apaga todos os registros importados da unidade ativa (recomeçar)."""
     removed = VtRecord.query.filter_by(unity_id=current_unity_id()).delete()
@@ -400,6 +406,7 @@ def clear_all():
 @bp.route('/exportar')
 @login_required
 @require_permission('payment:export')
+@require_module('finance')
 def export():
     """Gera a planilha final a partir do modelo planilha_base_vt.xlsx —
     Matrícula, Nome e Valor Total a partir da linha 5, nos mesmos moldes do

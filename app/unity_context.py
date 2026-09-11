@@ -76,6 +76,16 @@ def switchable_unities():
     return Unity.query.filter_by(is_active=True).order_by(Unity.name).all()
 
 
+def unity_module_enabled(module_code):
+    """Módulo opcional ativo na unidade da requisição.
+
+    Sem unidade ativa (instalação sem multi-unidade) tudo fica ligado.
+    Usado pelos templates para esconder as seções dos módulos desligados.
+    """
+    unity = current_unity()
+    return True if unity is None else unity.is_module_enabled(module_code)
+
+
 def reset_unity_cache():
     """Limpa o cache por-request (chamar após trocar a unidade na sessão)."""
     g.pop('_current_unity_id', None)

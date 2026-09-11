@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Border, Side, Font, Alignment
 from io import BytesIO
 from decimal import Decimal, InvalidOperation
-from app.permissions import require_permission
+from app.permissions import require_module, require_permission
 
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 
@@ -115,6 +115,7 @@ def parse_currency(value_str):
 @bp.route('/overtime/list')
 @login_required
 @require_permission('payment:read')
+@require_module('finance')
 def list_overtime():
     # A consulta abre no mês atual; a caixa de seleção permite escolher outro
     # mês ou "Todos os meses" (valor vazio).
@@ -144,6 +145,7 @@ def list_overtime():
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required
 @require_permission('payment:create')
+@require_module('finance')
 def create_overtime():
     form = FormTeacherOvertimePay()
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
@@ -198,6 +200,7 @@ def create_overtime():
 @bp.route('/overtime/edit/<int:overtime_id>', methods=['GET', 'POST'])
 @login_required
 @require_permission('payment:edit')
+@require_module('finance')
 def edit_overtime(overtime_id):
     overtime = _get_overtime_scoped(overtime_id)
 
@@ -259,6 +262,7 @@ def edit_overtime(overtime_id):
 @bp.route('/overtime/delete/<int:overtime_id>', methods=['POST'])
 @login_required
 @require_permission('payment:delete')
+@require_module('finance')
 def delete_overtime(overtime_id):
     overtime = _get_overtime_scoped(overtime_id)
     # CORREÇÃO: mesma correção de ano aplicada no edit — compara (year, month) completo.
@@ -279,6 +283,7 @@ def delete_overtime(overtime_id):
 @bp.route('/export/overtime')
 @login_required
 @require_permission('payment:export')
+@require_module('finance')
 def export_excel_overtime():
     month_base = request.args.get('month_base', '')
     teacher_id = request.args.get('teacher_filter', type=int)

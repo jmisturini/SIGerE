@@ -86,6 +86,29 @@
                             </div>
                         </div>
 
+                        {% if not unity %}
+                        <div class="col-12 mt-3">
+                            {# Criação: a unidade ainda não existe, os módulos
+                               iniciais são marcados aqui e salvos com o form. #}
+                            <h6 class="text-uppercase text-muted small fw-bold mb-2">
+                                <i class="bi bi-grid-3x3-gap me-1"></i> Módulos da Unidade
+                            </h6>
+                            <p class="text-muted small mb-3">
+                                Cada unidade ativa apenas os módulos que usa. Reservas de Salas é o
+                                core do sistema e permanece sempre ativo. Os módulos podem ser
+                                alterados depois, na página de edição da unidade.
+                            </p>
+                            <div class="form-check">
+                                {{ form.kitchen_enabled(class="form-check-input") }}
+                                {{ form.kitchen_enabled.label(class="form-check-label fw-medium") }}
+                            </div>
+                            <div class="form-check">
+                                {{ form.finance_enabled(class="form-check-input") }}
+                                {{ form.finance_enabled.label(class="form-check-label fw-medium") }}
+                            </div>
+                        </div>
+                        {% endif %}
+
                         <div class="col-12">
                             <div class="form-check mt-3">
                                 {{ form.is_active(class="form-check-input") }}
@@ -99,6 +122,57 @@
                         {{ form.submit(class="btn btn-primary px-4") }}
                     </div>
                 </form>
+
+                {% if unity %}
+                {# Edição: ativar/desativar na hora, por formulários próprios
+                   FORA do form principal (forms não podem se aninhar). Só o
+                   super-admin ou o administrador vinculado à unidade alterna. #}
+                {% set pode_gerenciar = current_user.has_permission('unity:modules')
+                    and (current_user.has_permission('*') or current_user.unity_id == unity.id) %}
+                <div class="mt-4 pt-3 border-top">
+                    <h6 class="text-uppercase text-muted small fw-bold mb-2">
+                        <i class="bi bi-grid-3x3-gap me-1"></i> Módulos da Unidade
+                    </h6>
+                    <p class="text-muted small mb-3">
+                        Cada unidade ativa apenas os módulos que usa. Reservas de Salas é o
+                        core do sistema e permanece sempre ativo.
+                    </p>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                            <div>
+                                <div class="fw-medium">Reservas de Salas</div>
+                                <div class="small text-muted">Core do sistema — não pode ser desativado.</div>
+                            </div>
+                            <span class="badge text-bg-light border text-nowrap" title="Core do sistema — sempre ativo.">
+                                <i class="bi bi-calendar-week me-1"></i>Sempre ativo
+                            </span>
+                        </li>
+                        {% for m in toggleable_modules %}
+                        {% set ativo = unity.is_module_enabled(m.code) %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                            <div>
+                                <div class="fw-medium">{{ m.label }}</div>
+                                <div class="small text-muted">{{ m.description }}</div>
+                            </div>
+                            {% if pode_gerenciar %}
+                            <form method="POST" action="{{ url_for('admin.toggle_unity_module', unity_id=unity.id, module_code=m.code) }}"
+                                  onsubmit="return confirm('{{ 'Desativar' if ativo else 'Ativar' }} o módulo {{ m.label }} desta unidade?{{ ' Os usuários dela perdem o acesso no menu e nas rotas do módulo.' if ativo }}');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm text-nowrap {{ 'btn-outline-danger' if ativo else 'btn-outline-success' }}"
+                                        title="{{ 'Desativar' if ativo else 'Ativar' }} o módulo {{ m.label }}">
+                                    <i class="bi {{ 'bi-power' if ativo else 'bi-arrow-repeat' }} me-1"></i>{{ 'Desativar' if ativo else 'Ativar' }}
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="badge text-nowrap {{ 'text-bg-success-subtle text-success border border-success-subtle' if ativo else 'text-bg-secondary-subtle text-secondary border border-secondary-subtle' }}">
+                                {{ 'Ativo' if ativo else 'Desativado' }}
+                            </span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
