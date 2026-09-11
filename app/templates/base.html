@@ -180,6 +180,13 @@
                     </a>
                 </li>
                 {% endif %}
+                {% if current_user.has_permission('api:manage') %}
+                <li class="nav-item">
+                    <a class="nav-link" title="Tokens da API" href="{{ url_for('admin.list_api_tokens') }}">
+                        <i class="bi bi-key"></i> <span>Tokens da API</span>
+                    </a>
+                </li>
+                {% endif %}
                                 {% else %}
                 {# Calendário removido do menu de visitantes: o schedule exige login #}
                 <li class="nav-item">

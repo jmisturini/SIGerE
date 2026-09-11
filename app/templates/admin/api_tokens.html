@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% block title %}Tokens da API{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Tokens da API</h3>
+        <p class="text-muted mb-0">
+            Autentiquem aplicativos externos na API de leitura de reservas
+            (<code>/api/v1</code>). O escopo de dados de cada token é o da conta que o criou.
+        </p>
+    </div>
+</div>
+
+{% if new_token %}
+<div class="card border-success mb-4">
+    <div class="card-body">
+        <h5 class="card-title text-success mb-3">
+            <i class="bi bi-key-fill me-1"></i> Token gerado: <span class="fw-normal">{{ new_token_name }}</span>
+        </h5>
+        <p class="mb-2">
+            Copie o token abaixo <strong>agora</strong> — por segurança ele não poderá ser
+            consultado novamente (o banco guarda apenas o hash).
+        </p>
+        <div class="input-group mb-3">
+            <input type="text" class="form-control font-monospace bg-body" id="tokenValor" value="{{ new_token }}" readonly>
+            <button class="btn btn-outline-secondary" type="button" id="btnCopiar" title="Copiar token">
+                <i class="bi bi-clipboard"></i> Copiar
+            </button>
+        </div>
+        <p class="small text-muted mb-0">
+            Uso: <code>curl -H "Authorization: Bearer {{ new_token }}" {{ request.host_url.rstrip('/') }}/api/v1/reservations</code>
+        </p>
+    </div>
+</div>
+{% endif %}
+
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-plus-lg me-1"></i> Gerar novo token</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin.create_api_token') }}" class="row g-3 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-5">
+                <label for="tokenName" class="form-label">Nome / aplicativo <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="tokenName" name="name"
+                       placeholder="Ex.: Painel porta Sala 306" required minlength="3" maxlength="120">
+                <div class="form-text">Ajuda a identificar de onde vêm as consultas.</div>
+            </div>
+            <div class="col-md-4">
+                <label for="tokenDuration" class="form-label">Validade</label>
+                <select class="form-select" id="tokenDuration" name="duration">
+                    {% for value, label in durations %}
+                    <option value="{{ value }}" {{ 'selected' if value == 0 }}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-primary w-100"><i class="bi bi-magic me-1"></i> Gerar token</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Nome</th>
+                        <th>Token</th>
+                        <th>Criado por</th>
+                        <th>Criado em</th>
+                        <th>Último uso</th>
+                        <th>Expira em</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for t in tokens %}
+                    <tr>
+                        <td class="ps-4 fw-bold">{{ t.name }}</td>
+                        <td><code title="Prefixo do token (o valor completo não é recuperável)">{{ t.prefix }}</code></td>
+                        <td>{{ t.created_by.full_name if t.created_by else '—' }}</td>
+                        <td class="small text-muted">{{ t.created_at.strftime('%d/%m/%Y %H:%M') if t.created_at else '—' }}</td>
+                        <td class="small text-muted">{{ t.last_used_at.strftime('%d/%m/%Y %H:%M') if t.last_used_at else 'nunca' }}</td>
+                        <td class="small text-muted">{{ t.expires_at.strftime('%d/%m/%Y') if t.expires_at else '—' }}</td>
+                        <td>
+                            {% if not t.is_active %}
+                                <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Revogado</span>
+                            {% elif t.is_expired %}
+                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">Expirado</span>
+                            {% else %}
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Ativo</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            {% if t.is_active %}
+                            <form method="POST" action="{{ url_for('admin.toggle_api_token', token_id=t.id) }}" class="d-inline"
+                                  onsubmit="return confirm('Revogar o token &quot;{{ t.name }}&quot;? Os apps que o usam voltarão ao acesso público limitado.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger" title="Revogar (desativa sem excluir o histórico)">
+                                    <i class="bi bi-slash-circle"></i>
+                                </button>
+                            </form>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('admin.toggle_api_token', token_id=t.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-success" title="Reativar token revogado">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('admin.delete_api_token', token_id=t.id) }}" class="d-inline"
+                                  onsubmit="return confirm('Excluir PERMANENTEMENTE o token &quot;{{ t.name }}&quot;? Esta ação não pode ser desfeita.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir permanentemente">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted p-5">
+                            <i class="bi bi-key fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhum token gerado</h5>
+                            <p class="small mb-0">
+                                Gere um token acima para que aplicativos externos consultem
+                                <code>/api/v1/reservations</code> com todos os detalhes.
+                            </p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if new_token %}
+<script>
+    document.getElementById('btnCopiar').addEventListener('click', function () {
+        var campo = document.getElementById('tokenValor');
+        campo.select();
+        navigator.clipboard.writeText(campo.value).then(function () {
+            var btn = document.getElementById('btnCopiar');
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado';
+            setTimeout(function () {
+                btn.innerHTML = '<i class="bi bi-clipboard"></i> Copiar';
+            }, 2500);
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}

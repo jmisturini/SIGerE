@@ -1,21 +1,22 @@
 """Testes da API REST de leitura de reservas (/api/v1).
 
-Cobertura central: sem autenticação a resposta expõe apenas data, horário,
-sala e título (e só reservas aprovadas); autenticado via HTTP Basic ou sessão
-recebe todos os detalhes. Também cobre escopo multi-unidade, filtros,
-paginação e erros em JSON.
+Cobertura central: sem token a resposta expõe apenas data, horário, sala e
+título (e só reservas aprovadas); com Bearer token (gerado no painel admin,
+permissão api:manage) recebe todos os detalhes. Também cobre escopo
+multi-unidade, filtros, paginação e erros em JSON.
 """
-import base64
+import hashlib
+import secrets
+import unittest
 import os
 import tempfile
-import unittest
-from datetime import date, time
+from datetime import date, datetime, time, timedelta, timezone
 
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.models import (Classroom, Course, Permission, Reservation, Role,
-                        RoomCategory, Subject, Unity, User)
+from app.models import (ApiToken, Classroom, Course, Permission, Reservation,
+                        Role, RoomCategory, Subject, Unity, User)
 
 USERNAME = 'super.teste'
 PASSWORD = 'SenhaForte123'
@@ -30,11 +31,6 @@ class TestConfig(Config):
     TESTING = True
     WTF_CSRF_ENABLED = False
     RATELIMIT_ENABLED = False
-
-
-def _basic_auth(username, password):
-    token = base64.b64encode(f'{username}:{password}'.encode()).decode()
-    return {'Authorization': f'Basic {token}'}
 
 
 class ApiReservationsTestCase(unittest.TestCase):
@@ -148,6 +144,8 @@ class ApiReservationsTestCase(unittest.TestCase):
             self.unity2_id = self.unity2.id
             self.classroom1_id = self.classroom1.id
             self.classroom2_id = self.classroom2.id
+            self.super_user_id = self.super_user.id
+            self.comum_user_id = self.comum_user.id
 
     def tearDown(self):
         with self.app.app_context():
@@ -158,11 +156,26 @@ class ApiReservationsTestCase(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
-    def _login_session(self, username=USERNAME, password=PASSWORD):
-        response = self.client.post('/login',
-                                    data={'username': username, 'password': password},
-                                    follow_redirects=True)
-        self.assertEqual(response.status_code, 200)
+    def _make_token(self, user_id, name='Token Teste', active=True,
+                    expires_days=None):
+        """Cria um token direto no banco e devolve o valor bruto (só aqui)."""
+        raw = 'sige_' + secrets.token_urlsafe(32)
+        expires_at = None
+        if expires_days is not None:
+            expires_at = (datetime.now(timezone.utc).replace(tzinfo=None)
+                          + timedelta(days=expires_days))
+        with self.app.app_context():
+            db.session.add(ApiToken(name=name,
+                                    token_hash=hashlib.sha256(raw.encode()).hexdigest(),
+                                    prefix=raw[:13] + '…',
+                                    created_by_id=user_id,
+                                    is_active=active,
+                                    expires_at=expires_at))
+            db.session.commit()
+        return raw
+
+    def _token_headers(self, raw):
+        return {'Authorization': f'Bearer {raw}'}
 
     def _get_json(self, url, **kwargs):
         response = self.client.get(url, **kwargs)
@@ -207,11 +220,12 @@ class ApiReservationsTestCase(unittest.TestCase):
                                      query_string={'unity_id': 99999})
         self.assertEqual(response.status_code, 404)
 
-    # ── Autenticado via HTTP Basic: todos os detalhes ──
+    # ── Autenticado via Bearer token: todos os detalhes ──
 
-    def test_basic_auth_recebe_todos_os_detalhes(self):
-        headers = _basic_auth(USERNAME, PASSWORD)
-        response, data = self._get_json('/api/v1/reservations', headers=headers)
+    def test_bearer_token_recebe_todos_os_detalhes(self):
+        raw = self._make_token(self.super_user_id)
+        response, data = self._get_json('/api/v1/reservations',
+                                        headers=self._token_headers(raw))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(data['authenticated'])
 
@@ -228,68 +242,96 @@ class ApiReservationsTestCase(unittest.TestCase):
         self.assertIn('created_at', item)
         self.assertIn('repeat_group_id', item)
 
-    def test_basic_auth_pede_todas_as_situacoes(self):
-        headers = _basic_auth(USERNAME, PASSWORD)
+    def test_token_pede_todas_as_situacoes(self):
+        raw = self._make_token(self.super_user_id)
         response, data = self._get_json('/api/v1/reservations',
                                         query_string={'status': 'all'},
-                                        headers=headers)
+                                        headers=self._token_headers(raw))
         titles = {r['title'] for r in data['reservations']}
         self.assertEqual(titles, {'Aula de Matemática', 'Reunião Pendente',
                                   'Aula Cancelada'})
 
         response, data = self._get_json('/api/v1/reservations',
                                         query_string={'status': 'pending'},
-                                        headers=headers)
+                                        headers=self._token_headers(raw))
         self.assertEqual([r['title'] for r in data['reservations']],
                          ['Reunião Pendente'])
         self.assertEqual(data['reservations'][0]['status'], 'pending')
 
-    def test_sessao_logada_recebe_todos_os_detalhes(self):
-        self._login_session()
+    def test_sessao_sem_token_recebe_payload_publico(self):
+        """A sessão de navegador NÃO concede mais detalhes: o acesso completo
+        exige token gerado no painel admin."""
+        self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+                         follow_redirects=True)
         response, data = self._get_json(f'/api/v1/reservations/{self.approved_id}')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(data['status'], 'approved')
-        self.assertEqual(data['description'], 'Capítulo 4')
+        self.assertEqual(set(data.keys()), PUBLIC_KEYS)
+        self.assertNotIn('description', data)
 
-    def test_credenciais_invalidas_retornam_401(self):
+    def test_tokens_invalidos_retornam_401(self):
+        raw = self._make_token(self.super_user_id)
+        revogado = self._make_token(self.super_user_id, name='Revogado', active=False)
+        expirado = self._make_token(self.super_user_id, name='Expirado',
+                                    expires_days=-1)
+        inativo = self._make_token(self.comum_user_id)  # dono será desativado
+        with self.app.app_context():
+            user = db.session.get(User, self.comum_user_id)
+            user.is_active_user = False
+            db.session.commit()
+
         for headers in (
-            _basic_auth(USERNAME, 'senha-errada'),
-            _basic_auth('usuario-inexistente', PASSWORD),
-            {'Authorization': 'Basic !!!!nao-e-base64!!!!'},
-            {'Authorization': 'Basic '},
-            {'Authorization': 'Bearer token-qualquer'},
+            self._token_headers('sige_token-que-nao-existe'),
+            self._token_headers(revogado),
+            self._token_headers(expirado),
+            self._token_headers(inativo),
+            {'Authorization': 'Bearer '},
+            {'Authorization': 'Basic ' + 'YWRtaW46YWRtaW4='},  # esquema antigo
+            {'Authorization': 'Token abc'},
         ):
             response, data = self._get_json('/api/v1/reservations', headers=headers)
             self.assertEqual(response.status_code, 401)
             self.assertIn('error', data)
             self.assertEqual(response.headers.get('WWW-Authenticate'),
-                             'Basic realm="SIGerE API"')
+                             'Bearer realm="SIGerE API"')
+        # sanity: o token válido continua funcionando
+        response, _ = self._get_json('/api/v1/reservations',
+                                     headers=self._token_headers(raw))
+        self.assertEqual(response.status_code, 200)
 
-    def test_usuario_comum_fica_preso_a_proprias_unidade(self):
-        headers = _basic_auth(COMMON_USERNAME, COMMON_PASSWORD)
-        response, data = self._get_json('/api/v1/reservations', headers=headers)
+    def test_registro_de_ultimo_uso(self):
+        raw = self._make_token(self.super_user_id)
+        self.client.get('/api/v1/reservations', headers=self._token_headers(raw))
+        with self.app.app_context():
+            token = db.session.query(ApiToken).filter_by(created_by_id=self.super_user_id).first()
+            self.assertIsNotNone(token.last_used_at)
+
+    def test_token_usuario_comum_fica_preso_a_proprias_unidade(self):
+        raw = self._make_token(self.comum_user_id)
+        response, data = self._get_json('/api/v1/reservations',
+                                        headers=self._token_headers(raw))
         self.assertEqual(data['unity_id'], self.unity1_id)
 
-        # ?unity_id= é ignorado para quem não pode alternar unidade
+        # ?unity_id= é ignorado para o dono do token sem permissão de trocar
         response, data = self._get_json('/api/v1/reservations',
                                         query_string={'unity_id': self.unity2_id},
-                                        headers=headers)
+                                        headers=self._token_headers(raw))
         self.assertEqual(data['unity_id'], self.unity1_id)
         self.assertEqual([r['title'] for r in data['reservations']],
                          ['Aula de Matemática'])
 
-    def test_admin_escolhe_outra_unidade(self):
-        headers = _basic_auth(USERNAME, PASSWORD)
+    def test_token_admin_escolhe_outra_unidade(self):
+        raw = self._make_token(self.super_user_id)
         response, data = self._get_json('/api/v1/reservations',
                                         query_string={'unity_id': self.unity2_id},
-                                        headers=headers)
+                                        headers=self._token_headers(raw))
         self.assertEqual(data['unity_id'], self.unity2_id)
         self.assertEqual([r['title'] for r in data['reservations']], ['Aula Norte'])
 
     # ── Filtros e paginação ──
 
     def test_filtros_de_data_sala_e_periodo(self):
-        headers = _basic_auth(USERNAME, PASSWORD)
+        raw = self._make_token(self.super_user_id)
+        headers = self._token_headers(raw)
 
         response, data = self._get_json(
             '/api/v1/reservations',
@@ -326,7 +368,8 @@ class ApiReservationsTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_paginacao(self):
-        headers = _basic_auth(USERNAME, PASSWORD)
+        raw = self._make_token(self.super_user_id)
+        headers = self._token_headers(raw)
         response, data = self._get_json(
             '/api/v1/reservations',
             query_string={'status': 'all', 'per_page': 2, 'page': 1},
@@ -349,8 +392,9 @@ class ApiReservationsTestCase(unittest.TestCase):
         self.assertEqual([r['code'] for r in data['rooms']], ['S101'])
         self.assertEqual(set(data['rooms'][0].keys()), {'id', 'code', 'name'})
 
-        headers = _basic_auth(USERNAME, PASSWORD)
-        response, data = self._get_json('/api/v1/rooms', headers=headers)
+        raw = self._make_token(self.super_user_id)
+        response, data = self._get_json('/api/v1/rooms',
+                                        headers=self._token_headers(raw))
         room = data['rooms'][0]
         self.assertEqual(room['category'], 'Sala de Aula')
         self.assertEqual(room['capacity'], 30)

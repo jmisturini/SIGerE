@@ -337,6 +337,39 @@ class Role(db.Model):
     # Relacionamento reverso para User (role_obj)
     users = db.relationship('User', backref='role_obj', lazy=True)
 
+# Token de integração da API pública de leitura de reservas (/api/v1).
+# O valor completo é exibido UMA vez na geração; o banco guarda apenas o hash
+# SHA-256, então quem obtiver o banco não descobre nenhum token válido. O
+# escopo dos dados é o do usuário criador (unidade e permissões).
+class ApiToken(db.Model):
+    __tablename__ = 'api_tokens'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    token_hash = db.Column(db.String(64), nullable=False, index=True, unique=True)
+    prefix = db.Column(db.String(16), nullable=False)  # exibição: 'sige_ab12…'
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'),
+                              nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = db.Column(db.DateTime)   # None = sem expiração
+    last_used_at = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    created_by = db.relationship('User', backref='api_tokens')
+
+    @property
+    def is_expired(self):
+        if self.expires_at is None:
+            return False
+        # SQLite devolve datetimes naive (UTC); comparação em UTC naive.
+        expires = self.expires_at
+        if expires.tzinfo is not None:
+            expires = expires.astimezone(timezone.utc).replace(tzinfo=None)
+        return expires <= datetime.now(timezone.utc).replace(tzinfo=None)
+
+    @property
+    def is_valid(self):
+        return self.is_active and not self.is_expired
+
 class RoomCategory(db.Model):
     __tablename__ = 'room_categories'
     id = db.Column(db.Integer, primary_key=True)

@@ -62,6 +62,8 @@ PERMISSION_DATA = [
     ('kitchen:shopping_export', 'kitchen', 'shopping_export', 'Gerar e exportar a requisição de compra'),
     ('system:dashboard', 'system', 'dashboard', 'Acessar painel administrativo'),
     ('system:export', 'system', 'export', 'Exportar dados diversos'),
+    # Módulo API (integrações externas de leitura de reservas)
+    ('api:manage', 'api', 'manage', 'Gerenciar tokens de acesso à API de reservas'),
     ('role:read', 'role', 'read', 'Visualizar papéis'),
     ('role:create', 'role', 'create', 'Criar papéis'),
     ('role:edit', 'role', 'edit', 'Editar papéis'),
@@ -88,6 +90,7 @@ ROLES_CONFIG = {
             'reservation:read_all', 'reservation:edit_all', 'reservation:delete_all',
             'reservation:approve', 'reservation:cancel_all',
             'system:dashboard', 'system:export',
+            'api:manage',
             'role:read', 'role:create', 'role:edit', 'role:delete',
             'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export'
         ]
