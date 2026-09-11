@@ -28,7 +28,7 @@
             </div>
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label fw-semibold"><i class="bi bi-gear me-1"></i>Equipamentos utilizados</label>
+                    <label class="form-label fw-semibold"><i class="bi bi-gear me-1"></i>Equipamentos</label>
                     <input type="text" class="form-control" name="equipamentos" maxlength="500"
                            value="{{ recipe.equipments or '' }}">
                 </div>
@@ -38,7 +38,7 @@
                            value="{{ recipe.utensils or '' }}">
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label fw-semibold"><i class="bi bi-clock me-1"></i>Tempo de Preparação</label>
+                    <label class="form-label fw-semibold"><i class="bi bi-clock me-1"></i>Tempo de Preparo</label>
                     <input type="text" class="form-control" name="tempo_preparo" maxlength="255"
                            value="{{ recipe.prep_time or '' }}">
                 </div>
@@ -74,7 +74,7 @@
                     <textarea class="form-control" name="alergenicos" rows="3">{{ recipe.allergens or '' }}</textarea>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Referências bibliográficas</label>
+                    <label class="form-label fw-semibold">Referências</label>
                     <textarea class="form-control" name="referencias" rows="3">{{ recipe.references or '' }}</textarea>
                 </div>
             </div>

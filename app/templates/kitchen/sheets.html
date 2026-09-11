@@ -74,10 +74,9 @@
                 <p class="small mb-1"><strong><i class="bi bi-clock me-1"></i>Tempo de Preparo:</strong> {{ data.tempo_preparo or '—' }}</p>
                 <p class="small mb-1"><strong><i class="bi bi-people me-1"></i>Rendimento:</strong> {{ data.rendimento or '—' }}</p>
                 <p class="small mb-0">
-                    <strong><i class="bi bi-list-check me-1"></i>Insumos:</strong>
-                    {{ data.preparacoes|length }} preparação(ões) e
+                    <strong><i class="bi bi-list-check me-1"></i>Ingredientes:</strong>
                     {% set total = namespace(n=0) %}{% for p in data.preparacoes %}{% set total.n = total.n + p.ingredientes|length %}{% endfor %}
-                    {{ total.n }} ingrediente(s)
+                    {{ total.n }} item(ns)
                 </p>
                 {% else %}
                 <p class="small text-muted mb-0">Sem prévia disponível.</p>

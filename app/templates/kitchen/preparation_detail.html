@@ -6,7 +6,7 @@
     <div>
         <h3 class="fw-bold mb-1"><i class="bi bi-egg-fried text-primary me-2"></i>{{ recipe.name }}</h3>
         <p class="text-muted mb-0">
-            <i class="bi bi-clock me-1"></i>Tempo de Preparação: {{ recipe.prep_time or '—' }} ·
+            <i class="bi bi-clock me-1"></i>Tempo de Preparo: {{ recipe.prep_time or '—' }} ·
             <i class="bi bi-people me-1"></i>Rendimento: {{ recipe.yield_info or '—' }}
         </p>
     </div>
@@ -86,7 +86,7 @@
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h6 class="fw-bold mb-2"><i class="bi bi-gear text-primary me-1"></i>Equipamentos utilizados</h6>
+                        <h6 class="fw-bold mb-2"><i class="bi bi-gear text-primary me-1"></i>Equipamentos</h6>
                         <p class="small mb-0">{{ recipe.equipments or '—' }}</p>
                     </div>
                 </div>
@@ -121,7 +121,7 @@
                         <thead>
                             <tr>
                                 <th class="ps-4">Ingrediente</th>
-                                <th>Especificação</th>
+                                <th>Especificações</th>
                                 <th class="text-center">Quantidade</th>
                                 <th class="text-end {{ '' if can_edit else 'pe-4' }}">Unidade</th>
                                 {% if can_edit %}<th class="text-end pe-4">Situação</th>{% endif %}
@@ -219,7 +219,7 @@
         {% if recipe.references %}
         <div class="card mb-4">
             <div class="card-body">
-                <h6 class="fw-bold mb-2"><i class="bi bi-book me-1"></i>Referências bibliográficas</h6>
+                        <h6 class="fw-bold mb-2"><i class="bi bi-book me-1"></i>Referências</h6>
                 <p class="small mb-0">{{ recipe.references }}</p>
             </div>
         </div>
