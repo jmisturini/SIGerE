@@ -19,6 +19,7 @@
 - [Capturas de Tela](#-capturas-de-tela)
 - [Funcionalidades](#-funcionalidades)
 - [Tecnologias](#-tecnologias)
+- [Documentação](#-documentação)
 - [Instalação](#-instalação)
 - [Configuração](#-configuração)
 - [Deploy em Produção (Gunicorn + Nginx)](#-deploy-em-produção-gunicorn--nginx)
@@ -211,7 +212,21 @@ Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora
 
 ---
 
+## 📚 Documentação
+
+Guias detalhados disponíveis no diretório [`docs/`](docs/):
+
+| Guia | Conteúdo |
+|------|----------|
+| 🛠️ [Desenvolvimento e Debug](docs/desenvolvimento-debug.md) | Ambiente na sua máquina: modo debug (`FLASK_DEBUG`), banco local, migrações, testes, depuração e erros comuns |
+| 🚢 [Implantação em Produção](docs/implantacao-producao.md) | Servidor real: PostgreSQL, Redis, Gunicorn + systemd, Nginx, HTTPS, atualização, backup e solução de problemas |
+| 📡 [API de Reservas](docs/api-reservas.md) | Uso da API REST de leitura para apps externos: autenticação, parâmetros, exemplos e FAQ |
+
+---
+
 ## 🚀 Instalação
+
+> 🛠️ **Guia completo de desenvolvimento** (modo debug, banco local, migrações, testes e depuração): [docs/desenvolvimento-debug.md](docs/desenvolvimento-debug.md)
 
 ### Pré-requisitos
 - Python 3.8 ou superior
@@ -349,6 +364,8 @@ O `db migrate` compara os modelos com o banco configurado em `DATABASE_URL` — 
 ## 🚢 Deploy em Produção (Gunicorn + Nginx)
 
 O servidor de desenvolvimento do Flask (`python run.py`) **não deve ser usado em produção**. A arquitetura recomendada é: **Nginx** (proxy reverso + arquivos estáticos + TLS) → **Gunicorn** (servidor WSGI) → aplicação Flask.
+
+> 🚢 **Guia completo de implantação e operação** (PostgreSQL, Redis, systemd, Nginx, HTTPS, backup e solução de problemas): [docs/implantacao-producao.md](docs/implantacao-producao.md)
 
 > **Nota:** o Gunicorn não está no `requirements.txt` porque não funciona em Windows (máquina de desenvolvimento). Instale-o apenas no servidor Linux.
 
@@ -552,6 +569,8 @@ SIGerE/
 ├── migrations/                # Versionamento de schema (Alembic/Flask-Migrate)
 ├── docs/                      # Documentação e capturas de tela
 │   ├── api-reservas.md        # Documentação detalhada da API de reservas
+│   ├── desenvolvimento-debug.md  # Guia completo de desenvolvimento e debug
+│   ├── implantacao-producao.md   # Guia completo de implantação em produção
 │   └── screenshots/           # Imagens exibidas no README
 ├── instance/                  # Dados da instância (uploads, ignorado no git)
 │   └── uploads/               # Fichas técnicas .docx enviadas (fora do static/)
