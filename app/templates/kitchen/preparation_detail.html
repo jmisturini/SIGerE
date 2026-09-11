@@ -14,10 +14,6 @@
         <a href="{{ url_for('kitchen.preparations') }}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left me-1"></i> Voltar
         </a>
-        <button type="button" id="btn-sort-alpha" class="btn btn-outline-primary" aria-pressed="false"
-                title="Ordenar os ingredientes alfabeticamente — a escolha fica salva no navegador">
-            <i class="bi bi-sort-alpha-down me-1"></i> Ordem A–Z
-        </button>
         {% if can_edit %}
         <a href="{{ url_for('kitchen.edit_recipe', recipe_id=recipe.id) }}" class="btn btn-outline-primary">
             <i class="bi bi-pencil-square me-1"></i> Editar preparação
@@ -112,12 +108,18 @@
                     <i class="bi bi-collection me-2"></i>
                     {{ 'Ingredientes — ' ~ preparation.name if recipe.preparations|length > 1 else 'Ingredientes' }}
                 </h6>
-                {% if can_edit %}
-                <a class="btn btn-sm btn-outline-primary"
-                   href="{{ url_for('kitchen.edit_ingredients', recipe_id=recipe.id, prep_id=preparation.id) }}">
-                    <i class="bi bi-pencil-square me-1"></i> Editar ingredientes
-                </a>
-                {% endif %}
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-sort-alpha" aria-pressed="false"
+                            title="Ordenar os ingredientes alfabeticamente — a escolha fica salva no navegador">
+                        <i class="bi bi-sort-alpha-down me-1"></i> Ordem A–Z
+                    </button>
+                    {% if can_edit %}
+                    <a class="btn btn-sm btn-outline-primary"
+                       href="{{ url_for('kitchen.edit_ingredients', recipe_id=recipe.id, prep_id=preparation.id) }}">
+                        <i class="bi bi-pencil-square me-1"></i> Editar ingredientes
+                    </a>
+                    {% endif %}
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -277,8 +279,9 @@
 <script>
     // Ordem de exibição dos ingredientes (ordem da ficha ou alfabética) —
     // escolha do usuário fica salva no navegador, como o modo cards/lista.
+    // Um botão no cabeçalho de cada caixa de ingredientes controla a página.
     const SORT_KEY = 'kitchen_ingredients_sort';
-    const sortBtn = document.getElementById('btn-sort-alpha');
+    const sortBtns = document.querySelectorAll('.btn-sort-alpha');
     const collator = new Intl.Collator('pt-BR', {sensitivity: 'base', numeric: true});
 
     // Guarda a posição original de cada linha para voltar à ordem da ficha.
@@ -290,9 +293,11 @@
 
     function applyIngredientSort(mode) {
         const alpha = mode === 'alpha';
-        sortBtn.setAttribute('aria-pressed', String(alpha));
-        sortBtn.classList.toggle('btn-primary', alpha);
-        sortBtn.classList.toggle('btn-outline-primary', !alpha);
+        sortBtns.forEach(btn => {
+            btn.setAttribute('aria-pressed', String(alpha));
+            btn.classList.toggle('btn-primary', alpha);
+            btn.classList.toggle('btn-outline-primary', !alpha);
+        });
         document.querySelectorAll('.ing-tbody').forEach(tbody => {
             const rows = Array.from(tbody.querySelectorAll('tr'));
             rows.sort((a, b) => alpha
@@ -303,10 +308,10 @@
         localStorage.setItem(SORT_KEY, mode);
     }
 
-    sortBtn.addEventListener('click', () => {
-        const active = sortBtn.getAttribute('aria-pressed') === 'true';
+    sortBtns.forEach(btn => btn.addEventListener('click', () => {
+        const active = btn.getAttribute('aria-pressed') === 'true';
         applyIngredientSort(active ? 'ficha' : 'alpha');
-    });
+    }));
 
     applyIngredientSort(localStorage.getItem(SORT_KEY) === 'alpha' ? 'alpha' : 'ficha');
 </script>
