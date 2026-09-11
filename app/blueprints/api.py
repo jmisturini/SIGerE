@@ -123,6 +123,12 @@ def _scoped_unity_id():
     return unity.id
 
 
+def _hora(t):
+    """Horário em HH:MM:SS sempre (times gravados com microssegundo por
+    importação/seed não devem vazar frações na API)."""
+    return t.strftime('%H:%M:%S') if t else None
+
+
 def _classroom_brief(classroom):
     return {'id': classroom.id, 'code': classroom.code, 'name': classroom.name}
 
@@ -139,8 +145,8 @@ def _reservation_public(reservation):
         'id': reservation.id,
         'title': reservation.title,
         'date': reservation.date.isoformat(),
-        'start_time': reservation.start_time.isoformat(),
-        'end_time': reservation.end_time.isoformat(),
+        'start_time': _hora(reservation.start_time),
+        'end_time': _hora(reservation.end_time),
         'classroom': _classroom_brief(reservation.classroom),
     }
 
@@ -156,8 +162,8 @@ def _reservation_full(reservation):
         'title': reservation.title,
         'description': reservation.description,
         'date': reservation.date.isoformat(),
-        'start_time': reservation.start_time.isoformat(),
-        'end_time': reservation.end_time.isoformat(),
+        'start_time': _hora(reservation.start_time),
+        'end_time': _hora(reservation.end_time),
         'status': reservation.status,
         'classroom': {
             **_classroom_brief(classroom),
@@ -330,3 +336,15 @@ def api_error(error):
 def api_rate_limited(error):
     return jsonify({'error': 'Limite de requisições excedido. '
                              'Aguarde um momento e tente novamente.'}), 429
+
+
+# CORS liberado para consumo por apps web hospedados em outras origens
+# (quadro de porta, painéis de ocupação). A leitura anônima é pública por
+# design; com Authorization, o navegador negocia o preflight via OPTIONS
+# automático do Flask e recebe estes mesmos cabeçalhos.
+@bp.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Authorization'
+    return response

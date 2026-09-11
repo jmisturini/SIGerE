@@ -595,6 +595,8 @@ SIGerE/
 API REST **somente leitura** para aplicativos externos exibirem a ocupação das salas. Erros e respostas são sempre JSON e a URL base é `/api/v1`.
 
 > 📖 **Documentação detalhada de uso** (autenticação, parâmetros, exemplos em cURL/Python/JavaScript e FAQ): [docs/api-reservas.md](docs/api-reservas.md)
+>
+> 🚪 **App de exemplo:** quadro de sala para tablet na porta, consumindo a API anonimamente — [examples/quadro-sala](examples/quadro-sala/)
 
 ### Autenticação e visibilidade
 

@@ -47,6 +47,11 @@ educacional. O nível de detalhe da resposta depende da autenticação:
 Requisições **sem credenciais continuam funcionando** — recebem apenas o payload
 público. Não existe endpoint "bloqueado": o que muda é o quanto ele revela.
 
+> 🚪 **App de exemplo incluída no repositório:** [examples/quadro-sala](../../examples/quadro-sala/)
+> — um quadro de sala para tablet afixado na porta que consome a API
+> anonimamente de outra origem, com atualização automática. Serve de referência
+> prática para integrações web.
+
 Todos os horários seguem o formato ISO `HH:MM:SS` (horário local da instituição) e
 as datas `AAAA-MM-DD`.
 

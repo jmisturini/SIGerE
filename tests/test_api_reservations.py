@@ -365,6 +365,23 @@ class ApiReservationsTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', data)
 
+    def test_cors_permite_apps_web_externas(self):
+        """Apps hospedadas em outra origem (quadro de porta, painéis) leem a
+        API do navegador; o preflight do fetch autenticado também passa."""
+        response, _ = self._get_json('/api/v1/reservations')
+        self.assertEqual(response.headers.get('Access-Control-Allow-Origin'), '*')
+        self.assertEqual(response.headers.get('Access-Control-Allow-Headers'),
+                         'Authorization')
+
+        response = self.client.options('/api/v1/reservations', headers={
+            'Access-Control-Request-Method': 'GET',
+            'Access-Control-Request-Headers': 'authorization',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get('Access-Control-Allow-Origin'), '*')
+        self.assertEqual(response.headers.get('Access-Control-Allow-Headers'),
+                         'Authorization')
+
 
 class TestRateLimitConfig(Config):
     SECRET_KEY = 'chave-de-teste-nao-usar-o-valor-dev'
