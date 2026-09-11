@@ -14,9 +14,8 @@ bots, etc.).
 
 - [Visão geral](#-visão-geral)
 - [Autenticação](#-autenticação)
-  - [Sem autenticação (anônimo)](#sem-autenticação-anônimo)
-  - [HTTP Basic](#http-basic)
-  - [Sessão (navegador logado)](#sessão-navegador-logado)
+  - [Sem token (anônimo)](#sem-token-anônimo)
+  - [Bearer token](#bearer-token)
   - [Resumo de visibilidade](#resumo-de-visibilidade)
 - [Endpoints](#-endpoints)
   - [Listar reservas](#get-apiv1reservations)
@@ -37,14 +36,14 @@ bots, etc.).
 ## 🧭 Visão geral
 
 A API permite que outros aplicativos leiam as reservas de salas de uma unidade
-educacional. O nível de detalhe da resposta depende da autenticação:
+educacional. O nível de detalhe da resposta depende do token:
 
 | Modo | Campos retornados | Situações visíveis |
 |------|-------------------|--------------------|
-| **Anônimo** (sem credenciais) | Apenas `id`, `title`, `date`, `start_time`, `end_time` e `classroom` (id/código/nome) | Somente `approved` |
-| **Autenticado** (HTTP Basic ou sessão) | **Todos** os campos da reserva: descrição, `status`, docente, curso, disciplina, criador, revisor, unidade, sala completa, série de repetição, timestamps | Todas (`approved`, `pending`, `cancelled`) |
+| **Anônimo** (sem token) | Apenas `id`, `title`, `date`, `start_time`, `end_time` e `classroom` (id/código/nome) | Somente `approved` |
+| **Com Bearer token** (Painel Admin → Tokens da API) | **Todos** os campos da reserva: descrição, `status`, docente, curso, disciplina, criador, revisor, unidade, sala completa, série de repetição, timestamps | Todas (`approved`, `pending`, `cancelled`) |
 
-Requisições **sem credenciais continuam funcionando** — recebem apenas o payload
+Requisições **sem token continuam funcionando** — recebem apenas o payload
 público. Não existe endpoint "bloqueado": o que muda é o quanto ele revela.
 
 > 🚪 **App de exemplo incluída no repositório:** [examples/quadro-sala](../../examples/quadro-sala/)
@@ -59,7 +58,7 @@ as datas `AAAA-MM-DD`.
 
 ## 🔑 Autenticação
 
-### Sem autenticação (anônimo)
+### Sem token (anônimo)
 
 Basta chamar qualquer endpoint sem cabeçalho `Authorization`. A resposta traz
 somente data, horário, sala e título de reservas aprovadas — o mínimo necessário
@@ -73,38 +72,36 @@ curl http://localhost:5000/api/v1/reservations
 > são situações internas do fluxo de aprovação e ficam invisíveis, inclusive no
 > endpoint de detalhe (que responde `404` para elas).
 
-### HTTP Basic
+### Bearer token
 
-Use **qualquer usuário/senha já cadastrados no SIGerE** (o mesmo login do sistema).
-Não é preciso criar conta ou token específico para integração.
+O acesso completo usa um **token de integração** gerado no sistema:
+**Painel Admin → Tokens da API** (exige a permissão `api:manage`, concedida por
+padrão ao papel *Administrador*).
 
 ```bash
-curl -u professor:senha http://localhost:5000/api/v1/reservations
-# ou, montando o cabeçalho manualmente (base64 de "usuário:senha"):
-curl -H "Authorization: Basic cHJvZmVzc29yOnNlbmhh" http://localhost:5000/api/v1/reservations
+curl -H "Authorization: Bearer sige_SEU_TOKEN" http://localhost:5000/api/v1/reservations
 ```
 
-Regras:
+Como funciona:
 
-- O usuário precisa existir e ter a senha correta — as credenciais são verificadas
-  com o mesmo mecanismo do login web.
-- Contas **desativadas** recebem `401` mesmo com senha correta.
-- O nível de detalhe **não depende de permissões**: qualquer conta válida vê todos
-  os detalhes das reservas da própria unidade. O que limita o escopo é a unidade da
-  conta (veja [Escopo multi-unidade](#-escopo-multi-unidade)).
+- Na geração, informe um **nome** (para identificar o app de origem) e a
+  **validade** (sem expiração, 30/60/90/180/365 dias). O valor completo
+  (`sige_…`) é exibido **uma única vez** — o banco guarda apenas o hash
+  SHA-256, então um vazamento do banco não revela nenhum token válido.
+- A listagem mostra o **prefixo** do token, quem criou, quando foi usado pela
+  última vez, a validade e o status; tokens podem ser **revogados** (sem perder
+  o histórico), reativados ou excluídos permanentemente.
+- O **escopo de dados** do token é o da conta que o criou: as reservas ficam
+  limitadas à unidade do criador (a menos que ele tenha permissão de alternar
+  unidade, usando `?unity_id=`).
+- Tokens de contas **desativadas** param de autenticar imediatamente.
 - Credenciais inválidas retornam `401` com o cabeçalho
-  `WWW-Authenticate: Basic realm="SIGerE API"`.
-
-### Sessão (navegador logado)
-
-Se a requisição partir de um navegador com sessão ativa no SIGerE (cookie de
-sessão), os endpoints respondem como autenticados. Útil para páginas internas ou
-extensões que reaproveitam o login existente.
+  `WWW-Authenticate: Bearer realm="SIGerE API"`.
 
 ### Resumo de visibilidade
 
-| Campo | Anônimo | Autenticado |
-|-------|:-------:|:-----------:|
+| Campo | Anônimo | Com token |
+|-------|:-------:|:---------:|
 | `id` | ✅ | ✅ |
 | `title` | ✅ | ✅ |
 | `date`, `start_time`, `end_time` | ✅ | ✅ |
@@ -170,16 +167,16 @@ Lista paginada de reservas da unidade escopada.
 # Reservas aprovadas da semana (anônimo — payload público)
 curl "http://localhost:5000/api/v1/reservations?start=2026-09-07&end=2026-09-13"
 
-# Todas as situações de uma sala, autenticado
-curl -u professor:senha \
+# Todas as situações de uma sala, com token
+curl -H "Authorization: Bearer sige_SEU_TOKEN" \
   "http://localhost:5000/api/v1/reservations?classroom_code=S101&status=all"
 
 # Aulas noturnas de um docente
-curl -u professor:senha \
+curl -H "Authorization: Bearer sige_SEU_TOKEN" \
   "http://localhost:5000/api/v1/reservations?teacher_id=5&period=night"
 
 # Página 2 com 50 itens
-curl -u professor:senha \
+curl -H "Authorization: Bearer sige_SEU_TOKEN" \
   "http://localhost:5000/api/v1/reservations?per_page=50&page=2"
 ```
 
@@ -196,7 +193,7 @@ curl -u professor:senha \
 }
 ```
 
-**Payload autenticado (item):**
+**Payload com token (item):**
 
 ```json
 {
@@ -240,8 +237,8 @@ Campos anuláveis quando a reserva não os usa: `description`, `teacher`, `cours
 Detalhe de uma reserva pelo `id`.
 
 ```bash
-curl http://localhost:5000/api/v1/reservations/42              # público
-curl -u professor:senha http://localhost:5000/api/v1/reservations/42   # completo
+curl http://localhost:5000/api/v1/reservations/42                            # público
+curl -H "Authorization: Bearer sige_SEU_TOKEN" http://localhost:5000/api/v1/reservations/42   # completo
 ```
 
 Comportamentos importantes:
@@ -276,7 +273,7 @@ Salas **ativas** da unidade escopada. Serve para o app externo descobrir os
 }
 ```
 
-**Payload autenticado** (inclui detalhes da sala):
+**Payload com token** (inclui detalhes da sala):
 
 ```json
 {
@@ -299,8 +296,8 @@ O SIGerE é multi-unidade e a API respeita o isolamento de dados:
 |----------|-------------------|
 | **Anônimo** sem `unity_id` | Primeira unidade **ativa** (ordem alfabética de nome) — mesma regra do totem |
 | **Anônimo** com `?unity_id=<id>` | A unidade indicada, se existir e estiver ativa (`404` caso contrário) |
-| **Usuário comum** (Basic ou sessão) | **Sempre a própria unidade** — `?unity_id` é ignorado |
-| **Usuário com permissão `*` ou `unity:switch`** | A própria unidade por padrão; `?unity_id=<id>` troca o escopo |
+| **Token de usuário comum** | **Sempre a própria unidade** — `?unity_id` é ignorado |
+| **Token de usuário com permissão `*` ou `unity:switch`** | A própria unidade por padrão; `?unity_id=<id>` troca o escopo |
 
 Cada resposta inclui o campo `unity_id` no topo para o cliente confirmar o escopo
 que recebeu. Reservas de outra unidade jamais aparecem — e o detalhe delas responde
@@ -319,13 +316,13 @@ Todos os erros retornam JSON com a chave `error` (nunca uma página HTML):
 | Código | Quando acontece |
 |--------|-----------------|
 | `400` | Parâmetro inválido (data fora do formato `AAAA-MM-DD`, `status` desconhecido, `period` desconhecido, `start` maior que `end`) |
-| `401` | Credenciais fornecidas e inválidas: senha errada, usuário inexistente, base64 malformado, esquema não suportado (ex.: `Bearer`) ou conta desativada. Inclui `WWW-Authenticate: Basic realm="SIGerE API"` |
+| `401` | Token fornecido e inválido: desconhecido, expirado, revogado, esquema não suportado (ex.: `Basic`) ou conta do criador desativada. Inclui `WWW-Authenticate: Bearer realm="SIGerE API"` |
 | `404` | Reserva/unidade inexistente, **fora do escopo da unidade** ou não aprovada (anônimo) |
 | `429` | Limite de requisições excedido (ver próxima seção) |
 
-> **Importante:** requisição **sem** credenciais não gera `401` — ela é atendida
-> com o payload público. O `401` ocorre somente quando as credenciais enviadas
-> estão erradas.
+> **Importante:** requisição **sem** token não gera `401` — ela é atendida
+> com o payload público. O `401` ocorre somente quando o token enviado
+> é inválido, expirado ou revogado.
 
 ---
 
@@ -343,13 +340,13 @@ regulares (ex.: painel a cada 60 s) ficam muito abaixo do limite.
 
 ```bash
 # 1. Descobrir as salas da unidade
-curl -u integracao:senha http://localhost:5000/api/v1/rooms
+curl -H "Authorization: Bearer sige_SEU_TOKEN" http://localhost:5000/api/v1/rooms
 
 # 2. Reservas de hoje em diante de uma sala específica
-curl -u integracao:senha \
+curl -H "Authorization: Bearer sige_SEU_TOKEN" \
   "http://localhost:5000/api/v1/reservations?classroom_code=S101&start=$(date +%F)"
 
-# 3. Sem autenticação (painel público)
+# 3. Sem token (painel público)
 curl "http://localhost:5000/api/v1/reservations?start=$(date +%F)"
 ```
 
@@ -360,10 +357,10 @@ import requests
 from datetime import date
 
 BASE = "http://localhost:5000/api/v1"
-AUTH = ("integracao", "senha")          # usuário/senha de um conta do SIGerE
+HEADERS = {"Authorization": "Bearer sige_SEU_TOKEN"}   # token do Painel Admin
 
 # Ocupação de hoje em diante, com todos os detalhes
-resp = requests.get(f"{BASE}/reservations", auth=AUTH, timeout=10,
+resp = requests.get(f"{BASE}/reservations", headers=HEADERS, timeout=10,
                     params={"start": date.today().isoformat()})
 resp.raise_for_status()
 data = resp.json()
@@ -375,7 +372,7 @@ for r in data["reservations"]:
 # Paginação completa
 page = 1
 while page <= data["pages"]:
-    data = requests.get(f"{BASE}/reservations", auth=AUTH,
+    data = requests.get(f"{BASE}/reservations", headers=HEADERS,
                         params={"start": date.today().isoformat(), "page": page},
                         timeout=10).json()
     processar(data["reservations"])
@@ -387,10 +384,9 @@ while page <= data["pages"]:
 ```javascript
 const BASE = 'http://localhost:5000/api/v1';
 
-// Autenticado (Basic)
-const auth = btoa('integracao:senha');
+// Com Bearer token
 const resp = await fetch(`${BASE}/reservations?start=2026-09-11`, {
-  headers: { Authorization: `Basic ${auth}` },
+  headers: { Authorization: 'Bearer sige_SEU_TOKEN' },
 });
 if (!resp.ok) {
   const { error } = await resp.json();
@@ -432,18 +428,21 @@ for r in em_andamento:
 Não. A API é somente leitura por decisão de design; a gravação continua acontecendo
 pela interface web, com CSRF, permissões e validação de conflitos.
 
-**Preciso de um token de API?**
-Não. Use o próprio usuário/senha do sistema via HTTP Basic. Se a instituição
-preferir, pode criar uma conta dedicada só para integrações (ex.: `integracao`),
-com papel de "Visualizador".
+**Como obtenho um token?**
+No sistema: **Painel Admin → Tokens da API** (permissão `api:manage`, que o papel
+*Administrador* já tem). Dê um nome que identifique o app, escolha a validade e
+copie o valor exibido — ele não é mostrado novamente. Para integrações, uma boa
+prática é gerar um token por aplicativo.
 
-**A senha via Basic fica exposta?**
-O HTTP Basic envia `usuário:senha` em base64 — **use sempre HTTPS em produção**
-(o SIGerE já endurece os cookies de sessão para HTTPS fora do modo debug).
+**O token pode vazar — qual o impacto?**
+Ele concede leitura completa das reservas no escopo do criador. Por isso o
+banco guarda só o hash (vazamento do banco não revela tokens), a listagem mostra
+apenas o prefixo e a revogação é imediata. **Use sempre HTTPS em produção** e
+revogue tokens de apps desativados.
 
-**Por que meu usuário não vê reservas da outra unidade?**
-O escopo segue a unidade da conta. Só contas com permissão `*` ou `unity:switch`
-podem trocar a unidade com `?unity_id`.
+**Por que meu token não vê reservas da outra unidade?**
+O escopo segue a unidade da conta que criou o token. Só contas com permissão
+`*` ou `unity:switch` podem trocar a unidade com `?unity_id`.
 
 **Por que o endpoint responde 404 para uma reserva que sei que existe?**
 Ou ela é de outra unidade, ou está pendente/cancelada e a chamada é anônima. O 404

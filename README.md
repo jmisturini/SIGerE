@@ -635,18 +635,18 @@ API REST **somente leitura** para aplicativos externos exibirem a ocupação das
 
 | Modo | Como usar | O que a resposta traz |
 |------|-----------|----------------------|
-| **Sem autenticação** | basta chamar a API | Apenas **data, horário, sala e título** — e somente reservas **aprovadas** |
-| **Autenticado** | HTTP Basic com usuário/senha **já cadastrados no sistema**, ou a sessão de quem já está logado | **Todos os detalhes** da reserva (descrição, situação, docente, curso, disciplina, criador, unidade, sala completa...) em qualquer situação (aprovada, pendente, cancelada) |
+| **Sem token** | basta chamar a API | Apenas **data, horário, sala e título** — e somente reservas **aprovadas** |
+| **Com token Bearer** | cabeçalho `Authorization: Bearer sige_…` — token gerado em **Painel Admin → Tokens da API** (permissão `api:manage`) | **Todos os detalhes** da reserva (descrição, situação, docente, curso, disciplina, criador, unidade, sala completa...) em qualquer situação (aprovada, pendente, cancelada) |
 
 ```bash
 # Público (campos reduzidos)
 curl http://localhost:5000/api/v1/reservations
 
-# Autenticado (todos os detalhes)
-curl -u professor:senha http://localhost:5000/api/v1/reservations
+# Com token (todos os detalhes)
+curl -H "Authorization: Bearer sige_SEU_TOKEN" http://localhost:5000/api/v1/reservations
 ```
 
-Credenciais inválidas retornam `401` com `WWW-Authenticate: Basic`; requisição sem credenciais funciona com o payload público (não há bloqueio).
+O valor completo do token é exibido **uma única vez** na geração (o banco guarda apenas o hash SHA-256); a página admin lista prefixo, último uso e validade, e permite revogar/excluir. Tokens inválidos, expirados ou revogados retornam `401` com `WWW-Authenticate: Bearer`; requisição sem token funciona com o payload público (não há bloqueio).
 
 ### Endpoints
 
@@ -730,7 +730,7 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 | Papel | Descrição |
 |-------|-----------|
 | **Super Administrador** | Acesso irrestrito a todas as funcionalidades (`*`) |
-| **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis e cozinha |
+| **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis, cozinha e tokens da API |
 | **Administrador Financeiro** | Financeiro: horas extras, Vale Transporte e exportações |
 | **Coordenador Pedagógico** | Aprovação de reservas, gestão de cursos e disciplinas |
 | **Gestor de Salas** | Criação e gestão de salas, todas as reservas |
@@ -770,6 +770,7 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `kitchen:shopping_export` | Gerar e exportar a requisição de compra |
 | `system:dashboard` | Acessar painel administrativo |
 | `system:export` | Exportar dados diversos |
+| `api:manage` | Gerenciar tokens de acesso à API de reservas |
 | `role:read` / `role:create` / `role:edit` / `role:delete` | Visualizar / criar / editar / excluir papéis |
 | `*` | Permissão universal (super admin) |
 
@@ -792,7 +793,7 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 - **Escapagem de dados dinâmicos** em mensagens renderizadas com `|safe` (anti-XSS)
 - **Rate limiting no login** (5 tentativas por minuto por IP, via Flask-Limiter) com aviso amigável ao exceder
 - **API do calendário protegida:** intervalo de datas obrigatório e login exigido, evitando consultas sem limite
-- **API de reservas com mínimo de dados anônimo:** sem autenticação expõe apenas data, horário, sala e título de reservas aprovadas; autenticação via HTTP Basic contra as contas do sistema, erros em JSON e rate limiting por IP
+- **API de reservas com mínimo de dados anônimo:** sem token expõe apenas data, horário, sala e título de reservas aprovadas; acesso completo via Bearer token gerado no painel admin (permissão `api:manage`), armazenado como hash SHA-256 com revogação imediata, erros em JSON e rate limiting por IP
 
 ---
 

@@ -1,26 +1,26 @@
 """API REST de leitura de reservas para aplicativos externos.
 
 Regras de visibilidade:
-- Sem autenticação: apenas data, horário, sala e título — e somente reservas
+- Sem token: apenas data, horário, sala e título — e somente reservas
   aprovadas (situações internas do fluxo, como pendente/cancelada, ficam
   invisíveis, na mesma linha do portal e do totem).
-- Autenticado (HTTP Basic com usuário/senha do sistema, ou sessão já logada):
-  todos os detalhes da reserva, em qualquer situação.
+- Com token Bearer (gerado no Painel Admin → Tokens da API, permissão
+  api:manage): todos os detalhes da reserva, em qualquer situação. O escopo
+  de dados é o do usuário criador do token.
 
 Escopo multi-unidade: usuário comum só vê a própria unidade; quem pode
 alternar unidade (ou uma integração anônima) escolhe com ?unity_id=<id>.
 """
-from base64 import b64decode
-from datetime import date, time
+import hashlib
+from datetime import date, datetime, time, timedelta, timezone
 from functools import wraps
 
 from flask import Blueprint, abort, g, jsonify, request
-from flask_login import current_user
 from flask_limiter.errors import RateLimitExceeded
 
 from app.extensions import db, limiter
-from app.models import Classroom, Reservation, Unity, User
-from app.unity_context import SWITCHABLE_PERMISSIONS, current_unity_id
+from app.models import ApiToken, Classroom, Reservation, Unity
+from app.unity_context import SWITCHABLE_PERMISSIONS
 
 bp = Blueprint('api', __name__, url_prefix='/api/v1')
 
@@ -36,46 +36,61 @@ PERIODS = {
 STATUSES = ('approved', 'pending', 'cancelled')
 
 
+def _utcnow_naive():
+    """UTC naive — mesmo formato que o SQLite devolve nas colunas DateTime."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _hash_token(raw):
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
 # ── Autenticação ─────────────────────────────────────────────────────────────
 
 def _unauthorized(message):
     response = jsonify({'error': message})
     response.status_code = 401
-    response.headers['WWW-Authenticate'] = 'Basic realm="SIGerE API"'
+    response.headers['WWW-Authenticate'] = 'Bearer realm="SIGerE API"'
     return response
 
 
+def _token_by_value(raw):
+    """Resolve um token Bearer válido, registrando o uso.
+
+    Token revogado, expirado ou cujo usuário criador foi desativado não
+    autentica. Retorna None se inválido.
+    """
+    token = ApiToken.query.filter_by(token_hash=_hash_token(raw)).first()
+    if token is None or not token.is_valid:
+        return None
+    if token.created_by is None or not token.created_by.is_active_user:
+        return None
+    token.last_used_at = _utcnow_naive()
+    db.session.commit()
+    return token
+
+
 def api_auth(view):
-    """Autenticação da API: HTTP Basic (usuários do próprio sistema) com
-    fallback para a sessão do Flask-Login. Requisição anônima continua
-    válida — recebe apenas o payload público.
+    """Autenticação da API: Bearer token gerado no painel admin.
+
+    Requisição anônima continua válida — recebe apenas o payload público.
     """
     @wraps(view)
     def wrapper(*args, **kwargs):
         g.api_user = None
-        g.api_via_session = False
+        g.api_token = None
 
         header = request.headers.get('Authorization', '')
         if header:
             scheme, _, value = header.strip().partition(' ')
-            if scheme.lower() != 'basic' or not value:
-                return _unauthorized('Autenticação suportada apenas via HTTP Basic.')
-            try:
-                decoded = b64decode(value.strip(), validate=True).decode('utf-8')
-            except (ValueError, UnicodeDecodeError):
-                return _unauthorized('Credenciais Basic inválidas (base64 malformado).')
-            username, sep, password = decoded.partition(':')
-            if not sep or not username:
-                return _unauthorized('Credenciais Basic devem ter o formato "usuário:senha".')
-            user = User.query.filter_by(username=username).first()
-            if user is None or not user.check_password(password):
-                return _unauthorized('Usuário ou senha inválidos.')
-            if not user.is_active_user:
-                return _unauthorized('Conta desativada. Contate um administrador.')
-            g.api_user = user
-        elif current_user.is_authenticated:
-            g.api_user = current_user
-            g.api_via_session = True
+            if scheme.lower() != 'bearer' or not value:
+                return _unauthorized('Autenticação suportada apenas via '
+                                     'Bearer token (Painel Admin → Tokens da API).')
+            token = _token_by_value(value.strip())
+            if token is None:
+                return _unauthorized('Token inválido, expirado ou revogado.')
+            g.api_user = token.created_by
+            g.api_token = token
 
         return view(*args, **kwargs)
     return wrapper
@@ -111,10 +126,6 @@ def _scoped_unity_id():
             abort(404, description='Nenhuma unidade ativa cadastrada.')
         return unity.id
 
-    if g.api_via_session:
-        uid = current_unity_id()
-        if uid is not None:
-            return uid
     if user.unity_id:
         return user.unity_id
     unity = _first_active_unity()

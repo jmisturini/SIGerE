@@ -1,11 +1,12 @@
+import hashlib
 import os
 import secrets
 
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify, current_app
 from flask_login import login_required, current_user
-from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity
+from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity, ApiToken
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, TeacherForm, EmployeeForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm)
 from app.extensions import db
@@ -803,3 +804,77 @@ def toggle_unity(unity_id):
     db.session.commit()
     flash(f'Unidade {unity.name} {"ativada" if unity.is_active else "desativada"}.', 'success')
     return redirect(url_for('admin.list_unities'))
+
+# ================= API TOKENS (integrações externas) =================
+#
+# Tokens Bearer da API pública de leitura de reservas (/api/v1). O valor
+# completo é mostrado UMA VEZ na geração — o banco guarda só o hash SHA-256.
+# O escopo dos dados retornados pela API é o do usuário criador do token.
+
+TOKEN_DURATIONS = [(0, 'Sem expiração'), (30, '30 dias'), (60, '60 dias'),
+                   (90, '90 dias'), (180, '180 dias'), (365, '1 ano')]
+
+
+def _token_hash(raw):
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+@bp.route('/api-tokens')
+@login_required
+@require_permission('api:manage')
+def list_api_tokens():
+    tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
+    return render_template('admin/api_tokens.html', tokens=tokens,
+                           durations=TOKEN_DURATIONS)
+
+
+@bp.route('/api-tokens/create', methods=['POST'])
+@login_required
+@require_permission('api:manage')
+def create_api_token():
+    name = (request.form.get('name') or '').strip()
+    if len(name) < 3:
+        flash('Informe um nome com pelo menos 3 caracteres para o token.', 'danger')
+        return redirect(url_for('admin.list_api_tokens'))
+
+    days = request.form.get('duration', type=int) or 0
+    expires_at = None
+    if days > 0:
+        expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=days)
+
+    raw = 'sige_' + secrets.token_urlsafe(32)
+    token = ApiToken(name=name,
+                     token_hash=_token_hash(raw),
+                     prefix=raw[:13] + '…',
+                     created_by_id=current_user.id,
+                     expires_at=expires_at)
+    db.session.add(token)
+    db.session.commit()
+    # Renderiza a própria listagem com o valor completo exibido uma única vez.
+    tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
+    return render_template('admin/api_tokens.html', tokens=tokens,
+                           durations=TOKEN_DURATIONS, new_token=raw,
+                           new_token_name=name)
+
+
+@bp.route('/api-tokens/<int:token_id>/toggle', methods=['POST'])
+@login_required
+@require_permission('api:manage')
+def toggle_api_token(token_id):
+    token = db.get_or_404(ApiToken, token_id)
+    token.is_active = not token.is_active
+    db.session.commit()
+    flash(f'Token "{token.name}" {"reativado" if token.is_active else "revogado"}.',
+          'success' if token.is_active else 'warning')
+    return redirect(url_for('admin.list_api_tokens'))
+
+
+@bp.route('/api-tokens/<int:token_id>/delete', methods=['POST'])
+@login_required
+@require_permission('api:manage')
+def delete_api_token(token_id):
+    token = db.get_or_404(ApiToken, token_id)
+    db.session.delete(token)
+    db.session.commit()
+    flash(f'Token "{token.name}" excluído permanentemente.', 'success')
+    return redirect(url_for('admin.list_api_tokens'))
