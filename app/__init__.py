@@ -63,6 +63,7 @@ def create_app(config_class=Config):
     from app.blueprints.payments import bp as payments_bp
     from app.blueprints.vt import bp as vt_bp
     from app.blueprints.kitchen import bp as kitchen_bp
+    from app.blueprints.api import bp as api_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -75,6 +76,7 @@ def create_app(config_class=Config):
     app.register_blueprint(payments_bp)
     app.register_blueprint(vt_bp)
     app.register_blueprint(kitchen_bp)
+    app.register_blueprint(api_bp)
 
     # ── Register CLI commands ──
     from app.commands import (seed_command, seed_admin_command,
