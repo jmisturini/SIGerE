@@ -2,6 +2,23 @@
 {% block title %}Disponibilidade - {{ classroom.name }}{% endblock %}
 
 {% block content %}
+{# Atributos data-* que alimentam o modal de detalhes a partir de cada reserva.
+   O link para a página completa só vai para quem tem permissão de leitura —
+   a mesma regra da rota reservations.detail. #}
+{% macro detalhe_reserva(ev) -%}
+role="button" data-bs-toggle="modal" data-bs-target="#modalReserva"
+data-titulo="{{ ev.title }}"
+data-data="{{ ev.date.strftime('%d/%m/%Y') }}"
+data-horario="{{ ev.start_time.strftime('%H:%M') }} – {{ ev.end_time.strftime('%H:%M') }}"
+data-status="{{ {'approved': 'Aprovada', 'pending': 'Pendente', 'cancelled': 'Cancelada'}[ev.status] if ev.status in ('approved', 'pending', 'cancelled') else ev.status }}"
+data-curso="{{ ev.course.name if ev.course else '' }}"
+data-disciplina="{{ ev.subject.name if ev.subject else '' }}"
+data-professor="{{ ev.teacher.full_name if ev.teacher else '' }}"
+data-solicitante="{{ ev.user.full_name if ev.user else '' }}"
+data-descricao="{{ ev.description or '' }}"
+data-link="{{ url_for('reservations.detail', reservation_id=ev.id) }}"
+data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all') or (current_user.has_permission('reservation:read_own') and ev.user_id == current_user.id) else '0' }}"
+{%- endmacro %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
         <h3 class="fw-bold mb-1">Disponibilidade: {{ classroom.name }}</h3>
@@ -15,12 +32,10 @@
     </a>
 </div>
 
-{% set nav_prev = {'view': view, 'year': prev_date.year, 'month': prev_date.month}
-                   if view == 'month' else
-                   {'view': view, 'year': prev_date.year, 'month': prev_date.month, 'day': prev_date.day} %}
-{% set nav_next = {'view': view, 'year': next_date.year, 'month': next_date.month}
-                   if view == 'month' else
-                   {'view': view, 'year': next_date.year, 'month': next_date.month, 'day': next_date.day} %}
+{% set nav_prev = {'view': view, 'year': prev_date.year, 'month': prev_date.month,
+                   'day': anchor.day if view == 'month' else prev_date.day} %}
+{% set nav_next = {'view': view, 'year': next_date.year, 'month': next_date.month,
+                   'day': anchor.day if view == 'month' else next_date.day} %}
 
 <div class="card">
     <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
@@ -32,9 +47,7 @@
             <h5 class="mb-2 fw-bold">{{ title_periodo }}</h5>
             <div class="btn-group btn-group-sm mb-2" role="group" aria-label="Modo de visualização">
                 {% for v, rotulo, icone in [('day', 'Dia', 'bi-calendar-day'), ('week', 'Semana', 'bi-calendar-week'), ('month', 'Mês', 'bi-calendar3')] %}
-                {% set args = {'view': v, 'year': anchor.year, 'month': anchor.month}
-                              if v == 'month' else
-                              {'view': v, 'year': anchor.year, 'month': anchor.month, 'day': anchor.day} %}
+                {% set args = {'view': v, 'year': anchor.year, 'month': anchor.month, 'day': anchor.day} %}
                 <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, **args) }}"
                    class="btn btn-sm {{ 'btn-primary' if view == v else 'btn-outline-secondary' }}"
                    {% if view == v %}aria-current="true"{% endif %}>
@@ -43,8 +56,13 @@
                 {% endfor %}
             </div>
             <div>
-                <a href="{{ url_for('classrooms.export_availability', classroom_id=classroom.id, year=year, month=month) }}" class="btn btn-sm btn-outline-danger">
-                    <i class="bi bi-filetype-pdf me-1"></i> Exportar Reservas do Mês (PDF)
+                {% set rotulos_exportar = {'day': 'Exportar Reservas do Dia (PDF)',
+                                           'week': 'Exportar Reservas da Semana (PDF)',
+                                           'month': 'Exportar Reservas do Mês (PDF)'} %}
+                <a href="{{ url_for('classrooms.export_availability', classroom_id=classroom.id,
+                                    view=view, year=anchor.year, month=anchor.month, day=anchor.day) }}"
+                   class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-filetype-pdf me-1"></i>{{ rotulos_exportar[view] }}
                 </a>
             </div>
         </div>
@@ -79,7 +97,7 @@
                         {% if day in reservations_by_day %}
                         <div class="events-container">
                             {% for ev in reservations_by_day[day] %}
-                            <div class="event-pill" title="{{ ev.title }}">
+                            <div class="event-pill" title="{{ ev.title }}" {{ detalhe_reserva(ev) }}>
                                 <strong>{{ ev.start_time.strftime('%H:%M') }}</strong>
                                 {{ ev.title | truncate(15, true) }}
                             </div>
@@ -108,7 +126,7 @@
                 <div class="day-number">{{ dia.day }}</div>
                 <div class="events-container">
                     {% for ev in reservas_dia %}
-                    <div class="event-pill" title="{{ ev.title }}">
+                    <div class="event-pill" title="{{ ev.title }}" {{ detalhe_reserva(ev) }}>
                         <strong>{{ ev.start_time.strftime('%H:%M') }}</strong>
                         {{ ev.title | truncate(15, true) }}
                     </div>
@@ -137,6 +155,9 @@
                         {%- if ev.teacher %}{% if ev.course or ev.subject %} · {% endif %}{{ ev.teacher.full_name }}{% endif -%}
                     </div>
                 </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" {{ detalhe_reserva(ev) }}>
+                    <i class="bi bi-info-circle me-1"></i>Detalhes
+                </button>
             </div>
             {% endfor %}
         </div>
@@ -150,6 +171,79 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Modal de detalhes da reserva -->
+<div class="modal fade" id="modalReserva" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-break" id="modalTitulo"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3"><span class="badge text-bg-success-subtle text-success border border-success-subtle" id="modalStatus"></span></p>
+                <div id="modalLinhas">
+                    <div class="d-flex gap-2 mb-2">
+                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Data</span>
+                        <span class="fw-medium" id="modalData"></span>
+                    </div>
+                    <div class="d-flex gap-2 mb-2">
+                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Horário</span>
+                        <span class="fw-medium" id="modalHorario"></span>
+                    </div>
+                    <div class="d-flex gap-2 mb-2" data-campo="curso">
+                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Curso</span>
+                        <span class="fw-medium" id="modalCurso"></span>
+                    </div>
+                    <div class="d-flex gap-2 mb-2" data-campo="disciplina">
+                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Disciplina</span>
+                        <span class="fw-medium" id="modalDisciplina"></span>
+                    </div>
+                    <div class="d-flex gap-2 mb-2" data-campo="professor">
+                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Professor</span>
+                        <span class="fw-medium" id="modalProfessor"></span>
+                    </div>
+                    <div class="d-flex gap-2 mb-2" data-campo="solicitante">
+                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Reservado por</span>
+                        <span class="fw-medium" id="modalSolicitante"></span>
+                    </div>
+                    <div class="d-flex gap-2 mb-2" data-campo="descricao">
+                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Descrição</span>
+                        <span class="fw-medium text-break" id="modalDescricao"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <a id="modalLinkCompleto" class="btn btn-sm btn-outline-primary" href="#">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Ver detalhes completos
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('modalReserva').addEventListener('show.bs.modal', function (event) {
+        const gatilho = event.relatedTarget;
+        if (!gatilho) return;
+        const atributo = (nome) => gatilho.getAttribute('data-' + nome) || '';
+        document.getElementById('modalTitulo').textContent = atributo('titulo');
+        document.getElementById('modalStatus').textContent = atributo('status');
+        document.getElementById('modalData').textContent = atributo('data');
+        document.getElementById('modalHorario').textContent = atributo('horario');
+        // Campo sem valor (ex.: reserva sem curso) esconde a linha inteira
+        document.querySelectorAll('#modalLinhas [data-campo]').forEach(function (linha) {
+            const campo = linha.getAttribute('data-campo');
+            const destino = document.getElementById('modal' + campo.charAt(0).toUpperCase() + campo.slice(1));
+            const valor = atributo(campo);
+            destino.textContent = valor;
+            linha.classList.toggle('d-none', !valor);
+        });
+        const link = document.getElementById('modalLinkCompleto');
+        link.href = atributo('link');
+        link.classList.toggle('d-none', atributo('link-visivel') !== '1');
+    });
+</script>
 
 <style>
     .calendar-grid {
@@ -207,6 +301,14 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    .event-pill[role="button"] {
+        cursor: pointer;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    .event-pill[role="button"]:hover {
+        background-color: var(--primary-color, #004b8d);
+        color: #fff;
     }
 
     /* No celular as 7 colunas ficam com ~40px cada: menos respiro e altura

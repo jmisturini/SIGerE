@@ -203,6 +203,31 @@ def detail(classroom_id):
     ).order_by(Reservation.date, Reservation.start_time).all()
     return render_template('classrooms/detail.html', classroom=classroom, upcoming=upcoming)
 
+def _availability_anchor():
+    """Âncora (date) da visão de disponibilidade a partir de year/month/day.
+
+    Sem parâmetros cai em hoje. No mês corrente sem day explícito, ancora no
+    dia de hoje — trocar de visão não pode pular para o dia 1. Um dia além do
+    comprimento do mês (preservado pela navegação) clampara no último dia.
+    """
+    today = date.today()
+    req_year = request.args.get('year', type=int)
+    req_month = request.args.get('month', type=int)
+    req_day = request.args.get('day', type=int)
+    if req_year and req_month:
+        year, month = req_year, req_month
+        day = req_day or (today.day if (year, month) == (today.year, today.month) else 1)
+    else:
+        year, month, day = today.year, today.month, today.day
+    try:
+        return date(year, month, day)
+    except ValueError:
+        try:
+            return date(year, month, calendar.monthrange(year, month)[1])
+        except ValueError:
+            return today
+
+
 # Route to view availability of a classroom (dia, semana ou mês)
 @bp.route('/<int:classroom_id>/availability')
 @login_required
@@ -214,17 +239,7 @@ def availability(classroom_id):
     if view not in ('day', 'week', 'month'):
         view = 'month'
 
-    req_year = request.args.get('year', type=int)
-    req_month = request.args.get('month', type=int)
-    req_day = request.args.get('day', type=int)
-    if req_year and req_month:
-        year, month, day = req_year, req_month, req_day or 1
-    else:
-        year, month, day = today.year, today.month, today.day
-    try:
-        anchor = date(year, month, day)
-    except ValueError:
-        anchor = today
+    anchor = _availability_anchor()
 
     def reservas_entre(inicio, fim):
         """Reservas aprovadas da sala no intervalo fechado [inicio, fim]."""
@@ -275,46 +290,57 @@ def availability(classroom_id):
         year=anchor.year, month=anchor.month,
     )
 
-# Route to export a specific classroom's monthly reservations to PDF
+# Route to export a specific classroom's reservations to PDF, following the
+# view in use on the availability page (day, week or month)
 @bp.route('/<int:classroom_id>/export_availability')
 @login_required
 @require_permission('system:export')
 def export_availability(classroom_id):
     classroom = _get_classroom_scoped(classroom_id)
+    anchor = _availability_anchor()
 
-    req_year = request.args.get('year', type=int)
-    req_month = request.args.get('month', type=int)
-    today = date.today()
-    
-    if req_year and req_month:
-        year, month = req_year, req_month
-    else:
-        year, month = today.year, today.month
+    view = request.args.get('view', 'month')
+    if view not in ('day', 'week', 'month'):
+        view = 'month'
 
-    first_day = date(year, month, 1)
-    last_day_num = calendar.monthrange(year, month)[1]
-    last_day = date(year, month, last_day_num)
+    # O período exportado acompanha a visão em uso na página.
+    if view == 'day':
+        inicio = fim = anchor
+        periodo_label = f"Dia: {anchor.strftime('%d/%m/%Y')}"
+        nome_arquivo = f"reservas_{classroom.code}_{anchor.strftime('%Y-%m-%d')}.pdf"
+    elif view == 'week':
+        # Semana começando no domingo, igual à visão semanal da página
+        inicio = anchor - timedelta(days=(anchor.weekday() + 1) % 7)
+        fim = inicio + timedelta(days=6)
+        # "a" em vez de "–": a fonte Helvetica core do PDF não cobre o travessão
+        periodo_label = (f"Semana: {inicio.strftime('%d/%m')} a "
+                         f"{fim.strftime('%d/%m/%Y')}")
+        nome_arquivo = (f"reservas_{classroom.code}_{inicio.strftime('%Y-%m-%d')}"
+                        f"_a_{fim.strftime('%Y-%m-%d')}.pdf")
+    else:  # month (padrão)
+        inicio = date(anchor.year, anchor.month, 1)
+        fim = date(anchor.year, anchor.month,
+                   calendar.monthrange(anchor.year, anchor.month)[1])
+        periodo_label = f"{MESES_PT[anchor.month - 1]} de {anchor.year}"
+        nome_arquivo = f"reservas_{classroom.code}_{anchor.month}-{anchor.year}.pdf"
 
     # Fetch approved reservations for this period
     reservations = Reservation.query.filter(
         Reservation.classroom_id == classroom_id,
-        Reservation.date >= first_day,
-        Reservation.date <= last_day,
+        Reservation.date >= inicio,
+        Reservation.date <= fim,
         Reservation.status == 'approved'
     ).order_by(Reservation.date, Reservation.start_time).all()
 
     # Generate PDF (Landscape, mm, A4)
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
-    
-    # Get month name in Portuguese
-    month_name = MESES_PT[month - 1]
-    
+
     # Title
     pdf.set_font("Helvetica", 'B', 16)
     pdf.cell(0, 10, f"Reservas - {classroom.name} ({classroom.code})", new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.set_font("Helvetica", 'B', 12)
-    pdf.cell(0, 8, f"{month_name} de {year}", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.cell(0, 8, periodo_label, new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.ln(5)
     
     # Table Header
@@ -386,5 +412,5 @@ def export_availability(classroom_id):
     # CORREÇÃO: Converter para bytes explicitamente (resolve o erro do bytearray)
     response = make_response(bytes(pdf_output))
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=reservas_{classroom.code}_{month}-{year}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename={nome_arquivo}'
     return response
