@@ -218,13 +218,21 @@ def availability(classroom_id):
     req_month = request.args.get('month', type=int)
     req_day = request.args.get('day', type=int)
     if req_year and req_month:
-        year, month, day = req_year, req_month, req_day or 1
+        year, month = req_year, req_month
+        # Sem dia explícito, ancora em hoje quando o mês pedido é o mês
+        # corrente: trocar de visão não pode pular para o dia 1.
+        day = req_day or (today.day if (year, month) == (today.year, today.month) else 1)
     else:
         year, month, day = today.year, today.month, today.day
     try:
         anchor = date(year, month, day)
     except ValueError:
-        anchor = today
+        try:
+            # A âncora preservada pela navegação pode não existir no mês alvo
+            # (ex.: dia 31 avançando para um mês de 30): cai no último dia.
+            anchor = date(year, month, calendar.monthrange(year, month)[1])
+        except ValueError:
+            anchor = today
 
     def reservas_entre(inicio, fim):
         """Reservas aprovadas da sala no intervalo fechado [inicio, fim]."""

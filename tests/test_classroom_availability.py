@@ -125,9 +125,28 @@ class AvailabilityViewsTestCase(unittest.TestCase):
         self.assertIn('day=11', page)     # Próximo → 11/09/2026
         page = self._get(view='week', year=2026, month=9, day=10)
         self.assertIn('day=13', page)     # semana seguinte começa em 13/09
-        page = self._get(year=2026, month=9)  # mês navega sem o parâmetro day
-        self.assertIn('month=8', page)
-        self.assertIn('month=10', page)
+        page = self._get(view='month', year=2026, month=9, day=10)
+        # hrefs escapam '&' como '&amp;' no HTML
+        self.assertIn('month=8&amp;day=10', page)   # mês anterior mantém o dia
+        self.assertIn('month=10&amp;day=10', page)  # mês seguinte mantém o dia
+
+    def test_mes_atual_sem_day_ancora_em_hoje(self):
+        """Abrir/trocar a visão no mês corrente sem ?day= não pode cair no
+        dia 1: a âncora é o dia atual (causa do bug relatado ao alternar
+        entre dia, semana e mês)."""
+        hoje = date.today()
+        page = self._get(view='month', year=hoje.year, month=hoje.month)
+        self.assertIn(f'day={hoje.day}', page)
+        page = self._get(view='week', year=hoje.year, month=hoje.month)
+        self.assertIn(f'day={hoje.day}', page)
+
+    def test_dia_da_ancora_clampa_no_comprimento_do_mes(self):
+        """Dia 31 navegando para um mês de 30 dias ancora no último dia,
+        em vez de voltar para hoje."""
+        page = self._get(view='month', year=2026, month=9, day=31)
+        self.assertIn('Setembro de 2026', page)
+        self.assertIn('day=30', page)  # botões Semana/Dia ancorados em 30/09
+        self.assertNotIn('day=31', page)
 
 
 if __name__ == '__main__':

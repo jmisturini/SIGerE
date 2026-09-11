@@ -15,12 +15,10 @@
     </a>
 </div>
 
-{% set nav_prev = {'view': view, 'year': prev_date.year, 'month': prev_date.month}
-                   if view == 'month' else
-                   {'view': view, 'year': prev_date.year, 'month': prev_date.month, 'day': prev_date.day} %}
-{% set nav_next = {'view': view, 'year': next_date.year, 'month': next_date.month}
-                   if view == 'month' else
-                   {'view': view, 'year': next_date.year, 'month': next_date.month, 'day': next_date.day} %}
+{% set nav_prev = {'view': view, 'year': prev_date.year, 'month': prev_date.month,
+                   'day': anchor.day if view == 'month' else prev_date.day} %}
+{% set nav_next = {'view': view, 'year': next_date.year, 'month': next_date.month,
+                   'day': anchor.day if view == 'month' else next_date.day} %}
 
 <div class="card">
     <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
@@ -32,9 +30,7 @@
             <h5 class="mb-2 fw-bold">{{ title_periodo }}</h5>
             <div class="btn-group btn-group-sm mb-2" role="group" aria-label="Modo de visualização">
                 {% for v, rotulo, icone in [('day', 'Dia', 'bi-calendar-day'), ('week', 'Semana', 'bi-calendar-week'), ('month', 'Mês', 'bi-calendar3')] %}
-                {% set args = {'view': v, 'year': anchor.year, 'month': anchor.month}
-                              if v == 'month' else
-                              {'view': v, 'year': anchor.year, 'month': anchor.month, 'day': anchor.day} %}
+                {% set args = {'view': v, 'year': anchor.year, 'month': anchor.month, 'day': anchor.day} %}
                 <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, **args) }}"
                    class="btn btn-sm {{ 'btn-primary' if view == v else 'btn-outline-secondary' }}"
                    {% if view == v %}aria-current="true"{% endif %}>
