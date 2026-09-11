@@ -16,6 +16,7 @@
 ## 📋 Índice
 
 - [Visão Geral](#-visão-geral)
+- [Capturas de Tela](#-capturas-de-tela)
 - [Funcionalidades](#-funcionalidades)
 - [Tecnologias](#-tecnologias)
 - [Instalação](#-instalação)
@@ -49,6 +50,37 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissões granulares, tema claro/escuro persistente, exportação de relatórios em PDF/Excel, layout responsivo (mobile/tablet/desktop) e seed opcional de dados de demonstração.
 
 **Primeira implantação:** após o `seed-admin`, o painel do super-admin exibe um **checklist de configuração inicial** (unidade, categorias, salas, professores, funcionários, cursos/disciplinas e feriados) — cada passo confere dados reais do banco, marca o que já existe e some quando a implantação está completa.
+
+---
+
+## 📸 Capturas de Tela
+
+Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis em [`docs/screenshots/`](docs/screenshots/).
+
+| Painel (resumo do dia) | Calendário com filtros |
+|---|---|
+| ![Painel com o resumo das reservas do dia](docs/screenshots/02-dashboard.png) | ![Calendário com filtros de reserva](docs/screenshots/03-calendario.png) |
+
+| Lista de Reservas | Disponibilidade mensal da sala |
+|---|---|
+| ![Lista de todas as reservas com situações](docs/screenshots/04-reservas.png) | ![Disponibilidade mensal da sala](docs/screenshots/05-disponibilidade-sala.png) |
+
+| Totem digital (TV de corredor) | Portal público |
+|---|---|
+| ![Totem de ocupação de salas com clima](docs/screenshots/06-totem.png) | ![Cronograma público do dia](docs/screenshots/08-portal-cronograma.png) |
+
+| API de Reservas (JSON) | Quadro de porta para tablet (app de exemplo) |
+|---|---|
+| ![Resposta JSON da API de reservas](docs/screenshots/09-api-json.png) | ![Quadro de porta consumindo a API](docs/screenshots/10-quadro-porta.png) |
+
+<details>
+<summary>Mais telas</summary>
+
+| Login | Home pública |
+|---|---|
+| ![Tela de login](docs/screenshots/01-login.png) | ![Home pública](docs/screenshots/07-portal-home.png) |
+
+</details>
 
 ---
 
@@ -518,8 +550,9 @@ SIGerE/
 ├── run.py                     # Entrypoint: cria a app e roda o servidor
 ├── requirements.txt           # Dependências Python
 ├── migrations/                # Versionamento de schema (Alembic/Flask-Migrate)
-├── docs/                      # Documentação (API de reservas, dados auxiliares)
-│   └── api-reservas.md        # Documentação detalhada da API de reservas
+├── docs/                      # Documentação e capturas de tela
+│   ├── api-reservas.md        # Documentação detalhada da API de reservas
+│   └── screenshots/           # Imagens exibidas no README
 ├── instance/                  # Dados da instância (uploads, ignorado no git)
 │   └── uploads/               # Fichas técnicas .docx enviadas (fora do static/)
 │
