@@ -2,7 +2,9 @@
 
 Sub-menus:
 - Ficha Técnica: envio de arquivos .docx (múltiplos por vez), leitura do
-  conteúdo pelo submódulo parser (parser.py) e botão "Salvar Ficha Técnica" que gera a
+  conteúdo pelo submódulo parser (parser.py) — modelo em tabelas com nome,
+  equipamentos, utensílios, tempo, rendimento, tabela de insumos, modo de
+  preparo e notas técnicas — e botão "Salvar Ficha Técnica" que gera a
   preparação;
 - Preparações: receitas geradas pelas fichas, em cards ou lista (à escolha do
   usuário), com visualização completa;
@@ -161,7 +163,7 @@ def sheets():
 def create_sheet():
     """Cria uma ficha técnica manualmente, seguindo o mesmo modelo das fichas
     enviadas em .docx (nome, equipamentos, utensílios, tempo, rendimento,
-    preparações com insumos, modo de preparo e notas técnicas)."""
+    tabela de insumos, modo de preparo e notas técnicas)."""
     if request.method == 'POST':
         data = _sheet_data_from_form()
         if data is None:
@@ -477,31 +479,22 @@ def _parse_form_quantity(raw):
 
 def _sheet_data_from_form():
     """Monta o dicionário no formato do parser a partir do formulário manual
-    de ficha técnica. Retorna None quando o nome da preparação está vazio."""
+    de ficha técnica (uma única tabela de insumos, como no modelo .docx).
+    Retorna None quando o nome da preparação está vazio."""
     from app.blueprints.kitchen.parser import _STEP_NUMBER_RE
 
     nome = (request.form.get('nome') or '').strip()
     if not nome:
         return None
 
-    preparations = []
-    for index, name in enumerate(x.strip() for x in request.form.getlist('prep_nome[]')):
-        preparations.append({'nome': name or f'Preparação {index + 1}',
-                             'ingredientes': []})
-
-    columns = ('ing_prep[]', 'ing_nome[]', 'ing_espec[]', 'ing_qtd[]', 'ing_unid[]')
+    ingredientes = []
+    columns = ('ing_nome[]', 'ing_espec[]', 'ing_qtd[]', 'ing_unid[]')
     rows = zip(*(request.form.getlist(c) for c in columns))
-    for prep_index, nome_ing, espec, qtd, unidade in rows:
+    for nome_ing, espec, qtd, unidade in rows:
         name = nome_ing.strip()
         if not name:
-            continue
-        try:
-            prep_position = int(prep_index)
-        except (TypeError, ValueError):
-            continue
-        if not 0 <= prep_position < len(preparations):
-            continue
-        preparations[prep_position]['ingredientes'].append({
+            continue  # linha vazia adicionada e abandonada no formulário
+        ingredientes.append({
             'nome': name,
             'especificacao': espec.strip(),
             'quantidade': _parse_form_quantity(qtd),
@@ -515,7 +508,7 @@ def _sheet_data_from_form():
         'utensilios': (request.form.get('utensilios') or '').strip(),
         'tempo_preparo': (request.form.get('tempo_preparo') or '').strip(),
         'rendimento': (request.form.get('rendimento') or '').strip(),
-        'preparacoes': preparations,
+        'preparacoes': [{'nome': nome, 'ingredientes': ingredientes}],
         'modo_preparo': [_STEP_NUMBER_RE.sub('', s.strip()).strip()
                          for s in (request.form.get('modo_preparo') or '').splitlines()
                          if s.strip()],

@@ -1,18 +1,26 @@
 """Parser de Fichas Técnicas Operacionais (DOCX) para o módulo de Cozinha.
 
 Extrai, sem dependências externas (zipfile + XML), a estrutura padrão dos
-documentos enviados:
+documentos enviados — o modelo em tabelas da Ficha Técnica Operacional:
 
-    Ficha Técnica Operacional
-    Nome da Preparação: ... | Equipamentos: ... | Utensílios: ...
-    Tempo de Preparo: ... | Rendimento: ...
-    1. Insumos            → tabelas "Ingrediente/Especificação/Quantidade/
-                             Unidade", uma por preparação ("Para os Bolinhos…")
-    2. Modo de Preparo    → passos numerados (modo de preparo geral)
-    3. Finalização e Notas Técnicas → observações, alergênicos, referências
+    ┌─────────────────────────────────────────────────────────┐
+    │ Nome da preparação                                      │ ← 1ª linha mesclada
+    │ Equipamentos: <valor na mesma célula>                   │
+    │ Utensílios: <valor na mesma célula>                     │
+    │ Tempo de Preparo: <valor>  │  Rendimento: <valor>       │
+    │ Ingredientes │ Especificações │ Quantidade │ Unidade    │ ← cabeçalho de insumos
+    │ ... linhas de insumos (linhas vazias separam grupos) ...│
+    └─────────────────────────────────────────────────────────┘
+    Modo de Preparo:
+    <passos em parágrafos, numerados ou não>
+    ┌─────────────────────────────────────────────────────────┐
+    │ Observações técnicas: <valor>                           │
+    │ Alergênicos           <valor>                           │
+    │ Referências           <valor>                           │
+    └─────────────────────────────────────────────────────────┘
 
-Os rótulos do cabeçalho são localizados por regex dentro do texto corrido,
-portanto funcionem em parágrafos únicos ou com quebras de linha.
+No cabeçalho, o valor vem logo após o rótulo na própria célula. Nas notas
+técnicas, o valor pode vir após o rótulo ou na linha seguinte da tabela.
 """
 import re
 import unicodedata
@@ -22,30 +30,26 @@ from defusedxml.ElementTree import fromstring
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 
-# Rótulos do cabeçalho, na ordem em que aparecem no documento.
-HEADER_LABELS = (
-    ('nome', r'Nome\s+da\s+Prepara[çc][ãa]o'),
-    ('equipamentos', r'Equipamentos'),
-    ('utensilios', r'Utens[íi]lios'),
-    ('tempo_preparo', r'Tempo\s+de\s+Preparo'),
-    ('rendimento', r'Rendimento'),
+# Rótulos do cabeçalho da tabela principal: "Rótulo: valor" na mesma célula.
+_HEADER_LABEL_RE = re.compile(
+    r'^\s*(equipamentos|utens[íi]lios|tempo\s+de\s+preparo|rendimento)\s*:?\s*(.*)$',
+    re.IGNORECASE,
 )
-_HEADER_RE = re.compile(
-    r'(?:' + '|'.join(fr'({pat})' for _, pat in HEADER_LABELS) + r')\s*:',
+_HEADER_KEYS = {
+    'equipamentos': 'equipamentos',
+    'utensilios': 'utensilios',
+    'tempo de preparo': 'tempo_preparo',
+    'rendimento': 'rendimento',
+}
+
+# Rótulos da tabela de notas técnicas (valor após o rótulo ou na linha seguinte).
+_NOTA_LABEL_RE = re.compile(
+    r'^\s*(observa[çc][õo]es\s*t[ée]cnicas?|alerg[êe]nicos?|'
+    r'refer[êe]ncias?(?:\s*bibliogr[áa]ficas?)?)\s*:?\s*(.*)$',
     re.IGNORECASE,
 )
 
-_SECTION_PATTERNS = (
-    ('insumos', re.compile(r'^\s*1\s*[\.\)\-–]?\s*(?:\w+\s+){0,2}?insumos', re.IGNORECASE)),
-    ('modo', re.compile(r'^\s*2\s*[\.\)\-–]?\s*modo\s+de\s+preparo', re.IGNORECASE)),
-    ('notas', re.compile(r'^\s*3\s*[\.\)\-–]?\s*(?:finaliza|nota)', re.IGNORECASE)),
-)
-
-_NOTA_PREFIXES = (
-    ('observacoes', re.compile(r'^\s*observa[çc][õo]es\s*t[ée]cnicas?\s*:?\s*', re.IGNORECASE)),
-    ('alergenicos', re.compile(r'^\s*alerg[êe]nicos?\s*:?\s*', re.IGNORECASE)),
-    ('referencias', re.compile(r'^\s*refer[êe]ncias?\s*(bibliogr[áa]ficas?)?\s*:?\s*', re.IGNORECASE)),
-)
+_MODO_LABEL_RE = re.compile(r'^\s*modo\s+de\s+preparo\s*:?\s*(.*)$', re.IGNORECASE)
 
 _STEP_NUMBER_RE = re.compile(r'^\s*\d+\s*[\.\)\-–]\s*')
 
@@ -73,6 +77,7 @@ def _paragraph_text(par):
 
 
 def _cell_texts(row):
+    """Textos das células da linha, com os parágrafos de cada célula unidos."""
     cells = []
     for cell in row.findall(W + 'tc'):
         text = ' '.join(
@@ -84,8 +89,9 @@ def _cell_texts(row):
 
 
 def _read_blocks(doc_xml):
-    """Retorna os blocos do corpo do documento na ordem original:
-    ('p', texto) para parágrafos e ('table', linhas) para tabelas."""
+    """Blocos do corpo do documento na ordem original: ('p', texto) para
+    parágrafos e ('table', linhas) para tabelas. Linhas de tabela sem nenhum
+    conteúdo são descartadas."""
     try:
         root = fromstring(doc_xml)
     except Exception as exc:
@@ -109,33 +115,13 @@ def _read_blocks(doc_xml):
 
 
 def _clean_inline(value):
-    """Colapsa quebras de linha/espaços de um valor de cabeçalho."""
-    return re.sub(r'\s+', ' ', value).strip(' .;')
+    """Colapsa espaços de um valor extraído do documento."""
+    return re.sub(r'\s+', ' ', value or '').strip()
 
 
-def _extract_header(paragraph_texts):
-    """Localiza os rótulos do cabeçalho no texto corrido (antes da 1ª tabela)
-    e devolve um dicionário com os valores entre um rótulo e o próximo."""
-    haystack = '\n'.join(paragraph_texts)
-    matches = list(_HEADER_RE.finditer(haystack))
-    fields = {}
-    for index, match in enumerate(matches):
-        # Índice do grupo alternado que casou → chave canônica do rótulo.
-        group_index = next(i for i, g in enumerate(match.groups()) if g is not None)
-        key = HEADER_LABELS[group_index][0]
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(haystack)
-        value = _clean_inline(haystack[match.end():end])
-        if value:
-            fields.setdefault(key, value)
-    return fields
-
-
-def _match_section(text):
-    normalized = _strip_accents(text).lower()
-    for name, pattern in _SECTION_PATTERNS:
-        if pattern.match(normalized):
-            return name
-    return None
+def _is_ingredients_header(row):
+    """True na linha de cabeçalho da tabela de insumos ('Ingredientes...')."""
+    return bool(row) and _strip_accents(row[0]).strip().lower() == 'ingredientes'
 
 
 def _parse_quantity(raw):
@@ -147,6 +133,8 @@ def _parse_quantity(raw):
 
 
 def _parse_ingredient_row(cells):
+    """Linha da tabela de insumos → dicionário do ingrediente ('Q.B.' e
+    quantidade vazia ficam sem valor numérico; unidade '-' significa 'a gosto')."""
     cells = (cells + ['', '', '', ''])[:4]
     name, specification, quantity_raw, unit = (c.strip() for c in cells)
     if not name:
@@ -160,21 +148,10 @@ def _parse_ingredient_row(cells):
     }
 
 
-def _clean_preparation_name(text):
-    """'Para os Bolinhos de Carne Seca' → 'Bolinhos de Carne Seca'."""
-    prefix = re.match(r'^\s*para\s+(?:os|as|o|a|um|uma|uns|umas)?\s+', text, flags=re.IGNORECASE)
-    name = text[prefix.end():] if prefix else text
-    return name.strip(':. ')
-
-
-def _is_header_row(row):
-    return any('ingred' in _strip_accents(c).lower() for c in row)
-
-
 def parse_ficha_docx(file_stream):
     """Lê um arquivo DOCX de Ficha Técnica e retorna um dicionário com o
     conteúdo estruturado. Levanta FichaParseError quando o arquivo não segue
-    o formato esperado."""
+    o formato esperado (modelo em tabelas da Ficha Técnica Operacional)."""
     try:
         with zipfile.ZipFile(file_stream) as archive:
             doc_xml = archive.read('word/document.xml')
@@ -184,74 +161,102 @@ def parse_ficha_docx(file_stream):
         raise FichaParseError('DOCX sem conteúdo de texto (word/document.xml ausente).')
 
     blocks = _read_blocks(doc_xml)
+    tables = [content for kind, content in blocks if kind == 'table']
 
-    # ── Cabeçalho: parágrafos antes da primeira tabela/seção de insumos ──
-    intro_texts = []
-    for kind, content in blocks:
-        if kind == 'table' or _match_section(content):
-            break
-        intro_texts.append(content)
-    header = _extract_header(intro_texts)
-    if not header.get('nome'):
+    # ── Tabela principal: a que contém o cabeçalho de insumos ──
+    main_table = next(
+        (t for t in tables if any(_is_ingredients_header(r) for r in t)), None)
+    if main_table is None:
         raise FichaParseError(
-            'Não foi possível localizar o rótulo "Nome da Preparação:" no documento.')
+            'Não foi possível localizar a tabela de insumos da Ficha Técnica '
+            '(linha "Ingredientes | Especificações | Quantidade | Unidade").')
 
-    # ── Corpo: seções de insumos, modo de preparo e notas ──
-    section = None
-    preparations = []      # [{'nome', 'ingredientes': [...]}]
-    current_prep = None
-    steps = []
-    notes = {'observacoes': [], 'alergenicos': [], 'referencias': []}
-
-    for kind, content in blocks:
-        if kind == 'p':
-            matched = _match_section(content)
-            if matched:
-                section = matched
+    fields = {}
+    preparation = {'nome': '', 'ingredientes': []}
+    in_ingredients = False
+    for row in main_table:
+        if _is_ingredients_header(row):
+            in_ingredients = True
+            continue
+        if in_ingredients:
+            ingredient = _parse_ingredient_row(row)
+            if ingredient:
+                preparation['ingredientes'].append(ingredient)
+            continue
+        # Identificação: rótulos com o valor na própria célula; a 1ª linha
+        # (sem rótulo) é o nome da preparação.
+        labeled = False
+        for cell in row:
+            match = _HEADER_LABEL_RE.match(cell)
+            if not match:
                 continue
+            labeled = True
+            key = _HEADER_KEYS[_strip_accents(match.group(1)).lower()]
+            value = _clean_inline(match.group(2))
+            if value:
+                fields.setdefault(key, value)
+        if not labeled and not fields.get('nome'):
+            name = _clean_inline(row[0]) if row else ''
+            if name:
+                fields['nome'] = name
+                preparation['nome'] = name
+    if not fields.get('nome'):
+        raise FichaParseError(
+            'Não foi possível localizar o nome da preparação na 1ª linha da ficha.')
 
-        if section == 'insumos':
-            if kind == 'p':
-                if content.lower().startswith('para '):
-                    current_prep = {
-                        'nome': _clean_preparation_name(content),
-                        'ingredientes': [],
-                    }
-                    preparations.append(current_prep)
-            elif kind == 'table':
-                if current_prep is None:
-                    current_prep = {'nome': 'Ingredientes', 'ingredientes': []}
-                    preparations.append(current_prep)
-                data_rows = content[1:] if _is_header_row(content[0]) else content
-                for row in data_rows:
-                    ingredient = _parse_ingredient_row(row)
-                    if ingredient:
-                        current_prep['ingredientes'].append(ingredient)
+    # ── Tabela de notas técnicas e modo de preparo entre as tabelas ──
+    main_index = notes_index = None
+    notes_table = None
+    for index, (kind, content) in enumerate(blocks):
+        if kind != 'table':
+            continue
+        if content is main_table:
+            main_index = index
+        elif notes_table is None and any(_NOTA_LABEL_RE.match(r[0]) for r in content):
+            notes_table = content
+            notes_index = index
 
-        elif section == 'modo':
-            if kind == 'p':
-                step = _STEP_NUMBER_RE.sub('', content).strip()
-                if step:
-                    steps.append(step)
+    steps = []
+    for kind, content in blocks[main_index + 1:notes_index if notes_index is not None
+                                else len(blocks)]:
+        if kind != 'p':
+            continue
+        match = _MODO_LABEL_RE.match(content)
+        step = match.group(1) if match else content
+        step = _STEP_NUMBER_RE.sub('', step).strip()
+        if step:
+            steps.append(step)
 
-        elif section == 'notas':
-            if kind == 'p':
-                for key, pattern in _NOTA_PREFIXES:
-                    if pattern.match(content):
-                        notes[key].append(pattern.sub('', content).strip())
-                        break
+    notes = {'observacoes': [], 'alergenicos': [], 'referencias': []}
+    if notes_table is not None:
+        current = None
+        for row in notes_table:
+            match = _NOTA_LABEL_RE.match(row[0] if row else '')
+            if match:
+                label = _strip_accents(match.group(1)).lower()
+                if label.startswith('observa'):
+                    current = 'observacoes'
+                elif label.startswith('alerg'):
+                    current = 'alergenicos'
                 else:
-                    notes['observacoes'].append(content)
+                    current = 'referencias'
+                value = _clean_inline(match.group(2))
+                if value:
+                    notes[current].append(value)
+            elif current:
+                value = _clean_inline(' '.join(c for c in row if c))
+                if value:
+                    notes[current].append(value)
 
     return {
-        'nome': header.get('nome'),
-        'equipamentos': header.get('equipamentos', ''),
-        'utensilios': header.get('utensilios', ''),
-        'tempo_preparo': header.get('tempo_preparo', ''),
-        'rendimento': header.get('rendimento', ''),
-        'preparacoes': preparations,
+        'nome': fields.get('nome'),
+        'equipamentos': fields.get('equipamentos', ''),
+        'utensilios': fields.get('utensilios', ''),
+        'tempo_preparo': fields.get('tempo_preparo', ''),
+        'rendimento': fields.get('rendimento', ''),
+        'preparacoes': [preparation],
         'modo_preparo': steps,
-        'observacoes': '\n'.join(notes['observacoes']) or None,
-        'alergenicos': '\n'.join(notes['alergenicos']) or None,
-        'referencias': '\n'.join(notes['referencias']) or None,
+        'observacoes': '\n'.join(notes['observacoes']),
+        'alergenicos': '\n'.join(notes['alergenicos']),
+        'referencias': '\n'.join(notes['referencias']),
     }
