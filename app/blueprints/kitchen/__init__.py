@@ -325,6 +325,34 @@ def delete_sheet(sheet_id):
     return redirect(url_for('kitchen.sheets'))
 
 
+@bp.route('/fichas/excluir-todas', methods=['POST'])
+@login_required
+@require_permission('kitchen:sheet_delete')
+def delete_saved_sheets():
+    """Exclui TODAS as fichas salvas da unidade de uma vez — as preparações
+    geradas (cascade) e os arquivos .docx enviados (downloads) também saem.
+    Fichas pendentes e com erro de leitura não são afetadas."""
+    saved = TechnicalSheet.query.filter_by(unity_id=current_unity_id(),
+                                           status='saved').all()
+    if not saved:
+        flash('Nenhuma ficha salva para excluir.', 'info')
+        return redirect(url_for('kitchen.sheets'))
+
+    file_paths = [path for sheet in saved
+                  if (path := _sheet_file_path(sheet)) and os.path.exists(path)]
+    for sheet in saved:
+        db.session.delete(sheet)  # cascade remove as preparações vinculadas
+    db.session.commit()
+    for path in file_paths:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    flash(f'{len(saved)} ficha(s) salva(s) excluída(s), junto com as '
+          'preparações geradas e os arquivos .docx enviados.', 'info')
+    return redirect(url_for('kitchen.sheets'))
+
+
 @bp.route('/fichas/<int:sheet_id>/download')
 @login_required
 @require_permission('kitchen:read')
