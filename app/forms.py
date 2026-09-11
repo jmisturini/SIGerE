@@ -375,7 +375,10 @@ class HolidayForm(BaseForm):
 
     def __init__(self, *args, **kwargs):
         super(HolidayForm, self).__init__(*args, **kwargs)
-        self._obj_id = kwargs.get('obj_id', None)
+        # CORREÇÃO: mesma correção do RoomCategoryForm — extrai _obj_id do
+        # objeto passado via obj= para não validar unicidade contra si mesmo.
+        obj = kwargs.get('obj', None)
+        self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
 
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
@@ -501,7 +504,10 @@ class RoleForm(BaseForm):
 
     def __init__(self, *args, **kwargs):
         super(RoleForm, self).__init__(*args, **kwargs)
-        self._obj_id = kwargs.get('obj_id', None)
+        # CORREÇÃO: mesma correção do RoomCategoryForm — extrai _obj_id do
+        # objeto passado via obj= para não validar unicidade contra si mesmo.
+        obj = kwargs.get('obj', None)
+        self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
 
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
@@ -561,7 +567,11 @@ class RoomCategoryForm(BaseForm):
 
     def __init__(self, *args, **kwargs):
         super(RoomCategoryForm, self).__init__(*args, **kwargs)
-        self._obj_id = kwargs.get('obj_id', None)
+        # CORREÇÃO: extrai _obj_id do objeto passado via obj= quando obj_id
+        # não é passado explicitamente como kwarg. Sem isso, _obj_id é None
+        # em edições e a validação de unicidade encontra o próprio registro.
+        obj = kwargs.get('obj', None)
+        self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
 
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
