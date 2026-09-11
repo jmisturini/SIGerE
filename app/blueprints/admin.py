@@ -30,6 +30,17 @@ def _unity_scoped_or_404(obj):
         abort(404)
     return obj
 
+def _unity_visivel_or_404(unity):
+    """Escopo de visibilidade da PRÓPRIA unidade: administrador vinculado a
+    uma unidade acessa apenas a sua — as demais ficam escondidas (404, sem
+    revelar que existem). Super-admin (*) e contas globais sem vínculo
+    acessam todas."""
+    if current_user.has_permission('*') or not current_user.unity_id:
+        return unity
+    if unity.id != current_user.unity_id:
+        abort(404)
+    return unity
+
 def _setup_checklist():
     """Passos da configuração inicial do sistema, cada um com o estado real
     dos dados no banco — aparece no painel do super-admin enquanto houver
@@ -669,7 +680,12 @@ def toggle_category(cat_id):
 @login_required
 @require_permission('unity:read')
 def list_unities():
-    unities = Unity.query.all()
+    # Administrador vinculado a uma unidade vê apenas a sua — as demais
+    # ficam escondidas. Super-admin (*) e contas globais veem todas.
+    if current_user.has_permission('*') or not current_user.unity_id:
+        unities = Unity.query.all()
+    else:
+        unities = Unity.query.filter_by(id=current_user.unity_id).all()
     # Contagem de recursos por unidade para exibição na listagem
     counts = {u.id: Classroom.query.filter_by(unity_id=u.id).count() for u in unities}
     users_count = {}
@@ -726,6 +742,8 @@ def create_unity():
                       weather_latitude=form.weather_latitude.data,
                       weather_longitude=form.weather_longitude.data,
                       weather_city=form.weather_city.data,
+                      kitchen_enabled=form.kitchen_enabled.data,
+                      finance_enabled=form.finance_enabled.data,
                       is_active=form.is_active.data)
         db.session.add(unity)
         db.session.commit()
@@ -737,7 +755,7 @@ def create_unity():
 @login_required
 @require_permission('unity:edit')
 def edit_unity(unity_id):
-    unity = db.get_or_404(Unity, unity_id)
+    unity = _unity_visivel_or_404(db.get_or_404(Unity, unity_id))
     form = UnityForm(obj=unity); form._obj_id = unity.id
     if form.validate_on_submit():
         unity.name = form.name.data
@@ -748,10 +766,14 @@ def edit_unity(unity_id):
         unity.weather_longitude = form.weather_longitude.data
         unity.weather_city = form.weather_city.data
         unity.is_active = form.is_active.data
+        # Módulos NÃO vêm do formulário: na edição eles mudam apenas pelos
+        # botões da própria página, que exigem vínculo com a unidade (a
+        # permissão unity:edit sozinha não autoriza ligar/desligar módulos).
         db.session.commit()
         flash('Unidade atualizada.', 'success')
         return redirect(url_for('admin.list_unities'))
-    return render_template('admin/unity_form.html', form=form, title='Editar Unidade')
+    return render_template('admin/unity_form.html', form=form, title='Editar Unidade',
+                           unity=unity, toggleable_modules=Unity.TOGGLEABLE_MODULES)
 
 @bp.route('/unities/geocode')
 @login_required
@@ -796,7 +818,7 @@ def geocode_unity():
 @login_required
 @require_permission('unity:toggle')
 def toggle_unity(unity_id):
-    unity = db.get_or_404(Unity, unity_id)
+    unity = _unity_visivel_or_404(db.get_or_404(Unity, unity_id))
     if unity.is_active and unity.id == current_unity_id():
         flash('Não é possível desativar a unidade em que você está operando.', 'danger')
         return redirect(url_for('admin.list_unities'))
@@ -804,6 +826,30 @@ def toggle_unity(unity_id):
     db.session.commit()
     flash(f'Unidade {unity.name} {"ativada" if unity.is_active else "desativada"}.', 'success')
     return redirect(url_for('admin.list_unities'))
+
+
+@bp.route('/unities/<int:unity_id>/modules/<module_code>/toggle', methods=['POST'])
+@login_required
+@require_permission('unity:modules')
+def toggle_unity_module(unity_id, module_code):
+    """Liga/desliga um módulo opcional (Cozinha, Financeiro) da unidade.
+
+    Os botões ficam na página de edição da unidade. Pode alternar apenas o
+    super-admin (curinga *) ou o administrador vinculado à própria unidade —
+    contas globais sem vínculo e admins de outras unidades recebem 403.
+    Módulos fora da lista de alternáveis (ex: reservas, o core do sistema)
+    não têm botão nem rota: o 404 abaixo barra a tentativa pela URL."""
+    unity = db.get_or_404(Unity, unity_id)
+    if not (current_user.has_permission('*') or current_user.unity_id == unity.id):
+        abort(403)
+    module = next((m for m in Unity.TOGGLEABLE_MODULES if m['code'] == module_code), None)
+    if module is None:
+        abort(404)
+    setattr(unity, module['attr'], not getattr(unity, module['attr']))
+    db.session.commit()
+    estado = 'ativado' if getattr(unity, module['attr']) else 'desativado'
+    flash(f'Módulo {module["label"]} {estado} para a unidade {unity.name}.', 'success')
+    return redirect(url_for('admin.edit_unity', unity_id=unity.id))
 
 # ================= API TOKENS (integrações externas) =================
 #

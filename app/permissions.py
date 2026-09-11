@@ -15,6 +15,26 @@ def require_permission(perm_code):
         return decorated_function
     return decorator
 
+def require_module(module_code):
+    """Exige que o módulo opcional esteja ativo na unidade em operação.
+
+    Cada unidade liga/desliga os próprios módulos (Cozinha, Financeiro) no
+    painel; rotas de um módulo desligado devolvem 403. Sem unidade ativa
+    (instalação sem multi-unidade ou banco recém-criado) o módulo é tratado
+    como ativo. Reservas de Sala, o core, nunca é bloqueado: não existe na
+    lista de módulos alternáveis (Unity.TOGGLEABLE_MODULES).
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            from app.unity_context import current_unity
+            unity = current_unity()
+            if unity is not None and not unity.is_module_enabled(module_code):
+                abort(403)
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 def require_permission_or_owner(perm_code):
     """Permite acesso se o usuário tem a permissão OU é o dono da reserva.
 

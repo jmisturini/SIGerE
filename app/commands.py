@@ -27,6 +27,7 @@ PERMISSION_DATA = [
     ('unity:edit', 'unity', 'edit', 'Editar unidades educacionais'),
     ('unity:toggle', 'unity', 'toggle', 'Ativar/desativar unidades educacionais'),
     ('unity:switch', 'unity', 'switch', 'Alternar a unidade ativa de operação'),
+    ('unity:modules', 'unity', 'modules', 'Ativar/desativar módulos da unidade (Cozinha, Financeiro)'),
     ('room:read', 'room', 'read', 'Visualizar salas'),
     ('room:create', 'room', 'create', 'Criar salas'),
     ('room:edit', 'room', 'edit', 'Editar salas'),
@@ -84,6 +85,7 @@ ROLES_CONFIG = {
         'permissions': [
             'user:read', 'user:create', 'user:edit', 'user:toggle',
             'unity:read', 'unity:create', 'unity:edit', 'unity:toggle', 'unity:switch',
+            'unity:modules',
             'room:read', 'room:create', 'room:edit', 'room:toggle',
             'course:read', 'course:create', 'course:edit', 'course:toggle',
             'holiday:read', 'holiday:create', 'holiday:edit', 'holiday:delete', 'holiday:import',

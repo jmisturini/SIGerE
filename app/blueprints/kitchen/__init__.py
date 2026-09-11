@@ -25,7 +25,7 @@ from app.extensions import db
 from flask_login import current_user, login_required
 from app.models import (KitchenRecipe, KitchenRecipeIngredient, KitchenPreparation,
                         TechnicalSheet)
-from app.permissions import require_permission
+from app.permissions import require_module, require_permission
 from app.unity_context import current_unity_id
 
 bp = Blueprint('kitchen', __name__, url_prefix='/kitchen')
@@ -144,6 +144,7 @@ def quantity_format(value):
 @bp.route('/fichas')
 @login_required
 @require_permission('kitchen:read')
+@require_module('kitchen')
 def sheets():
     sheets_list = TechnicalSheet.query.filter_by(unity_id=current_unity_id()) \
         .order_by(TechnicalSheet.uploaded_at.desc()).all()
@@ -160,6 +161,7 @@ def sheets():
 @bp.route('/fichas/criar', methods=['GET', 'POST'])
 @login_required
 @require_permission('kitchen:sheet_create')
+@require_module('kitchen')
 def create_sheet():
     """Cria uma ficha técnica manualmente, seguindo o mesmo modelo das fichas
     enviadas em .docx (nome, equipamentos, utensílios, tempo, rendimento,
@@ -180,6 +182,7 @@ def create_sheet():
 @bp.route('/fichas/upload', methods=['POST'])
 @login_required
 @require_permission('kitchen:sheet_create')
+@require_module('kitchen')
 def upload_sheets():
     """Lê vários arquivos .docx de uma vez. Cada ficha fica 'pendente' até o
     usuário confirmar com o botão Salvar Ficha Técnica."""
@@ -235,6 +238,7 @@ def upload_sheets():
 @bp.route('/fichas/<int:sheet_id>')
 @login_required
 @require_permission('kitchen:read')
+@require_module('kitchen')
 def sheet_preview(sheet_id):
     """Prévia do conteúdo extraído da ficha antes/depois de salvar."""
     sheet = _get_sheet_scoped(sheet_id)
@@ -268,6 +272,7 @@ def sheet_preview(sheet_id):
 @bp.route('/fichas/<int:sheet_id>/salvar', methods=['POST'])
 @login_required
 @require_permission('kitchen:sheet_create')
+@require_module('kitchen')
 def save_sheet(sheet_id):
     sheet = _get_sheet_scoped(sheet_id)
     if sheet.status != 'pending':
@@ -287,6 +292,7 @@ def save_sheet(sheet_id):
 @bp.route('/fichas/salvar-todas', methods=['POST'])
 @login_required
 @require_permission('kitchen:sheet_create')
+@require_module('kitchen')
 def save_all_sheets():
     pending = TechnicalSheet.query.filter_by(unity_id=current_unity_id(),
                                              status='pending').all()
@@ -310,6 +316,7 @@ def save_all_sheets():
 @bp.route('/fichas/<int:sheet_id>/excluir', methods=['POST'])
 @login_required
 @require_permission('kitchen:sheet_delete')
+@require_module('kitchen')
 def delete_sheet(sheet_id):
     sheet = _get_sheet_scoped(sheet_id)
     name = sheet.original_filename
@@ -328,6 +335,7 @@ def delete_sheet(sheet_id):
 @bp.route('/fichas/excluir-todas', methods=['POST'])
 @login_required
 @require_permission('kitchen:sheet_delete')
+@require_module('kitchen')
 def delete_saved_sheets():
     """Exclui TODAS as fichas salvas da unidade de uma vez — as preparações
     geradas (cascade) e os arquivos .docx enviados (downloads) também saem.
@@ -356,6 +364,7 @@ def delete_saved_sheets():
 @bp.route('/fichas/<int:sheet_id>/download')
 @login_required
 @require_permission('kitchen:read')
+@require_module('kitchen')
 def download_sheet(sheet_id):
     sheet = _get_sheet_scoped(sheet_id)
     file_path = _sheet_file_path(sheet)
@@ -370,6 +379,7 @@ def download_sheet(sheet_id):
 @bp.route('/preparacoes')
 @login_required
 @require_permission('kitchen:read')
+@require_module('kitchen')
 def preparations():
     query = KitchenRecipe.query.filter_by(unity_id=current_unity_id(),
                                           is_active=True)
@@ -384,6 +394,7 @@ def preparations():
 @bp.route('/preparacoes/<int:recipe_id>')
 @login_required
 @require_permission('kitchen:read')
+@require_module('kitchen')
 def preparation_detail(recipe_id):
     recipe = _get_recipe_scoped(recipe_id)
     return render_template('kitchen/preparation_detail.html', recipe=recipe,
@@ -394,6 +405,7 @@ def preparation_detail(recipe_id):
 @bp.route('/preparacoes/<int:recipe_id>/excluir', methods=['POST'])
 @login_required
 @require_permission('kitchen:sheet_delete')
+@require_module('kitchen')
 def delete_recipe(recipe_id):
     recipe = _get_recipe_scoped(recipe_id)
     name = recipe.name
@@ -418,6 +430,7 @@ def delete_recipe(recipe_id):
 @bp.route('/preparacoes/<int:recipe_id>/editar', methods=['GET', 'POST'])
 @login_required
 @require_permission('kitchen:sheet_create')
+@require_module('kitchen')
 def edit_recipe(recipe_id):
     """Edita os campos da preparação (identificação, modo de preparo e notas) —
     os ingredientes são editados em outro formulário."""
@@ -452,6 +465,7 @@ def edit_recipe(recipe_id):
 @bp.route('/preparacoes/<int:recipe_id>/porcoes/salvar', methods=['POST'])
 @login_required
 @require_permission('kitchen:sheet_create')
+@require_module('kitchen')
 def save_portions(recipe_id):
     """Persiste o recálculo de quantidades: guarda as porções desejadas na
     preparação e o fator passa a valer na exibição e na requisição de compras
@@ -488,6 +502,7 @@ def save_portions(recipe_id):
 @bp.route('/preparacoes/<int:recipe_id>/porcoes/restaurar', methods=['POST'])
 @login_required
 @require_permission('kitchen:sheet_create')
+@require_module('kitchen')
 def restore_portions(recipe_id):
     """Descarta a escala salva: as quantidades voltam às originais da ficha."""
     recipe = _get_recipe_scoped(recipe_id)
@@ -550,6 +565,7 @@ def _sheet_data_from_form():
           methods=['GET', 'POST'])
 @login_required
 @require_permission('kitchen:sheet_create')
+@require_module('kitchen')
 def edit_ingredients(recipe_id, prep_id):
     """Edita os ingredientes de uma preparação: campos, inclusão de novos
     itens, exclusão e ativação/desativação individual."""
@@ -621,6 +637,7 @@ def _apply_ingredient_form(preparation):
 @bp.route('/ingredientes/<int:ingredient_id>/alternar', methods=['POST'])
 @login_required
 @require_permission('kitchen:sheet_create')
+@require_module('kitchen')
 def toggle_ingredient(ingredient_id):
     """Ativa/desativa um ingrediente. Desativado, ele deixa de aparecer na
     requisição de compra (Compras)."""
@@ -643,6 +660,7 @@ def toggle_ingredient(ingredient_id):
 @bp.route('/compras')
 @login_required
 @require_permission('kitchen:read')
+@require_module('kitchen')
 def shopping():
     recipes = KitchenRecipe.query.filter_by(unity_id=current_unity_id(),
                                             is_active=True) \
@@ -655,6 +673,7 @@ def shopping():
 @bp.route('/compras/export', methods=['POST'])
 @login_required
 @require_permission('kitchen:shopping_export')
+@require_module('kitchen')
 def shopping_export():
     from app.blueprints.kitchen.export import aggregate_ingredients, build_purchase_xlsx
 
