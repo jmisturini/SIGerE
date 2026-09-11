@@ -368,9 +368,12 @@ UNIDADES_JSON_PADRAO = os.path.join(
 def _seed_unidades(json_path):
     """Upsert idempotente das unidades a partir do JSON (retorna contadores).
 
-    Casa cada registro pelo `code` e, na ausência, pelo `name`. Na atualização
-    não toca em `is_active` (uma unidade desativada de propósito não é
-    reativada) nem nas coordenadas de clima (ausentes no JSON).
+    Casa cada registro pelo `code` e, na ausência, pelo `name`. Quando o JSON
+    traz `is_active` em `cadastro_sugerido`, ele manda na criação e na
+    atualização (ex.: todas as unidades com false para depurar/demonstrar com
+    o módulo desligado); sem o campo, criação usa True e a atualização não
+    toca em `is_active` (uma unidade desativada de propósito não é reativada).
+    Também não toca nas coordenadas de clima (ausentes no JSON).
     """
     with open(json_path, encoding='utf-8') as fh:
         data = json.load(fh)
@@ -387,7 +390,7 @@ def _seed_unidades(json_path):
             unity = Unity.query.filter_by(name=sugestao['name']).first()
         if not unity:
             unity = Unity(name=sugestao['name'], code=sugestao['code'],
-                          is_active=True)
+                          is_active=sugestao.get('is_active', True))
             db.session.add(unity)
             criadas += 1
         else:
@@ -398,6 +401,8 @@ def _seed_unidades(json_path):
         unity.address = sugestao.get('address')
         unity.phone = sugestao.get('phone')
         unity.weather_city = sugestao.get('weather_city')
+        if 'is_active' in sugestao:
+            unity.is_active = sugestao['is_active']
 
     return criadas, atualizadas, ignorados
 

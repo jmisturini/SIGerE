@@ -12,7 +12,7 @@
         "address": "Sete de Setembro, 1350 - Centro, Araranguá/SC, CEP 88900-015",
         "phone": "(48) 3522-1192",
         "weather_city": "Araranguá, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Sete de Setembro, 1350 / Centro / 88900-015",
@@ -34,7 +34,7 @@
         "address": "Brasil, 610 - Ponta Aguda, Blumenau/SC, CEP 89050-000",
         "phone": "(47) 3035-9999",
         "weather_city": "Blumenau, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Brasil, 610 / Ponta Aguda / 89050-000",
@@ -56,7 +56,7 @@
         "address": "Antônio Heil, 191 - Centro, Brusque/SC, CEP 88353-100",
         "phone": "(47) 3351-2626",
         "weather_city": "Brusque, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Antônio Heil, 191 / Centro / 88353-100",
@@ -78,7 +78,7 @@
         "address": "Rua Sete de Setembro, 169 - Centro, Caçador/SC, CEP 89500-001",
         "phone": "(49) 3563-0000",
         "weather_city": "Caçador, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Sete de Setembro, 169 / Centro / 89500-001",
@@ -100,7 +100,7 @@
         "address": "Benjamin Colla, 289 - Senhor Bom Jesus, Campos Novos/SC, CEP 89620-000",
         "phone": "(49) 3544-2977",
         "weather_city": "Campos Novos, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Benjamin Colla, 289 / Senhor Bom Jesus / 89620-000",
@@ -122,7 +122,7 @@
         "address": "Rolando Malucelli - Centro, Canoinhas/SC, CEP 89460-062",
         "phone": "(47) 3622-4853",
         "weather_city": "Canoinhas, SC",
-        "is_active": true
+        "is_active": false
       },
       "nota": "Endereço no portal sem número e em caixa alta; CEP 89460-062 é da região de Porto União — conferir com a unidade antes do cadastro.",
       "dados_portal": {
@@ -145,7 +145,7 @@
         "address": "Castro Alves, 298 - Centro, Chapecó/SC, CEP 89803-110",
         "phone": "(49) 3361-5000",
         "weather_city": "Chapecó, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Castro Alves, 298 / Centro / 89803-110",
@@ -167,7 +167,7 @@
         "address": "Rua João Zanardi, 330 - Salete, Concórdia/SC, CEP 89700-001",
         "phone": "(49) 3442-2993",
         "weather_city": "Concórdia, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua João Zanardi, 330 / Salete / 89700-001",
@@ -189,7 +189,7 @@
         "address": "Henrique Lage, 560 - Centro, Criciúma/SC, CEP 88801-010",
         "phone": "(48) 3437-9801",
         "weather_city": "Criciúma, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Henrique Lage, 560 / Centro / 88801-010",
@@ -211,7 +211,7 @@
         "address": "Av. Salomão Carneiro de Almeida, 388 - Sala 65, Edif. Gaboardi Master - Centro, Curitibanos/SC, CEP 89520-000",
         "phone": "(49) 3241-5937",
         "weather_city": "Curitibanos, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Av Salomao Carneiro de Almeida, 388 - Sala 65 Edif Gaboardi Master Cent / Centro / 89520-000",
@@ -233,7 +233,7 @@
         "address": "Rua Silva Jardim, 360 - Prainha, Florianópolis/SC, CEP 88020-200",
         "phone": "(48) 3229-3200",
         "weather_city": "Florianópolis, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Silva Jardim, 360 / Prainha / 88020-200",
@@ -255,7 +255,7 @@
         "address": "Rua Brusque, 257 - Centro, Itajaí/SC, CEP 88302-000",
         "phone": "(47) 3348-0410",
         "weather_city": "Itajaí, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Brusque, 257 / Centro / 88302-000",
@@ -277,7 +277,7 @@
         "address": "Rua dos Imigrantes, 410 - Vila Ráu, Jaraguá do Sul/SC, CEP 89254-430",
         "phone": "(47) 3275-8400",
         "weather_city": "Jaraguá do Sul, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua dos Imigrantes, 410 / Vila Ráu / 89254-430",
@@ -299,7 +299,7 @@
         "address": "Rua Tiradentes, 170 - Centro, Joaçaba/SC, CEP 89600-000",
         "phone": "(49) 3906-5600",
         "weather_city": "Joaçaba, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Tiradentes, 170 / Centro / 89600-000",
@@ -321,7 +321,7 @@
         "address": "Visconde de Taunay, 730 - Bairro Atiradores, Joinville/SC, CEP 89203-005",
         "phone": "(47) 3431-6606",
         "weather_city": "Joinville, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Visconde de Taunay, 730 / Bairro Atiradores / 89203-005",
@@ -343,7 +343,7 @@
         "address": "Dom Pedro II, 1450 - São Cristóvão, Lages/SC, CEP 88509-001",
         "phone": "(49) 3223-3855",
         "weather_city": "Lages, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Dom Pedro II, 1450 / São Cristóvão / 88509-001",
@@ -365,7 +365,7 @@
         "address": "Rua Felipe Schmidt, 809 - Centro, Mafra/SC, CEP 89300-001",
         "phone": "(47) 3208-0130",
         "weather_city": "Mafra, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Felipe Schmidt, 809 / Centro / 89300-001",
@@ -387,7 +387,7 @@
         "address": "João Pereira dos Santos, 303 - Ponte do Imaruim, Palhoça/SC, CEP 88130-475",
         "phone": "(48) 3341-9100",
         "weather_city": "Palhoça, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "João Pereira dos Santos, 303 / Ponte do Imaruim / 88130-475",
@@ -409,7 +409,7 @@
         "address": "Av. Getúlio Vargas, 890 - Centro, Porto União/SC, CEP 89400-000",
         "phone": "(42) 3523-1516",
         "weather_city": "Porto União, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Av Getulio Vargas, 890 / Centro / 89400-000",
@@ -431,7 +431,7 @@
         "address": "Rua Visconde de Cairu, 60 - Santana, Rio do Sul/SC, CEP 89160-001",
         "phone": "(47) 3521-2266",
         "weather_city": "Rio do Sul, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Visconde de Cairu, 60 / Santana / 89160-001",
@@ -453,7 +453,7 @@
         "address": "Rua Augusto Klimmeck, 277 - Ed. São José, 1º andar, Centro, São Bento do Sul/SC, CEP 89280-349",
         "phone": "(47) 3634-0602",
         "weather_city": "São Bento do Sul, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Augusto Klimmeck, 277 - Ed São José - 1 andar / Centro / 89280-349",
@@ -475,7 +475,7 @@
         "address": "Rua Sete de Setembro, 1415 - Centro, São Miguel do Oeste/SC, CEP 89900-000",
         "phone": "(49) 3621-0055",
         "weather_city": "São Miguel do Oeste, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Sete de Setembro, 1415 / Centro / 89900-000",
@@ -497,7 +497,7 @@
         "address": "Rua Duque de Caxias, 830 - Centro, Timbó/SC, CEP 89120-000",
         "phone": "(47) 3395-1552",
         "weather_city": "Timbó, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Duque de Caxias, 830 / Centro / 89120-000",
@@ -519,7 +519,7 @@
         "address": "Rua Amarildo José da Rosa, 1600 - Revoredo, Tubarão/SC, CEP 88704-650",
         "phone": "(48) 3632-2428",
         "weather_city": "Tubarão, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Amarildo José da Rosa, 1600 / Revoredo / 88704-650",
@@ -541,7 +541,7 @@
         "address": "Rua Saul Brandalise, 39 - Centro, Videira/SC, CEP 89560-196",
         "phone": "(49) 3714-5550",
         "weather_city": "Videira, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Saul Brandalise, 39 / Centro / 89560-196",
@@ -563,7 +563,7 @@
         "address": "Rua Irineu Bornhausen, 110 - Ed. Vitória, Sala 08, Centro, Xanxerê/SC, CEP 89820-000",
         "phone": "(49) 3433-3300",
         "weather_city": "Xanxerê, SC",
-        "is_active": true
+        "is_active": false
       },
       "dados_portal": {
         "endereco_bruto": "Rua Irineu Bornhausen, 110 - Ed. Vitória - Sala 08 / Centro / 89820-000",
