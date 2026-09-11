@@ -16,6 +16,7 @@
 ## 📋 Índice
 
 - [Visão Geral](#-visão-geral)
+- [Capturas de Tela](#-capturas-de-tela)
 - [Funcionalidades](#-funcionalidades)
 - [Tecnologias](#-tecnologias)
 - [Instalação](#-instalação)
@@ -24,6 +25,7 @@
 - [Uso](#-uso)
 - [Estrutura do Projeto](#-estrutura-do-projeto)
 - [APIs Externas](#-apis-externas)
+- [API de Reservas (Integrações)](#-api-de-reservas-integrações)
 - [Contas de Demonstração](#-contas-de-demonstração)
 - [Permissões e Papéis](#-permissões-e-papéis)
 - [Catálogo de Permissões](#-catálogo-de-permissões)
@@ -48,6 +50,37 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissões granulares, tema claro/escuro persistente, exportação de relatórios em PDF/Excel, layout responsivo (mobile/tablet/desktop) e seed opcional de dados de demonstração.
 
 **Primeira implantação:** após o `seed-admin`, o painel do super-admin exibe um **checklist de configuração inicial** (unidade, categorias, salas, professores, funcionários, cursos/disciplinas e feriados) — cada passo confere dados reais do banco, marca o que já existe e some quando a implantação está completa.
+
+---
+
+## 📸 Capturas de Tela
+
+Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis em [`docs/screenshots/`](docs/screenshots/).
+
+| Painel (resumo do dia) | Calendário com filtros |
+|---|---|
+| ![Painel com o resumo das reservas do dia](docs/screenshots/02-dashboard.png) | ![Calendário com filtros de reserva](docs/screenshots/03-calendario.png) |
+
+| Lista de Reservas | Disponibilidade mensal da sala |
+|---|---|
+| ![Lista de todas as reservas com situações](docs/screenshots/04-reservas.png) | ![Disponibilidade mensal da sala](docs/screenshots/05-disponibilidade-sala.png) |
+
+| Totem digital (TV de corredor) | Portal público |
+|---|---|
+| ![Totem de ocupação de salas com clima](docs/screenshots/06-totem.png) | ![Cronograma público do dia](docs/screenshots/08-portal-cronograma.png) |
+
+| API de Reservas (JSON) | Quadro de porta para tablet (app de exemplo) |
+|---|---|
+| ![Resposta JSON da API de reservas](docs/screenshots/09-api-json.png) | ![Quadro de porta consumindo a API](docs/screenshots/10-quadro-porta.png) |
+
+<details>
+<summary>Mais telas</summary>
+
+| Login | Home pública |
+|---|---|
+| ![Tela de login](docs/screenshots/01-login.png) | ![Home pública](docs/screenshots/07-portal-home.png) |
+
+</details>
 
 ---
 
@@ -517,6 +550,9 @@ SIGerE/
 ├── run.py                     # Entrypoint: cria a app e roda o servidor
 ├── requirements.txt           # Dependências Python
 ├── migrations/                # Versionamento de schema (Alembic/Flask-Migrate)
+├── docs/                      # Documentação e capturas de tela
+│   ├── api-reservas.md        # Documentação detalhada da API de reservas
+│   └── screenshots/           # Imagens exibidas no README
 ├── instance/                  # Dados da instância (uploads, ignorado no git)
 │   └── uploads/               # Fichas técnicas .docx enviadas (fora do static/)
 │
@@ -542,6 +578,7 @@ SIGerE/
     │   ├── schedule.py        # Calendário FullCalendar + API JSON de eventos
     │   ├── totem.py           # Display de quiosque para TVs
     │   ├── public.py          # Portal público (home, cronograma, busca de aula, busca geral)
+    │   ├── api.py             # API REST de leitura de reservas para apps externos (/api/v1)
     │   ├── payments.py        # Pagamentos docentes (hora extra)
     │   ├── vt.py              # Vale Transporte: upload, parser, edição e exportação
     │   └── kitchen/           # Módulo Cozinha
@@ -583,6 +620,92 @@ SIGerE/
 | **Open-Meteo** | Clima em tempo real no totem e portal | `https://api.open-meteo.com/v1/forecast` |
 | **BrasilAPI** | Importação de feriados nacionais | `https://brasilapi.com.br/api/feriados/v1/{ano}` |
 | **Nominatim (OpenStreetMap)** | Busca de endereço para geolocalizar unidades (clima) | `https://nominatim.openstreetmap.org/search` |
+
+---
+
+## 🔌 API de Reservas (Integrações)
+
+API REST **somente leitura** para aplicativos externos exibirem a ocupação das salas. Erros e respostas são sempre JSON e a URL base é `/api/v1`.
+
+> 📖 **Documentação detalhada de uso** (autenticação, parâmetros, exemplos em cURL/Python/JavaScript e FAQ): [docs/api-reservas.md](docs/api-reservas.md)
+>
+> 🚪 **App de exemplo:** quadro de sala para tablet na porta, consumindo a API anonimamente — [examples/quadro-sala](examples/quadro-sala/)
+
+### Autenticação e visibilidade
+
+| Modo | Como usar | O que a resposta traz |
+|------|-----------|----------------------|
+| **Sem autenticação** | basta chamar a API | Apenas **data, horário, sala e título** — e somente reservas **aprovadas** |
+| **Autenticado** | HTTP Basic com usuário/senha **já cadastrados no sistema**, ou a sessão de quem já está logado | **Todos os detalhes** da reserva (descrição, situação, docente, curso, disciplina, criador, unidade, sala completa...) em qualquer situação (aprovada, pendente, cancelada) |
+
+```bash
+# Público (campos reduzidos)
+curl http://localhost:5000/api/v1/reservations
+
+# Autenticado (todos os detalhes)
+curl -u professor:senha http://localhost:5000/api/v1/reservations
+```
+
+Credenciais inválidas retornam `401` com `WWW-Authenticate: Basic`; requisição sem credenciais funciona com o payload público (não há bloqueio).
+
+### Endpoints
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/api/v1/reservations` | Lista paginada de reservas da unidade |
+| `GET` | `/api/v1/reservations/<id>` | Detalhe de uma reserva |
+| `GET` | `/api/v1/rooms` | Salas ativas da unidade (para resolver códigos de sala) |
+
+### Parâmetros de `/api/v1/reservations`
+
+| Parâmetro | Valores | Padrão |
+|-----------|---------|--------|
+| `start` / `end` | Datas `AAAA-MM-DD` (intervalo de datas) | sem limite |
+| `status` | `approved`, `pending`, `cancelled` ou `all` | `approved` (ignorado sem autenticação) |
+| `classroom_id` / `classroom_code` | ID ou código da sala (ex.: `S101`) | — |
+| `teacher_id`, `course_id`, `subject_id` | IDs numéricos | — |
+| `period` | `morning`, `afternoon` ou `night` | — |
+| `unity_id` | ID da unidade — respeitado apenas por anônimos e por quem pode alternar unidade; usuário comum fica preso à própria unidade | unidade do usuário / primeira ativa |
+| `page` / `per_page` | Paginação (`per_page` máximo 500) | `1` / `100` |
+
+### Exemplos
+
+```jsonc
+// GET /api/v1/reservations/42 — sem autenticação
+{
+  "id": 42,
+  "title": "Aula de Matemática",
+  "date": "2026-09-10",
+  "start_time": "08:00:00",
+  "end_time": "10:00:00",
+  "classroom": { "id": 7, "code": "S101", "name": "Sala 101" }
+}
+
+// GET /api/v1/reservations/42 — autenticado (campos adicionais)
+{
+  "id": 42,
+  "title": "Aula de Matemática",
+  "description": "Capítulo 4",
+  "date": "2026-09-10",
+  "start_time": "08:00:00",
+  "end_time": "10:00:00",
+  "status": "approved",
+  "classroom": { "id": 7, "code": "S101", "name": "Sala 101", "building": "A",
+                 "floor": "1º Andar", "capacity": 30, "category": "Sala de Aula" },
+  "unity": { "id": 1, "code": "CTR", "name": "Unidade Centro" },
+  "created_by": { "id": 3, "username": "prof1", "full_name": "Prof. Um" },
+  "teacher": { "id": 5, "username": "prof5", "full_name": "Prof. Cinco" },
+  "course": { "id": 2, "code": "INF", "name": "Informática" },
+  "subject": { "id": 9, "code": "MAT", "name": "Matemática" },
+  "reviewed_by": null,
+  "review_note": null,
+  "repeat_group_id": null,
+  "created_at": "2026-09-01T13:22:41",
+  "updated_at": "2026-09-01T13:22:41"
+}
+```
+
+A listagem usa um envelope com metadados: `unity_id`, `authenticated`, `page`, `per_page`, `total`, `pages` e `reservations`. Códigos de erro (`400`, `401`, `404`) também vêm em JSON (`{"error": "..."}`).
 
 ---
 
@@ -669,6 +792,7 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 - **Escapagem de dados dinâmicos** em mensagens renderizadas com `|safe` (anti-XSS)
 - **Rate limiting no login** (5 tentativas por minuto por IP, via Flask-Limiter) com aviso amigável ao exceder
 - **API do calendário protegida:** intervalo de datas obrigatório e login exigido, evitando consultas sem limite
+- **API de reservas com mínimo de dados anônimo:** sem autenticação expõe apenas data, horário, sala e título de reservas aprovadas; autenticação via HTTP Basic contra as contas do sistema, erros em JSON e rate limiting por IP
 
 ---
 
