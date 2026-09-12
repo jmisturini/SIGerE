@@ -108,6 +108,7 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - **Reservas passadas são registro:** com a data anterior a hoje, o detalhe fica somente leitura (sem repetir, cancelar, editar ou excluir) e as rotas recusam as alterações — inclusive para administradores
 - **Ciclo de vida:** aprovar, cancelar (status `cancelled` mantém histórico) e excluir permanentemente (admins)
 - **Filtros de disponibilidade:** salas disponíveis agora, em data/período específico ou por categoria
+- **Compartilhar reserva:** botão no detalhe gera mensagem enxuta e amigável (sala, curso, disciplina, professor, data/hora por extenso e descrição/finalidade) para enviar por **e-mail** ou **WhatsApp** — abre o programa de e-mail (`mailto:`) ou o WhatsApp (`wa.me`) do próprio usuário, sem configuração de SMTP no servidor; mensagem editável antes do envio e opção de copiar. Não aparece em reservas passadas nem canceladas
 
 ### 🏛️ Gestão de Salas e Categorias
 - **Categorias com CRUD completo** no painel (Painel → Categorias): nome, sigla, código, **cor de destaque, ícone e janela de exibição no totem** (período atual ou próximos 7 dias)

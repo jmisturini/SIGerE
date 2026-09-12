@@ -12,6 +12,7 @@ from app.permissions import require_permission, require_permission_or_owner
 from app.services.scheduling import (check_conflict, check_schedule_restrictions,
                                      check_teacher_conflict, slot_locks,
                                      MAX_REPEAT_RANGE_DAYS)
+from app.services.share import build_reservation_share_texts
 
 RESERVATIONS_PER_PAGE = 25
 
@@ -240,8 +241,13 @@ def detail(reservation_id):
         if not (current_user.has_permission('reservation:read_own') and reservation.user_id == current_user.id):
             abort(403)
     series_count = _series_count(reservation)
+    # Compartilhar é leitura, mas não faz sentido para registro histórico
+    # (reserva passada) nem para reserva cancelada.
+    can_share = (reservation.status != 'cancelled'
+                 and reservation.date >= date.today())
     return render_template('reservations/detail.html', reservation=reservation,
-                           series_count=series_count)
+                           series_count=series_count, can_share=can_share,
+                           share_texts=build_reservation_share_texts(reservation))
 
 # Route to edit a reservation (Admin or Owner)
 @bp.route('/<int:reservation_id>/edit', methods=['GET', 'POST'])
