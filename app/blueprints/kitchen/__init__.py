@@ -8,8 +8,9 @@ Sub-menus:
   preparação;
 - Preparações: receitas geradas pelas fichas, em cards ou lista (à escolha do
   usuário), com visualização completa;
-- Compras: soma por similaridade dos ingredientes das preparações selecionadas
-  e exportação da requisição em XLSX (submódulo export.py).
+- Compras: soma por similaridade dos ingredientes das preparações selecionadas,
+  exportação da requisição em XLSX (submódulo export.py) e relatório em tela
+  dos ingredientes com as preparações em que cada um é utilizado.
 """
 import io
 import json
@@ -721,3 +722,46 @@ def shopping_export():
                      download_name=filename,
                      mimetype='application/vnd.openxmlformats-officedocument'
                               '.spreadsheetml.sheet')
+
+
+@bp.route('/compras/relatorio', methods=['POST'])
+@login_required
+@require_permission('kitchen:shopping_export')
+@require_module('kitchen')
+def shopping_report():
+    """Relatório em tela dos ingredientes que serão exportados na requisição
+    de compra, indicando em qual preparação cada ingrediente é utilizado
+    ("Receita" ou "Receita — Sub-preparação" quando a receita tem mais de uma)."""
+    from app.blueprints.kitchen.export import aggregate_ingredients
+
+    recipe_ids = request.form.getlist('recipe_ids')
+    if not recipe_ids:
+        flash('Selecione ao menos uma preparação para ver o relatório.', 'warning')
+        return redirect(url_for('kitchen.shopping'))
+
+    try:
+        ids = [int(i) for i in recipe_ids]
+    except (TypeError, ValueError):
+        flash('Seleção de preparações inválida.', 'danger')
+        return redirect(url_for('kitchen.shopping'))
+
+    recipes = KitchenRecipe.query.filter(
+        KitchenRecipe.unity_id == current_unity_id(),
+        KitchenRecipe.id.in_(ids)
+    ).order_by(KitchenRecipe.name).all()
+    if not recipes:
+        abort(404)
+
+    class_date = request.form.get('class_date') or date.today().isoformat()
+    try:
+        class_date = datetime.strptime(class_date, '%Y-%m-%d').date()
+    except ValueError:
+        class_date = date.today()
+
+    rows = aggregate_ingredients(recipes)
+    return render_template('kitchen/report.html', rows=rows,
+                           professor=request.form.get('professor') or current_user.full_name,
+                           class_date=class_date,
+                           course=(request.form.get('course') or '').strip(),
+                           period=request.form.get('period') or '',
+                           recipe_names=[recipe.name for recipe in recipes])

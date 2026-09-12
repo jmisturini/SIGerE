@@ -14,6 +14,12 @@ centralizadas; a coluna OBSERVAÇÃO é deixada em branco — as informações
 serão incluídas posteriormente. Ingredientes de nome similar em unidades
 incompatíveis (g × ml × un) geram linhas separadas por unidade. Água não é
 incluída na requisição.
+
+O relatório de ingredientes da página de Compras (rota compras/relatorio)
+mostra em tela essas mesmas linhas agregadas com a coluna extra PREPARAÇÕES
+VINCULADAS — para cada ingrediente, as preparações ("Receita" ou, quando a
+receita tem sub-preparações com nome próprio, "Receita — Sub-preparação") em
+que ele é utilizado.
 """
 import os
 import re
@@ -89,7 +95,9 @@ def aggregate_ingredients(recipes):
     """Soma os ingredientes das receitas por similaridade.
 
     Retorna lista de dicionários ordenada por nome:
-        nome, quantidade (float|None), unidade (KG/L/UN/—)
+        nome, quantidade (float|None), unidade (KG/L/UN/—), preparacoes
+        (rótulos "Receita" ou "Receita — Sub-preparação" em que o ingrediente
+        aparece, na ordem em que as receitas foram informadas)
 
     Itens sem quantidade definida ("a gosto") são agrupados no mesmo produto
     com quantidade em branco. Unidades incompatíveis do mesmo ingrediente
@@ -101,6 +109,11 @@ def aggregate_ingredients(recipes):
         # porções): multiplica as quantidades originais da ficha.
         recipe_factor = recipe.scale_factor
         for preparation in recipe.preparations:
+            # Rótulo da origem do ingrediente: sub-preparações com nome próprio
+            # aparecem como "Receita — Sub-preparação"; quando a receita tem
+            # uma única tabela de insumos (nome igual), basta a receita.
+            source = (recipe.name if preparation.name == recipe.name
+                      else f'{recipe.name} — {preparation.name}')
             for ingredient in preparation.ingredients:
                 # Ingredientes desativados ficam fora da requisição de compra.
                 if ingredient.is_active is False:
@@ -113,8 +126,11 @@ def aggregate_ingredients(recipes):
                     'names': defaultdict(int),
                     'totals': defaultdict(float),  # unidade base → soma
                     'no_quantity': False,
+                    'sources': [],                 # rótulos de origem, sem repetição
                 })
                 group['names'][ingredient.name.strip()] += 1
+                if source not in group['sources']:
+                    group['sources'].append(source)
 
                 converted = UNIT_MAP.get(_normalize_unit(ingredient.unit))
                 if converted and ingredient.quantity is not None:
@@ -142,6 +158,7 @@ def aggregate_ingredients(recipes):
                 'nome': display_name,
                 'quantidade': quantity,
                 'unidade': unit_label,
+                'preparacoes': list(group['sources']),
             })
 
     rows.sort(key=lambda r: _strip_accents(r['nome']).lower())
