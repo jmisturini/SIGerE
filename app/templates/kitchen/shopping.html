@@ -92,16 +92,26 @@
                         A planilha gerada segue o modelo "REQUISIÇÃO DE COMPRA - GASTRONOMIA", com a aba de referência
                         dos centros de custo. Ingredientes sem quantidade definida (ex.: "a gosto") são listados com a
                         quantidade em branco; ingredientes <strong>desativados</strong> na preparação ficam de fora.
-                        Água não é incluída.
+                        Água não é incluída. O <strong>Relatório de Ingredientes</strong> mostra em tela tudo o que
+                        será exportado e em qual preparação cada ingrediente é utilizado.
                     </div>
                     {% if can_export %}
                     <button type="submit" class="btn btn-success w-100">
                         <i class="bi bi-file-earmark-excel me-1"></i> Exportar Requisição (.xlsx)
                     </button>
+                    <button type="submit" class="btn btn-outline-primary w-100 mt-2" id="report-btn" disabled
+                            formaction="{{ url_for('kitchen.shopping_report') }}"
+                            title="Selecione ao menos uma preparação para ver o relatório">
+                        <i class="bi bi-file-earmark-text me-1"></i> Relatório de Ingredientes
+                    </button>
                     {% else %}
                     <button type="submit" class="btn btn-success w-100" disabled
                             title="Você não tem permissão para exportar a requisição de compra">
                         <i class="bi bi-lock me-1"></i> Exportar Requisição (.xlsx)
+                    </button>
+                    <button type="submit" class="btn btn-outline-primary w-100 mt-2" disabled
+                            title="Você não tem permissão para exportar a requisição de compra">
+                        <i class="bi bi-lock me-1"></i> Relatório de Ingredientes
                     </button>
                     {% endif %}
                 </div>
@@ -125,6 +135,7 @@
 <script>
     const selectAll = document.getElementById('select-all');
     const checks = document.querySelectorAll('.recipe-check');
+    const reportBtn = document.getElementById('report-btn');
     if (selectAll) {
         selectAll.addEventListener('change', () => {
             checks.forEach(c => c.checked = selectAll.checked);
@@ -132,6 +143,20 @@
         checks.forEach(c => c.addEventListener('change', () => {
             selectAll.checked = [...checks].every(c => c.checked);
         }));
+    }
+    // O relatório depende da seleção: só fica ativo com ao menos uma
+    // preparação marcada ("Selecionar todas" não dispara change nos checks).
+    if (reportBtn) {
+        const syncReportButton = () => {
+            const anySelected = [...checks].some(c => c.checked);
+            reportBtn.disabled = !anySelected;
+            reportBtn.title = anySelected
+                ? 'Mostra em tela os ingredientes que serão exportados e as preparações em que cada um é utilizado'
+                : 'Selecione ao menos uma preparação para ver o relatório';
+        };
+        syncReportButton();
+        checks.forEach(c => c.addEventListener('change', syncReportButton));
+        if (selectAll) selectAll.addEventListener('change', syncReportButton);
     }
 </script>
 {% endblock %}
