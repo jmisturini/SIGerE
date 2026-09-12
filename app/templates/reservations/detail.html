@@ -91,6 +91,13 @@
             </div>
             {% endif %}
 
+            <!-- Compartilhar: envia os dados da reserva por e-mail ou WhatsApp -->
+            {% if can_share %}
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#shareModal">
+                <i class="bi bi-share me-1"></i> Compartilhar
+            </button>
+            {% endif %}
+
             <!-- Repetir: Dono ou quem tem edit_all -->
             {% if reservation.status == 'approved' and not is_past and (reservation.user_id == current_user.id or current_user.has_permission('reservation:edit_all')) %}
             <a href="{{ url_for('reservations.repeat_view', reservation_id=reservation.id) }}" class="btn btn-outline-primary">
@@ -147,4 +154,145 @@
         </div>
     </div>
 </div>
+
+{% if can_share %}
+<!-- Compartilhar Reserva: mensagem editável por canal; o envio é aberto no
+     programa de e-mail / WhatsApp do usuário (mailto: e wa.me). -->
+<div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="shareModalLabel"><i class="bi bi-share me-1"></i> Compartilhar Reserva</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-pills mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button type="button" class="nav-link active" data-bs-toggle="pill" data-bs-target="#share-email-pane" role="tab">
+                            <i class="bi bi-envelope me-1"></i> E-mail
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button type="button" class="nav-link" data-bs-toggle="pill" data-bs-target="#share-wa-pane" type="button" role="tab">
+                            <i class="bi bi-whatsapp me-1"></i> WhatsApp
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="share-email-pane" role="tabpanel">
+                        <label class="form-label fw-semibold" for="share-email-to">Destinatário (opcional)</label>
+                        <input type="email" class="form-control" id="share-email-to" placeholder="nome@exemplo.com">
+                        <div class="invalid-feedback">Digite um e-mail válido ou deixe em branco.</div>
+                        <label class="form-label fw-semibold mt-3" for="share-email-body">Mensagem</label>
+                        <textarea class="form-control" id="share-email-body" rows="14"></textarea>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="button" class="btn btn-primary flex-grow-1" id="share-email-open">
+                                <i class="bi bi-envelope-paper me-1"></i> Abrir no programa de e-mail
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="share-email-copy">
+                                <i class="bi bi-clipboard me-1"></i> Copiar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="share-wa-pane" role="tabpanel">
+                        <label class="form-label fw-semibold" for="share-wa-phone">Número (opcional)</label>
+                        <input type="tel" class="form-control" id="share-wa-phone" placeholder="(48) 99999-9999">
+                        <div class="form-text">Com DDD — o código do país (55) é adicionado automaticamente. Em branco, o WhatsApp abre para escolher o contato.</div>
+                        <label class="form-label fw-semibold mt-3" for="share-wa-text">Mensagem</label>
+                        <textarea class="form-control" id="share-wa-text" rows="14"></textarea>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="button" class="btn btn-success flex-grow-1" id="share-wa-open">
+                                <i class="bi bi-whatsapp me-1"></i> Abrir no WhatsApp
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="share-wa-copy">
+                                <i class="bi bi-clipboard me-1"></i> Copiar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if can_share %}
+<script id="share-data" type="application/json">{{ share_texts | tojson }}</script>
+<script>
+(function () {
+    var dataNode = document.getElementById('share-data');
+    if (!dataNode) return;
+    var share = JSON.parse(dataNode.textContent);
+
+    var emailBody = document.getElementById('share-email-body');
+    var waText = document.getElementById('share-wa-text');
+    emailBody.value = share.email.body;
+    waText.value = share.whatsapp.text;
+
+    // WhatsApp: aceita DDD e, opcionalmente, o 55 já digitado; sem número,
+    // abre a tela de escolha de contato (api.whatsapp.com/send).
+    function whatsappUrl(rawPhone, message) {
+        var digits = (rawPhone || '').replace(/\D/g, '');
+        var phone = '';
+        if (digits) {
+            phone = (digits.indexOf('55') === 0 && digits.length >= 12) ? digits : '55' + digits;
+        }
+        var base = phone ? 'https://wa.me/' + phone : 'https://api.whatsapp.com/send';
+        return base + '?text=' + encodeURIComponent(message);
+    }
+
+    function mailtoUrl(recipient, subject, message) {
+        return 'mailto:' + (recipient || '').trim() +
+               '?subject=' + encodeURIComponent(subject) +
+               '&body=' + encodeURIComponent(message);
+    }
+
+    function openEmail() {
+        var to = document.getElementById('share-email-to');
+        if (to.value && !to.checkValidity()) {
+            to.classList.add('is-invalid');
+            to.focus();
+            return;
+        }
+        to.classList.remove('is-invalid');
+        window.location.href = mailtoUrl(to.value, share.email.subject, emailBody.value);
+    }
+
+    function openWhatsapp() {
+        window.open(whatsappUrl(document.getElementById('share-wa-phone').value, waText.value),
+                    '_blank', 'noopener');
+    }
+
+    function copyTextarea(textarea, button) {
+        function done() {
+            var original = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check-lg me-1"></i> Copiado!';
+            button.disabled = true;
+            setTimeout(function () { button.innerHTML = original; button.disabled = false; }, 1500);
+        }
+        // clipboard API exige contexto seguro (https/localhost); em LAN http
+        // cai para o execCommand.
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(textarea.value).then(done);
+        } else {
+            textarea.focus();
+            textarea.select();
+            document.execCommand('copy');
+            done();
+        }
+    }
+
+    document.getElementById('share-email-open').addEventListener('click', openEmail);
+    document.getElementById('share-wa-open').addEventListener('click', openWhatsapp);
+    document.getElementById('share-email-copy').addEventListener('click', function () {
+        copyTextarea(emailBody, this);
+    });
+    document.getElementById('share-wa-copy').addEventListener('click', function () {
+        copyTextarea(waText, this);
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}
