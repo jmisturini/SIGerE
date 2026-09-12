@@ -14,7 +14,7 @@ from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
 from wtforms.validators import Optional
 from app.permissions import require_permission
 from app.utils import gerar_slug, slug_unico
-from app.unity_context import current_unity_id
+from app.unity_context import current_unity_id, unity_module_enabled
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -529,17 +529,29 @@ MODULO_LABELS = {
     'user': 'Usuários',
 }
 
+# Módulos de permissão que dependem de um módulo ligável por unidade:
+# mapeiam o módulo da permissão para o código do módulo na Unity. Grupos
+# fora deste mapa não dependem de módulo (o aviso contextual nunca aparece).
+MODULO_PERMISSAO_PARA_MODULO_UNIDADE = {
+    'kitchen': Unity.MODULE_KITCHEN,
+    'payment': Unity.MODULE_FINANCE,
+}
+
 
 def _grupos_de_permissoes():
-    """Permissões agrupadas por módulo — [(rótulo, [Permission...]), ...] —
-    alimentando a grade de checkboxes (com marcar/limpar por módulo)."""
+    """Permissões agrupadas por módulo — [(rótulo, [Permission...],
+    modulo_unidade), ...] — alimentando a grade de checkboxes (com
+    marcar/limpar por módulo). modulo_unidade é o código do módulo ligável
+    por unidade que controla o grupo (None quando não depende de módulo) e
+    serve ao aviso contextual de módulo desligado no formulário de papéis."""
     grupos, ordem = {}, []
     for p in Permission.query.order_by(Permission.module, Permission.action).all():
         if p.module not in grupos:
             grupos[p.module] = []
             ordem.append(p.module)
         grupos[p.module].append(p)
-    return [(MODULO_LABELS.get(m, m.title()), grupos[m]) for m in ordem]
+    return [(MODULO_LABELS.get(m, m.title()), grupos[m],
+             MODULO_PERMISSAO_PARA_MODULO_UNIDADE.get(m)) for m in ordem]
 
 
 @bp.route('/roles')
@@ -580,12 +592,22 @@ def edit_role(role_id):
     
     if request.method == 'GET':
         form.permissions.data = [p.id for p in role.permissions]
-        
+
     if form.validate_on_submit():
         role.label = form.label.data
         role.description = form.description.data
-        if form.permissions.data:
-            role.permissions = Permission.query.filter(Permission.id.in_(form.permissions.data)).all()
+        selecionadas = set(form.permissions.data or [])
+        # Checkboxes de módulos desligados na unidade ativa não chegam no
+        # POST (inputs desabilitados não são enviados): preserva o que o
+        # papel já tem desses módulos, para a edição não revogar acessos
+        # que seguem valendo nas outras unidades. Tornam a ser editáveis
+        # quando o módulo for reativado.
+        for p in role.permissions:
+            modulo = MODULO_PERMISSAO_PARA_MODULO_UNIDADE.get(p.module)
+            if modulo and not unity_module_enabled(modulo):
+                selecionadas.add(p.id)
+        if selecionadas:
+            role.permissions = Permission.query.filter(Permission.id.in_(selecionadas)).all()
         else:
             role.permissions = []
         db.session.commit()
