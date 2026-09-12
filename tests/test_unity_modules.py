@@ -5,6 +5,7 @@ Financeiro) no painel — botões na listagem de unidades e checkboxes no
 formulário. Reservas de Sala é o core do sistema e não pode ser desativado.
 """
 import os
+import re
 import tempfile
 import unittest
 
@@ -348,6 +349,97 @@ class TestVisibilidadeDeUnidades(UnityModulesTestCase):
         self._login('admin.alfa')
         beta_id = self._unity_id('BET')
         self.assertEqual(self.client.post(f'/admin/unities/{beta_id}/toggle').status_code, 404)
+
+
+class TestAvisoDeModuloDesligadoNoFormularioDePapel(UnityModulesTestCase):
+    """No formulário de papéis, o grupo de permissões de um módulo desligado
+    na unidade ativa exibe um aviso de que elas não têm efeito nela. As
+    permissões continuam atribuíveis (o papel é global), o aviso é só
+    contextual à unidade em que o admin está operando."""
+
+    def test_aviso_aparece_para_modulo_desligado_na_unidade_ativa(self):
+        self._login(USERNAME)
+        alfa_id = self._unity_id('ALF')
+        self.client.post('/unity/switch', data={'unity_id': alfa_id})
+        page = self.client.get('/admin/roles/create').get_data(as_text=True)
+        # Cozinha desligada na Alfa: aviso no grupo; Financeiro ligado: sem aviso
+        self.assertIn('Cozinha</strong> está desativado nesta unidade', page)
+        self.assertNotIn('Financeiro</strong> está desativado nesta unidade', page)
+
+    def test_aviso_aparece_para_financeiro_na_unidade_beta(self):
+        self._login(USERNAME)
+        beta_id = self._unity_id('BET')
+        self.client.post('/unity/switch', data={'unity_id': beta_id})
+        page = self.client.get('/admin/roles/create').get_data(as_text=True)
+        self.assertIn('Financeiro</strong> está desativado nesta unidade', page)
+        self.assertNotIn('Cozinha</strong> está desativado nesta unidade', page)
+
+    def test_sem_aviso_quando_todos_os_modulos_estao_ligados(self):
+        self._login(USERNAME)
+        alfa_id = self._unity_id('ALF')
+        with self.app.app_context():
+            alfa = db.session.get(Unity, alfa_id)
+            alfa.kitchen_enabled = True
+            db.session.commit()
+        self.client.post('/unity/switch', data={'unity_id': alfa_id})
+        page = self.client.get('/admin/roles/create').get_data(as_text=True)
+        self.assertNotIn('está desativado nesta unidade', page)
+
+
+class TestCinzaDeModuloDesligadoNoFormularioDePapel(UnityModulesTestCase):
+    """Com o módulo desligado na unidade ativa, as permissões dele ficam
+    desabilitadas (cinza) no formulário de papéis. Como inputs desabilitados
+    não são enviados no POST, a edição preserva as permissões que o papel
+    já possui desses módulos em vez de revogá-las."""
+
+    def _id_permissao(self, code):
+        with self.app.app_context():
+            return db.session.query(Permission).filter_by(code=code).first().id
+
+    def test_checkboxes_ficam_desabilitadas_com_modulo_desligado(self):
+        self._login(USERNAME)
+        alfa_id = self._unity_id('ALF')
+        self.client.post('/unity/switch', data={'unity_id': alfa_id})
+        page = self.client.get('/admin/roles/create').get_data(as_text=True)
+        # Cozinha desligada na Alfa: checkbox desabilitado...
+        kitchen_id = self._id_permissao('kitchen:read')
+        tag_kitchen = re.search(r'<input[^>]*id="perm-%d"[^>]*>' % kitchen_id, page).group()
+        self.assertIn('disabled', tag_kitchen)
+        # ...e Financeiro ligado: checkbox normal
+        payment_id = self._id_permissao('payment:read')
+        tag_payment = re.search(r'<input[^>]*id="perm-%d"[^>]*>' % payment_id, page).group()
+        self.assertNotIn('disabled', tag_payment)
+
+    def test_edicao_preserva_permissoes_de_modulo_desligado(self):
+        self._login(USERNAME)
+        alfa_id = self._unity_id('ALF')
+        self.client.post('/unity/switch', data={'unity_id': alfa_id})
+        with self.app.app_context():
+            kitchen = db.session.query(Permission).filter_by(code='kitchen:read').first()
+            course = Permission(code='course:read', module='course', action='read')
+            db.session.add(course)
+            db.session.flush()
+            role = Role(name='papel_teste', label='Papel Teste',
+                        permissions=[kitchen, course])
+            db.session.add(role)
+            db.session.commit()
+            role_id, course_id = role.id, course.id
+        # Edita marcando apenas course:read — o checkbox de cozinha está
+        # desabilitado e não vai no POST, mas a permissão é preservada
+        response = self.client.post(f'/admin/roles/{role_id}/edit', data={
+            'label': 'Papel Teste', 'permissions': [str(course_id)],
+        }, follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            role = db.session.get(Role, role_id)
+            self.assertEqual({p.code for p in role.permissions},
+                             {'kitchen:read', 'course:read'})
+
+        # Enviando sem nenhuma permissão: a de módulo desligado continua
+        self.client.post(f'/admin/roles/{role_id}/edit', data={'label': 'Papel Teste'})
+        with self.app.app_context():
+            role = db.session.get(Role, role_id)
+            self.assertEqual({p.code for p in role.permissions}, {'kitchen:read'})
 
 
 if __name__ == '__main__':
