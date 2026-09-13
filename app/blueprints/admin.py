@@ -521,20 +521,24 @@ def import_holidays():
 
 # ================= ROLE MANAGEMENT =================
 
-# Rótulos amigáveis dos módulos de permissão (agrupamento da tela de papéis)
+# Rótulos amigáveis dos módulos de permissão (agrupamento da tela de papéis).
+# O Financeiro tem dois grupos de permissões separados (Pagamento Extra e
+# Vale-Transporte) para que papéis distintos possam cobrir cada área.
 MODULO_LABELS = {
     'course': 'Cursos', 'holiday': 'Feriados', 'kitchen': 'Cozinha',
-    'payment': 'Financeiro', 'reservation': 'Reservas', 'role': 'Papéis',
+    'payment': 'Pagamento Extra', 'reservation': 'Reservas', 'role': 'Papéis',
     'room': 'Salas', 'system': 'Sistema', 'unity': 'Unidades',
-    'user': 'Usuários',
+    'user': 'Usuários', 'vt': 'Vale-Transporte',
 }
 
 # Módulos de permissão que dependem de um módulo ligável por unidade:
 # mapeiam o módulo da permissão para o código do módulo na Unity. Grupos
 # fora deste mapa não dependem de módulo (o aviso contextual nunca aparece).
+# Pagamento Extra e Vale-Transporte são áreas do módulo Financeiro.
 MODULO_PERMISSAO_PARA_MODULO_UNIDADE = {
     'kitchen': Unity.MODULE_KITCHEN,
     'payment': Unity.MODULE_FINANCE,
+    'vt': Unity.MODULE_FINANCE,
 }
 
 

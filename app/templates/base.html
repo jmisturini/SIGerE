@@ -95,10 +95,11 @@
 
                 {% set in_overtime = request.endpoint and request.endpoint.startswith('payments.') %}
                 {% set in_vt = request.endpoint and request.endpoint.startswith('vt.') %}
-                {# Ambos os módulos do Financeiro usam as permissões payment:* #}
+                {# O Financeiro tem duas áreas com permissões separadas: Pagamento Extra (payment:*) e Vale-Transporte (vt:*). #}
                 {# O módulo Financeiro pode ser desligado por unidade (edição da unidade) #}
-                {% if current_user.has_permission('payment:read') and unity_module_enabled('finance') %}
+                {% if unity_module_enabled('finance') and (current_user.has_permission('payment:read') or current_user.has_permission('vt:read')) %}
                 <li class="nav-section">Financeiro</li>
+                {% if current_user.has_permission('payment:read') %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if in_overtime else '' }}" title="Hora Extra" data-bs-toggle="collapse" href="#menu-hora-extra" role="button" aria-expanded="{{ 'true' if in_overtime else 'false' }}" aria-controls="menu-hora-extra">
                         <i class="bi bi-cash-stack"></i> <span>Hora Extra</span>
@@ -121,6 +122,8 @@
                         </ul>
                     </div>
                 </li>
+                {% endif %}
+                {% if current_user.has_permission('vt:read') %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if in_vt else '' }}" title="Vale Transporte" data-bs-toggle="collapse" href="#menu-vt" role="button" aria-expanded="{{ 'true' if in_vt else 'false' }}" aria-controls="menu-vt">
                         <i class="bi bi-bus-front"></i> <span>Vale Transporte</span>
@@ -141,6 +144,7 @@
                         </ul>
                     </div>
                 </li>
+                {% endif %}
                 {% endif %}
 
                 {# O módulo Cozinha pode ser desligado por unidade (edição da unidade) #}

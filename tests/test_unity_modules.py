@@ -52,6 +52,7 @@ class UnityModulesTestCase(unittest.TestCase):
             p_unity_modules = perm('unity:modules', 'unity', 'modules')
             p_kitchen = perm('kitchen:read', 'kitchen', 'read')
             p_payment = perm('payment:read', 'payment', 'read')
+            p_vt = perm('vt:read', 'vt', 'read')
             p_own = perm('reservation:read_own', 'reservation', 'read_own')
             db.session.flush()
 
@@ -64,12 +65,15 @@ class UnityModulesTestCase(unittest.TestCase):
                                                    p_unity_toggle, p_unity_modules])
             role_cozinha = Role(name='cozinha', label='Cozinha',
                                 permissions=[p_kitchen])
-            role_financeiro = Role(name='financeiro', label='Financeiro',
+            role_financeiro = Role(name='financeiro', label='Pagamento Extra',
                                    permissions=[p_payment])
+            role_vt = Role(name='vt', label='Vale-Transporte',
+                           permissions=[p_vt])
             role_reserva = Role(name='reserva', label='Reservas',
                                 permissions=[p_own])
             db.session.add_all([role_super, role_leitor, role_admin_unidade,
-                                role_cozinha, role_financeiro, role_reserva])
+                                role_cozinha, role_financeiro, role_vt,
+                                role_reserva])
             db.session.flush()
 
             def unity(name, code, kitchen=True, finance=True):
@@ -103,6 +107,8 @@ class UnityModulesTestCase(unittest.TestCase):
             user('cozinha.beta', role_cozinha, self.beta)
             user('financeiro.alfa', role_financeiro, self.alfa)
             user('financeiro.beta', role_financeiro, self.beta)
+            user('vt.alfa', role_vt, self.alfa)
+            user('vt.beta', role_vt, self.beta)
             user('reserva.alfa', role_reserva, self.alfa)
             db.session.commit()
 
@@ -116,6 +122,9 @@ class UnityModulesTestCase(unittest.TestCase):
                 os.remove(path)
 
     def _login(self, username, password=PASSWORD):
+        # Desloga primeiro: o POST /login de uma sessão já autenticada é
+        # redirecionado sem trocar o usuário da sessão
+        self.client.get('/logout')
         response = self.client.post('/login',
                                     data={'username': username, 'password': password},
                                     follow_redirects=True)
@@ -168,11 +177,25 @@ class TestBloqueioDeRotas(UnityModulesTestCase):
     def test_financeiro_bloqueado_na_unidade_sem_modulo(self):
         self._login('financeiro.beta')
         self.assertEqual(self.client.get('/payments/overtime/list').status_code, 403)
+        self._login('vt.beta')
         self.assertEqual(self.client.get('/vt/').status_code, 403)
 
     def test_financeiro_funciona_na_unidade_com_modulo(self):
         self._login('financeiro.alfa')
         self.assertEqual(self.client.get('/payments/overtime/list').status_code, 200)
+        self._login('vt.alfa')
+        self.assertEqual(self.client.get('/vt/').status_code, 200)
+        self.assertEqual(self.client.get('/vt/colaboradores').status_code, 200)
+
+    def test_papeis_do_financeiro_sao_separados(self):
+        """A permissão do Pagamento Extra (payment:*) não abre o
+        Vale-Transporte (vt:*) e vice-versa: cada papel cobre só a sua área."""
+        self._login('financeiro.alfa')
+        self.assertEqual(self.client.get('/payments/overtime/list').status_code, 200)
+        self.assertEqual(self.client.get('/vt/').status_code, 403)
+        self._login('vt.alfa')
+        self.assertEqual(self.client.get('/vt/').status_code, 200)
+        self.assertEqual(self.client.get('/payments/overtime/list').status_code, 403)
 
     def test_reservas_core_funciona_mesmo_com_modulos_desligados(self):
         self._login('reserva.alfa')
@@ -189,6 +212,19 @@ class TestBloqueioDeRotas(UnityModulesTestCase):
         page = self.client.get('/kitchen/fichas').get_data(as_text=True)
         self.assertIn('Cozinha', page)             # módulo ligado na unidade
         self.assertNotIn('Hora Extra', page)       # financeiro desligado
+        self.assertNotIn('Vale Transporte', page)  # financeiro desligado
+
+    def test_menu_separa_pagamento_extra_e_vale_transporte(self):
+        # Quem só tem payment:read vê Hora Extra, mas não o Vale Transporte
+        self._login('financeiro.alfa')
+        page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        self.assertIn('Hora Extra', page)
+        self.assertNotIn('Vale Transporte', page)
+        # Quem só tem vt:read vê o Vale Transporte, mas não Hora Extra
+        self._login('vt.alfa')
+        page = self.client.get('/vt/').get_data(as_text=True)
+        self.assertIn('Vale Transporte', page)
+        self.assertNotIn('Hora Extra', page)
 
 
 class TestTogglePeloPainel(UnityModulesTestCase):
@@ -362,16 +398,20 @@ class TestAvisoDeModuloDesligadoNoFormularioDePapel(UnityModulesTestCase):
         alfa_id = self._unity_id('ALF')
         self.client.post('/unity/switch', data={'unity_id': alfa_id})
         page = self.client.get('/admin/roles/create').get_data(as_text=True)
-        # Cozinha desligada na Alfa: aviso no grupo; Financeiro ligado: sem aviso
+        # Cozinha desligada na Alfa: aviso no grupo; Financeiro ligado: sem
+        # aviso nos grupos Pagamento Extra e Vale-Transporte
         self.assertIn('Cozinha</strong> está desativado nesta unidade', page)
-        self.assertNotIn('Financeiro</strong> está desativado nesta unidade', page)
+        self.assertNotIn('Pagamento Extra</strong> está desativado nesta unidade', page)
+        self.assertNotIn('Vale-Transporte</strong> está desativado nesta unidade', page)
 
     def test_aviso_aparece_para_financeiro_na_unidade_beta(self):
         self._login(USERNAME)
         beta_id = self._unity_id('BET')
         self.client.post('/unity/switch', data={'unity_id': beta_id})
         page = self.client.get('/admin/roles/create').get_data(as_text=True)
-        self.assertIn('Financeiro</strong> está desativado nesta unidade', page)
+        # Financeiro desligado na Beta: aviso nas duas áreas dele
+        self.assertIn('Pagamento Extra</strong> está desativado nesta unidade', page)
+        self.assertIn('Vale-Transporte</strong> está desativado nesta unidade', page)
         self.assertNotIn('Cozinha</strong> está desativado nesta unidade', page)
 
     def test_sem_aviso_quando_todos_os_modulos_estao_ligados(self):
@@ -405,10 +445,13 @@ class TestCinzaDeModuloDesligadoNoFormularioDePapel(UnityModulesTestCase):
         kitchen_id = self._id_permissao('kitchen:read')
         tag_kitchen = re.search(r'<input[^>]*id="perm-%d"[^>]*>' % kitchen_id, page).group()
         self.assertIn('disabled', tag_kitchen)
-        # ...e Financeiro ligado: checkbox normal
+        # ...e Financeiro ligado: checkboxes das duas áreas normais
         payment_id = self._id_permissao('payment:read')
         tag_payment = re.search(r'<input[^>]*id="perm-%d"[^>]*>' % payment_id, page).group()
         self.assertNotIn('disabled', tag_payment)
+        vt_id = self._id_permissao('vt:read')
+        tag_vt = re.search(r'<input[^>]*id="perm-%d"[^>]*>' % vt_id, page).group()
+        self.assertNotIn('disabled', tag_vt)
 
     def test_edicao_preserva_permissoes_de_modulo_desligado(self):
         self._login(USERNAME)
