@@ -231,19 +231,19 @@ def _money_text(value):
 
 @bp.route('/')
 @login_required
-@require_permission('payment:read')
+@require_permission('vt:read')
 @require_module('finance')
 def index():
     """Página de importação: apenas o upload do Pedido de Compra. Após ler o
     arquivo, o usuário é levado à listagem de colaboradores para revisão."""
     total = VtRecord.query.filter_by(unity_id=current_unity_id()).count()
     return render_template('vt/index.html', total=total,
-                           can_manage=current_user.has_permission('payment:create'))
+                           can_manage=current_user.has_permission('vt:create'))
 
 
 @bp.route('/colaboradores')
 @login_required
-@require_permission('payment:read')
+@require_permission('vt:read')
 @require_module('finance')
 def records():
     search = (request.args.get('q') or '').strip()
@@ -304,14 +304,14 @@ def records():
                            links=links, unities=unities,
                            sort=sort, hide_without_vt=hide_without_vt,
                            flagged=flagged,
-                           can_edit=current_user.has_permission('payment:edit'),
-                           can_delete=current_user.has_permission('payment:delete'),
-                           can_export=current_user.has_permission('payment:export'))
+                           can_edit=current_user.has_permission('vt:edit'),
+                           can_delete=current_user.has_permission('vt:delete'),
+                           can_export=current_user.has_permission('vt:export'))
 
 
 @bp.route('/upload', methods=['POST'])
 @login_required
-@require_permission('payment:create')
+@require_permission('vt:create')
 @require_module('finance')
 def upload():
     """Lê o Pedido de Compra e substitui os registros da unidade ativa —
@@ -355,7 +355,7 @@ def upload():
 
 @bp.route('/<int:record_id>/editar', methods=['GET', 'POST'])
 @login_required
-@require_permission('payment:edit')
+@require_permission('vt:edit')
 @require_module('finance')
 def edit_record(record_id):
     record = _get_record_scoped(record_id)
@@ -380,7 +380,7 @@ def edit_record(record_id):
 
 @bp.route('/<int:record_id>/excluir', methods=['POST'])
 @login_required
-@require_permission('payment:delete')
+@require_permission('vt:delete')
 @require_module('finance')
 def delete_record(record_id):
     record = _get_record_scoped(record_id)
@@ -393,7 +393,7 @@ def delete_record(record_id):
 
 @bp.route('/limpar', methods=['POST'])
 @login_required
-@require_permission('payment:delete')
+@require_permission('vt:delete')
 @require_module('finance')
 def clear_all():
     """Apaga todos os registros importados da unidade ativa (recomeçar)."""
@@ -405,7 +405,7 @@ def clear_all():
 
 @bp.route('/exportar')
 @login_required
-@require_permission('payment:export')
+@require_permission('vt:export')
 @require_module('finance')
 def export():
     """Gera a planilha final a partir do modelo planilha_base_vt.xlsx —

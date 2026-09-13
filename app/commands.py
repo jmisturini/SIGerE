@@ -50,12 +50,19 @@ PERMISSION_DATA = [
     ('holiday:edit', 'holiday', 'edit', 'Editar feriados'),
     ('holiday:delete', 'holiday', 'delete', 'Excluir feriados'),
     ('holiday:import', 'holiday', 'import', 'Importar feriados da API'),
-    ('payment:read', 'payment', 'read', 'Ver todos os pagamentos'),
-    ('payment:read_own', 'payment', 'read_own', 'Ver próprios pagamentos'),
-    ('payment:create', 'payment', 'create', 'Criar lançamentos'),
-    ('payment:edit', 'payment', 'edit', 'Editar lançamentos'),
-    ('payment:delete', 'payment', 'delete', 'Excluir lançamentos'),
-    ('payment:export', 'payment', 'export', 'Exportar pagamentos'),
+    ('payment:read', 'payment', 'read', 'Ver lançamentos de pagamento extra (hora extra)'),
+    ('payment:read_own', 'payment', 'read_own', 'Ver os próprios lançamentos de pagamento extra'),
+    ('payment:create', 'payment', 'create', 'Criar lançamentos de pagamento extra (hora extra)'),
+    ('payment:edit', 'payment', 'edit', 'Editar lançamentos de pagamento extra (hora extra)'),
+    ('payment:delete', 'payment', 'delete', 'Excluir lançamentos de pagamento extra (hora extra)'),
+    ('payment:export', 'payment', 'export', 'Exportar a planilha de pagamento extra (hora extra)'),
+    # Módulo Vale-Transporte (área do Financeiro com papéis próprios, separada
+    # do pagamento extra: um papel pode liberar só uma das duas)
+    ('vt:read', 'vt', 'read', 'Acessar o Vale-Transporte (importação e colaboradores)'),
+    ('vt:create', 'vt', 'create', 'Importar o Pedido de Compra (Vale-Transporte)'),
+    ('vt:edit', 'vt', 'edit', 'Editar registros do Vale-Transporte'),
+    ('vt:delete', 'vt', 'delete', 'Excluir registros do Vale-Transporte'),
+    ('vt:export', 'vt', 'export', 'Exportar a planilha de pagamento do Vale-Transporte'),
     # Módulo de Cozinha (fichas técnicas, preparações e compras)
     ('kitchen:read', 'kitchen', 'read', 'Acessar o módulo de Cozinha (fichas técnicas, preparações e compras)'),
     ('kitchen:sheet_create', 'kitchen', 'sheet_create', 'Enviar e salvar fichas técnicas (DOCX)'),
@@ -102,6 +109,7 @@ ROLES_CONFIG = {
         'is_system': False,
         'permissions': [
             'payment:read', 'payment:create', 'payment:edit', 'payment:delete', 'payment:export',
+            'vt:read', 'vt:create', 'vt:edit', 'vt:delete', 'vt:export',
             'user:read', 'system:export',
             'kitchen:read', 'kitchen:shopping_export'
         ]
