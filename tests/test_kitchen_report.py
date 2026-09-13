@@ -1,13 +1,15 @@
 """Testes do relatório de ingredientes da página de Compras (módulo Cozinha).
 
 O botão "Relatório de Ingredientes" abre uma página em tela com as mesmas
-linhas agregadas da requisição de compra e a coluna extra PREPARAÇÕES
-VINCULADAS — cada ingrediente com as preparações em que é utilizado
-("Receita" ou "Receita — Sub-preparação" quando a receita tem sub-preparações
-com nome próprio). Na página de Compras o botão só fica ativo com ao menos
-uma preparação selecionada.
+linhas agregadas da requisição de compra; cada linha tem um botão "Detalhes"
+que abre um modal com a quantidade individual de cada preparação ("Receita"
+ou "Receita — Sub-preparação" quando a receita tem sub-preparações com nome
+próprio). Na página de Compras o botão só fica ativo com ao menos uma
+preparação selecionada.
 """
+import json
 import os
+import re
 import tempfile
 import unittest
 
@@ -104,6 +106,7 @@ class KitchenReportTestCase(unittest.TestCase):
             db.session.commit()
             self.bolo_id = bolo.id
             self.lasanha_id = lasanha.id
+            self.unity_id = self.unity.id
 
         self._login()
 
@@ -149,12 +152,20 @@ class KitchenReportTestCase(unittest.TestCase):
         self.assertIn('Bolo de Carne', page)
         self.assertIn('Lasanha', page)
 
-        # Farinha de Trigo: 400 g + 100 g + 100 g = 600 g → 0,6 KG, nas três
-        # sub-preparações em que aparece.
+        # Farinha de Trigo: 400 g + 100 g + 100 g = 600 g → 0,6 KG, com a
+        # quebra individual de cada preparação nos dados do modal de detalhes
+        # (o tojson escapa o travessão, por isso o JSON é lido e parseado).
         self.assertIn('Farinha de Trigo', page)
         self.assertIn('0,6', page)
-        self.assertIn('Lasanha — Massa', page)
-        self.assertIn('Lasanha — Molho Branco', page)
+        dados = json.loads(re.search(
+            r'<script id="ingredientes-data" type="application/json">(.*?)</script>',
+            page, re.DOTALL).group(1))
+        farinha = next(linha for linha in dados if linha['nome'] == 'Farinha de Trigo')
+        self.assertEqual([(f['nome'], round(f['quantidade'], 3), f['unidade'])
+                          for f in farinha['fontes']],
+                         [('Bolo de Carne', 0.4, 'KG'),
+                          ('Lasanha — Massa', 0.1, 'KG'),
+                          ('Lasanha — Molho Branco', 0.1, 'KG')])
 
         # Ovo: 3 + 2 un → 5 UN, sem a origem "Molho Branco" na linha.
         self.assertIn('Ovo', page)
@@ -166,8 +177,40 @@ class KitchenReportTestCase(unittest.TestCase):
         # Água nunca entra na requisição (nem no relatório).
         self.assertNotIn('Água', page)
 
-        # Cabeçalho da tabela com a coluna de vínculo.
-        self.assertIn('PREPARAÇÕES VINCULADAS', page)
+        # Botão de detalhes por linha e modal (a coluna de preparações
+        # vinculadas saiu da tabela).
+        self.assertIn('DETALHES', page)
+        self.assertEqual(page.count('btn-outline-primary detalhes-btn'), 3)
+        self.assertIn('id="detalhesModal"', page)
+        self.assertNotIn('PREPARAÇÕES VINCULADAS', page)
+
+    def test_aggregate_rows_carry_per_preparation_quantities(self):
+        from app.blueprints.kitchen.export import aggregate_ingredients
+
+        with self.app.app_context():
+            recipes = KitchenRecipe.query.filter(
+                KitchenRecipe.unity_id == self.unity_id,
+                KitchenRecipe.id.in_([self.bolo_id, self.lasanha_id]),
+            ).order_by(KitchenRecipe.name).all()
+            rows = {row['nome']: row for row in aggregate_ingredients(recipes)}
+
+        # Farinha: a quebra soma exatamente o total da linha (0,6 KG).
+        self.assertEqual([(f['nome'], round(f['quantidade'], 3), f['unidade'])
+                          for f in rows['Farinha de Trigo']['fontes']],
+                         [('Bolo de Carne', 0.4, 'KG'),
+                          ('Lasanha — Massa', 0.1, 'KG'),
+                          ('Lasanha — Molho Branco', 0.1, 'KG')])
+
+        # Ovo: só as duas preparações que o usam.
+        self.assertEqual([(f['nome'], f['quantidade'], f['unidade'])
+                          for f in rows['Ovo']['fontes']],
+                         [('Bolo de Carne', 3.0, 'UN'),
+                          ('Lasanha — Massa', 2.0, 'UN')])
+
+        # "A gosto": fontes com quantidade em branco e unidade '—'.
+        self.assertEqual(rows['Sal']['fontes'],
+                         [{'nome': 'Bolo de Carne', 'quantidade': None,
+                           'unidade': '—'}])
 
     def test_report_without_selection_redirects_with_warning(self):
         response = self._post_report(recipe_ids=[], follow_redirects=True)

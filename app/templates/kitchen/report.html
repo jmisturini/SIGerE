@@ -5,8 +5,8 @@
 <div class="page-header mb-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
     <div>
         <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-text text-primary me-2"></i>Relatório de Ingredientes</h3>
-        <p class="text-muted mb-0">Ingredientes que serão exportados na requisição de compra e as preparações em que
-            cada um é utilizado.</p>
+        <p class="text-muted mb-0">Ingredientes que serão exportados na requisição de compra. Use <strong>Detalhes</strong>
+            para ver a quantidade individual de cada preparação do ingrediente.</p>
     </div>
     <a class="btn btn-outline-secondary" href="{{ url_for('kitchen.shopping') }}">
         <i class="bi bi-arrow-left me-1"></i> Voltar para Compras
@@ -55,7 +55,7 @@
                     <th class="ps-4">PRODUTO</th>
                     <th class="text-center" style="width: 120px;">QUANTIDADE</th>
                     <th class="text-center" style="width: 110px;">UNIDADE</th>
-                    <th>PREPARAÇÕES VINCULADAS</th>
+                    <th class="text-center" style="width: 110px;">DETALHES</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -64,10 +64,12 @@
                         <td class="ps-4 fw-semibold">{{ row.nome }}</td>
                         <td class="text-center">{{ row.quantidade|qtyfmt }}</td>
                         <td class="text-center">{{ row.unidade }}</td>
-                        <td>
-                            {% for preparacao in row.preparacoes %}
-                            <div>{{ preparacao }}</div>
-                            {% endfor %}
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-primary detalhes-btn"
+                                    data-index="{{ loop.index0 }}"
+                                    title="Ver a quantidade individual de cada preparação deste ingrediente">
+                                <i class="bi bi-card-list me-1"></i>Detalhes
+                            </button>
                         </td>
                     </tr>
                 {% endfor %}
@@ -83,4 +85,84 @@
     </div>
     {% endif %}
 </div>
+
+<div class="modal fade" id="detalhesModal" tabindex="-1" aria-labelledby="detalhesTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0" id="detalhesTitulo">Ingrediente</h6>
+                    <div class="small text-muted" id="detalhesTotal"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-0">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th class="ps-3 py-2">PREPARAÇÃO</th>
+                        <th class="text-center pe-3 py-2" style="width: 140px;">QUANTIDADE</th>
+                    </tr>
+                    </thead>
+                    <tbody id="detalhesCorpo"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="ingredientes-data" type="application/json">{{ rows|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Dados do relatório (nome, total e quebra por preparação de cada linha),
+    // serializados pelo servidor na ordem das linhas da tabela.
+    const ingredientes = JSON.parse(document.getElementById('ingredientes-data').textContent);
+    const modalEl = document.getElementById('detalhesModal');
+    const tituloEl = document.getElementById('detalhesTitulo');
+    const totalEl = document.getElementById('detalhesTotal');
+    const corpoEl = document.getElementById('detalhesCorpo');
+
+    // O modal acompanha o tema do aplicativo: o Bootstrap 5.3 alterna as
+    // cores dos componentes pelo atributo data-bs-theme, enquanto o tema
+    // deste app vive em data-theme (no <html>).
+    const sincronizarTemaModal = () => {
+        modalEl.setAttribute('data-bs-theme',
+            document.documentElement.getAttribute('data-theme') === 'dark'
+                ? 'dark' : 'light');
+    };
+    sincronizarTemaModal();
+
+    // Mesmo formato do filtro qtyfmt: 0.6 → '0,6', 5.0 → '5', None → '—'.
+    const fmtQty = (value) => {
+        if (value === null) return '—';
+        return value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '').replace('.', ',');
+    };
+
+    document.querySelectorAll('.detalhes-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const linha = ingredientes[Number(btn.dataset.index)];
+            sincronizarTemaModal();
+            tituloEl.textContent = linha.nome;
+            totalEl.textContent = 'Total da linha: '
+                + (linha.quantidade === null ? '—' : fmtQty(linha.quantidade) + ' ' + linha.unidade);
+            corpoEl.replaceChildren();
+            linha.fontes.forEach(fonte => {
+                const tr = document.createElement('tr');
+                const tdNome = document.createElement('td');
+                tdNome.className = 'px-3 py-2';
+                tdNome.textContent = fonte.nome;
+                const tdQtd = document.createElement('td');
+                tdQtd.className = 'text-center pe-3 py-2';
+                tdQtd.textContent = fonte.quantidade === null
+                    ? '—'
+                    : fmtQty(fonte.quantidade) + ' ' + fonte.unidade;
+                tr.append(tdNome, tdQtd);
+                corpoEl.append(tr);
+            });
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        });
+    });
+</script>
 {% endblock %}

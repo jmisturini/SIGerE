@@ -447,6 +447,23 @@ h1, h2, h3, h4, h5, h6 {
     color: #fff;
 }
 
+/* O modal do Bootstrap é sempre branco (não acompanha o tema escuro): sem
+   esta regra, o título herda a cor clara dos headings do tema escuro
+   ([data-theme="dark"] h6, especificidade maior que .modal-title) e some
+   sobre o fundo branco. Dois classes para vencer essa especificidade. */
+.modal-header .modal-title {
+    color: #212529;
+}
+
+/* Modal que segue o tema escuro (data-bs-theme="dark"): superfície no tom
+   do app e título claro. */
+[data-theme="dark"] .modal[data-bs-theme="dark"] .modal-content {
+    background-color: #161b22;
+}
+.modal[data-bs-theme="dark"] .modal-header .modal-title {
+    color: #fff;
+}
+
 .list-group-item {
     border: none;
     border-bottom: 1px solid rgba(0,0,0,0.05);

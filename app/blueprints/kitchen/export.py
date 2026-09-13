@@ -97,11 +97,14 @@ def aggregate_ingredients(recipes):
     Retorna lista de dicionários ordenada por nome:
         nome, quantidade (float|None), unidade (KG/L/UN/—), preparacoes
         (rótulos "Receita" ou "Receita — Sub-preparação" em que o ingrediente
-        aparece, na ordem em que as receitas foram informadas)
+        aparece, na ordem em que as receitas foram informadas) e fontes
+        (quebra da quantidade individual de cada preparação nesta linha:
+        lista de nome/quantidade/unidade)
 
     Itens sem quantidade definida ("a gosto") são agrupados no mesmo produto
     com quantidade em branco. Unidades incompatíveis do mesmo ingrediente
-    (g × ml × un) geram linhas separadas por unidade.
+    (g × ml × un) geram linhas separadas por unidade — a quebra de fontes de
+    cada linha cobre apenas a unidade da linha.
     """
     groups = {}
     for recipe in recipes:
@@ -124,9 +127,10 @@ def aggregate_ingredients(recipes):
 
                 group = groups.setdefault(key, {
                     'names': defaultdict(int),
-                    'totals': defaultdict(float),  # unidade base → soma
+                    'totals': defaultdict(float),      # unidade base → soma
                     'no_quantity': False,
-                    'sources': [],                 # rótulos de origem, sem repetição
+                    'sources': [],                     # rótulos de origem, sem repetição
+                    'source_totals': defaultdict(lambda: defaultdict(float)),
                 })
                 group['names'][ingredient.name.strip()] += 1
                 if source not in group['sources']:
@@ -136,6 +140,8 @@ def aggregate_ingredients(recipes):
                 if converted and ingredient.quantity is not None:
                     base_unit, factor, _ = converted
                     group['totals'][base_unit] += ingredient.quantity * recipe_factor * factor
+                    group['source_totals'][source][base_unit] += \
+                        ingredient.quantity * recipe_factor * factor
                 else:
                     group['no_quantity'] = True
 
@@ -148,9 +154,19 @@ def aggregate_ingredients(recipes):
             if base_unit is not None:
                 quantity = group['totals'][base_unit] / DIVISOR[base_unit]
                 unit_label = DEFAULT_UNIT_LABEL[base_unit]
+                fontes = [
+                    {'nome': label,
+                     'quantidade': group['source_totals'][label][base_unit]
+                     / DIVISOR[base_unit],
+                     'unidade': unit_label}
+                    for label in group['sources']
+                    if base_unit in group['source_totals'].get(label, {})
+                ]
             elif row_index == 0:
                 # Nenhum total numérico: linha única com quantidade em branco.
                 quantity, unit_label = None, '—'
+                fontes = [{'nome': label, 'quantidade': None, 'unidade': '—'}
+                          for label in group['sources']]
             else:
                 break
 
@@ -159,6 +175,7 @@ def aggregate_ingredients(recipes):
                 'quantidade': quantity,
                 'unidade': unit_label,
                 'preparacoes': list(group['sources']),
+                'fontes': fontes,
             })
 
     rows.sort(key=lambda r: _strip_accents(r['nome']).lower())
