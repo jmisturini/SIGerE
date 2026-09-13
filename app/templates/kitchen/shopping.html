@@ -4,120 +4,68 @@
 {% block content %}
 <div class="page-header mb-4">
     <h3 class="fw-bold mb-1"><i class="bi bi-cart-check text-primary me-2"></i>Compras</h3>
-    <p class="text-muted mb-0">Selecione as preparações: os ingredientes serão somados por similaridade e exportados
-        na requisição de compra (Excel), com quantidades convertidas para <strong>KG</strong>, <strong>L</strong> e
-        <strong>UN</strong>.</p>
+    <p class="text-muted mb-0">Selecione as preparações e abra o <strong>Relatório de Ingredientes</strong>: os
+        ingredientes serão somados por similaridade, com quantidades convertidas para <strong>KG</strong>,
+        <strong>L</strong> e <strong>UN</strong>. A exportação da requisição de compra (.xlsx) fica na página do
+        relatório.</p>
 </div>
 
 {% if recipes %}
-<form method="POST" action="{{ url_for('kitchen.shopping_export') }}">
+<form method="POST" action="{{ url_for('kitchen.shopping_report') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="row g-4">
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                    <h6 class="fw-bold mb-0"><i class="bi bi-basket me-2"></i>Preparações ({{ recipes|length }})</h6>
-                    <div class="form-check mb-0">
-                        <input type="checkbox" class="form-check-input" id="select-all">
-                        <label class="form-check-label small fw-semibold" for="select-all">Selecionar todas</label>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <tbody>
-                            {% for recipe in recipes %}
-                                <tr>
-                                    <td class="ps-4" style="width: 40px;">
-                                        <input type="checkbox" class="form-check-input recipe-check" name="recipe_ids"
-                                               value="{{ recipe.id }}" id="recipe-{{ recipe.id }}">
-                                    </td>
-                                    <td>
-                                        <label class="form-check-label fw-semibold text-decoration-none w-100" for="recipe-{{ recipe.id }}">
-                                            {{ recipe.name }}
-                                            {% if recipe.scale_factor != 1.0 %}
-                                            <span class="badge bg-success-subtle text-success border border-success-subtle ms-1"
-                                                  title="Recálculo salvo na preparação: a requisição usa as quantidades para esta quantidade de porções">
-                                                <i class="bi bi-calculator me-1"></i>quantidades para {{ recipe.scaled_portions|qtyfmt }} porç{{ 'ões' if recipe.scaled_portions != 1 else 'ão' }}
-                                            </span>
-                                            {% endif %}
-                                            <div class="small text-muted fw-normal">
-                                                {{ recipe.preparations|length }} preparação(ões) ·
-                                                {{ recipe.ingredient_count }} ingrediente(s) ·
-                                                {{ recipe.yield_info or 'rendimento não informado' }}
-                                            </div>
-                                        </label>
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+    <div class="card">
+        <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h6 class="fw-bold mb-0"><i class="bi bi-basket me-2"></i>Preparações ({{ recipes|length }})</h6>
+            <div class="form-check mb-0">
+                <input type="checkbox" class="form-check-input" id="select-all">
+                <label class="form-check-label small fw-semibold" for="select-all">Selecionar todas</label>
             </div>
         </div>
-
-        <div class="col-lg-5">
-            <div class="card">
-                <div class="card-header bg-transparent py-3">
-                    <h6 class="fw-bold mb-0"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Dados da requisição</h6>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label for="professor" class="form-label fw-semibold">Prof:</label>
-                        <input type="text" class="form-control" id="professor" name="professor"
-                               value="{{ current_user.full_name }}" maxlength="120">
-                    </div>
-                    <div class="mb-3">
-                        <label for="class_date" class="form-label fw-semibold">Data da aula:</label>
-                        <input type="date" class="form-control" id="class_date" name="class_date"
-                               value="{{ today.strftime('%Y-%m-%d') }}">
-                    </div>
-                    <div class="mb-3">
-                        <label for="course" class="form-label fw-semibold">Curso:</label>
-                        <input type="text" class="form-control" id="course" name="course"
-                               placeholder="Ex: TURISMO - GRADUAÇÃO - 090001009" maxlength="200">
-                    </div>
-                    <div class="mb-4">
-                        <label for="period" class="form-label fw-semibold">Período:</label>
-                        <select class="form-select" id="period" name="period">
-                            <option value="">—</option>
-                            <option value="Matutino">Matutino</option>
-                            <option value="Vespertino">Vespertino</option>
-                            <option value="Noturno">Noturno</option>
-                        </select>
-                    </div>
-                    <div class="alert alert-light border small mb-4">
-                        <i class="bi bi-info-circle me-1"></i>
-                        A planilha gerada segue o modelo "REQUISIÇÃO DE COMPRA - GASTRONOMIA", com a aba de referência
-                        dos centros de custo. Ingredientes sem quantidade definida (ex.: "a gosto") são listados com a
-                        quantidade em branco; ingredientes <strong>desativados</strong> na preparação ficam de fora.
-                        Água não é incluída. O <strong>Relatório de Ingredientes</strong> mostra em tela tudo o que
-                        será exportado e em qual preparação cada ingrediente é utilizado.
-                    </div>
-                    {% if can_export %}
-                    <button type="submit" class="btn btn-success w-100">
-                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar Requisição (.xlsx)
-                    </button>
-                    <button type="submit" class="btn btn-outline-primary w-100 mt-2" id="report-btn" disabled
-                            formaction="{{ url_for('kitchen.shopping_report') }}"
-                            title="Selecione ao menos uma preparação para ver o relatório">
-                        <i class="bi bi-file-earmark-text me-1"></i> Relatório de Ingredientes
-                    </button>
-                    {% else %}
-                    <button type="submit" class="btn btn-success w-100" disabled
-                            title="Você não tem permissão para exportar a requisição de compra">
-                        <i class="bi bi-lock me-1"></i> Exportar Requisição (.xlsx)
-                    </button>
-                    <button type="submit" class="btn btn-outline-primary w-100 mt-2" disabled
-                            title="Você não tem permissão para exportar a requisição de compra">
-                        <i class="bi bi-lock me-1"></i> Relatório de Ingredientes
-                    </button>
-                    {% endif %}
-                </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <tbody>
+                    {% for recipe in recipes %}
+                        <tr>
+                            <td class="ps-4" style="width: 40px;">
+                                <input type="checkbox" class="form-check-input recipe-check" name="recipe_ids"
+                                       value="{{ recipe.id }}" id="recipe-{{ recipe.id }}">
+                            </td>
+                            <td>
+                                <label class="form-check-label fw-semibold text-decoration-none w-100" for="recipe-{{ recipe.id }}">
+                                    {{ recipe.name }}
+                                    {% if recipe.scale_factor != 1.0 %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle ms-1"
+                                          title="Recálculo salvo na preparação: a requisição usa as quantidades para esta quantidade de porções">
+                                        <i class="bi bi-calculator me-1"></i>quantidades para {{ recipe.scaled_portions|qtyfmt }} porç{{ 'ões' if recipe.scaled_portions != 1 else 'ão' }}
+                                    </span>
+                                    {% endif %}
+                                    <div class="small text-muted fw-normal">
+                                        {{ recipe.preparations|length }} preparação(ões) ·
+                                        {{ recipe.ingredient_count }} ingrediente(s) ·
+                                        {{ recipe.yield_info or 'rendimento não informado' }}
+                                    </div>
+                                </label>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
+
+    {% if can_export %}
+    <button type="submit" id="report-btn" class="btn btn-primary mt-4" disabled
+            title="Selecione ao menos uma preparação para ver o relatório">
+        <i class="bi bi-file-earmark-text me-1"></i> Relatório de Ingredientes
+    </button>
+    {% else %}
+    <button type="submit" id="report-btn" class="btn btn-primary mt-4" disabled
+            title="Você não tem permissão para exportar a requisição de compra">
+        <i class="bi bi-lock me-1"></i> Relatório de Ingredientes
+    </button>
+    {% endif %}
 </form>
 {% else %}
 <div class="card">

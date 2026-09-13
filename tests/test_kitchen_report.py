@@ -143,14 +143,25 @@ class KitchenReportTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
 
-        # Cabeçalho com os dados do formulário e as preparações escolhidas.
+        # Cabeçalho com os dados do formulário e as preparações escolhidas
+        # (agora em campos editáveis, de onde a requisição é exportada).
         self.assertIn('Relatório de Ingredientes', page)
+        self.assertIn('name="professor"', page)
         self.assertIn('Prof Teste', page)
-        self.assertIn('12/09/2026', page)
+        self.assertIn('value="2026-09-12"', page)
         self.assertIn('GASTRONOMIA', page)
         self.assertIn('Noturno', page)
         self.assertIn('Bolo de Carne', page)
         self.assertIn('Lasanha', page)
+
+        # A exportação da requisição mora na página do relatório: formulário
+        # com os ids das preparações selecionadas e o botão de exportar.
+        self.assertIn('action="/kitchen/compras/export"', page)
+        self.assertIn('<input type="hidden" name="recipe_ids" '
+                      f'value="{self.bolo_id}">', page)
+        self.assertIn('<input type="hidden" name="recipe_ids" '
+                      f'value="{self.lasanha_id}">', page)
+        self.assertIn('Exportar Requisição (.xlsx)', page)
 
         # Farinha de Trigo: 400 g + 100 g + 100 g = 600 g → 0,6 KG, com a
         # quebra individual de cada preparação nos dados do modal de detalhes
@@ -174,8 +185,9 @@ class KitchenReportTestCase(unittest.TestCase):
         # Sem quantidade definida: quantidade em branco e unidade '—'.
         self.assertIn('<td class="text-center">—</td>', page)
 
-        # Água nunca entra na requisição (nem no relatório).
-        self.assertNotIn('Água', page)
+        # Água nunca entra na requisição (nem nos dados do relatório — a
+        # palavra pode aparecer no texto informativo do card de exportação).
+        self.assertFalse(any(linha['nome'] == 'Água' for linha in dados))
 
         # Botão de detalhes por linha e modal (a coluna de preparações
         # vinculadas saiu da tabela).
@@ -232,7 +244,12 @@ class KitchenReportTestCase(unittest.TestCase):
         self.assertIn('/kitchen/compras/relatorio', page)
         # O botão nasce desabilitado: fica ativo via JavaScript quando o
         # usuário seleciona ao menos uma preparação.
-        self.assertIn('id="report-btn" disabled', page)
+        botao = re.search(r'<button[^>]*id="report-btn"[^>]*>', page).group(0)
+        self.assertIn('disabled', botao)
+        # A exportação saiu da página de Compras: virou ação da página do
+        # relatório, que recebe os campos de dados da requisição.
+        self.assertNotIn('/kitchen/compras/export', page)
+        self.assertNotIn('Exportar Requisição', page)
 
 
 if __name__ == '__main__':

@@ -8,9 +8,9 @@ Sub-menus:
   preparação;
 - Preparações: receitas geradas pelas fichas, em cards ou lista (à escolha do
   usuário), com visualização completa;
-- Compras: soma por similaridade dos ingredientes das preparações selecionadas,
-  exportação da requisição em XLSX (submódulo export.py) e relatório em tela
-  dos ingredientes com as preparações em que cada um é utilizado.
+- Compras: seleção das preparações, relatório em tela dos ingredientes somados
+  por similaridade com as preparações em que cada um é utilizado e exportação
+  da requisição em XLSX (submódulo export.py) a partir do relatório.
 """
 import io
 import json
@@ -764,4 +764,5 @@ def shopping_report():
                            class_date=class_date,
                            course=(request.form.get('course') or '').strip(),
                            period=request.form.get('period') or '',
-                           recipe_names=[recipe.name for recipe in recipes])
+                           recipe_names=[recipe.name for recipe in recipes],
+                           recipe_ids=[recipe.id for recipe in recipes])
