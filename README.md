@@ -261,6 +261,9 @@ flask --app run db upgrade
 flask --app run seed-admin
 #    b) cria o admin padrão (admin/admin123) e pergunta sobre dados de demonstração:
 flask --app run seed
+#    c) cenário de demonstração completo (todos os módulos, reservas na semana
+#       corrente, cozinha, financeiro, token da API — ver "Contas de Demonstração"):
+flask --app run seed-demo
 
 # 6. Em desenvolvimento, habilite o modo debug antes de servir a aplicação
 # Linux/macOS:
@@ -740,6 +743,34 @@ O comando `flask --app run seed` sempre cria o administrador e, **interativament
 | **Assistente/Logística** | `employee1` … `employee20` | `employee123` | Criar/editar/cancelar próprias reservas, visualizar salas e cursos |
 
 > ⚠️ **Atenção:** Por padrão, o sistema força a troca de senha no primeiro login. Para testes, as contas de demonstração já vêm com `force_password_change=False`.
+
+### 🎬 Cenário de demonstração completo (`seed-demo`)
+
+Para conhecer/apresentar **cada parte do sistema** com dados realistas, use `flask --app run seed-demo` (requer banco migrado; recria com `--reset`). Diferente do `seed` acima, o cenário é determinístico e as **datas são relativas a hoje** — sempre há reservas no dia e na próxima semana para o totem, cronograma, dashboard, calendário e API exibirem. São criados:
+
+- **3 unidades**: Centro (completa), **Norte sem o módulo Cozinha** e **Sul inativa** — exercita o seletor, os módulos opcionais e o isolamento multi-unidade (coordenadas de clima incluídas);
+- **Usuários de todos os papéis** (Gestor, Analista, Professor, Assistente/Logística) com os casos especiais: professora com papel adicional **Módulo Cozinha**, funcionário que também leciona, conta **inativa** e conta com **troca de senha obrigatória**;
+- **7 categorias de sala** (Sala de Aula, Auditório com janela semanal no totem, Cozinha Pedagógica, Labs de Informática com contagem de computadores, Labs de Saúde, Quadra e Sala de Reunião) e **17 salas** — uma delas inativa;
+- **Cursos e disciplinas** por unidade (um curso inativo) e **feriados** (nacionais + municipal, incluindo um registro inativo);
+- **Reservas em todas as situações**: aprovadas hoje (manhã/tarde/noite), pendente por **conflito de professor**, pendente normal, cancelada, passada (somente leitura), futuras com curso/disciplina/professor, uma **série de repetição** (5 semanas, gerenciável em lote), reserva com parecer de aprovação e eventos de auditório na janela semanal do totem;
+- **Financeiro**: hora extra no mês base corrente e **Vale-Transporte** com os três grupos da exportação (Professores, Faculdade, Restaurante), optantes/não optantes, nome padronizado ("nome ajustado") e inconsistências de matrícula/nome repetidos;
+- **Cozinha**: 2 preparações completas (uma com **escala de porções** salva e um ingrediente **inativo** fora da requisição de compra), com os `.docx` reais na pasta de uploads, e uma ficha **pendente** aguardando "Salvar Ficha Técnica";
+- **Token da API de reservas** com valor fixo para testar `/api/v1` sem gerar token no painel.
+
+| Perfil | Usuário | Senha | Observação |
+|--------|---------|-------|------------|
+| Super Administrador | `admin` | `demo1234` | Global, pode alternar unidades |
+| **Gestor** | `gestor.marina` | `demo1234` | Unidade Centro |
+| **Analista** | `analista.rafael` | `demo1234` | Unidade Centro |
+| **Professor** | `prof.ana` | `demo1234` | Gastronomia + papel adicional Módulo Cozinha |
+| **Professor** | `prof.bruno` | `demo1234` | Informática (dono da série de aulas) |
+| **Professor inativo** | `prof.elisa` | `demo1234` | Login recusado (conta desativada) |
+| **Professor** | `prof.felipe` | `demo1234` | Força troca de senha no primeiro login |
+| **Assistente/Logística** | `func.juliana` | `demo1234` | Unidade Centro |
+| **Assistente que leciona** | `func.marcos` | `demo1234` | "Também atuar como professor" |
+| Token da API | — | — | `Authorization: Bearer sige_demo_token_de_demonstracao_troque_em_producao` |
+
+> ⚠️ **Atenção:** contas e token de demonstração **nunca** em produção — lá use `seed-admin`.
 
 ---
 
