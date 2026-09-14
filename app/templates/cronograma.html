@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% import '_aula_macros.html' as aulas %}
+{% import '_unidade_publica.html' as unidade_publica %}
 {% block title %}Cronograma de Aulas - SIGerE{% endblock %}
 
 {% block content %}
@@ -18,19 +19,7 @@
             <input type="date" name="data" class="form-control form-control-sm" value="{{ schedule_date.isoformat() }}"
                    onchange="this.form.submit()" title="Escolher outro dia" aria-label="Data do cronograma">
         </form>
-        {% if public_unity and public_unities|length > 1 %}
-        <div class="dropdown">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-geo-alt me-1"></i>{{ public_unity.name }}
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                {% for u in public_unities %}
-                <li><a class="dropdown-item {{ 'active' if public_unity.id == u.id }}"
-                       href="{{ url_for('public.daily_schedule', unity=u.id, data=schedule_date.isoformat()) }}">{{ u.name }}</a></li>
-                {% endfor %}
-            </ul>
-        </div>
-        {% endif %}
+        {{ unidade_publica.seletor(public_unity, public_unities, 'public.daily_schedule', params={'data': schedule_date.isoformat()}) }}
     </div>
 </div>
 

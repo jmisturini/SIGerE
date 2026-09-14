@@ -1,0 +1,40 @@
+{% macro seletor(public_unity, public_unities, endpoint, params={}) %}
+{# Seletor de unidade do portal público (cronograma e busca de aula), com a
+   opção "Detectar pela minha localização": escolhe a unidade mais próxima
+   usando as coordenadas cadastradas (app/static/js/unidade-proxima.js).
+   Só é renderizado com mais de uma unidade ativa — com uma só não há o que
+   detectar. #}
+{% if public_unity and public_unities|length > 1 %}
+{# Jinja não tem list comprehension: os dados de geolocalização vão para o
+   cliente via namespace + loop (dict() é global do Jinja). #}
+{% set geo = namespace(itens=[]) %}
+{% for u in public_unities %}
+{% set _ = geo.itens.append(dict(id=u.id, nome=u.name, lat=u.weather_latitude, lng=u.weather_longitude)) %}
+{% endfor %}
+{% set com_coords = geo.itens | selectattr('lat') | selectattr('lng') | list %}
+<div class="dropdown">
+    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-geo-alt me-1"></i>{{ public_unity.name }}
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        {% if com_coords %}
+        <li>
+            <button type="button" class="dropdown-item" data-unity-detect
+                    title="Selecionar a unidade mais próxima de você">
+                <i class="bi bi-crosshair me-1"></i>Detectar pela minha localização
+            </button>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        {% endif %}
+        {% for u in public_unities %}
+        <li><a class="dropdown-item {{ 'active' if public_unity.id == u.id }}"
+               href="{{ url_for(endpoint, unity=u.id, **params) }}">{{ u.name }}</a></li>
+        {% endfor %}
+    </ul>
+</div>
+<script>
+    window.SIGERE_UNIDADES_PUBLICAS = {{ geo.itens | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/unidade-proxima.js') }}" defer></script>
+{% endif %}
+{% endmacro %}

@@ -115,42 +115,52 @@ ROLES_CONFIG = {
         ]
     },
     'coordinator': {
-        'label': 'Coordenador Pedagógico',
+        'label': 'Analista',
         'is_system': False,
         'permissions': [
-            'room:read', 'course:read', 'course:create', 'course:edit', 'course:toggle',
-            'reservation:read_all', 'reservation:approve',
-            'reservation:edit_all', 'reservation:cancel_all',
-            'user:read',
-            'kitchen:read', 'kitchen:sheet_create', 'kitchen:shopping_export'
+            'course:read',
+            'reservation:approve', 'reservation:cancel_own',
+            'reservation:create', 'reservation:edit_own', 'reservation:read_own',
+            'system:export',
+            'room:read',
+            'payment:create', 'payment:edit', 'payment:read_own'
         ]
     },
     'room_manager': {
-        'label': 'Gestor de Salas',
+        'label': 'Gestor',
         'is_system': False,
         'permissions': [
+            'course:read', 'course:create', 'course:edit', 'course:toggle',
+            'reservation:read_all', 'reservation:read_own',
+            'reservation:create', 'reservation:edit_all', 'reservation:edit_own',
+            'reservation:delete_all', 'reservation:cancel_own', 'reservation:cancel_all',
+            'reservation:approve',
+            'payment:read', 'payment:read_own', 'payment:create',
+            'payment:edit', 'payment:delete', 'payment:export',
             'room:read', 'room:create', 'room:edit', 'room:toggle',
-            'reservation:read_all', 'reservation:edit_all', 'reservation:cancel_all',
-            'system:export',
-            'kitchen:read'
+            'system:export'
         ]
     },
     'teacher': {
         'label': 'Professor',
         'is_system': False,
         'permissions': [
-            'reservation:create', 'reservation:read_own',
-            'reservation:edit_own', 'reservation:cancel_own',
-            'room:read', 'course:read', 'payment:read_own',
-            'kitchen:read', 'kitchen:sheet_create', 'kitchen:shopping_export'
+            'course:read',
+            'reservation:create', 'reservation:cancel_own',
+            'reservation:edit_own', 'reservation:read_own',
+            'system:export',
+            'room:read'
         ]
     },
     'employee': {
-        'label': 'Funcionário',
+        'label': 'Assistente/Logística',
         'is_system': False,
         'permissions': [
-            'room:read', 'course:read', 'reservation:read_own',
-            'kitchen:read'
+            'course:read',
+            'reservation:cancel_own', 'reservation:create',
+            'reservation:edit_own', 'reservation:read_own',
+            'system:export',
+            'room:read'
         ]
     },
     'viewer': {
@@ -386,7 +396,9 @@ def _seed_unidades(json_path):
     atualização (ex.: todas as unidades com false para depurar/demonstrar com
     o módulo desligado); sem o campo, criação usa True e a atualização não
     toca em `is_active` (uma unidade desativada de propósito não é reativada).
-    Também não toca nas coordenadas de clima (ausentes no JSON).
+    As coordenadas de clima (weather_latitude/longitude, usadas pela detecção
+    da unidade mais próxima no portal público) são aplicadas apenas quando o
+    JSON as traz — coordenada ausente não apaga a já cadastrada.
     """
     with open(json_path, encoding='utf-8') as fh:
         data = json.load(fh)
@@ -414,6 +426,10 @@ def _seed_unidades(json_path):
         unity.address = sugestao.get('address')
         unity.phone = sugestao.get('phone')
         unity.weather_city = sugestao.get('weather_city')
+        if sugestao.get('weather_latitude') is not None:
+            unity.weather_latitude = sugestao['weather_latitude']
+        if sugestao.get('weather_longitude') is not None:
+            unity.weather_longitude = sugestao['weather_longitude']
         if 'is_active' in sugestao:
             unity.is_active = sugestao['is_active']
 
