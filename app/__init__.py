@@ -81,10 +81,12 @@ def create_app(config_class=Config):
     # ── Register CLI commands ──
     from app.commands import (seed_command, seed_admin_command,
                               sync_permissions_command, seed_unidades_command)
+    from app.seed_demo import seed_demo_command
     app.cli.add_command(seed_command)
     app.cli.add_command(seed_admin_command)
     app.cli.add_command(sync_permissions_command)
     app.cli.add_command(seed_unidades_command)
+    app.cli.add_command(seed_demo_command)
 
     # Custom Error Handlers
     @app.errorhandler(403)

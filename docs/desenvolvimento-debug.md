@@ -275,6 +275,7 @@ módulo `run.py`, onde vive a factory `create_app()`).
 | `seed` | Cria permissões/papéis + admin (`admin`/`admin123`) e **pergunta interativamente** se quer dados de demonstração | Recusa-se a rodar em banco já populado |
 | `seed-admin` | Cria **apenas** o admin, com senha digitada (mín. 8 caracteres, oculta) | Fluxo de implantação real; sem demonstração |
 | `seed-unidades` | Cadastra/atualiza as unidades do Senac SC a partir de `docs/unidades-senac-sc.json` | Idempotente; opção `--file CAMINHO` aceita outro JSON |
+| `seed-demo` | Cenário de demonstração **completo**: unidades (uma sem Cozinha, uma inativa), todos os papéis, 7 tipos de sala, reservas em todas as situações (datas relativas a hoje), feriados, hora extra, vale-transporte, cozinha e token da API | Recusa duplicar — `--reset` apaga a demonstração anterior e recria; [contas na seção abaixo](#-contas-de-demonstração) |
 | `sync-permissions` | Cria permissões/papéis ausentes e vincula os códigos de `ROLES_CONFIG` | Idempotente; **nunca remove** vínculos existentes |
 
 > `seed-unidades` ignora registros sem `cadastro_sugerido` no JSON (ex.: Direção
@@ -338,6 +339,27 @@ categorias de sala, 29 salas, 50 cursos, 50 disciplinas, 20 reservas e
 lançamentos de hora extra — dados distribuídos entre as unidades, úteis para
 testar o isolamento multi-unidade.
 
+Para um cenário que **abranja cada módulo** (reservas na semana corrente,
+cozinha com escala de porções, vale-transporte com grupos de exportação,
+token da API etc.), rode `flask --app run seed-demo` — contas e detalhes na
+[tabela abaixo](#cenario-de-demonstração-completo-seed-demo) e no
+[README](../README.md#-cenário-de-demonstração-completo-seed-demo).
+
+| Perfil | Usuário | Senha | Observação |
+|--------|---------|-------|------------|
+| Super Administrador | `admin` | `demo1234` | Global, pode alternar unidades |
+| **Gestor** | `gestor.marina` | `demo1234` | Unidade Centro |
+| **Analista** | `analista.rafael` | `demo1234` | Unidade Centro |
+| **Professor + Módulo Cozinha** | `prof.ana` | `demo1234` | Papel adicional de cozinha |
+| **Professor** | `prof.bruno` | `demo1234` | Informática |
+| Professor inativo | `prof.elisa` | `demo1234` | Login recusado |
+| Troca de senha obrigatória | `prof.felipe` | `demo1234` | Redireciona ao trocar senha |
+| **Assistente/Logística** | `func.juliana` | `demo1234` | Unidade Centro |
+| Assistente que leciona | `func.marcos` | `demo1234` | `is_teacher=True` |
+| Token da API | — | — | `Bearer sige_demo_token_de_demonstracao_troque_em_producao` |
+
+> Rodar de novo com dados frescos da semana: `flask --app run seed-demo --reset`.
+
 > ⚠️ Contas de demonstração **nunca** devem existir no servidor de produção;
 > lá use `seed-admin`. Ver [implantação](implantacao-producao.md).
 
@@ -378,7 +400,7 @@ um minuto.
 | Reservas — conflitos, disponibilidade, séries, passado | `test_classroom_availability.py`, `test_reservations_past.py` |
 | Categorias dinâmicas e edição | `test_dynamic_categories.py`, `test_category_edit.py` |
 | Financeiro (hora extra e Vale Transporte) | `test_payments.py` |
-| CLI e seeds (admin, unidades) | `test_seed_admin.py`, `test_seed_unidades.py` |
+| CLI e seeds (admin, unidades, demo) | `test_seed_admin.py`, `test_seed_unidades.py`, `test_seed_demo.py` |
 | Autenticação — registro, troca de senha | `test_user_registration.py`, `test_change_password.py` |
 | Formulários de sala e checklist de configuração | `test_room_form.py`, `test_setup_checklist.py` |
 | Identificadores automáticos (códigos de sala) | `test_auto_identifiers.py` |
