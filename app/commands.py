@@ -104,16 +104,6 @@ ROLES_CONFIG = {
             'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export'
         ]
     },
-    'financial_admin': {
-        'label': 'Administrador Financeiro',
-        'is_system': False,
-        'permissions': [
-            'payment:read', 'payment:create', 'payment:edit', 'payment:delete', 'payment:export',
-            'vt:read', 'vt:create', 'vt:edit', 'vt:delete', 'vt:export',
-            'user:read', 'system:export',
-            'kitchen:read', 'kitchen:shopping_export'
-        ]
-    },
     'coordinator': {
         'label': 'Analista',
         'is_system': False,
@@ -163,12 +153,14 @@ ROLES_CONFIG = {
             'room:read'
         ]
     },
-    'viewer': {
-        'label': 'Visualizador',
+    # Papel adicional (add-on), não um cargo: concedido além do papel principal
+    # na tela do usuário (ex.: Professor + Módulo Cozinha para professores de
+    # gastronomia). A permissão efetiva é a união dos dois papéis.
+    'kitchen': {
+        'label': 'Módulo Cozinha',
         'is_system': False,
         'permissions': [
-            'room:read', 'course:read',
-            'kitchen:read'
+            'kitchen:read', 'kitchen:sheet_create', 'kitchen:shopping_export'
         ]
     }
 }

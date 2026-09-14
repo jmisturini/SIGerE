@@ -1,9 +1,9 @@
 """Testes do sync de permissões (sync_permissions_impl).
 
-Cobre o upgrade de bancos criados antes da separação de papéis dentro do
-Financeiro: as permissões vt:* do Vale-Transporte passam a existir e são
-concedidas ao Administrador Financeiro sem remover os vínculos de payment:*
-(pagamento extra) que o papel já possui.
+Cobre o catálogo de permissões e o comportamento do sync diante de papéis
+que não fazem parte de ROLES_CONFIG (criados manualmente no painel ou
+herdados de versões anteriores do sistema): eles não recebem nem perdem
+vínculos — e o sync é idempotente.
 """
 import os
 import tempfile
@@ -39,17 +39,16 @@ class SyncPermissionsTestCase(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
-    def test_separacao_financeiro_no_upgrade_de_banco_antigo(self):
-        """Banco pré-separação: o Administrador Financeiro só tem payment:*.
-        O sync cria as vt:* e as concede ao papel, preservando os vínculos
-        antigos — e é idempotente (rodar de novo não duplica nada)."""
+    def test_sync_nao_altera_papel_fora_do_roles_config(self):
+        """Papel criado fora de ROLES_CONFIG (manual ou de versão anterior):
+        o sync não concede nem remove vínculos dele — e é idempotente."""
         with self.app.app_context():
             db.create_all()
             for code in ('payment:read', 'payment:create', 'payment:export'):
                 db.session.add(Permission(code=code, module='payment',
                                           action=code.split(':')[1]))
             db.session.flush()
-            role = Role(name='financial_admin', label='Administrador Financeiro',
+            role = Role(name='financeiro_legado', label='Financeiro (legado)',
                         permissions=Permission.query.filter(
                             Permission.code.like('payment:%')).all())
             db.session.add(role)
@@ -59,10 +58,8 @@ class SyncPermissionsTestCase(unittest.TestCase):
             sync_permissions_impl(verbose=False)
 
             codes = {p.code for p in db.session.get(Role, role_id).permissions}
-            self.assertTrue({'vt:read', 'vt:create', 'vt:edit', 'vt:delete',
-                             'vt:export'} <= codes)
-            self.assertTrue({'payment:read', 'payment:create',
-                             'payment:export'} <= codes)
+            self.assertEqual(codes,
+                             {'payment:read', 'payment:create', 'payment:export'})
 
             # Idempotência: segunda execução mantém exatamente os mesmos vínculos
             sync_permissions_impl(verbose=False)

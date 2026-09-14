@@ -138,6 +138,7 @@ def list_users():
 def create_teacher():
     form = TeacherForm()
     form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
+    form.extra_roles.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
     form.unity_id.choices = _unity_choices()
     if not form.unity_id.data:
         form.unity_id.data = current_unity_id()
@@ -151,6 +152,7 @@ def create_teacher():
             profile_type='teacher', is_active_user=form.is_active_user.data,
             unity_id=form.unity_id.data, role_id=form.role_id.data
         )
+        user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
         user.set_password(form.password.data)
         user.force_password_change = True
         db.session.add(user)
@@ -165,6 +167,7 @@ def create_teacher():
 def create_employee():
     form = EmployeeForm()
     form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
+    form.extra_roles.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
     form.unity_id.choices = _unity_choices()
     if not form.unity_id.data:
         form.unity_id.data = current_unity_id()
@@ -179,6 +182,7 @@ def create_employee():
             is_active_user=form.is_active_user.data,
             unity_id=form.unity_id.data, role_id=form.role_id.data
         )
+        user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
         user.set_password(form.password.data)
         user.force_password_change = True
         db.session.add(user)
@@ -200,7 +204,12 @@ def edit_user(user_id):
     form.password.flags.required = False
 
     form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
+    form.extra_roles.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
     form.unity_id.choices = _unity_choices()
+    if request.method == 'GET':
+        # SelectMultipleField(coerce=int) não consegue pré-selecionar a partir
+        # de obj=user (int(Role) falha silenciosamente) — setar os ids à mão.
+        form.extra_roles.data = [r.id for r in user.extra_roles]
     if form.validate_on_submit():
         if user.id == current_user.id and form.is_active_user.data == False:
             flash('Você não pode desativar sua própria conta.', 'danger')
@@ -212,6 +221,7 @@ def edit_user(user_id):
             user.is_active_user = form.is_active_user.data
             user.unity_id = form.unity_id.data or None
             user.role_id = form.role_id.data
+            user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
 
             if user.profile_type == 'teacher':
                 user.department = form.department.data

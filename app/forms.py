@@ -118,6 +118,8 @@ class TeacherForm(BaseForm):
     department = StringField('Departamento', validators=[Optional(), Length(max=120)])
     unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
+    extra_roles = SelectMultipleField('Módulos Adicionais', coerce=int, validators=[Optional()],
+                                      description='Somados ao papel principal (ex.: Módulo Cozinha).')
     password = PasswordField('Senha', validators=[Length(min=8, message='A senha deve ter pelo menos 8 caracteres.')])
     is_active_user = BooleanField('Ativo', default=True)
     submit = SubmitField('Salvar Professor')
@@ -182,6 +184,8 @@ class EmployeeForm(BaseForm):
     function = StringField('Função', validators=[Optional(), Length(max=120)])
     unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
+    extra_roles = SelectMultipleField('Módulos Adicionais', coerce=int, validators=[Optional()],
+                                      description='Somados ao papel principal (ex.: Módulo Cozinha).')
     is_teacher = BooleanField('Também cadastrar como Professor (pode ser designado para reservas)')
     password = PasswordField('Senha', validators=[Length(min=8, message='A senha deve ter pelo menos 8 caracteres.')])
     is_active_user = BooleanField('Ativo', default=True)

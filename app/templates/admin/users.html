@@ -80,6 +80,9 @@
                         </td>
                         <td>
                             <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ u.role_obj.label if u.role_obj else 'Sem Papel' }}</span>
+                            {% for extra in u.extra_roles %}
+                                <span class="badge text-bg-info-subtle text-info border border-info-subtle" title="Papel adicional">{{ extra.label }}</span>
+                            {% endfor %}
                         </td>
                         <td>
                             {% if u.is_active_user %}
