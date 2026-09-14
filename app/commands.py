@@ -396,7 +396,9 @@ def _seed_unidades(json_path):
     atualização (ex.: todas as unidades com false para depurar/demonstrar com
     o módulo desligado); sem o campo, criação usa True e a atualização não
     toca em `is_active` (uma unidade desativada de propósito não é reativada).
-    Também não toca nas coordenadas de clima (ausentes no JSON).
+    As coordenadas de clima (weather_latitude/longitude, usadas pela detecção
+    da unidade mais próxima no portal público) são aplicadas apenas quando o
+    JSON as traz — coordenada ausente não apaga a já cadastrada.
     """
     with open(json_path, encoding='utf-8') as fh:
         data = json.load(fh)
@@ -424,6 +426,10 @@ def _seed_unidades(json_path):
         unity.address = sugestao.get('address')
         unity.phone = sugestao.get('phone')
         unity.weather_city = sugestao.get('weather_city')
+        if sugestao.get('weather_latitude') is not None:
+            unity.weather_latitude = sugestao['weather_latitude']
+        if sugestao.get('weather_longitude') is not None:
+            unity.weather_longitude = sugestao['weather_longitude']
         if 'is_active' in sugestao:
             unity.is_active = sugestao['is_active']
 

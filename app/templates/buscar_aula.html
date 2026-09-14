@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% import '_aula_macros.html' as aulas %}
+{% import '_unidade_publica.html' as unidade_publica %}
 {% block title %}Buscar Minha Aula - SIGerE{% endblock %}
 
 {% block content %}
@@ -25,6 +26,12 @@
                         <label class="form-label small fw-bold" for="searchDate">Data da aula</label>
                         <input type="date" name="data" id="searchDate" class="form-control" value="{{ schedule_date.isoformat() }}">
                     </div>
+                    {% if public_unity and public_unities|length > 1 %}
+                    <div class="col-md-auto">
+                        <span class="form-label small fw-bold d-block">Unidade</span>
+                        {{ unidade_publica.seletor(public_unity, public_unities, 'public.class_search', params={'data': schedule_date.isoformat(), 'q': query}) }}
+                    </div>
+                    {% endif %}
                     <div class="col-md-3 col-lg-2 d-grid">
                         <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Buscar</button>
                     </div>

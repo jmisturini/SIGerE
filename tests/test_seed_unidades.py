@@ -56,6 +56,9 @@ class SeedUnidadesCommandTestCase(unittest.TestCase):
         result = runner.invoke(args=['seed-unidades'])
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn(f"Criadas: {len(self.esperadas)}", result.output)
+        # is_active do JSON é imposto na criação (hoje true; o valor antigo
+        # false era estado de debug do arquivo de extração).
+        is_active_no_json = self.esperadas[0]['cadastro_sugerido']['is_active']
         with self.app.app_context():
             self.assertEqual(db.session.query(Unity).count(), len(self.esperadas))
             ara = db.session.query(Unity).filter_by(code='ARA').first()
@@ -64,8 +67,11 @@ class SeedUnidadesCommandTestCase(unittest.TestCase):
             self.assertIn('88900-015', ara.address)
             self.assertEqual(ara.phone, '(48) 3522-1192')
             self.assertEqual(ara.weather_city, 'Araranguá, SC')
-            # JSON atual traz is_active=false em todos os cadastros (debug)
-            self.assertFalse(ara.is_active)
+            # Coordenadas extraídas dos links de mapa do JSON alimentam a
+            # detecção da unidade mais próxima no portal público.
+            self.assertIsNotNone(ara.weather_latitude)
+            self.assertIsNotNone(ara.weather_longitude)
+            self.assertEqual(ara.is_active, is_active_no_json)
 
     def test_seed_unidades_ignora_registros_sem_cadastro(self):
         runner = self.app.test_cli_runner()
@@ -92,14 +98,15 @@ class SeedUnidadesCommandTestCase(unittest.TestCase):
             ara = db.session.query(Unity).filter_by(code='ARA').first()
             self.assertEqual(ara.name, 'Senac Araranguá')
             # is_active do JSON é imposto também na atualização: mesmo que
-            # alguém reative a unidade, reler o arquivo a desativa de novo.
-            ara.is_active = True
+            # alguém mude a unidade, reler o arquivo restaura o valor do JSON.
+            is_active_no_json = self.esperadas[0]['cadastro_sugerido']['is_active']
+            ara.is_active = not is_active_no_json
             db.session.commit()
         terceira = runner.invoke(args=['seed-unidades'])
         self.assertEqual(terceira.exit_code, 0, terceira.output)
         with self.app.app_context():
             ara = db.session.query(Unity).filter_by(code='ARA').first()
-            self.assertFalse(ara.is_active)
+            self.assertEqual(ara.is_active, is_active_no_json)
 
     def test_seed_unidades_atualiza_dados_alterados(self):
         runner = self.app.test_cli_runner()
@@ -107,7 +114,8 @@ class SeedUnidadesCommandTestCase(unittest.TestCase):
         with open(UNIDADES_JSON_PADRAO, encoding='utf-8') as fh:
             data = json.load(fh)
         registro = next(u for u in data['unidades']
-                        if u['cadastro_sugerido']['code'] == 'ARA')
+                        if u.get('cadastro_sugerido')
+                        and u['cadastro_sugerido']['code'] == 'ARA')
         registro['cadastro_sugerido']['phone'] = '(48) 99999-0000'
         fd, tmp_path = tempfile.mkstemp(suffix='.json')
         with os.fdopen(fd, 'w', encoding='utf-8') as fh:
@@ -120,6 +128,33 @@ class SeedUnidadesCommandTestCase(unittest.TestCase):
         with self.app.app_context():
             ara = db.session.query(Unity).filter_by(code='ARA').first()
             self.assertEqual(ara.phone, '(48) 99999-0000')
+
+    def test_seed_unidades_coordenada_ausente_nao_apaga_cadastrada(self):
+        """Sem weather_latitude/longitude no JSON, as coordenadas já
+        cadastradas são preservadas (o JSON antigo não as derruba)."""
+        runner = self.app.test_cli_runner()
+        self.assertEqual(runner.invoke(args=['seed-unidades']).exit_code, 0)
+        with self.app.app_context():
+            lat_original = db.session.query(Unity).filter_by(code='ARA').first().weather_latitude
+        self.assertIsNotNone(lat_original)
+        with open(UNIDADES_JSON_PADRAO, encoding='utf-8') as fh:
+            data = json.load(fh)
+        sugestao = next(u['cadastro_sugerido'] for u in data['unidades']
+                        if u.get('cadastro_sugerido')
+                        and u['cadastro_sugerido']['code'] == 'ARA')
+        sugestao.pop('weather_latitude')
+        sugestao.pop('weather_longitude')
+        fd, tmp_path = tempfile.mkstemp(suffix='.json')
+        with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+            json.dump(data, fh, ensure_ascii=False)
+        try:
+            result = runner.invoke(args=['seed-unidades', '--file', tmp_path])
+            self.assertEqual(result.exit_code, 0, result.output)
+        finally:
+            os.remove(tmp_path)
+        with self.app.app_context():
+            ara = db.session.query(Unity).filter_by(code='ARA').first()
+            self.assertEqual(ara.weather_latitude, lat_original)
 
     def test_seed_unidades_falha_com_arquivo_inexistente(self):
         runner = self.app.test_cli_runner()
