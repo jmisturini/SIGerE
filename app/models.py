@@ -81,6 +81,11 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_active_user = db.Column(db.Boolean, default=True)
 
+    # Papéis adicionais (add-on) concedidos além do papel principal — a
+    # permissão efetiva é a união (ex.: Professor + Módulo Cozinha para
+    # professores de gastronomia). Ver User.permissions.
+    extra_roles = db.relationship('Role', secondary='user_roles', lazy='select')
+
     # Relationship for reservations made by this user
     reservations = db.relationship(
         'Reservation', backref='user', lazy=True,
@@ -98,10 +103,14 @@ class User(UserMixin, db.Model):
     # NOVAS PROPRIEDADES E MÉTODOS:
     @property
     def permissions(self):
-        """Retorna o set de códigos de permissão do usuário."""
+        """Retorna o set de códigos de permissão do usuário: união do papel
+        principal com os papéis adicionais (add-on)."""
+        codes = set()
         if self.role_obj:
-            return {p.code for p in self.role_obj.permissions}
-        return set()
+            codes.update(p.code for p in self.role_obj.permissions)
+        for extra in self.extra_roles:
+            codes.update(p.code for p in extra.permissions)
+        return codes
 
     def has_permission(self, perm_code):
         """Verifica se o usuário possui uma permissão específica."""
@@ -337,6 +346,13 @@ class VtRecord(db.Model):
 role_permissions = db.Table('role_permissions',
     db.Column('role_id', db.Integer, db.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
     db.Column('permission_id', db.Integer, db.ForeignKey('permissions.id', ondelete='CASCADE'), primary_key=True)
+)
+
+# Tabela de junção dos papéis adicionais (add-on) de cada usuário — complementam
+# o papel principal (users.role_id) sem substituí-lo.
+user_roles = db.Table('user_roles',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
 )
 
 # Modelo de Permissões Granulares

@@ -751,12 +751,12 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 |-------|-----------|
 | **Super Administrador** | Acesso irrestrito a todas as funcionalidades (`*`) |
 | **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis, cozinha e tokens da API |
-| **Administrador Financeiro** | Financeiro: horas extras, Vale Transporte e exportações |
 | **Analista** | Aprovar reservas, criar/editar lançamentos de pagamento extra e ver os próprios |
 | **Gestor** | Todas as permissões de cursos, reservas, pagamentos extras e salas, além de exportações |
 | **Professor** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
 | **Assistente/Logística** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
-| **Visualizador** | Acesso somente leitura a salas, cursos e Cozinha |
+
+Além do papel principal, cada usuário pode receber **papéis adicionais** (módulos extra) na tela de cadastro/edição — a permissão efetiva é a união dos dois. O padrão inclui o papel adicional **Módulo Cozinha** (`kitchen:read`, `kitchen:sheet_create`, `kitchen:shopping_export`), destinado por exemplo a professores de gastronomia, que mantêm o papel Professor e ganham o acesso à Cozinha sem duplicar papéis.
 
 Papéis e permissões são cadastrados no banco pelo `seed`/`sync-permissions` e podem ser **editados no painel** (Painel → Papéis) — inclusive criando papéis customizados com qualquer combinação de permissões.
 

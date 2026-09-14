@@ -56,7 +56,13 @@
                             {{ form.role_id.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.role_id(class="form-select") }}
                         </div>
-                        
+
+                        <div class="col-md-6">
+                            {{ form.extra_roles.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.extra_roles(class="form-select", size=3) }}
+                            <div class="form-text small">Somados ao papel principal (ex.: Módulo Cozinha para professores de gastronomia).</div>
+                        </div>
+
                         <div class="col-md-6">
                             {{ form.password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.password(class="form-control") }}
