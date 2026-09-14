@@ -736,8 +736,8 @@ O comando `flask --app run seed` sempre cria o administrador e, **interativament
 | Perfil | Usuário | Senha | Permissões |
 |--------|---------|-------|------------|
 | **Super Administrador** | `admin` | `admin123` | Acesso total ao sistema (criado sempre, mesmo sem demonstração) |
-| **Professor** | `teacher1` … `teacher80` | `teacher123` | Criar e gerenciar reservas, ver próprios pagamentos, acessar Cozinha |
-| **Funcionário** | `employee1` … `employee20` | `employee123` | Visualização de salas e cursos, próprias reservas e Cozinha |
+| **Professor** | `teacher1` … `teacher80` | `teacher123` | Criar/editar/cancelar próprias reservas, visualizar salas e cursos |
+| **Assistente/Logística** | `employee1` … `employee20` | `employee123` | Criar/editar/cancelar próprias reservas, visualizar salas e cursos |
 
 > ⚠️ **Atenção:** Por padrão, o sistema força a troca de senha no primeiro login. Para testes, as contas de demonstração já vêm com `force_password_change=False`.
 
@@ -752,10 +752,10 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 | **Super Administrador** | Acesso irrestrito a todas as funcionalidades (`*`) |
 | **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis, cozinha e tokens da API |
 | **Administrador Financeiro** | Financeiro: horas extras, Vale Transporte e exportações |
-| **Coordenador Pedagógico** | Aprovação de reservas, gestão de cursos e disciplinas |
-| **Gestor de Salas** | Criação e gestão de salas, todas as reservas |
-| **Professor** | Criar reservas, editar/cancelar próprias reservas, ver pagamentos, Cozinha |
-| **Funcionário** | Visualização de salas e cursos, próprias reservas, Cozinha |
+| **Analista** | Aprovar reservas, criar/editar lançamentos de pagamento extra e ver os próprios |
+| **Gestor** | Todas as permissões de cursos, reservas, pagamentos extras e salas, além de exportações |
+| **Professor** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
+| **Assistente/Logística** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
 | **Visualizador** | Acesso somente leitura a salas, cursos e Cozinha |
 
 Papéis e permissões são cadastrados no banco pelo `seed`/`sync-permissions` e podem ser **editados no painel** (Painel → Papéis) — inclusive criando papéis customizados com qualquer combinação de permissões.
