@@ -9,6 +9,12 @@
     </div>
     
     <div class="d-flex flex-wrap gap-2">
+        <!-- Novidades: abre a tela de changelog da versão atual -->
+        <a href="{{ url_for('main.changelog') }}" class="btn btn-outline-secondary"
+           title="Veja o que mudou nesta e nas versões anteriores">
+            <i class="bi bi-stars me-1"></i> Novidades <span class="badge text-bg-secondary ms-1">v{{ app_version }}</span>
+        </a>
+
         <!-- View Toggle Dropdown -->
         <div class="dropdown">
             <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="viewDropdown" data-bs-toggle="dropdown" aria-expanded="false">

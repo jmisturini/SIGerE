@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Novidades — SIGerE{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="page-header mb-4">
+            <h3 class="fw-bold mb-1"><i class="bi bi-stars text-primary me-2"></i>Novidades</h3>
+            <p class="text-muted mb-0">Histórico de versões do SIGerE. A versão em execução é a
+                <span class="badge text-bg-primary">v{{ versao_atual }}</span></p>
+        </div>
+
+        {% set GRUPO_ESTILO = {
+            'Adicionado': ('bi-plus-circle', 'success'),
+            'Alterado':   ('bi-pencil-square', 'warning'),
+            'Corrigido':  ('bi-wrench', 'info'),
+            'Removido':   ('bi-trash', 'danger'),
+        } %}
+
+        {% for rel in releases %}
+        <div class="card mb-4 {% if rel.versao == versao_atual %}border-primary shadow-sm{% endif %}">
+            <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <span class="badge {% if rel.versao == versao_atual %}text-bg-primary{% else %}text-bg-secondary{% endif %}">v{{ rel.versao }}</span>
+                    {{ rel.titulo }}
+                    {% if rel.versao == versao_atual %}
+                    <span class="badge text-bg-success-subtle text-success border border-success-subtle">versão atual</span>
+                    {% endif %}
+                </h5>
+                <span class="small text-muted">{{ rel.data }}</span>
+            </div>
+            <div class="card-body">
+                {% for grupo, itens in rel.grupos %}
+                {% set icone, cor = GRUPO_ESTILO.get(grupo, ('bi-tag', 'secondary')) %}
+                <h6 class="text-{{ cor }} fw-bold mb-2">
+                    <i class="bi {{ icone }} me-1"></i> {{ grupo }}
+                </h6>
+                <ul class="mb-3">
+                    {% for item in itens %}
+                    <li class="mb-1">{{ item }}</li>
+                    {% endfor %}
+                </ul>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -62,6 +62,14 @@ def index():
         formatted_today=formatted_today # Pass the pre-formatted string
     )
 
+# Tela de novidades: histórico de versões da aplicação (app/version.py).
+# Pública — o rodapé (com o link) aparece também para quem não está logado.
+@bp.route('/changelog')
+def changelog():
+    from app.version import APP_VERSION, RELEASES
+    return render_template('changelog.html',
+                           versao_atual=APP_VERSION, releases=RELEASES)
+
 # Multi-unidade: alterna a unidade ativa de operação (armazenada na sessão)
 @bp.route('/unity/switch', methods=['POST'])
 @login_required
