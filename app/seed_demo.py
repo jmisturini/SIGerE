@@ -346,6 +346,15 @@ def _seed_cursos_demo(unidades):
                            unity_id=unity.id, is_active=True)
             db.session.add(disc)
             disciplinas_obj[(unity.id, code_disc)] = disc
+
+    # Disciplinas SEM curso ("livres"): no agendamento, ao escolher um curso
+    # só aparecem as disciplinas dele; sem curso selecionado, todas ficam na
+    # lista — inclusive estas.
+    for unity, code in ((ctr, 'LIV-001'), (norte, 'LIV-101')):
+        livre = Subject(name='Projeto Integrador', code=code,
+                        course_id=None, unity_id=unity.id, is_active=True)
+        db.session.add(livre)
+        disciplinas_obj[(unity.id, code)] = livre
     db.session.flush()
     return cursos, disciplinas_obj
 
@@ -995,7 +1004,7 @@ def seed_demo_command(reset):
    Unidades ............. {len(DEMO_UNITY_CODES)} (Centro, Norte e Sul — Norte sem Cozinha, Sul inativa)
    Usuários ............. {usuarios_demo} (todos os papéis + Módulo Cozinha)
    Categorias/salas ..... {RoomCategory.query.count()}/{Classroom.query.count()} (7 tipos; 1 sala inativa)
-   Cursos/disciplinas ... {Course.query.count()}/{Subject.query.count()} (1 curso inativo)
+   Cursos/disciplinas ... {Course.query.count()}/{Subject.query.count()} (1 curso inativo; 2 disciplinas sem curso)
    Feriados ............. {Holiday.query.count()} (nacionais + municipal + 1 inativo)
    Reservas ............. {Reservation.query.count()} (hoje, pendente, conflito, cancelada, passada, série)
    Hora extra ........... {TeacherOvertimePay.query.count()} lançamentos (mês base atual)

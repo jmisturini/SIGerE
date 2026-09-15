@@ -143,7 +143,7 @@ ROLES_CONFIG = {
         ]
     },
     'employee': {
-        'label': 'Assistente/Logística',
+        'label': 'Assistente',
         'is_system': False,
         'permissions': [
             'course:read',
@@ -716,3 +716,33 @@ def _seed_demo_data():
         db.session.add(overtime)
 
     click.echo("   ✅ Lançamentos de hora extra criados.")
+
+
+@click.command('import-legacy')
+@click.option('--dump', 'dump_path', required=True,
+              type=click.Path(exists=True, dir_okay=False),
+              help='Caminho do dump .sql (phpMyAdmin) do banco MySQL do sistema legado.')
+@click.option('--force', is_flag=True,
+              help='Importa mesmo se o banco de destino já tiver dados.')
+@with_appcontext
+def import_legacy_command(dump_path, force):
+    """Importa os dados do sistema legado (Django/MySQL) a partir do dump .sql.
+
+    Espera um banco recém-criado por `flask db upgrade`. Lê o arquivo .sql
+    diretamente (não precisa de servidor MySQL). Usuários entram com a senha
+    antiga (quando o hash legado é aproveitável) e são obrigados a trocá-la.
+
+    Uso: flask --app run import-legacy --dump caminho/sigere_active.sql
+    """
+    from app.legacy_import import import_legacy
+
+    click.echo("Importando dados do sistema legado (pode levar alguns minutos)...")
+    try:
+        counts = import_legacy(dump_path, force=force)
+    except RuntimeError as e:
+        click.echo(click.style(f"❌ {e}", fg="red"))
+        raise SystemExit(1)
+    for line in counts.get("relatorio", []):
+        click.echo("  • " + line)
+    click.echo(click.style("✅ Importação concluída.", fg="green"))
+    click.echo("Todos os usuários importados iniciarão com troca de senha obrigatória.")
