@@ -2,7 +2,7 @@
 import os
 import tempfile
 import unittest
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from app import create_app
 from app.config import Config
@@ -98,11 +98,13 @@ class SubjectFilterTestCase(unittest.TestCase):
         self.assertIn('selected', html)
 
     def test_create_reservation_still_saves(self):
-        today = date.today().isoformat()
+        # Amanhã: horários fixos não podem esbarrar na validação de
+        # "horário de início no passado" quando o teste roda depois das 14h.
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
         resp = self.client.post('/reservations/create', data={
             'classroom': self.room_id, 'course': self.curso_id,
             'subject': self.bd_id, 'teacher': 0, 'title': 'Aula de BD',
-            'description': '', 'date': today,
+            'description': '', 'date': tomorrow,
             'start_time': '14:00', 'end_time': '16:00',
         }, follow_redirects=True)
         self.assertEqual(resp.status_code, 200)
