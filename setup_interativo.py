@@ -22,6 +22,7 @@ Somente biblioteca padrão — o script roda antes das dependências existirem.
 """
 import os
 import secrets
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -346,16 +347,46 @@ def resumo_final(env, modo_dados):
           '&& flask --app run sync-permissions')
 
 
+def ip_da_rede_local():
+    """Endereço IP da máquina na rede local (para acessar de celulares/totens).
+
+    Truque do socket UDP: o connect() escolhe a rota sem enviar nenhum pacote.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(('8.8.8.8', 80))
+            return s.getsockname()[0]
+    except OSError:
+        return None
+
+
 def iniciar_servidor(venv_python, env):
     titulo('7. Servidor de desenvolvimento')
     if not sim_nao('Iniciar o servidor agora (Ctrl+C para parar)?', padrao=True):
         print('   Para iniciar depois: flask --app run run --debug')
         return
-    print('   Servindo em http://localhost:5000 — Ctrl+C encerra.')
+
+    rede = sim_nao('Acessível por outros aparelhos na rede (totens, celulares, '
+                   'outras máquinas — 0.0.0.0)?', padrao=False)
+    argumentos = ['run', '--debug']
+    if rede:
+        argumentos.append('--host=0.0.0.0')
+
+    if rede:
+        print('   Servindo em todas as interfaces — Ctrl+C encerra. URLs:')
+        print('     • Nesta máquina:   http://localhost:5000')
+        ip = ip_da_rede_local()
+        if ip:
+            print(f'     • Na rede local:   http://{ip}:5000')
+        else:
+            print('     • Na rede local:   http://<IP-desta-máquina>:5000')
+    else:
+        print('   Servindo em http://localhost:5000 — Ctrl+C encerra.')
+
     try:
         # `flask ... run --debug` em vez de `python run.py`: a CLI do Flask lê o
         # .env automaticamente (run.py não chama load_dotenv).
-        subprocess.run([venv_python, '-m', 'flask', '--app', 'run', 'run', '--debug'], env=env)
+        subprocess.run([venv_python, '-m', 'flask', '--app', 'run'] + argumentos, env=env)
     except KeyboardInterrupt:
         pass
     print('\n   Servidor encerrado.')
