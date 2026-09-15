@@ -137,6 +137,29 @@ class RoomFormTestCase(unittest.TestCase):
         self.assertIn('Sala atualizada', response.get_data(as_text=True))
         self.assertEqual(self._room('SA212'), ('SA212', '212'))
 
+    def test_edit_with_generated_code_name_succeeds(self):
+        # Sala criada sem nome recebe o código gerado (SA212) como nome; ao
+        # editar, o formulário é preenchido com esse código (letras + dígitos)
+        # e não pode falhar por validação "apenas alfabética".
+        self.client.post('/admin/rooms/create', data=self._payload())
+        room_id = None
+        with self.app.app_context():
+            room = db.session.query(Classroom).filter_by(code='SA212').first()
+            room_id = room.id
+        response = self.client.post(f'/admin/rooms/{room_id}/edit',
+                                    data=self._payload(name='SA212'),
+                                    follow_redirects=True)
+        self.assertIn('Sala atualizada', response.get_data(as_text=True))
+        self.assertEqual(self._room('SA212'), ('SA212', '212'))
+
+    def test_name_and_building_accept_digits_and_punctuation(self):
+        response = self.client.post('/admin/rooms/create',
+                                    data=self._payload(name='Lab 101-B',
+                                                       building='Prédio 2'),
+                                    follow_redirects=True)
+        self.assertIn('Sala SA212 criada', response.get_data(as_text=True))
+        self.assertEqual(self._room('SA212'), ('Lab 101-B', '212'))
+
 
 if __name__ == '__main__':
     unittest.main()

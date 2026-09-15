@@ -239,15 +239,21 @@ class ClassroomForm(BaseForm):
     is_active = BooleanField('Ativo', default=True)
     submit = SubmitField('Salvar Sala')
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
+    # Nome e prédio carregam números e pontuação (SA212, Sala 101, Prédio 2,
+    # Bloco B-2): o filtro "apenas alfabético" bloqueava até a edição de salas
+    # cujo nome é o próprio código gerado (abbr da categoria + número).
+    _PADRAO_TEXTO_SALA = re.compile(r'^[A-Za-zÀ-ÿ0-9\s\-.,()/&]+$')
+
+    def _validate_texto_sala(self, field, field_name):
+        if field.data and not self._PADRAO_TEXTO_SALA.match(field.data):
+            raise ValidationError(
+                f'{field_name} contém caracteres não permitidos. Use letras, números, espaços ou . , - ( ) / &')
 
     def validate_name(self, field):
-        self._validate_alpha_only(field, 'Nome da Sala')
+        self._validate_texto_sala(field, 'Nome da Sala')
 
     def validate_building(self, field):
-        self._validate_alpha_only(field, 'Prédio')
+        self._validate_texto_sala(field, 'Prédio')
 
 
 # =============================================================================
