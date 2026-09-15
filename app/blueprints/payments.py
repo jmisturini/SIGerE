@@ -6,7 +6,7 @@ from app.models import User, TeacherOvertimePay
 from app.forms import FormTeacherOvertimePay
 from app.extensions import db
 from app.unity_context import current_unity_id
-from datetime import datetime, timedelta
+from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.styles import Border, Side, Font, Alignment
 from io import BytesIO
@@ -86,12 +86,6 @@ def _get_overtime_scoped(overtime_id):
     if overtime.unity_id != current_unity_id():
         abort(404)
     return overtime
-
-def validate_30_days_rule(created_at):
-    if (datetime.now().date() - created_at.date() > timedelta(days=30)):
-        flash('Erro: Registros com mais de 30 dias não podem ser alterados!', 'danger')
-        return False
-    return True
 
 def parse_currency(value_str):
     """Converte texto de valor monetário em Decimal.
@@ -204,13 +198,9 @@ def create_overtime():
 def edit_overtime(overtime_id):
     overtime = _get_overtime_scoped(overtime_id)
 
-    # CORREÇÃO: comparação anterior usava apenas .month, ignorando o ano.
-    # Ex.: registro de dez/2025 seria editável em jan/2026 pois 12 > 1.
-    # Agora compara a data completa (ano + mês).
-    now = datetime.now()
-    record_ym = (overtime.created_at.year, overtime.created_at.month)
-    now_ym = (now.year, now.month)
-    if record_ym < now_ym or (now.date() - overtime.created_at.date() > timedelta(days=30)):
+    # Regra centralizada em TeacherOvertimePay.is_editable (mês anterior ao
+    # atual ou mais de 30 dias não podem ser alterados).
+    if not overtime.is_editable:
         flash('Erro: Registros dos meses anteriores não podem ser alterados.', 'danger')
         return redirect(url_for('payments.list_overtime'))
 
@@ -233,6 +223,7 @@ def edit_overtime(overtime_id):
             flash('Erro: O Mês Base inserido não é uma data válida.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
+        now = datetime.now()
         if month_base_str < now.strftime('%Y-%m'):
             flash('Erro: Não é possível definir o Mês Base para um mês anterior ao atual.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
@@ -265,11 +256,8 @@ def edit_overtime(overtime_id):
 @require_module('finance')
 def delete_overtime(overtime_id):
     overtime = _get_overtime_scoped(overtime_id)
-    # CORREÇÃO: mesma correção de ano aplicada no edit — compara (year, month) completo.
-    now = datetime.now()
-    record_ym = (overtime.created_at.year, overtime.created_at.month)
-    now_ym = (now.year, now.month)
-    if record_ym < now_ym or (now.date() - overtime.created_at.date() > timedelta(days=30)):
+    # Regra centralizada em TeacherOvertimePay.is_editable — igual ao edit.
+    if not overtime.is_editable:
         flash('Erro: Registros dos meses anteriores não podem ser excluídos.', 'danger')
         return redirect(url_for('payments.list_overtime'))
 

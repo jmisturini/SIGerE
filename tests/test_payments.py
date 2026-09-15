@@ -124,15 +124,18 @@ class PaymentsTestCase(unittest.TestCase):
     def _previous_month(self):
         return (datetime.now().replace(day=1) - timedelta(days=1)).strftime('%Y-%m')
 
-    def _add_overtime(self, month_base, teacher_id=None, budget_code='950001234'):
+    def _add_overtime(self, month_base, teacher_id=None, budget_code='950001234', created_at=None):
         with self.app.app_context():
             record = TeacherOvertimePay(
                 teacher_id=teacher_id or self.teacher_id, teaching_level='Superior',
                 unity_id=self.unity_id, weekly_workload=4, hourly_value=25.5,
                 budget_code=budget_code, shift='Noturno', month_base=month_base,
             )
+            if created_at is not None:
+                record.created_at = created_at
             db.session.add(record)
             db.session.commit()
+            return record.id
 
     # ---------- Máscara do Código Orçamentário ----------
 
@@ -225,6 +228,90 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertNotIn('Outro Professor', names)
         # Código Orçamentário sai formatado mesmo para registros antigos
         self.assertEqual(ws.cell(row=7, column=7).value, '95.00.0123.4')
+
+    # ---------- Regra dos 30 dias: botões escondidos na listagem ----------
+
+    def test_is_editable_property(self):
+        now = datetime.now()
+        with self.app.app_context():
+            recent = TeacherOvertimePay(
+                teacher_id=self.teacher_id, unity_id=self.unity_id,
+                teaching_level='Superior', weekly_workload=4, hourly_value=25.5,
+                budget_code='950001234', shift='Noturno',
+                month_base=now.strftime('%Y-%m'), created_at=now,
+            )
+            self.assertTrue(recent.is_editable)
+
+            # Primeiro dia do mês atual: editável (dentro do mês corrente a
+            # idade máxima é ~30 dias, então a regra do mês é a que domina)
+            first_day = TeacherOvertimePay(
+                teacher_id=self.teacher_id, unity_id=self.unity_id,
+                teaching_level='Superior', weekly_workload=4, hourly_value=25.5,
+                budget_code='950001234', shift='Noturno',
+                month_base=now.strftime('%Y-%m'), created_at=now.replace(day=1),
+            )
+            self.assertTrue(first_day.is_editable)
+
+            # Mês anterior ao atual, mesmo com poucos dias, é trancado
+            last_month = now.replace(day=1) - timedelta(days=1)
+            previous = TeacherOvertimePay(
+                teacher_id=self.teacher_id, unity_id=self.unity_id,
+                teaching_level='Superior', weekly_workload=4, hourly_value=25.5,
+                budget_code='950001234', shift='Noturno',
+                month_base=last_month.strftime('%Y-%m'), created_at=last_month,
+            )
+            self.assertFalse(previous.is_editable)
+
+            # Mais de 30 dias: trancado
+            old = TeacherOvertimePay(
+                teacher_id=self.teacher_id, unity_id=self.unity_id,
+                teaching_level='Superior', weekly_workload=4, hourly_value=25.5,
+                budget_code='950001234', shift='Noturno',
+                month_base=now.strftime('%Y-%m'), created_at=now - timedelta(days=40),
+            )
+            self.assertFalse(old.is_editable)
+
+    def test_list_hides_edit_delete_for_locked_records(self):
+        # Registro de mês antigo e registro com mais de 30 dias: a listagem
+        # não pode oferecer editar/excluir (o backend bloqueia, mas os botões
+        # apareciam) — mostra o cadeado no lugar.
+        self._add_overtime('2024-08', teacher_id=self.other_teacher_id,
+                           created_at=datetime(2024, 8, 15))
+        self._add_overtime(datetime.now().strftime('%Y-%m'),
+                           created_at=datetime.now() - timedelta(days=40))
+
+        page = self.client.get('/payments/overtime/list?month_base=').get_data(as_text=True)
+        self.assertIn('bi-lock-fill', page)
+        self.assertNotIn('/payments/overtime/edit/', page)
+        self.assertNotIn('/payments/overtime/delete/', page)
+
+    def test_list_shows_edit_delete_for_current_records(self):
+        self._add_overtime(datetime.now().strftime('%Y-%m'))
+
+        page = self.client.get('/payments/overtime/list?month_base=').get_data(as_text=True)
+        self.assertNotIn('bi-lock-fill', page)
+        self.assertIn('/payments/overtime/edit/', page)
+        self.assertIn('/payments/overtime/delete/', page)
+
+    def test_edit_and_delete_still_blocked_for_locked_records(self):
+        record_id = self._add_overtime('2024-08', created_at=datetime(2024, 8, 15))
+
+        response = self.client.get(f'/payments/overtime/edit/{record_id}', follow_redirects=True)
+        self.assertIn('não podem ser alterados', response.get_data(as_text=True))
+        response = self.client.post(f'/payments/overtime/delete/{record_id}', follow_redirects=True)
+        self.assertIn('não podem ser excluídos', response.get_data(as_text=True))
+
+    # ---------- Paginação dentro do bloco de conteúdo ----------
+
+    def test_pagination_renders_inside_page_content(self):
+        # Antes, o macro ficava no bloco scripts e a paginação era renderizada
+        # depois do layout (abaixo do rodapé). Deve vir antes do <footer>.
+        for _ in range(30):  # 25 por página → 2 páginas
+            self._add_overtime(datetime.now().strftime('%Y-%m'))
+
+        page = self.client.get('/payments/overtime/list?month_base=').get_data(as_text=True)
+        self.assertIn('Navegação de páginas', page)
+        self.assertLess(page.index('Navegação de páginas'), page.index('<footer'))
 
     # ---------- Aviso de navegador ----------
 
