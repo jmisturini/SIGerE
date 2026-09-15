@@ -143,7 +143,7 @@ ROLES_CONFIG = {
         ]
     },
     'employee': {
-        'label': 'Assistente/Logística',
+        'label': 'Assistente',
         'is_system': False,
         'permissions': [
             'course:read',
