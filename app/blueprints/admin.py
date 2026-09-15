@@ -6,8 +6,8 @@ import requests
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify, current_app
 from flask_login import login_required, current_user
-from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity, ApiToken
-from app.forms import (ClassroomForm, CourseForm, SubjectForm, TeacherForm, EmployeeForm, HolidayForm, RoleForm,
+from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity, ApiToken, ROLE_POR_PERFIL
+from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm)
 from app.extensions import db
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
@@ -132,58 +132,68 @@ def list_users():
     return render_template('admin/users.html', users=users, pagination=users,
                            search_name=search_name, filter_type=filter_type)
 
-@bp.route('/users/create-teacher', methods=['GET', 'POST'])
-@login_required
-@require_permission('user:create')
-def create_teacher():
-    form = TeacherForm()
+_PERFIL_LABEL = {'teacher': 'Professor', 'employee': 'Funcionário'}
+
+
+def _preparar_form_usuario(form):
+    """Choices dos selects (papel, módulos, unidade) comuns a criação e edição."""
     form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
     form.extra_roles.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
     form.unity_id.choices = _unity_choices()
     if not form.unity_id.data:
         form.unity_id.data = current_unity_id()
-    if form.validate_on_submit():
-        user = User(
-            email=form.email.data, full_name=form.full_name.data,
-            role='room', department=form.department.data, registration=form.registration.data,
-            profile_type='teacher', is_active_user=form.is_active_user.data,
-            unity_id=form.unity_id.data, role_id=form.role_id.data
-        )
-        user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
-        user.set_password(form.password.data)
-        user.force_password_change = True
-        db.session.add(user)
-        db.session.commit()
-        flash('Professor cadastrado com sucesso.', 'success')
-        return redirect(url_for('admin.list_users'))
-    return render_template('admin/teacher_form.html', form=form, title='Cadastrar Novo Professor')
+    return form
+
+
+def _aplicar_perfil(user, form, profile):
+    """Grava os campos dependentes do perfil. O papel legado (coluna role) é
+    derivado do profile_type pelo mapa único ROLE_POR_PERFIL (app.models)."""
+    user.profile_type = profile
+    user.role = ROLE_POR_PERFIL[profile]
+    if profile == 'teacher':
+        user.department = form.department.data
+    else:
+        user.sector = form.sector.data
+        user.function = form.function.data
+        user.is_teacher = form.is_teacher.data
+
+
+@bp.route('/users/create-teacher', methods=['GET', 'POST'])
+@login_required
+@require_permission('user:create')
+def create_teacher():
+    return _criar_usuario('teacher')
+
 
 @bp.route('/users/create-employee', methods=['GET', 'POST'])
 @login_required
 @require_permission('user:create')
 def create_employee():
-    form = EmployeeForm()
-    form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
-    form.extra_roles.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
-    form.unity_id.choices = _unity_choices()
-    if not form.unity_id.data:
-        form.unity_id.data = current_unity_id()
+    return _criar_usuario('employee')
+
+
+def _criar_usuario(profile_type):
+    """Cadastro unificado: as duas URLs apenas pré-selecionam o perfil
+    (default do campo, que o formulário dinâmico permite trocar)."""
+    form = _preparar_form_usuario(UserForm(profile_type=profile_type))
     if form.validate_on_submit():
         user = User(
             email=form.email.data, full_name=form.full_name.data,
-            role='viewer', sector=form.sector.data, function=form.function.data,
-            registration=form.registration.data, profile_type='employee', is_teacher=form.is_teacher.data,
+            registration=form.registration.data,
             is_active_user=form.is_active_user.data,
-            unity_id=form.unity_id.data, role_id=form.role_id.data
+            unity_id=form.unity_id.data or None, role_id=form.role_id.data,
         )
+        _aplicar_perfil(user, form, form.profile_type.data)
         user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
         user.set_password(form.password.data)
         user.force_password_change = True
         db.session.add(user)
         db.session.commit()
-        flash('Funcionário cadastrado com sucesso.', 'success')
+        flash(f'{_PERFIL_LABEL[user.profile_type]} cadastrado com sucesso.', 'success')
         return redirect(url_for('admin.list_users'))
-    return render_template('admin/employee_form.html', form=form, title='Cadastrar Novo Funcionário')
+    return render_template('admin/user_form.html', form=form,
+                           title=f'Cadastrar Novo {_PERFIL_LABEL[profile_type]}',
+                           modo_edicao=False)
 
 @bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -191,15 +201,12 @@ def create_employee():
 def edit_user(user_id):
     user = _unity_scoped_or_404(db.get_or_404(User, user_id))
 
-    FormClass = TeacherForm if user.profile_type == 'teacher' else EmployeeForm
-    form = FormClass(obj=user)
+    form = UserForm(obj=user)
     form._obj_id = user.id
     form.password.validators = [Optional()]
     form.password.flags.required = False
 
-    form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
-    form.extra_roles.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
-    form.unity_id.choices = _unity_choices()
+    _preparar_form_usuario(form)
     if request.method == 'GET':
         # SelectMultipleField(coerce=int) não consegue pré-selecionar a partir
         # de obj=user (int(Role) falha silenciosamente) — setar os ids à mão.
@@ -216,12 +223,9 @@ def edit_user(user_id):
             user.role_id = form.role_id.data
             user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
 
-            if user.profile_type == 'teacher':
-                user.department = form.department.data
-            else:
-                user.sector = form.sector.data
-                user.function = form.function.data
-                user.is_teacher = form.is_teacher.data
+            # O perfil não muda na edição (seletor desabilitado no template);
+            # passar o profile persistido evita que um POST forjado o altere.
+            _aplicar_perfil(user, form, user.profile_type)
 
             if form.password.data:
                 user.set_password(form.password.data)
@@ -229,7 +233,9 @@ def edit_user(user_id):
             db.session.commit()
             flash('Usuário atualizado com sucesso.', 'success')
             return redirect(url_for('admin.list_users'))
-    return render_template('admin/edit_user.html', form=form, title='Editar Usuário', user=user)
+    return render_template('admin/user_form.html', form=form,
+                           title=f"Editar {_PERFIL_LABEL[user.profile_type]}",
+                           modo_edicao=True, user=user)
 
 @bp.route('/users/<int:user_id>/toggle', methods=['POST'])
 @login_required

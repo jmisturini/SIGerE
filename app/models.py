@@ -59,6 +59,14 @@ class Unity(db.Model):
         return f'<Unity {self.code}>'
 
 # Model representing the application users (Admins, Teachers, Employees)
+
+# Papel legado (coluna role) correspondente a cada profile_type — regra de
+# domínio do User usada pelo cadastro unificado (UserForm). NÃO confundir com
+# os papéis do dump antigo usados no legacy_import, que têm nomes próprios
+# (teacher, admin, super_admin) vindos do sistema antigo.
+ROLE_POR_PERFIL = {'teacher': 'room', 'employee': 'viewer'}
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)

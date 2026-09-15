@@ -108,26 +108,45 @@ class ChangePasswordForm(BaseForm):
 
 
 # =============================================================================
-# TEACHER FORM
+# USER FORM — cadastro unificado de Professor e Funcionário
 # =============================================================================
 
-class TeacherForm(BaseForm):
+class UserForm(BaseForm):
+    """Formulário único para criação/edição de Professor e Funcionário.
+
+    Os dois perfis persistem na mesma tabela (users, coluna profile_type) e
+    compartilham todos os campos básicos; o seletor profile_type escolhe o
+    grupo de campos específico (Departamento × Setor/Função) e determina o
+    papel legado aplicado (ROLE_POR_PERFIL em app.models). As rotas
+    /users/create-teacher e /users/create-employee apenas pré-selecionam o
+    perfil — o usuário pode trocar o tipo no próprio formulário.
+    """
+
+    profile_type = SelectField('Tipo de Perfil',
+                               choices=[('teacher', 'Professor'), ('employee', 'Funcionário')],
+                               validators=[DataRequired(message='Selecione o tipo de perfil.')])
     email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
     full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
-    registration = StringField('Matrícula / ID do Professor', validators=[DataRequired(message='Informe a matrícula/ID do professor.'), Length(max=50)])
+    # Sem DataRequired/Optional na declaração: o Optional soltaria StopValidation
+    # e pularia o validate_registration (último da cadeia), perdendo a mensagem
+    # dinâmica de obrigatoriedade — o requisito é coberto no próprio validador.
+    registration = StringField('Matrícula / ID', validators=[Length(max=50)])
     department = StringField('Departamento', validators=[Optional(), Length(max=120)])
+    sector = StringField('Setor', validators=[Optional(), Length(max=120)])
+    function = StringField('Função', validators=[Optional(), Length(max=120)])
+    is_teacher = BooleanField('Também cadastrar como Professor (pode ser designado para reservas)')
     unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     extra_roles = SelectMultipleField('Módulos Adicionais', coerce=int, validators=[Optional()],
                                       description='Somados ao papel principal (ex.: Módulo Cozinha).')
     password = PasswordField('Senha', validators=[Length(min=8, message='A senha deve ter pelo menos 8 caracteres.')])
     is_active_user = BooleanField('Ativo', default=True)
-    submit = SubmitField('Salvar Professor')
+    submit = SubmitField('Salvar')
 
     def __init__(self, *args, **kwargs):
-        super(TeacherForm, self).__init__(*args, **kwargs)
-        # CORREÇÃO: _obj_id pode vir como kwarg explícito (obj_id=user.id) ou ser extraído
-        # do objeto passado via obj=user. Sem isso, _obj_id era sempre None em edições,
+        super(UserForm, self).__init__(*args, **kwargs)
+        # _obj_id pode vir como kwarg explícito (obj_id=user.id) ou ser extraído
+        # do objeto passado via obj=user. Sem isso, _obj_id seria None em edições,
         # causando falsa detecção de duplicidade nas validações de email/registration.
         obj = kwargs.get('obj', None)
         self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
@@ -139,10 +158,14 @@ class TeacherForm(BaseForm):
         if not self._obj_id:
             self.password.validators = [DataRequired()] + list(self.password.validators)
             self.password.flags.required = True
+            self.registration.flags.required = True
 
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
             raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
+
+    def _perfil(self):
+        return self.profile_type.data or 'employee'
 
     def validate_email(self, field):
         existing = User.query.filter_by(email=field.data).first()
@@ -155,59 +178,6 @@ class TeacherForm(BaseForm):
     def validate_department(self, field):
         self._validate_alpha_only(field, 'Departamento')
 
-    def validate_registration(self, field):
-        if field.data:
-            existing = User.query.filter_by(registration=field.data).first()
-            if existing and existing.id != getattr(self, '_obj_id', None):
-                raise ValidationError('Esta Matrícula já está em uso.')
-
-
-# =============================================================================
-# EMPLOYEE FORM
-# =============================================================================
-
-class EmployeeForm(BaseForm):
-    email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
-    full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
-    registration = StringField('Matrícula / ID do Funcionário', validators=[DataRequired(message='Informe a matrícula/ID do funcionário.'), Length(max=50)])
-    sector = StringField('Setor', validators=[Optional(), Length(max=120)])
-    function = StringField('Função', validators=[Optional(), Length(max=120)])
-    unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
-    role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
-    extra_roles = SelectMultipleField('Módulos Adicionais', coerce=int, validators=[Optional()],
-                                      description='Somados ao papel principal (ex.: Módulo Cozinha).')
-    is_teacher = BooleanField('Também cadastrar como Professor (pode ser designado para reservas)')
-    password = PasswordField('Senha', validators=[Length(min=8, message='A senha deve ter pelo menos 8 caracteres.')])
-    is_active_user = BooleanField('Ativo', default=True)
-    submit = SubmitField('Salvar Funcionário')
-
-    def __init__(self, *args, **kwargs):
-        super(EmployeeForm, self).__init__(*args, **kwargs)
-        # CORREÇÃO: mesma correção do TeacherForm — extrai _obj_id do objeto passado via obj=
-        # quando obj_id não é passado explicitamente como kwarg.
-        obj = kwargs.get('obj', None)
-        self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
-        # Senha obrigatória apenas na criação (sem obj_id). NÃO usar
-        # validators.insert(): Field compartilha a lista com a definição de
-        # classe e o insert vazaria o DataRequired para as instâncias de
-        # edição seguintes. O flag também é ajustado à mão — os campos já
-        # foram vinculados em super().__init__.
-        if not self._obj_id:
-            self.password.validators = [DataRequired()] + list(self.password.validators)
-            self.password.flags.required = True
-
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
-    def validate_email(self, field):
-        existing = User.query.filter_by(email=field.data).first()
-        if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Este e-mail já está cadastrado.')
-
-    def validate_full_name(self, field):
-        self._validate_alpha_only(field, 'Nome Completo')
-
     def validate_sector(self, field):
         self._validate_alpha_only(field, 'Setor')
 
@@ -215,10 +185,14 @@ class EmployeeForm(BaseForm):
         self._validate_alpha_only(field, 'Função')
 
     def validate_registration(self, field):
-        if field.data:
-            existing = User.query.filter_by(registration=field.data).first()
-            if existing and existing.id != getattr(self, '_obj_id', None):
-                raise ValidationError('Esta Matrícula já está em uso.')
+        # A matrícula é obrigatória para ambos os perfis; a mensagem cita o
+        # perfil escolhido ("do professor" / "do funcionário").
+        if not field.data:
+            raise ValidationError(f"Informe a matrícula/ID do "
+                                  f"{'professor' if self._perfil() == 'teacher' else 'funcionário'}.")
+        existing = User.query.filter_by(registration=field.data).first()
+        if existing and existing.id != getattr(self, '_obj_id', None):
+            raise ValidationError('Esta Matrícula já está em uso.')
 
 
 # =============================================================================

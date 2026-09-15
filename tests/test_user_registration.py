@@ -5,6 +5,7 @@ Cobre as regras pedidas:
 - a matrícula/ID é obrigatória e não pode se repetir entre usuários.
 """
 import os
+import re
 import tempfile
 import unittest
 
@@ -196,6 +197,83 @@ class UserRegistrationTestCase(unittest.TestCase):
         self.assertNotIn('Editar Teacher', teacher_page)
         self.assertIn('Editar Funcionário', employee_page)
         self.assertNotIn('Editar Employee', employee_page)
+
+    # ---------- Formulário unificado: mapeamento perfil → papel legado ----------
+
+    def test_mapeamento_papel_legado_por_perfil(self):
+        # ROLE_POR_PERFIL: professor nasce com role 'room' e funcionário com
+        # 'viewer' — o mapa é único (app.models) e aplica-se em qualquer URL.
+        self.client.post('/admin/users/create-teacher', data=self._payload())
+        self.client.post('/admin/users/create-employee',
+                         data=self._payload(email='joao.lima@escola.edu',
+                                            full_name='João Lima', registration='FUN002',
+                                            sector='Secretaria', function='Auxiliar'))
+        with self.app.app_context():
+            teacher = db.session.query(User).filter_by(email='maria.souza@escola.edu').first()
+            employee = db.session.query(User).filter_by(email='joao.lima@escola.edu').first()
+            self.assertEqual((teacher.profile_type, teacher.role), ('teacher', 'room'))
+            self.assertEqual((employee.profile_type, employee.role), ('employee', 'viewer'))
+
+    def test_formulario_dinamico_permite_trocar_perfil(self):
+        # O formulário é único: um POST feito na URL de professor com o
+        # seletor trocado para "Funcionário" cadastra um funcionário (e vice-versa).
+        response = self.client.post('/admin/users/create-teacher',
+                                    data=self._payload(profile_type='employee',
+                                                       full_name='João Lima',
+                                                       email='joao.lima@escola.edu',
+                                                       registration='FUN003',
+                                                       department=None,
+                                                       sector='Portaria',
+                                                       function='Vigilante'),
+                                    follow_redirects=True)
+        self.assertIn('Funcionário cadastrado com sucesso', response.get_data(as_text=True))
+        with self.app.app_context():
+            user = db.session.query(User).filter_by(email='joao.lima@escola.edu').first()
+            self.assertEqual(user.profile_type, 'employee')
+            self.assertEqual(user.role, 'viewer')
+            self.assertEqual(user.sector, 'Portaria')
+            self.assertIsNone(user.department)
+
+    def test_funcionario_tambem_professor(self):
+        self.client.post('/admin/users/create-employee',
+                         data=self._payload(email='joao.lima@escola.edu',
+                                            full_name='João Lima', registration='FUN004',
+                                            sector='Cozinha', function='Professor prático',
+                                            is_teacher='y'))
+        with self.app.app_context():
+            user = db.session.query(User).filter_by(email='joao.lima@escola.edu').first()
+            self.assertTrue(user.is_teacher)
+            self.assertEqual(user.profile_type, 'employee')
+
+    def test_formulario_unico_renderiza_nas_duas_urls(self):
+        # As duas URLs de criação renderizam o MESMO formulário dinâmico,
+        # mudando apenas o perfil pré-selecionado.
+        for url, selecionado in (('/admin/users/create-teacher', 'teacher'),
+                                 ('/admin/users/create-employee', 'employee')):
+            page = self.client.get(url).get_data(as_text=True)
+            self.assertIn('name="profile_type"', page)
+            self.assertIn('campos-professor', page)
+            self.assertIn('campos-funcionario', page)
+            opcao = re.compile(
+                r'<option[^>]*value="%s"[^>]*selected|<option[^>]*selected[^>]*value="%s"'
+                % (selecionado, selecionado))
+            self.assertIsNotNone(opcao.search(page), url)
+
+    def test_edicao_nao_altera_perfil_mesmo_com_post_forjado(self):
+        # O seletor de perfil vem desabilitado na edição: um POST tentando
+        # trocar profile_type não pode mudar o perfil persistido.
+        self.client.post('/admin/users/create-teacher', data=self._payload())
+        with self.app.app_context():
+            user_id = db.session.query(User).filter_by(email='maria.souza@escola.edu').first().id
+        self.client.post(f'/admin/users/{user_id}/edit',
+                         data=self._payload(profile_type='employee', sector='Zeladoria',
+                                            function='Auxiliar'),
+                         follow_redirects=True)
+        with self.app.app_context():
+            user = db.session.get(User, user_id)
+            self.assertEqual(user.profile_type, 'teacher')
+            self.assertEqual(user.role, 'room')
+            self.assertIsNone(user.sector)
 
 
 if __name__ == '__main__':
