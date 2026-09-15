@@ -72,22 +72,23 @@ class SeedDemoCommandTestCase(unittest.TestCase):
 
             # Todos os papéis e os cantos de usuário
             self.assertEqual(User.query.filter_by(
-                username='gestor.marina').one().role_obj.name, 'room_manager')
+                email='gestor.marina@demo.edu.br').one().role_obj.name, 'room_manager')
             self.assertEqual(User.query.filter_by(
-                username='analista.rafael').one().role_obj.name, 'coordinator')
-            ana = User.query.filter_by(username='prof.ana').one()
+                email='analista.rafael@demo.edu.br').one().role_obj.name, 'coordinator')
+            ana = User.query.filter_by(email='prof.ana@demo.edu.br').one()
             self.assertTrue(ana.has_permission('kitchen:read'))
             self.assertEqual([r.name for r in ana.extra_roles], ['kitchen'])
             self.assertFalse(User.query.filter_by(
-                username='prof.elisa').one().is_active_user)
+                email='prof.elisa@demo.edu.br').one().is_active_user)
             self.assertTrue(User.query.filter_by(
-                username='prof.felipe').one().force_password_change)
+                email='prof.felipe@demo.edu.br').one().force_password_change)
             self.assertTrue(User.query.filter_by(
-                username='func.marcos').one().is_teacher)
+                email='func.marcos@demo.edu.br').one().is_teacher)
             # Todos os logins de demonstração aceitam a senha padrão
-            for username in ('admin', 'gestor.marina', 'prof.ana',
-                             'func.juliana'):
-                user = User.query.filter_by(username=username).one()
+            for email in ('admin@school.edu', 'gestor.marina@demo.edu.br',
+                          'prof.ana@demo.edu.br',
+                          'func.juliana@demo.edu.br'):
+                user = User.query.filter_by(email=email).one()
                 self.assertTrue(user.check_password(DEMO_PASSWORD))
 
             # Categorias com aparência do totem + salas variadas
@@ -251,7 +252,7 @@ class SeedDemoCommandTestCase(unittest.TestCase):
 
         # Login do gestor de demonstração e dashboard por categorias
         self.assertEqual(client.post('/login', data={
-            'username': 'gestor.marina',
+            'email': 'gestor.marina@demo.edu.br',
             'password': DEMO_PASSWORD,
         }, follow_redirects=True).status_code, 200)
         self.assertEqual(client.get('/dashboard').status_code, 200)

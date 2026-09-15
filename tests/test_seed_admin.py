@@ -49,7 +49,7 @@ class SeedAdminCommandTestCase(unittest.TestCase):
         self.assertIn('Administrador criado com sucesso', result.output)
         self.assertNotIn('demonstra', result.output.lower())  # sem dados de demonstração
         with self.app.app_context():
-            admin = db.session.query(User).filter_by(username='admin').first()
+            admin = db.session.query(User).filter_by(email='admin@school.edu').first()
             self.assertIsNotNone(admin)
             self.assertTrue(check_password_hash(admin.password_hash, 'SenhaForte123'))
             self.assertTrue(admin.role_obj and admin.role_obj.name == 'super_admin')
@@ -61,7 +61,7 @@ class SeedAdminCommandTestCase(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn('pelo menos 8 caracteres', result.output)
         with self.app.app_context():
-            admin = db.session.query(User).filter_by(username='admin').first()
+            admin = db.session.query(User).filter_by(email='admin@school.edu').first()
             self.assertTrue(check_password_hash(admin.password_hash, 'SenhaForte123'))
 
     def test_seed_admin_skips_when_account_exists(self):
@@ -72,7 +72,7 @@ class SeedAdminCommandTestCase(unittest.TestCase):
         self.assertEqual(segunda.exit_code, 0)
         self.assertIn('já existe', segunda.output)
         with self.app.app_context():
-            admin = db.session.query(User).filter_by(username='admin').first()
+            admin = db.session.query(User).filter_by(email='admin@school.edu').first()
             self.assertTrue(check_password_hash(admin.password_hash, 'SenhaForte123'))
 
 

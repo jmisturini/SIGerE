@@ -17,7 +17,7 @@ from app.models import (Classroom, Permission, Reservation, Role, RoomCategory,
 from app.services.share import (build_reservation_share_texts,
                                 build_email_subject, format_reservation_date)
 
-USERNAME = 'gestor.teste'
+EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -131,7 +131,7 @@ class ShareDetailPageTestCase(unittest.TestCase):
             db.session.flush()
 
             user = User(
-                username=USERNAME, email='gestor@escola.edu', full_name='Gestor Teste',
+                email='gestor@escola.edu', full_name='Gestor Teste',
                 role='room', profile_type='employee', unity_id=self.unity.id,
                 role_id=role.id, force_password_change=False, is_active_user=True,
             )
@@ -156,7 +156,7 @@ class ShareDetailPageTestCase(unittest.TestCase):
                                                          date.today() + timedelta(days=2),
                                                          status='cancelled')
 
-        response = self.client.post('/login', data={'username': USERNAME,
+        response = self.client.post('/login', data={'email': EMAIL,
                                                     'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)

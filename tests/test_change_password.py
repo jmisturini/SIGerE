@@ -20,7 +20,7 @@ from app.config import Config
 from app.extensions import db
 from app.models import User
 
-USERNAME = 'prof.teste'
+EMAIL = 'prof.teste@escola.edu'
 INITIAL_PASSWORD = 'SenhaInicial123'
 NEW_PASSWORD = 'NovaSenhaForte9'
 
@@ -46,7 +46,6 @@ class PasswordChangeTestCase(unittest.TestCase):
         with self.app.app_context():
             db.create_all()
             user = User(
-                username=USERNAME,
                 email='prof.teste@escola.edu',
                 full_name='Professor Teste',
                 force_password_change=True,
@@ -72,7 +71,7 @@ class PasswordChangeTestCase(unittest.TestCase):
     def _login(self):
         return self.client.post(
             '/login',
-            data={'username': USERNAME, 'password': INITIAL_PASSWORD},
+            data={'email': EMAIL, 'password': INITIAL_PASSWORD},
             follow_redirects=False,
         )
 

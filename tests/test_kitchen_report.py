@@ -19,8 +19,8 @@ from app.extensions import db
 from app.models import (KitchenPreparation, KitchenRecipe, KitchenRecipeIngredient,
                         Permission, Role, Unity, User)
 
-USERNAME = 'cozinha.teste'
-READER_USERNAME = 'leitor.teste'
+EMAIL = 'cozinha@escola.edu'
+READER_EMAIL = 'leitor@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -58,7 +58,7 @@ class KitchenReportTestCase(unittest.TestCase):
             db.session.flush()
 
             user = User(
-                username=USERNAME, email='cozinha@escola.edu', full_name='Cozinheiro Teste',
+                email='cozinha@escola.edu', full_name='Cozinheiro Teste',
                 role='room', profile_type='employee', unity_id=self.unity.id,
                 role_id=manager.id, force_password_change=False, is_active_user=True,
             )
@@ -66,7 +66,7 @@ class KitchenReportTestCase(unittest.TestCase):
             db.session.add(user)
 
             reader = User(
-                username=READER_USERNAME, email='leitor@escola.edu', full_name='Leitor Teste',
+                email='leitor@escola.edu', full_name='Leitor Teste',
                 role='room', profile_type='employee', unity_id=self.unity.id,
                 role_id=reader_role.id, force_password_change=False, is_active_user=True,
             )
@@ -119,9 +119,9 @@ class KitchenReportTestCase(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
-    def _login(self, username=USERNAME):
+    def _login(self, email=EMAIL):
         response = self.client.post('/login',
-                                    data={'username': username, 'password': PASSWORD},
+                                    data={'email': email, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 
@@ -233,7 +233,7 @@ class KitchenReportTestCase(unittest.TestCase):
         # A view de login redireciona sem trocar de usuário quando já há uma
         # sessão ativa, por isso o logout antes de entrar como leitor.
         self.client.get('/logout')
-        self._login(READER_USERNAME)
+        self._login(READER_EMAIL)
         response = self._post_report()
         self.assertEqual(response.status_code, 403)
 

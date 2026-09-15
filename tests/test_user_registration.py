@@ -1,8 +1,7 @@
 """Testes do cadastro de professores e funcionários (admin).
 
 Cobre as regras pedidas:
-- o nome de usuário é derivado automaticamente da parte anterior ao @ do
-  e-mail informado (o campo de username não é mais digitado no cadastro);
+- o e-mail é o identificador de login do usuário (não existe username);
 - a matrícula/ID é obrigatória e não pode se repetir entre usuários.
 """
 import os
@@ -15,7 +14,7 @@ from app.config import Config
 from app.extensions import db
 from app.models import Permission, Role, Unity, User
 
-USERNAME = 'gestor.teste'
+EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -54,7 +53,7 @@ class UserRegistrationTestCase(unittest.TestCase):
             db.session.flush()
 
             user = User(
-                username=USERNAME, email='gestor@escola.edu', full_name='Gestor Teste',
+                email=EMAIL, full_name='Gestor Teste',
                 role='room', profile_type='employee', unity_id=self.unity.id,
                 role_id=gestor_role.id, force_password_change=False,
                 is_active_user=True,
@@ -75,7 +74,7 @@ class UserRegistrationTestCase(unittest.TestCase):
                 os.remove(path)
 
     def _login(self):
-        response = self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+        response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 
@@ -97,35 +96,56 @@ class UserRegistrationTestCase(unittest.TestCase):
 
     def _get_user_by_email(self, email):
         with self.app.app_context():
-            user = db.session.query(User).filter_by(email=email).first()
-            return user.username if user else None
+            return db.session.query(User).filter_by(email=email).first()
 
-    # ---------- Nome de usuário derivado do e-mail ----------
+    # ---------- Login pelo e-mail cadastrado ----------
 
-    def test_create_teacher_derives_username_from_email(self):
+    def test_create_teacher_then_login_with_email(self):
         response = self.client.post('/admin/users/create-teacher',
                                     data=self._payload(), follow_redirects=True)
         self.assertIn('Professor cadastrado com sucesso', response.get_data(as_text=True))
-        self.assertEqual(self._get_user_by_email('maria.souza@escola.edu'), 'maria.souza')
+        self.assertIsNotNone(self._get_user_by_email('maria.souza@escola.edu'))
+        # O e-mail cadastrado é o login do novo usuário (senha inicial).
+        self.client.get('/logout')
+        login = self.client.post('/login',
+                                 data={'email': 'maria.souza@escola.edu',
+                                       'password': 'SenhaForte123'},
+                                 follow_redirects=True)
+        self.assertIn('Bem-vindo', login.get_data(as_text=True))
 
-    def test_create_employee_derives_username_from_email(self):
+    def test_create_employee_then_login_with_email(self):
         response = self.client.post('/admin/users/create-employee',
                                     data=self._payload(full_name='João Lima',
                                                        email='joao.lima@escola.edu',
                                                        registration='FUN001'),
                                     follow_redirects=True)
         self.assertIn('Funcionário cadastrado com sucesso', response.get_data(as_text=True))
-        self.assertEqual(self._get_user_by_email('joao.lima@escola.edu'), 'joao.lima')
+        self.assertIsNotNone(self._get_user_by_email('joao.lima@escola.edu'))
+        self.client.get('/logout')
+        login = self.client.post('/login',
+                                 data={'email': 'joao.lima@escola.edu',
+                                       'password': 'SenhaForte123'},
+                                 follow_redirects=True)
+        self.assertIn('Bem-vindo', login.get_data(as_text=True))
 
-    def test_duplicate_email_prefix_rejected(self):
+    def test_login_rejects_wrong_email(self):
+        self.client.get('/logout')
+        login = self.client.post('/login',
+                                 data={'email': 'inexistente@escola.edu',
+                                       'password': PASSWORD},
+                                 follow_redirects=True)
+        self.assertIn('E-mail ou senha inválidos.', login.get_data(as_text=True))
+
+    def test_duplicate_email_rejected(self):
         self.client.post('/admin/users/create-teacher', data=self._payload())
         response = self.client.post('/admin/users/create-teacher',
-                                    data=self._payload(email='maria.souza@outro.com',
-                                                       registration='MAT002'),
+                                    data=self._payload(registration='MAT002'),
                                     follow_redirects=True)
         page = response.get_data(as_text=True)
-        self.assertIn('Este nome de usuário já está em uso.', page)
-        self.assertIsNone(self._get_user_by_email('maria.souza@outro.com'))
+        self.assertIn('Este e-mail já está cadastrado.', page)
+        with self.app.app_context():
+            self.assertEqual(
+                db.session.query(User).filter_by(email='maria.souza@escola.edu').count(), 1)
 
     # ---------- Matrícula obrigatória e única ----------
 

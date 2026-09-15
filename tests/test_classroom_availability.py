@@ -13,7 +13,7 @@ from app.extensions import db
 from app.models import (Classroom, Permission, Reservation, Role, RoomCategory,
                         Unity, User)
 
-USERNAME = 'super.teste'
+EMAIL = 'super@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -42,7 +42,7 @@ class AvailabilityViewsTestCase(unittest.TestCase):
             db.session.add(role)
             db.session.flush()
             user = User(
-                username=USERNAME, email='super@escola.edu', full_name='Super Teste',
+                email='super@escola.edu', full_name='Super Teste',
                 role='admin', profile_type='employee', role_id=role.id,
                 force_password_change=False, is_active_user=True,
             )
@@ -83,7 +83,7 @@ class AvailabilityViewsTestCase(unittest.TestCase):
                 os.remove(path)
 
     def _login(self):
-        response = self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+        response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 
@@ -198,7 +198,7 @@ class AvailabilityViewsTestCase(unittest.TestCase):
                         permissions=[room_read])
             db.session.add(role)
             db.session.flush()
-            user = User(username='leitor.teste', email='leitor@escola.edu',
+            user = User(email='leitor@escola.edu',
                         full_name='Leitor Teste', role='room',
                         profile_type='employee', unity_id=self.unity_id,
                         role_id=role.id, force_password_change=False,
@@ -208,7 +208,7 @@ class AvailabilityViewsTestCase(unittest.TestCase):
             db.session.commit()
 
         leitor = self.app.test_client()
-        resp = leitor.post('/login', data={'username': 'leitor.teste',
+        resp = leitor.post('/login', data={'email': 'leitor@escola.edu',
                                            'password': 'SenhaForte123'},
                            follow_redirects=True)
         self.assertEqual(resp.status_code, 200)

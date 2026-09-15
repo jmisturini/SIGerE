@@ -54,14 +54,18 @@ DEMO_API_TOKEN = 'sige_demo_token_de_demonstracao_troque_em_producao'
 DEMO_UNITY_CODES = ('DEM-CTR', 'DEM-NORTE', 'DEM-SUL')
 DEMO_CATEGORY_CODES = ('classroom', 'auditorium', 'kitchen', 'computer_lab',
                        'health_lab', 'sports_court', 'meeting_room')
-DEMO_USERNAMES = (
+# Logins (e-mails) das contas de demonstração — o login é feito pelo e-mail.
+DEMO_EMAILS = (
     # Papéis da sede (Centro)
-    'gestor.marina', 'analista.rafael',
+    'gestor.marina@demo.edu.br', 'analista.rafael@demo.edu.br',
     # Professores
-    'prof.ana', 'prof.bruno', 'prof.carla', 'prof.diego', 'prof.elisa',
-    'prof.felipe', 'prof.gustavo', 'prof.helena', 'prof.talita',
+    'prof.ana@demo.edu.br', 'prof.bruno@demo.edu.br', 'prof.carla@demo.edu.br',
+    'prof.diego@demo.edu.br', 'prof.elisa@demo.edu.br',
+    'prof.felipe@demo.edu.br', 'prof.gustavo@demo.edu.br',
+    'prof.helena@demo.edu.br', 'prof.talita@demo.edu.br',
     # Funcionários
-    'func.juliana', 'func.marcos', 'func.patricia', 'func.roberto',
+    'func.juliana@demo.edu.br', 'func.marcos@demo.edu.br',
+    'func.patricia@demo.edu.br', 'func.roberto@demo.edu.br',
 )
 DEMO_API_TOKEN_NAME = 'Token de Demonstração'
 
@@ -147,7 +151,8 @@ def _seed_usuarios_demo(unidades):
     ctr, norte, sul = (unidades[c] for c in DEMO_UNITY_CODES)
 
     perfis = [
-        # (username, nome, papel principal, perfil, unidade, extras)
+        # (identificador, nome, papel principal, perfil, unidade, extras)
+        # O identificador compõe o e-mail de login: <ident>@demo.edu.br.
         ('gestor.marina', 'Marina Albuquerque', 'room_manager', 'employee',
          ctr, {'department': 'Coordenação', 'function': 'Gestora de Salas'}),
         ('analista.rafael', 'Rafael Mendes', 'coordinator', 'employee',
@@ -185,10 +190,9 @@ def _seed_usuarios_demo(unidades):
     ]
 
     usuarios = {}
-    for username, nome, role_name, profile_type, unity, extras in perfis:
+    for ident, nome, role_name, profile_type, unity, extras in perfis:
         user = User(
-            username=username,
-            email=f'{username}@demo.edu.br',
+            email=f'{ident}@demo.edu.br',
             full_name=nome,
             role='room',  # coluna legada (usada apenas para ordenação)
             profile_type=profile_type,
@@ -206,7 +210,7 @@ def _seed_usuarios_demo(unidades):
         if extras.get('extra_roles'):
             user.extra_roles.extend(extras['extra_roles'])
         db.session.add(user)
-        usuarios[username] = user
+        usuarios[ident] = user
     db.session.flush()
     return usuarios
 
@@ -402,7 +406,7 @@ def _seed_reservas_demo(unidades, salas, disciplinas, usuarios, feriados):
     hoje = date.today()
     dia_util = hoje + timedelta(days=1) if hoje.weekday() == 6 else hoje
     eh_sabado = dia_util.weekday() == 5
-    admin = User.query.filter_by(username='admin').first()
+    admin = User.query.filter_by(email='admin@school.edu').first()
 
     def reservar(**kwargs):
         r = Reservation(**kwargs)
@@ -959,10 +963,10 @@ def seed_demo_command(reset):
     try:
         # Pré-requisitos: permissões/papéis e a conta admin (idempotentes)
         sync_permissions_impl(verbose=False)
-        admin = User.query.filter_by(username='admin').first()
+        admin = User.query.filter_by(email='admin@school.edu').first()
         if admin is None:
             _seed_admin(password=DEMO_PASSWORD)
-            admin = User.query.filter_by(username='admin').first()
+            admin = User.query.filter_by(email='admin@school.edu').first()
 
         unidades = _seed_unidades_demo()
         usuarios = _seed_usuarios_demo(unidades)
@@ -984,7 +988,7 @@ def seed_demo_command(reset):
         raise click.ClickException(str(exc))
 
     # Resumo da execução (contagens pós-commit)
-    usuarios_demo = len(DEMO_USERNAMES) + 1  # + conta admin
+    usuarios_demo = len(DEMO_EMAILS) + 1  # + conta admin
     click.echo(click.style("✅ Cenário de demonstração criado!", fg='green',
                            bold=True))
     click.echo(f"""
@@ -999,15 +1003,15 @@ def seed_demo_command(reset):
    Cozinha .............. {KitchenRecipe.query.count()} preparações, {TechnicalSheet.query.count()} fichas (1 pendente)
 
    Logins (senha {DEMO_PASSWORD} para todos):
-     admin               Super Administrador (global, todas as unidades)
-     gestor.marina       Gestor — Unidade Centro
-     analista.rafael     Analista — Unidade Centro
-     prof.ana            Professor(a) de Gastronomia + Módulo Cozinha
-     prof.bruno          Professor(a) de Informática
-     prof.elisa          Professor(a) INATIVA (login recusado)
-     prof.felipe         Professor(a) com troca de senha obrigatória
-     func.marcos         Funcionário que também leciona
-     func.juliana        Assistente/Logística
+     admin@school.edu          Super Administrador (global, todas as unidades)
+     gestor.marina@demo.edu.br       Gestor — Unidade Centro
+     analista.rafael@demo.edu.br     Analista — Unidade Centro
+     prof.ana@demo.edu.br            Professor(a) de Gastronomia + Módulo Cozinha
+     prof.bruno@demo.edu.br          Professor(a) de Informática
+     prof.elisa@demo.edu.br          Professor(a) INATIVA (login recusado)
+     prof.felipe@demo.edu.br         Professor(a) com troca de senha obrigatória
+     func.marcos@demo.edu.br         Funcionário que também leciona
+     func.juliana@demo.edu.br        Assistente/Logística
 
    Token da API de reservas (Bearer em /api/v1):
      {DEMO_API_TOKEN}

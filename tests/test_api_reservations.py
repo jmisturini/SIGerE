@@ -18,9 +18,9 @@ from app.extensions import db
 from app.models import (ApiToken, Classroom, Course, Permission, Reservation,
                         Role, RoomCategory, Subject, Unity, User)
 
-USERNAME = 'super.teste'
+EMAIL = 'super@escola.edu'
 PASSWORD = 'SenhaForte123'
-COMMON_USERNAME = 'comum.teste'
+COMMON_EMAIL = 'comum@escola.edu'
 COMMON_PASSWORD = 'SenhaForte456'
 
 PUBLIC_KEYS = {'id', 'title', 'date', 'start_time', 'end_time', 'classroom'}
@@ -55,7 +55,7 @@ class ApiReservationsTestCase(unittest.TestCase):
             db.session.flush()
 
             self.super_user = User(
-                username=USERNAME, email='super@escola.edu', full_name='Super Teste',
+                email='super@escola.edu', full_name='Super Teste',
                 role='admin', profile_type='employee', role_id=super_role.id,
                 force_password_change=False, is_active_user=True,
             )
@@ -63,7 +63,7 @@ class ApiReservationsTestCase(unittest.TestCase):
             db.session.add(self.super_user)
 
             self.comum_user = User(
-                username=COMMON_USERNAME, email='comum@escola.edu',
+                email='comum@escola.edu',
                 full_name='Comum Teste', role='viewer', profile_type='employee',
                 role_id=comum_role.id, unity_id=None,  # definido abaixo (unidade 1)
                 force_password_change=False, is_active_user=True,
@@ -72,7 +72,7 @@ class ApiReservationsTestCase(unittest.TestCase):
             db.session.add(self.comum_user)
 
             self.teacher = User(
-                username='teacher.teste', email='teacher@escola.edu',
+                email='teacher@escola.edu',
                 full_name='Prof. Teste', role='viewer', profile_type='teacher',
                 force_password_change=False, is_active_user=True,
             )
@@ -234,7 +234,7 @@ class ApiReservationsTestCase(unittest.TestCase):
         self.assertEqual(item['status'], 'approved')
         self.assertEqual(item['description'], 'Capítulo 4')
         self.assertEqual(item['teacher']['full_name'], 'Prof. Teste')
-        self.assertEqual(item['created_by']['username'], USERNAME)
+        self.assertEqual(item['created_by']['email'], EMAIL)
         self.assertEqual(item['course']['name'], 'Curso Teste')
         self.assertEqual(item['subject']['name'], 'Disciplina Teste')
         self.assertEqual(item['unity']['code'], 'CTR')
@@ -261,7 +261,7 @@ class ApiReservationsTestCase(unittest.TestCase):
     def test_sessao_sem_token_recebe_payload_publico(self):
         """A sessão de navegador NÃO concede mais detalhes: o acesso completo
         exige token gerado no painel admin."""
-        self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+        self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                          follow_redirects=True)
         response, data = self._get_json(f'/api/v1/reservations/{self.approved_id}')
         self.assertEqual(response.status_code, 200)

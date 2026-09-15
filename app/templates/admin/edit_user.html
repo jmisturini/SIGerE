@@ -22,14 +22,9 @@
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.username.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                            {{ form.username(class="form-control") }}
-                            {% for err in form.username.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
-                        </div>
-
-                        <div class="col-md-6">
                             {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.email(class="form-control") }}
+                            <div class="form-text small">Este e-mail é o login do usuário.</div>
                             {% for err in form.email.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 

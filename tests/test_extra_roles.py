@@ -16,7 +16,7 @@ from app.config import Config
 from app.extensions import db
 from app.models import Permission, Role, Unity, User
 
-USERNAME = 'gestor.teste'
+EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -54,7 +54,7 @@ class ExtraRolesTestCase(unittest.TestCase):
             db.session.flush()
 
             user = User(
-                username=USERNAME, email='gestor@escola.edu', full_name='Gestor Teste',
+                email='gestor@escola.edu', full_name='Gestor Teste',
                 role='room', profile_type='employee', unity_id=self.unity.id,
                 role_id=gestor_role.id, force_password_change=False,
                 is_active_user=True,
@@ -78,7 +78,7 @@ class ExtraRolesTestCase(unittest.TestCase):
                 os.remove(path)
 
     def _login(self):
-        response = self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+        response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 
@@ -118,7 +118,7 @@ class ExtraRolesTestCase(unittest.TestCase):
         with self.app.app_context():
             teacher = Role.query.filter_by(name='teacher').first()
             kitchen = Role.query.filter_by(name='kitchen').first()
-            user = User(username='prof.gastro', email='gastro@escola.edu',
+            user = User(email='gastro@escola.edu',
                         full_name='Prof Gastronomia', role='room',
                         profile_type='teacher', role_id=teacher.id,
                         extra_roles=[kitchen], is_active_user=True)
@@ -137,7 +137,7 @@ class ExtraRolesTestCase(unittest.TestCase):
         """Professor sem papel adicional não ganha nada da cozinha."""
         with self.app.app_context():
             teacher = Role.query.filter_by(name='teacher').first()
-            user = User(username='prof.regular', email='regular@escola.edu',
+            user = User(email='regular@escola.edu',
                         full_name='Prof Regular', role='room',
                         profile_type='teacher', role_id=teacher.id,
                         is_active_user=True)
@@ -152,7 +152,7 @@ class ExtraRolesTestCase(unittest.TestCase):
 
     def test_usuario_sem_papel_nao_tem_permissoes(self):
         with self.app.app_context():
-            user = User(username='sem.papel', email='sempapel@escola.edu',
+            user = User(email='sempapel@escola.edu',
                         full_name='Sem Papel', role='viewer',
                         profile_type='employee', is_active_user=True)
             user.set_password('SenhaForte123')
