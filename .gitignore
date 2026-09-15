@@ -8,6 +8,10 @@ venv/
 instance/
 *.log
 
+# Configuração local gerada pelo setup interativo (SECRET_KEY, banco, debug)
+.env
+.env.bak
+
 # Uploads de usuários
 app/static/uploads/
 

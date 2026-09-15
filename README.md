@@ -238,6 +238,19 @@ Guias detalhados disponíveis no diretório [`docs/`](docs/):
 - Python 3.8 ou superior
 - pip
 
+### Setup interativo (atalho)
+
+O script abaixo guia toda a instalação com perguntas — ambiente virtual, dependências,
+geração do `.env` (SECRET_KEY e banco de dados), schema, população inicial (implantação
+real, demonstração ou migração do legado), unidades do Senac SC e, opcionalmente, a
+subida do servidor. É seguro rodá-lo mais de uma vez (etapas já feitas são reaproveitadas):
+
+```bash
+python setup_interativo.py
+```
+
+Prefere controlar cada passo? Siga o passo a passo abaixo — o script faz exatamente isso.
+
 ### Passo a passo
 
 ```bash
