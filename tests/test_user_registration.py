@@ -178,6 +178,25 @@ class UserRegistrationTestCase(unittest.TestCase):
                                     follow_redirects=True)
         self.assertIn('Informe a matrícula/ID do professor.', response.get_data(as_text=True))
 
+    def test_edit_page_header_in_portuguese(self):
+        # O cabeçalho do cartão não deve vazar o valor interno em inglês de
+        # profile_type ("Editar Teacher"/"Editar Employee").
+        self.client.post('/admin/users/create-teacher', data=self._payload())
+        self.client.post('/admin/users/create-employee',
+                         data=self._payload(email='joao.pereira@escola.edu',
+                                            full_name='João Pereira', registration='FUN001',
+                                            sector='Manutenção', function='Técnico'))
+        with self.app.app_context():
+            teacher = db.session.query(User).filter_by(email='maria.souza@escola.edu').first()
+            employee = db.session.query(User).filter_by(email='joao.pereira@escola.edu').first()
+            teacher_id, employee_id = teacher.id, employee.id
+        teacher_page = self.client.get(f'/admin/users/{teacher_id}/edit').get_data(as_text=True)
+        employee_page = self.client.get(f'/admin/users/{employee_id}/edit').get_data(as_text=True)
+        self.assertIn('Editar Professor', teacher_page)
+        self.assertNotIn('Editar Teacher', teacher_page)
+        self.assertIn('Editar Funcionário', employee_page)
+        self.assertNotIn('Editar Employee', employee_page)
+
 
 if __name__ == '__main__':
     unittest.main()
