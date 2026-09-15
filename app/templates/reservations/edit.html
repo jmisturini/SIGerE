@@ -89,6 +89,42 @@
         const endInput = document.getElementById('end_time');
         const warningBox = document.getElementById('dateWarning');
 
+        // Filtro curso → disciplina: ao selecionar um curso, só aparecem as
+        // disciplinas vinculadas a ele (sem curso, todas ficam visíveis).
+        const courseSelect = document.getElementById('course');
+        const subjectSelect = document.getElementById('subject');
+        const subjectCourseMap = {{ subject_course_map | tojson }};
+        const allSubjectOptions = Array.from(subjectSelect.options);
+        let userChangedCourse = false;
+
+        function applySubjectFilter() {
+            const courseId = String(parseInt(courseSelect.value, 10) || 0);
+            const currentValue = subjectSelect.value;
+            const visible = allSubjectOptions.filter(opt => {
+                if (opt.value === '' || opt.value === '0') return true;
+                if (courseId === '0') return true;
+                return String(subjectCourseMap[opt.value] || 0) === courseId;
+            });
+            subjectSelect.innerHTML = '';
+            visible.forEach(opt => subjectSelect.appendChild(opt));
+            if (!visible.some(opt => opt.value === currentValue)) {
+                if (userChangedCourse) {
+                    subjectSelect.value = '0';
+                } else {
+                    // Dados antigos com disciplina de outro curso: mantém a
+                    // opção na lista para não descartar o valor ao salvar.
+                    const orphan = allSubjectOptions.find(opt => opt.value === currentValue);
+                    if (orphan) subjectSelect.appendChild(orphan);
+                    subjectSelect.value = currentValue;
+                }
+            }
+        }
+        courseSelect.addEventListener('change', function() {
+            userChangedCourse = true;
+            applySubjectFilter();
+        });
+        applySubjectFilter();
+
         function updateWarnings() {
             let messages = [];
             if (dateInput.value) {
