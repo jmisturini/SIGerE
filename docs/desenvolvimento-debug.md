@@ -312,12 +312,13 @@ variáveis; a porta padrão é a mesma 5000.
 | `/` | Home pública |
 | `/login` | Login (rate limit: 5 tentativas/min por IP) |
 | `/dashboard` | Dashboard interno (após login) |
-| `/calendar` | Calendário FullCalendar |
+| `/calendar/` | Calendário de reservas com filtros (autenticado) |
 | `/admin/` | Painel administrativo |
 | `/kitchen/fichas` · `/kitchen/preparacoes` · `/kitchen/compras` | Módulo Cozinha |
 | `/vt/` · `/payments` | Vale Transporte · Horas Extras |
 | `/totem/?unity=<id>` | Totem digital (tema automático, clima) |
 | `/cronograma` · `/buscar-aula` · `/search` | Portal público (sem login) |
+| `/changelog` | Tela de novidades: histórico de versões (pública) |
 | `/api/v1/reservations` | API REST de leitura — [documentação completa](api-reservas.md) |
 
 ---
@@ -328,11 +329,11 @@ Criadas pelo `flask --app run seed` **quando você responde "y"** à pergunta de
 população. As contas já vêm com `force_password_change=False` (não pedem troca
 de senha no primeiro login — convenientes para testes).
 
-| Perfil | Usuário | Senha | Permissões |
+| Perfil | E-mail (login) | Senha | Permissões |
 |--------|---------|-------|------------|
-| **Super Administrador** | `admin` | `admin123` | Acesso total (`*`) — criado sempre, mesmo sem demonstração |
-| **Professor** | `teacher1` … `teacher80` | `teacher123` | Reservas, próprios pagamentos, Cozinha |
-| **Funcionário** | `employee1` … `employee20` | `employee123` | Visualização de salas/cursos, próprias reservas, Cozinha |
+| **Super Administrador** | `admin@school.edu` | `admin123` | Acesso total (`*`) — criado sempre, mesmo sem demonstração |
+| **Professor** | `teacher1@school.edu` … `teacher80@school.edu` | `teacher123` | Reservas, próprios pagamentos, Cozinha |
+| **Funcionário** | `employee1@school.edu` … `employee20@school.edu` | `employee123` | Visualização de salas/cursos, próprias reservas, Cozinha |
 
 A demonstração cria 3 unidades (Centro, Norte e Sul), 100 usuários, 6
 categorias de sala, 29 salas, 50 cursos, 50 disciplinas, 20 reservas e
@@ -345,17 +346,17 @@ token da API etc.), rode `flask --app run seed-demo` — contas e detalhes na
 [tabela abaixo](#cenario-de-demonstração-completo-seed-demo) e no
 [README](../README.md#-cenário-de-demonstração-completo-seed-demo).
 
-| Perfil | Usuário | Senha | Observação |
+| Perfil | E-mail (login) | Senha | Observação |
 |--------|---------|-------|------------|
-| Super Administrador | `admin` | `demo1234` | Global, pode alternar unidades |
-| **Gestor** | `gestor.marina` | `demo1234` | Unidade Centro |
-| **Analista** | `analista.rafael` | `demo1234` | Unidade Centro |
-| **Professor + Módulo Cozinha** | `prof.ana` | `demo1234` | Papel adicional de cozinha |
-| **Professor** | `prof.bruno` | `demo1234` | Informática |
-| Professor inativo | `prof.elisa` | `demo1234` | Login recusado |
-| Troca de senha obrigatória | `prof.felipe` | `demo1234` | Redireciona ao trocar senha |
-| **Assistente/Logística** | `func.juliana` | `demo1234` | Unidade Centro |
-| Assistente que leciona | `func.marcos` | `demo1234` | `is_teacher=True` |
+| Super Administrador | `admin@school.edu` | `demo1234` | Global, pode alternar unidades |
+| **Gestor** | `gestor.marina@demo.edu.br` | `demo1234` | Unidade Centro |
+| **Analista** | `analista.rafael@demo.edu.br` | `demo1234` | Unidade Centro |
+| **Professor + Módulo Cozinha** | `prof.ana@demo.edu.br` | `demo1234` | Papel adicional de cozinha |
+| **Professor** | `prof.bruno@demo.edu.br` | `demo1234` | Informática |
+| Professor inativo | `prof.elisa@demo.edu.br` | `demo1234` | Login recusado |
+| Troca de senha obrigatória | `prof.felipe@demo.edu.br` | `demo1234` | Redireciona ao trocar senha |
+| **Assistente/Logística** | `func.juliana@demo.edu.br` | `demo1234` | Unidade Centro |
+| Assistente que leciona | `func.marcos@demo.edu.br` | `demo1234` | `is_teacher=True` |
 | Token da API | — | — | `Bearer sige_demo_token_de_demonstracao_troque_em_producao` |
 
 > Rodar de novo com dados frescos da semana: `flask --app run seed-demo --reset`.
@@ -388,7 +389,7 @@ python -m unittest tests.test_api_reservations.ApiReservationsTestCase.test_anon
 
 Resultado esperado: **`OK`** ao final (eventuais `skipped` são casos
 condicionais a ambiente e não indicam falha). A suíte completa roda em cerca de
-um minuto.
+dois minutos e meio.
 
 ### O que a suíte cobre
 
@@ -404,6 +405,10 @@ um minuto.
 | Autenticação — registro, troca de senha | `test_user_registration.py`, `test_change_password.py` |
 | Formulários de sala e checklist de configuração | `test_room_form.py`, `test_setup_checklist.py` |
 | Identificadores automáticos (códigos de sala) | `test_auto_identifiers.py` |
+| Papéis adicionais por usuário e módulos por unidade | `test_extra_roles.py`, `test_unity_modules.py` |
+| Cozinha — relatório de ingredientes | `test_kitchen_report.py` |
+| Compartilhamento de reservas (e-mail/WhatsApp) | `test_share_texts.py` |
+| Tela de novidades e versionamento | `test_changelog.py` |
 
 ### Convenções ao escrever testes
 

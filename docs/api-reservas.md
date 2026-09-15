@@ -215,8 +215,8 @@ curl -H "Authorization: Bearer sige_SEU_TOKEN" \
     "category": "Sala de Aula"
   },
   "unity": { "id": 1, "code": "CTR", "name": "Unidade Centro" },
-  "created_by": { "id": 3, "username": "prof1", "full_name": "Prof. Um" },
-  "teacher": { "id": 5, "username": "prof5", "full_name": "Prof. Cinco" },
+  "created_by": { "id": 3, "email": "prof1@school.edu", "full_name": "Prof. Um" },
+  "teacher": { "id": 5, "email": "prof5@school.edu", "full_name": "Prof. Cinco" },
   "course": { "id": 2, "code": "INF", "name": "Informática" },
   "subject": { "id": 9, "code": "MAT", "name": "Matemática" },
   "reviewed_by": null,
@@ -310,7 +310,7 @@ que recebeu. Reservas de outra unidade jamais aparecem — e o detalhe delas res
 Todos os erros retornam JSON com a chave `error` (nunca uma página HTML):
 
 ```json
-{ "error": "Usuário ou senha inválidos." }
+{ "error": "Token inválido, expirado ou revogado." }
 ```
 
 | Código | Quando acontece |
