@@ -71,7 +71,7 @@ git clone https://github.com/jmisturini/SIGerE.git
 cd SIGerE
 
 # 2. Crie e ative o ambiente virtual
-python -m venv venv
+python3 -m venv venv
 
 # Linux/macOS:
 source venv/bin/activate
