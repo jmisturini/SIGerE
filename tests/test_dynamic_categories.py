@@ -64,7 +64,7 @@ class DynamicCategoriesTestCase(unittest.TestCase):
             db.session.add_all([self.quadra_room, biblio_room])
             db.session.flush()
 
-            user = User(username='prof.teste', email='prof.teste@escola.edu',
+            user = User(email='prof.teste@escola.edu',
                         full_name='Professor Teste', unity_id=unity.id,
                         force_password_change=False, is_active_user=True)
             user.set_password('SenhaForte123')
@@ -105,7 +105,7 @@ class DynamicCategoriesTestCase(unittest.TestCase):
 
     def _login(self):
         return self.client.post('/login',
-                                data={'username': 'prof.teste',
+                                data={'email': 'prof.teste@escola.edu',
                                       'password': 'SenhaForte123'},
                                 follow_redirects=False)
 

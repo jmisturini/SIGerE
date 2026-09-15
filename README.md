@@ -148,11 +148,11 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - Agrupamento de salas ocupadas por **andar** dentro de cada categoria do período
 - Alternância rápida de unidade por parâmetro (`?unity=<id>`) — uma TV por unidade
 
-### 🗓️ Calendário Interativo (`/calendar`)
-- Integração com **FullCalendar** (visões: dia, semana, mês)
-- Filtros por sala, professor, curso, disciplina e período (manhã/tarde/noite)
+### 🗓️ Calendário de Reservas (`/calendar`)
+- Filtros combináveis por data, sala, professor, curso, disciplina e período (manhã/tarde/noite)
+- Resultados em cartões agrupados por data e andar (térreo → andares superiores)
+- Cada cartão leva ao detalhe da reserva, com a cor da categoria da sala
 - API JSON (`/calendar/api/events`) com intervalo de datas obrigatório e filtros combináveis
-- Eventos coloridos com detalhes ao clicar (link para a reserva)
 - Adaptação automática ao tema claro/escuro
 
 ### 💰 Financeiro
@@ -196,6 +196,11 @@ Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora
 - **Interface em Português:** todo o sistema localizado para pt-BR
 - **Paginação** reutilizável em listagens (`_pagination.html`)
 
+### 🏷️ Versionamento e Novidades
+- **Numeração SemVer** (`MAJOR.MINOR.PATCH`) definida em `app/version.py` (`APP_VERSION`)
+- **Tela de novidades** (`/changelog`): histórico de versões no padrão *Keep a Changelog*, acessível pelo botão "Novidades" na home e pelo link `v<versão>` no rodapé
+- **Para publicar uma release:** atualize `APP_VERSION` e adicione a entrada correspondente no topo de `RELEASES` (em `app/version.py`)
+
 ---
 
 ## 🛠️ Tecnologias
@@ -205,7 +210,7 @@ Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora
 | **Backend** | Python 3.8+, Flask 3.x, Flask-SQLAlchemy, Flask-Login, Flask-WTF |
 | **Banco de Dados** | SQLite (padrão), compatível com PostgreSQL (driver incluído) |
 | **Migrações** | Flask-Migrate (Alembic) |
-| **Frontend** | Bootstrap 5, Bootstrap Icons, Jinja2, FullCalendar |
+| **Frontend** | Bootstrap 5, Bootstrap Icons, Jinja2 |
 | **Relatórios** | FPDF2 (PDF), OpenPyXL (Excel) |
 | **Rate limiting** | Flask-Limiter |
 | **Produção** | Gunicorn (WSGI) + Nginx (proxy/TLS) |
@@ -279,7 +284,7 @@ A aplicação estará disponível em: **http://localhost:5000**
 
 > **Nota:** o schema do banco é versionado com Flask-Migrate/Alembic (não é criado automaticamente no boot). O boot apenas avisa no terminal quando o banco está vazio ou fora do fluxo de migrações.
 
-> **Nota:** o comando `seed` cria sempre o administrador (`admin`/`admin123`) e, em seguida, **pergunta interativamente** se você quer popular dados de demonstração (responda `y` para receber também as contas `teacher1` e `employee1`). Veja detalhes em [Contas de Demonstração](#-contas-de-demonstração).
+> **Nota:** o comando `seed` cria sempre o administrador (`admin`/`admin123`) e, em seguida, **pergunta interativamente** se você quer popular dados de demonstração (responda `y` para receber também as contas `teacher1@school.edu` e `employee1@school.edu`). Veja detalhes em [Contas de Demonstração](#-contas-de-demonstração).
 
 > **Implantação real:** prefira o comando `flask --app run seed-admin` — cria **apenas** a conta do administrador (sem dados de demonstração) e **solicita que você defina a senha** no terminal (mínimo de 8 caracteres, digitação oculta).
 
@@ -598,7 +603,7 @@ SIGerE/
     │   ├── admin.py           # Painel admin (usuários, salas, categorias, cursos, feriados, papéis, unidades)
     │   ├── classrooms.py      # Salas: listagem, detalhes, disponibilidade e exportação
     │   ├── reservations.py    # Reservas: CRUD, aprovações, repetição, séries e conflitos
-    │   ├── schedule.py        # Calendário FullCalendar + API JSON de eventos
+    │   ├── schedule.py        # Calendário de reservas + API JSON de eventos
     │   ├── totem.py           # Display de quiosque para TVs
     │   ├── public.py          # Portal público (home, cronograma, busca de aula, busca geral)
     │   ├── api.py             # API REST de leitura de reservas para apps externos (/api/v1)
@@ -620,7 +625,7 @@ SIGerE/
         ├── cronograma.html    # Cronograma público do dia
         ├── buscar_aula.html   # Busca pública de aula do aluno
         ├── search.html        # Busca pública de salas/professores
-        ├── calendar.html      # Calendário FullCalendar
+        ├── calendar.html      # Calendário de reservas com filtros
         ├── totem.html         # Interface do quiosque
         ├── _pagination.html   # Macro de paginação reutilizável
         ├── _aula_macros.html  # Macros compartilhadas das telas de aula/cronograma
@@ -716,8 +721,8 @@ O valor completo do token é exibido **uma única vez** na geração (o banco gu
   "classroom": { "id": 7, "code": "S101", "name": "Sala 101", "building": "A",
                  "floor": "1º Andar", "capacity": 30, "category": "Sala de Aula" },
   "unity": { "id": 1, "code": "CTR", "name": "Unidade Centro" },
-  "created_by": { "id": 3, "username": "prof1", "full_name": "Prof. Um" },
-  "teacher": { "id": 5, "username": "prof5", "full_name": "Prof. Cinco" },
+  "created_by": { "id": 3, "email": "prof1@school.edu", "full_name": "Prof. Um" },
+  "teacher": { "id": 5, "email": "prof5@school.edu", "full_name": "Prof. Cinco" },
   "course": { "id": 2, "code": "INF", "name": "Informática" },
   "subject": { "id": 9, "code": "MAT", "name": "Matemática" },
   "reviewed_by": null,
@@ -736,11 +741,11 @@ A listagem usa um envelope com metadados: `unity_id`, `authenticated`, `page`, `
 
 O comando `flask --app run seed` sempre cria o administrador e, **interativamente**, pergunta se você quer popular dados de demonstração. Com a demonstração ativa, são criados: **3 unidades educacionais** (Centro, Norte e Sul), **100 usuários** (80 professores e 20 funcionários — dois deles também atuam como professores), **6 categorias de sala**, **29 salas**, **50 cursos**, **50 disciplinas**, **20 reservas** e lançamentos de hora extra. Todos os usuários de demonstração são distribuídos entre as unidades.
 
-| Perfil | Usuário | Senha | Permissões |
+| Perfil | E-mail (login) | Senha | Permissões |
 |--------|---------|-------|------------|
-| **Super Administrador** | `admin` | `admin123` | Acesso total ao sistema (criado sempre, mesmo sem demonstração) |
-| **Professor** | `teacher1` … `teacher80` | `teacher123` | Criar/editar/cancelar próprias reservas, visualizar salas e cursos |
-| **Assistente/Logística** | `employee1` … `employee20` | `employee123` | Criar/editar/cancelar próprias reservas, visualizar salas e cursos |
+| **Super Administrador** | `admin@school.edu` | `admin123` | Acesso total ao sistema (criado sempre, mesmo sem demonstração) |
+| **Professor** | `teacher1@school.edu` … `teacher80@school.edu` | `teacher123` | Criar/editar/cancelar próprias reservas, visualizar salas e cursos |
+| **Assistente/Logística** | `employee1@school.edu` … `employee20@school.edu` | `employee123` | Criar/editar/cancelar próprias reservas, visualizar salas e cursos |
 
 > ⚠️ **Atenção:** Por padrão, o sistema força a troca de senha no primeiro login. Para testes, as contas de demonstração já vêm com `force_password_change=False`.
 
@@ -757,17 +762,17 @@ Para conhecer/apresentar **cada parte do sistema** com dados realistas, use `fla
 - **Cozinha**: 2 preparações completas (uma com **escala de porções** salva e um ingrediente **inativo** fora da requisição de compra), com os `.docx` reais na pasta de uploads, e uma ficha **pendente** aguardando "Salvar Ficha Técnica";
 - **Token da API de reservas** com valor fixo para testar `/api/v1` sem gerar token no painel.
 
-| Perfil | Usuário | Senha | Observação |
+| Perfil | E-mail (login) | Senha | Observação |
 |--------|---------|-------|------------|
-| Super Administrador | `admin` | `demo1234` | Global, pode alternar unidades |
-| **Gestor** | `gestor.marina` | `demo1234` | Unidade Centro |
-| **Analista** | `analista.rafael` | `demo1234` | Unidade Centro |
-| **Professor** | `prof.ana` | `demo1234` | Gastronomia + papel adicional Módulo Cozinha |
-| **Professor** | `prof.bruno` | `demo1234` | Informática (dono da série de aulas) |
-| **Professor inativo** | `prof.elisa` | `demo1234` | Login recusado (conta desativada) |
-| **Professor** | `prof.felipe` | `demo1234` | Força troca de senha no primeiro login |
-| **Assistente/Logística** | `func.juliana` | `demo1234` | Unidade Centro |
-| **Assistente que leciona** | `func.marcos` | `demo1234` | "Também atuar como professor" |
+| Super Administrador | `admin@school.edu` | `demo1234` | Global, pode alternar unidades |
+| **Gestor** | `gestor.marina@demo.edu.br` | `demo1234` | Unidade Centro |
+| **Analista** | `analista.rafael@demo.edu.br` | `demo1234` | Unidade Centro |
+| **Professor** | `prof.ana@demo.edu.br` | `demo1234` | Gastronomia + papel adicional Módulo Cozinha |
+| **Professor** | `prof.bruno@demo.edu.br` | `demo1234` | Informática (dono da série de aulas) |
+| **Professor inativo** | `prof.elisa@demo.edu.br` | `demo1234` | Login recusado (conta desativada) |
+| **Professor** | `prof.felipe@demo.edu.br` | `demo1234` | Força troca de senha no primeiro login |
+| **Assistente/Logística** | `func.juliana@demo.edu.br` | `demo1234` | Unidade Centro |
+| **Assistente que leciona** | `func.marcos@demo.edu.br` | `demo1234` | "Também atuar como professor" |
 | Token da API | — | — | `Authorization: Bearer sige_demo_token_de_demonstracao_troque_em_producao` |
 
 > ⚠️ **Atenção:** contas e token de demonstração **nunca** em produção — lá use `seed-admin`.

@@ -142,12 +142,9 @@ def create_teacher():
     form.unity_id.choices = _unity_choices()
     if not form.unity_id.data:
         form.unity_id.data = current_unity_id()
-    # O nome de usuário é a parte anterior ao @ do e-mail informado.
-    if request.method == 'POST':
-        form.username.data = (request.form.get('email') or '').strip().split('@')[0]
     if form.validate_on_submit():
         user = User(
-            username=form.username.data, email=form.email.data, full_name=form.full_name.data,
+            email=form.email.data, full_name=form.full_name.data,
             role='room', department=form.department.data, registration=form.registration.data,
             profile_type='teacher', is_active_user=form.is_active_user.data,
             unity_id=form.unity_id.data, role_id=form.role_id.data
@@ -171,12 +168,9 @@ def create_employee():
     form.unity_id.choices = _unity_choices()
     if not form.unity_id.data:
         form.unity_id.data = current_unity_id()
-    # O nome de usuário é a parte anterior ao @ do e-mail informado.
-    if request.method == 'POST':
-        form.username.data = (request.form.get('email') or '').strip().split('@')[0]
     if form.validate_on_submit():
         user = User(
-            username=form.username.data, email=form.email.data, full_name=form.full_name.data,
+            email=form.email.data, full_name=form.full_name.data,
             role='viewer', sector=form.sector.data, function=form.function.data,
             registration=form.registration.data, profile_type='employee', is_teacher=form.is_teacher.data,
             is_active_user=form.is_active_user.data,
@@ -214,7 +208,6 @@ def edit_user(user_id):
         if user.id == current_user.id and form.is_active_user.data == False:
             flash('Você não pode desativar sua própria conta.', 'danger')
         else:
-            user.username = form.username.data
             user.email = form.email.data
             user.full_name = form.full_name.data
             user.registration = form.registration.data

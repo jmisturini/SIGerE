@@ -22,7 +22,7 @@ from app.config import Config
 from app.extensions import db
 from app.models import Permission, Role, TeacherOvertimePay, Unity, User
 
-USERNAME = 'financeiro.teste'
+EMAIL = 'financeiro@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -68,19 +68,19 @@ class PaymentsTestCase(unittest.TestCase):
             db.session.flush()
 
             manager = User(
-                username=USERNAME, email='financeiro@escola.edu', full_name='Financeiro Teste',
+                email='financeiro@escola.edu', full_name='Financeiro Teste',
                 role='room', profile_type='employee', unity_id=self.unity.id,
                 role_id=role.id, force_password_change=False, is_active_user=True,
             )
             manager.set_password(PASSWORD)
             teacher = User(
-                username='prof.teste', email='prof@escola.edu', full_name='Professora Teste',
+                email='prof@escola.edu', full_name='Professora Teste',
                 role='viewer', profile_type='teacher', unity_id=self.unity.id,
                 force_password_change=False, is_active_user=True,
             )
             teacher.set_password(PASSWORD)
             other_teacher = User(
-                username='prof.outro', email='prof2@escola.edu', full_name='Outro Professor',
+                email='prof2@escola.edu', full_name='Outro Professor',
                 role='viewer', profile_type='teacher', unity_id=self.unity.id,
                 force_password_change=False, is_active_user=True,
             )
@@ -102,7 +102,7 @@ class PaymentsTestCase(unittest.TestCase):
                 os.remove(path)
 
     def _login(self):
-        response = self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+        response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 

@@ -15,7 +15,7 @@ from app.extensions import db
 from app.models import (ApiToken, Classroom, Permission, Reservation, Role,
                         RoomCategory, Unity, User)
 
-USERNAME = 'admin.teste'
+EMAIL = 'admin@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 TOKEN_RE = re.compile(r'id="tokenValor" value="([^"]+)"')
@@ -49,14 +49,14 @@ class ApiTokensAdminTestCase(unittest.TestCase):
             db.session.add(sem_role)
             db.session.flush()
 
-            self.admin = User(username=USERNAME, email='admin@escola.edu',
+            self.admin = User(email='admin@escola.edu',
                               full_name='Admin Teste', role='admin',
                               profile_type='employee', role_id=super_role.id,
                               force_password_change=False, is_active_user=True)
             self.admin.set_password(PASSWORD)
             db.session.add(self.admin)
 
-            self.sem_permissao = User(username='sem.teste', email='sem@escola.edu',
+            self.sem_permissao = User(email='sem@escola.edu',
                                       full_name='Sem Permissão', role='viewer',
                                       profile_type='employee', role_id=sem_role.id,
                                       force_password_change=False, is_active_user=True)
@@ -95,9 +95,9 @@ class ApiTokensAdminTestCase(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
-    def _login(self, username=USERNAME, password=PASSWORD):
+    def _login(self, email=EMAIL, password=PASSWORD):
         response = self.client.post('/login',
-                                    data={'username': username, 'password': password},
+                                    data={'email': email, 'password': password},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 
@@ -107,7 +107,7 @@ class ApiTokensAdminTestCase(unittest.TestCase):
         self.assertIn('Tokens da API', response.get_data(as_text=True))
 
         outro = self.app.test_client()
-        outro.post('/login', data={'username': 'sem.teste', 'password': 'SenhaForte456'},
+        outro.post('/login', data={'email': 'sem@escola.edu', 'password': 'SenhaForte456'},
                    follow_redirects=True)
         response = outro.get('/admin/api-tokens')
         self.assertEqual(response.status_code, 403)

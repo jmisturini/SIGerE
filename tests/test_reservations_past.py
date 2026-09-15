@@ -16,7 +16,7 @@ from app.extensions import db
 from app.models import (Classroom, Permission, Reservation, Role, RoomCategory,
                         Unity, User)
 
-USERNAME = 'admin.teste'
+EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -55,7 +55,7 @@ class ReservationsPastTestCase(unittest.TestCase):
             db.session.flush()
 
             user = User(
-                username=USERNAME, email='gestor@escola.edu', full_name='Gestor Teste',
+                email='gestor@escola.edu', full_name='Gestor Teste',
                 role='room', profile_type='employee', unity_id=self.unity.id,
                 role_id=role.id, force_password_change=False, is_active_user=True,
             )
@@ -99,7 +99,7 @@ class ReservationsPastTestCase(unittest.TestCase):
                 os.remove(path)
 
     def _login(self):
-        response = self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+        response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 

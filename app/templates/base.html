@@ -292,7 +292,9 @@
         </div>
 
         <footer class="footer">
-            &copy; {{ now.year }} SIGerE
+            &copy; {{ now.year }} SIGerE ·
+            <a href="{{ url_for('main.changelog') }}"
+               title="Novidades desta versão">v{{ app_version }}</a>
         </footer>
     </div>
 </div>

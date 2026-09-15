@@ -313,7 +313,7 @@ def _seed_admin(password='admin123'):
     super_admin_role = Role.query.filter_by(name='super_admin').first()
 
     admin = User(
-        username='admin', email='admin@school.edu',
+        email='admin@school.edu',
         full_name='Administrador do Sistema', role='admin',
         department='Administration', profile_type='employee',
         force_password_change=False,
@@ -334,7 +334,7 @@ def seed_admin_command():
     e o usuário 'admin' — sem nenhum dado de demonstração — com a senha
     definida interativamente (mínimo de 8 caracteres, digitação oculta).
     """
-    if User.query.filter_by(username='admin').first() is not None:
+    if User.query.filter_by(email='admin@school.edu').first() is not None:
         click.echo(click.style(
             "⚠️  A conta 'admin' já existe. Nada foi alterado.",
             fg="yellow"
@@ -361,8 +361,8 @@ def seed_admin_command():
         _seed_admin(password=password)
         db.session.commit()
         click.echo(click.style(
-            "✅ Administrador criado com sucesso! Faça login com o usuário 'admin' "
-            "e a senha que você definiu.", fg="green", bold=True
+            "✅ Administrador criado com sucesso! Faça login com o e-mail "
+            "'admin@school.edu' e a senha que você definiu.", fg="green", bold=True
         ))
     except Exception as exc:
         db.session.rollback()
@@ -475,7 +475,7 @@ def _seed_demo_data():
 
     teacher_role = Role.query.filter_by(name='teacher').first()
     employee_role = Role.query.filter_by(name='employee').first()
-    admin = User.query.filter_by(username='admin').first()
+    admin = User.query.filter_by(email='admin@school.edu').first()
 
     # 0. Unidades educacionais de demonstração
     unity_names = [("Unidade Centro", "CTR"), ("Unidade Norte", "NOR"), ("Unidade Sul", "SUL")]
@@ -517,7 +517,6 @@ def _seed_demo_data():
         lname = random.choice(last_names)
         is_teacher_flag = (i in [1, 2])
         e = User(
-            username=f"employee{i}",
             email=f"employee{i}@school.edu",
             full_name=f"{fname} {lname}",
             role='room' if is_teacher_flag else 'viewer',
@@ -541,7 +540,6 @@ def _seed_demo_data():
         fname = random.choice(first_names)
         lname = random.choice(last_names)
         t = User(
-            username=f"teacher{i}",
             email=f"teacher{i}@school.edu",
             full_name=f"{fname} {lname}",
             role='room',

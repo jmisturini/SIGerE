@@ -94,7 +94,8 @@ class BaseForm(FlaskForm):
 # =============================================================================
 
 class LoginForm(BaseForm):
-    username = StringField('Nome de Usuário', validators=[DataRequired(), Length(max=64)])
+    # O e-mail é o identificador de login (não há username no sistema).
+    email = StringField('E-mail', validators=[DataRequired(), Length(max=120)])
     password = PasswordField('Senha', validators=[DataRequired()])
     submit = SubmitField('Entrar')
 
@@ -111,7 +112,6 @@ class ChangePasswordForm(BaseForm):
 # =============================================================================
 
 class TeacherForm(BaseForm):
-    username = StringField('Nome de Usuário', validators=[DataRequired(), Length(min=3, max=64)])
     email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
     full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
     registration = StringField('Matrícula / ID do Professor', validators=[DataRequired(message='Informe a matrícula/ID do professor.'), Length(max=50)])
@@ -128,7 +128,7 @@ class TeacherForm(BaseForm):
         super(TeacherForm, self).__init__(*args, **kwargs)
         # CORREÇÃO: _obj_id pode vir como kwarg explícito (obj_id=user.id) ou ser extraído
         # do objeto passado via obj=user. Sem isso, _obj_id era sempre None em edições,
-        # causando falsa detecção de duplicidade nas validações de username/email/registration.
+        # causando falsa detecção de duplicidade nas validações de email/registration.
         obj = kwargs.get('obj', None)
         self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
         # Senha obrigatória apenas na criação (sem obj_id). NÃO usar
@@ -143,15 +143,6 @@ class TeacherForm(BaseForm):
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
             raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
-    def validate_username(self, field):
-        # CORREÇÃO: regex anterior barrava usernames com números ou underscore (ex: joao_silva, prof2).
-        # Username agora aceita letras, números, underscore e espaços.
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9_.\-\s]+$', field.data):
-            raise ValidationError('Nome de Usuário deve conter apenas letras, números, ponto, hífen e underscore.')
-        existing = User.query.filter_by(username=field.data).first()
-        if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Este nome de usuário já está em uso.')
 
     def validate_email(self, field):
         existing = User.query.filter_by(email=field.data).first()
@@ -176,7 +167,6 @@ class TeacherForm(BaseForm):
 # =============================================================================
 
 class EmployeeForm(BaseForm):
-    username = StringField('Nome de Usuário', validators=[DataRequired(), Length(min=3, max=64)])
     email = StringField('E-mail', validators=[DataRequired(), Email(), Length(max=120)])
     full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
     registration = StringField('Matrícula / ID do Funcionário', validators=[DataRequired(message='Informe a matrícula/ID do funcionário.'), Length(max=50)])
@@ -209,15 +199,6 @@ class EmployeeForm(BaseForm):
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
             raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
-    def validate_username(self, field):
-        # CORREÇÃO: regex anterior barrava usernames com números ou underscore (ex: joao_silva, func2).
-        # Username agora aceita letras, números, underscore e espaços.
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ0-9_.\-\s]+$', field.data):
-            raise ValidationError('Nome de Usuário deve conter apenas letras, números, ponto, hífen e underscore.')
-        existing = User.query.filter_by(username=field.data).first()
-        if existing and existing.id != getattr(self, '_obj_id', None):
-            raise ValidationError('Este nome de usuário já está em uso.')
 
     def validate_email(self, field):
         existing = User.query.filter_by(email=field.data).first()

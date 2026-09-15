@@ -147,7 +147,8 @@ def _classroom_brief(classroom):
 def _person(user):
     if user is None:
         return None
-    return {'id': user.id, 'username': user.username, 'full_name': user.full_name}
+    # O e-mail é o identificador de login (não há mais username).
+    return {'id': user.id, 'email': user.email, 'full_name': user.full_name}
 
 
 def _reservation_public(reservation):

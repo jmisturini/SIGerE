@@ -16,7 +16,7 @@ from app.extensions import db
 from app.models import (Classroom, Course, Holiday, Permission, Role,
                         RoomCategory, Subject, Unity, User)
 
-USERNAME = 'super.teste'
+EMAIL = 'super@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -47,7 +47,7 @@ class SetupChecklistTestCase(unittest.TestCase):
             db.session.flush()
 
             user = User(
-                username=USERNAME, email='super@escola.edu', full_name='Super Teste',
+                email='super@escola.edu', full_name='Super Teste',
                 role='admin', profile_type='employee', role_id=role.id,
                 force_password_change=False, is_active_user=True,
             )
@@ -67,7 +67,7 @@ class SetupChecklistTestCase(unittest.TestCase):
                 os.remove(path)
 
     def _login(self):
-        response = self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+        response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 
@@ -112,10 +112,10 @@ class SetupChecklistTestCase(unittest.TestCase):
             db.session.flush()
             db.session.add(Classroom(name='Sala 1', code='S1', capacity=30,
                                      unity_id=unity.id, category_id=category.id))
-            teacher = User(username='prof.x', email='p@x.edu', full_name='Prof X',
+            teacher = User(email='p@x.edu', full_name='Prof X',
                            role='viewer', profile_type='teacher', unity_id=unity.id)
             teacher.set_password('SenhaForte123')
-            employee = User(username='func.x', email='f@x.edu', full_name='Func X',
+            employee = User(email='f@x.edu', full_name='Func X',
                             role='viewer', profile_type='employee', unity_id=unity.id)
             employee.set_password('SenhaForte123')
             db.session.add_all([teacher, employee])
@@ -139,7 +139,7 @@ class SetupChecklistTestCase(unittest.TestCase):
             role = Role(name='gestor-comum', label='Gestor Comum', permissions=[perm])
             db.session.add(role)
             db.session.flush()
-            user = User(username='gestor.comum', email='g@escola.edu',
+            user = User(email='g@escola.edu',
                         full_name='Gestor Comum', role='room',
                         profile_type='employee', role_id=role.id,
                         force_password_change=False, is_active_user=True)
@@ -148,7 +148,7 @@ class SetupChecklistTestCase(unittest.TestCase):
             db.session.commit()
 
         self.client.get('/logout')
-        self.client.post('/login', data={'username': 'gestor.comum',
+        self.client.post('/login', data={'email': 'g@escola.edu',
                                          'password': 'SenhaForte123'},
                          follow_redirects=True)
         page = self.client.get('/admin/').get_data(as_text=True)

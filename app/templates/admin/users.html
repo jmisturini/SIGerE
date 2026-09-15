@@ -51,7 +51,7 @@
                         <th class="ps-4">Nome</th>
                         <th>Tipo</th>
                         <th>Matrícula</th>
-                        <th>Usuário</th>
+                        <th>E-mail</th>
                         <th>Setor / Dept</th>
                         <th>Papel</th>
                         <th>Status</th>
@@ -73,7 +73,7 @@
                             {% endif %}
                         </td>
                         <td>{{ u.registration or '-' }}</td>
-                        <td>{{ u.username }}</td>
+                        <td>{{ u.email }}</td>
                         <td>
                             {{ u.sector or u.department or '-' }}
                             {% if u.function %}<br><small class="text-muted">{{ u.function }}</small>{% endif %}

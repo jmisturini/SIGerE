@@ -123,6 +123,12 @@ def create_app(config_class=Config):
     def inject_now():
         return {'now': datetime.now()}
 
+    # Versão da aplicação (rodapé e tela de novidades) — app/version.py
+    @app.context_processor
+    def inject_app_version():
+        from app.version import APP_VERSION
+        return {'app_version': APP_VERSION}
+
     # Coordenadas do clima (totem/portal): preferem a localização da unidade
     # ativa (cada unidade tem a sua, editável no painel) e caem para as
     # globais do Config quando a unidade não tem coordenadas próprias.

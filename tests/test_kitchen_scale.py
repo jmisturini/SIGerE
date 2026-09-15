@@ -18,7 +18,7 @@ from app.extensions import db
 from app.models import (KitchenPreparation, KitchenRecipe, KitchenRecipeIngredient,
                         Permission, Role, Unity, User)
 
-USERNAME = 'cozinha.teste'
+EMAIL = 'cozinha@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -54,7 +54,7 @@ class KitchenScaleTestCase(unittest.TestCase):
             db.session.flush()
 
             user = User(
-                username=USERNAME, email='cozinha@escola.edu', full_name='Cozinheiro Teste',
+                email='cozinha@escola.edu', full_name='Cozinheiro Teste',
                 role='room', profile_type='employee', unity_id=self.unity.id,
                 role_id=role.id, force_password_change=False, is_active_user=True,
             )
@@ -85,7 +85,7 @@ class KitchenScaleTestCase(unittest.TestCase):
                 os.remove(path)
 
     def _login(self):
-        response = self.client.post('/login', data={'username': USERNAME, 'password': PASSWORD},
+        response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 

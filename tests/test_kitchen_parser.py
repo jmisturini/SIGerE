@@ -23,7 +23,7 @@ from app.models import (KitchenRecipe, Permission, Role, TechnicalSheet,
 
 W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 
-USERNAME = 'cozinha.teste'
+EMAIL = 'cozinha@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -195,7 +195,7 @@ class KitchenSheetFlowTestCase(unittest.TestCase):
             db.session.flush()
 
             user = User(
-                username=USERNAME, email='cozinha@escola.edu', full_name='Cozinheiro Teste',
+                email='cozinha@escola.edu', full_name='Cozinheiro Teste',
                 role='room', profile_type='employee', unity_id=self.unity.id,
                 role_id=role.id, force_password_change=False, is_active_user=True,
             )
@@ -204,7 +204,7 @@ class KitchenSheetFlowTestCase(unittest.TestCase):
             db.session.commit()
 
         response = self.client.post('/login',
-                                    data={'username': USERNAME, 'password': PASSWORD},
+                                    data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 

@@ -371,8 +371,8 @@ sudo certbot renew --dry-run
 
 ## 9. Primeiro acesso e configuração inicial
 
-1. Acesse `https://sigere.sua-instituicao.edu.br/login` com o usuário `admin`
-   e a senha definida no `seed-admin`.
+1. Acesse `https://sigere.sua-instituicao.edu.br/login` com o e-mail
+   `admin@school.edu` e a senha definida no `seed-admin`.
 2. O painel do super-admin exibe o **checklist de configuração inicial** —
    cada passo confere dados reais do banco e some quando completo:
    unidade, categorias, salas, professores, funcionários, cursos/disciplinas

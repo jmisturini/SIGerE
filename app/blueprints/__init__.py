@@ -5,7 +5,7 @@
 - classrooms   Salas (listagem, detalhes, disponibilidade)
 - reservations Reservas (CRUD, aprovações, repetição, conflitos)
 - admin        Painel administrativo
-- schedule     API JSON para o FullCalendar
+- schedule     Calendário de reservas e API JSON de eventos
 - totem        Display de quiosque para TVs
 - public       Portal público (home, busca)
 - payments     Pagamentos docentes (hora extra)

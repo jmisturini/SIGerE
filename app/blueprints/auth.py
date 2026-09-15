@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
+from sqlalchemy import func
 from urllib.parse import urlparse
 from app.models import User
 from app.forms import LoginForm, ChangePasswordForm
@@ -17,7 +18,10 @@ def login():
         
     form = LoginForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
+        # Login pelo e-mail; comparação sem diferenciar maiúsculas/minúsculas
+        # para não bloquear quem digitar o e-mail com caixa diferente.
+        email = form.email.data.strip().lower()
+        user = User.query.filter(func.lower(User.email) == email).first()
         
         # Verify user exists and password is correct
         if user and user.check_password(form.password.data):
@@ -36,7 +40,7 @@ def login():
                 next_page = None
             return redirect(next_page or url_for('main.index'))
             
-        flash('Nome de usuário ou senha inválidos.', 'danger')
+        flash('E-mail ou senha inválidos.', 'danger')
     return render_template('auth/login.html', form=form)
 
 # Route to force password change on first login

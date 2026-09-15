@@ -87,9 +87,9 @@ class UnityModulesTestCase(unittest.TestCase):
             self.beta = unity('Unidade Beta', 'BET', finance=False)
             db.session.flush()
 
-            def user(username, role, unity_obj=None):
-                u = User(username=username, email=f'{username}@escola.edu',
-                         full_name=username.title(), role='viewer',
+            def user(ident, role, unity_obj=None):
+                u = User(email=f'{ident}@escola.edu',
+                         full_name=ident.title(), role='viewer',
                          profile_type='employee', role_id=role.id,
                          unity_id=unity_obj.id if unity_obj else None,
                          force_password_change=False, is_active_user=True)
@@ -121,12 +121,12 @@ class UnityModulesTestCase(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
-    def _login(self, username, password=PASSWORD):
+    def _login(self, ident, password=PASSWORD):
         # Desloga primeiro: o POST /login de uma sessão já autenticada é
         # redirecionado sem trocar o usuário da sessão
         self.client.get('/logout')
         response = self.client.post('/login',
-                                    data={'username': username, 'password': password},
+                                    data={'email': f'{ident}@escola.edu', 'password': password},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 

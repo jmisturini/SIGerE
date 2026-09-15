@@ -16,7 +16,7 @@ from app.config import Config
 from app.extensions import db
 from app.models import Permission, Role, Unity, User
 
-USERNAME = 'super.teste'
+EMAIL = 'super@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -189,20 +189,20 @@ class UnidadesSyncRouteTestCase(unittest.TestCase):
             db.session.add_all([role_super, role_leitura])
             db.session.flush()
             super_user = User(
-                username=USERNAME, email='super@escola.edu', full_name='Super Teste',
+                email='super@escola.edu', full_name='Super Teste',
                 role='admin', profile_type='employee', role_id=role_super.id,
                 force_password_change=False, is_active_user=True,
             )
             super_user.set_password(PASSWORD)
             leitor = User(
-                username='leitor.teste', email='leitor@escola.edu', full_name='Leitor',
+                email='leitor@escola.edu', full_name='Leitor',
                 role='gestor', profile_type='employee', role_id=role_leitura.id,
                 force_password_change=False, is_active_user=True,
             )
             leitor.set_password(PASSWORD)
             db.session.add_all([super_user, leitor])
             db.session.commit()
-        self._login(USERNAME, PASSWORD)
+        self._login(EMAIL, PASSWORD)
 
     def tearDown(self):
         with self.app.app_context():
@@ -213,8 +213,8 @@ class UnidadesSyncRouteTestCase(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
-    def _login(self, username, password):
-        response = self.client.post('/login', data={'username': username, 'password': password},
+    def _login(self, email, password):
+        response = self.client.post('/login', data={'email': email, 'password': password},
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 
@@ -243,7 +243,7 @@ class UnidadesSyncRouteTestCase(unittest.TestCase):
     def test_sync_exige_permissao_de_criar_unidade(self):
         # /login não troca de usuário com sessão ativa — deslogar primeiro.
         self.client.get('/logout')
-        self._login('leitor.teste', PASSWORD)
+        self._login('leitor@escola.edu', PASSWORD)
         response = self.client.post('/admin/unities/sync')
         self.assertEqual(response.status_code, 403)
 
