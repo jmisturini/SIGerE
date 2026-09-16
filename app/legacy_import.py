@@ -316,6 +316,10 @@ def import_legacy(dump_path, force=False):
                     password_hash=None, password_ok=False, date_joined=None):
         full_name = f"{(first_name or '').strip()} {(last_name or '').strip()}".strip() or username
         email = _norm_email(email, f"{username}@sem-email.legado")
+        # Regra do quadro: com setor/departamento/função preenchidos o cadastro
+        # é de funcionário — quem leciona segue designável via is_teacher.
+        # Só é professor quem não tem nenhum vínculo administrativo.
+        tem_lotacao = bool(department or sector or function)
         user = User(
             email=email,
             full_name=full_name,
@@ -325,7 +329,7 @@ def import_legacy(dump_path, force=False):
             sector=sector,
             function=function,
             registration=str(registration) if registration and registration not in seen_regs else None,
-            profile_type="teacher" if is_teacher else "employee",
+            profile_type="teacher" if (is_teacher and not tem_lotacao) else "employee",
             is_teacher=is_teacher,
             unity_id=unity.id if unity else None,
             is_active_user=bool(is_active),
@@ -378,9 +382,15 @@ def import_legacy(dump_path, force=False):
         pw_hash, pw_ok = _transcode_password(r["password"])
         reg = int(r["registration"]) if r["registration"] else None
         gnames = groups_by_user.get(r["id"], set())
-        is_teacher_profile = functions.get(r["function_id"], "").lower().startswith("prof")
+        department = cores.get(r["core_id"])
+        sector = sectors.get(r["sector_id"])
+        function = functions.get(r["function_id"])
+        is_teacher_profile = (function or "").lower().startswith("prof")
         role_name = role_for_customuser(r, gnames)
-        if role_name == "employee" and is_teacher_profile:
+        # Regra do quadro: com setor/departamento/função preenchidos o perfil
+        # é de funcionário — o papel 'teacher' só entra para quem não tem
+        # nenhum vínculo administrativo.
+        if role_name == "employee" and is_teacher_profile and not (department or sector or function):
             role_name = "teacher"
         u = create_user(
             registration=reg,
@@ -389,9 +399,9 @@ def import_legacy(dump_path, force=False):
             is_active=r["is_active"] == "1",
             role_name=role_name,
             is_teacher=is_teacher_profile,
-            department=cores.get(r["core_id"]),
-            sector=sectors.get(r["sector_id"]),
-            function=functions.get(r["function_id"]),
+            department=department,
+            sector=sector,
+            function=function,
             unity=unity_for(r["unit_id"]),
             password_hash=pw_hash, password_ok=pw_ok,
             date_joined=_legacy_date(r["date_joined"]),
@@ -405,12 +415,15 @@ def import_legacy(dump_path, force=False):
         reg = int(r["registration"])
         existing = users_by_reg.get(reg)
         if existing is not None:
-            # mesma pessoa: apenas marca perfil docente (dados do customuser prevalecem)
-            existing.profile_type = "teacher"
+            # mesma pessoa: os dados do quadro (customuser) prevalecem. Com
+            # setor/departamento/função preenchidos o perfil segue de
+            # funcionário; is_teacher=True preserva a designação em reservas.
             existing.is_teacher = True
-            if existing.role not in ("admin", "super_admin"):
-                existing.role = "teacher"
-                existing.role_id = roles["teacher"].id
+            if not (existing.department or existing.sector or existing.function):
+                existing.profile_type = "teacher"
+                if existing.role not in ("admin", "super_admin"):
+                    existing.role = "teacher"
+                    existing.role_id = roles["teacher"].id
             users_by_old[("tu", reg)] = existing
             continue
         u = create_user(
