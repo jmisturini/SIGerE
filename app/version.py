@@ -10,12 +10,22 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.3.0'
+APP_VERSION = '1.3.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.3.1',
+        'data': '2026-09-16',
+        'titulo': 'Busca limpa nas caixas de seleção',
+        'grupos': [
+            ('Corrigido', [
+                'Ao digitar para buscar em uma caixa de seleção simples, o texto do item selecionado não fica mais preso ao lado da busca — só o que está sendo digitado aparece; ao fechar, o item volta ao normal.',
+            ]),
+        ],
+    },
     {
         'versao': '1.3.0',
         'data': '2026-09-16',

@@ -527,6 +527,13 @@ h1, h2, h3, h4, h5, h6 {
     z-index: 1060;
 }
 
+/* Ao digitar na busca de um select simples (dropdown aberto), o item
+   selecionado some — só o texto digitado aparece. O tema bootstrap5 deixa
+   os dois visíveis ao mesmo tempo. Ao fechar, o item volta ao normal. */
+.ts-wrapper.single.dropdown-active .ts-control > .item {
+    display: none;
+}
+
 [data-theme="dark"] .ts-wrapper .ts-control {
     background-color: #0d1117;
     border: 1px solid #30363d;
