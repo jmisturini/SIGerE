@@ -3,14 +3,24 @@
 {% block title %}Gerenciar Usuários{% endblock %}
 
 {% block content %}
+{% set args_alternar = request.args.to_dict() %}
+{% set _ = args_alternar.update({'inativos': '0' if mostrar_inativos else '1'}) %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
         <h3 class="fw-bold mb-1">Gerenciar Usuários</h3>
         <p class="text-muted mb-0">Visualize, edite e gerencie contas de professores e funcionários.</p>
     </div>
-    <a class="btn btn-primary" href="{{ url_for('admin.create_user', **request.args.to_dict()) }}">
-        <i class="bi bi-plus-lg me-1"></i> Cadastrar Usuário
-    </a>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn {{ 'btn-outline-secondary' if mostrar_inativos else 'btn-outline-secondary border-dashed' }}"
+           href="{{ url_for('admin.list_users', **args_alternar) }}"
+           title="{{ 'Ocultar as contas desativadas da listagem' if mostrar_inativos else 'Exibir também as contas desativadas' }}">
+            <i class="bi {{ 'bi-eye-slash' if mostrar_inativos else 'bi-eye' }} me-1"></i>
+            {{ 'Esconder desativados' if mostrar_inativos else 'Mostrar desativados' }}
+        </a>
+        <a class="btn btn-primary" href="{{ url_for('admin.create_user', **request.args.to_dict()) }}">
+            <i class="bi bi-plus-lg me-1"></i> Cadastrar Usuário
+        </a>
+    </div>
 </div>
 
 <form method="GET" class="card mb-4">
@@ -28,6 +38,7 @@
                     <option value="employee" {{ 'selected' if filter_type == 'employee' }}>Funcionário</option>
                 </select>
             </div>
+            <input type="hidden" name="inativos" value="{{ '1' if mostrar_inativos else '0' }}">
             <div class="col-md-3 d-flex gap-2">
                 <button type="submit" class="btn btn-outline-primary flex-grow-1"><i class="bi bi-funnel me-1"></i> Filtrar</button>
                 <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline-secondary flex-grow-1" title="Limpar filtros"><i class="bi bi-eraser"></i></a>

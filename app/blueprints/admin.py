@@ -116,9 +116,14 @@ def dashboard():
 def list_users():
     search_name = request.args.get('name', '')
     filter_type = request.args.get('type', '')
+    # Botão mostrar/esconder desativados: por padrão a listagem exibe apenas
+    # as contas ativas (?inativos=1 revela também as desativadas).
+    mostrar_inativos = request.args.get('inativos') == '1'
 
     # Multi-unidade: usuários da unidade ativa + contas globais (sem unidade)
     query = User.query.filter((User.unity_id == current_unity_id()) | (User.unity_id.is_(None)))
+    if not mostrar_inativos:
+        query = query.filter(User.is_active_user == True)
     if search_name:
         query = query.filter(User.full_name.ilike(f'%{search_name}%'))
     if filter_type in ['teacher', 'employee']:
@@ -130,7 +135,8 @@ def list_users():
     # users: Pagination (iterável) usado pela tabela; pagination: mesmo objeto
     # para os controles de página do template.
     return render_template('admin/users.html', users=users, pagination=users,
-                           search_name=search_name, filter_type=filter_type)
+                           search_name=search_name, filter_type=filter_type,
+                           mostrar_inativos=mostrar_inativos)
 
 _PERFIL_LABEL = {'teacher': 'Professor', 'employee': 'Funcionário'}
 

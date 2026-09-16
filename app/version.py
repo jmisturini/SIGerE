@@ -10,12 +10,22 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.5.1'
+APP_VERSION = '1.5.2'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.5.2',
+        'data': '2026-09-16',
+        'titulo': 'Mostrar/esconder desativados na listagem de usuários',
+        'grupos': [
+            ('Adicionado', [
+                'Botão na página Gerenciar Usuários para exibir ou ocultar as contas desativadas — por padrão a listagem mostra apenas as contas ativas, e o estado persiste ao filtrar e paginar.',
+            ]),
+        ],
+    },
     {
         'versao': '1.5.1',
         'data': '2026-09-16',

@@ -343,5 +343,76 @@ class UserRegistrationTestCase(unittest.TestCase):
             self.assertIsNone(user.sector)
 
 
+class UsersListVisibilityTestCase(unittest.TestCase):
+    """Botão mostrar/esconder desativados na listagem de usuários."""
+
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        TestConfig.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + self.db_path.replace('\\', '/')
+
+        self.app = create_app(TestConfig)
+        self.app.config['SESSION_COOKIE_SECURE'] = False
+        self.client = self.app.test_client()
+
+        with self.app.app_context():
+            db.create_all()
+            self.unity = Unity(name='Unidade Teste', code='UT')
+            db.session.add(self.unity)
+            db.session.flush()
+
+            perm = Permission(code='user:read', module='user', action='read')
+            db.session.add(perm)
+            role = Role(name='leitor', label='Leitor de Usuários', permissions=[perm])
+            db.session.add(role)
+            db.session.flush()
+
+            gestor = User(email=EMAIL, full_name='Gestor Teste', role='room',
+                          profile_type='employee', unity_id=self.unity.id,
+                          role_id=role.id, force_password_change=False,
+                          is_active_user=True)
+            gestor.set_password(PASSWORD)
+            ativo = User(email='ativo@escola.edu', full_name='Ativo Silva', role='room',
+                         profile_type='employee', unity_id=self.unity.id,
+                         force_password_change=False, is_active_user=True)
+            ativo.set_password(PASSWORD)
+            inativo = User(email='inativo@escola.edu', full_name='Inativo Costa', role='room',
+                           profile_type='employee', unity_id=self.unity.id,
+                           force_password_change=False, is_active_user=False)
+            inativo.set_password(PASSWORD)
+            db.session.add_all([gestor, ativo, inativo])
+            db.session.commit()
+
+        response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
+                                    follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+
+    def tearDown(self):
+        with self.app.app_context():
+            db.session.remove()
+            db.engine.dispose()
+        for suffix in ('', '-wal', '-shm'):
+            path = self.db_path + suffix
+            if os.path.exists(path):
+                os.remove(path)
+
+    def test_desativados_ocultos_por_padrao(self):
+        page = self.client.get('/admin/users').get_data(as_text=True)
+        self.assertIn('Ativo Silva', page)
+        self.assertNotIn('Inativo Costa', page)
+        self.assertIn('Mostrar desativados', page)
+
+    def test_alternar_exibe_desativados(self):
+        page = self.client.get('/admin/users?inativos=1').get_data(as_text=True)
+        self.assertIn('Inativo Costa', page)
+        self.assertIn('Ativo Silva', page)
+        self.assertIn('Esconder desativados', page)
+
+    def test_alternacao_preserva_filtros(self):
+        page = self.client.get('/admin/users?name=Silva').get_data(as_text=True)
+        self.assertIn('inativos=1', page)
+        self.assertIn('name=Silva', page)
+
+
 if __name__ == '__main__':
     unittest.main()
