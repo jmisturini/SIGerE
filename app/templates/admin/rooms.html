@@ -12,6 +12,18 @@
     </a>
 </div>
 
+<form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <label class="form-label small fw-bold text-muted mb-0" for="ordem-sala">Ordenar por</label>
+    <select name="ordem" id="ordem-sala" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        <option value="codigo" {{ 'selected' if ordem == 'codigo' }}>Código</option>
+        <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
+        <option value="nome_desc" {{ 'selected' if ordem == 'nome_desc' }}>Nome (Z–A)</option>
+        <option value="capacidade" {{ 'selected' if ordem == 'capacidade' }}>Capacidade (maior primeiro)</option>
+        <option value="predio" {{ 'selected' if ordem == 'predio' }}>Prédio e andar</option>
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Ordenar</button></noscript>
+</form>
+
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
