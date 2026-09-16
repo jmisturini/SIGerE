@@ -10,12 +10,26 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.4.2'
+APP_VERSION = '1.5.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.5.0',
+        'data': '2026-09-16',
+        'titulo': 'Perfil do usuário (Meu Perfil)',
+        'grupos': [
+            ('Adicionado', [
+                'Nova área "Meu Perfil" no menu do usuário: cada pessoa atualiza o próprio nome completo e departamento e troca a própria senha sem depender da administração.',
+                'A troca de senha pelo perfil exige a senha atual, recusa a repetição da senha vigente e pede confirmação da nova senha.',
+            ]),
+            ('Alterado', [
+                'O e-mail (login) aparece como somente leitura no perfil — mudança de e-mail continua exclusividade da administração.',
+            ]),
+        ],
+    },
     {
         'versao': '1.4.2',
         'data': '2026-09-16',

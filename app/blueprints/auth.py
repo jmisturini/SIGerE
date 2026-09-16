@@ -3,7 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import func
 from urllib.parse import urlparse
 from app.models import User
-from app.forms import LoginForm, ChangePasswordForm
+from app.forms import LoginForm, ChangePasswordForm, ProfileForm
 from app.extensions import db, limiter
 
 bp = Blueprint('auth', __name__)
@@ -88,6 +88,32 @@ def change_password():
         return redirect(url_for('main.index'))
 
     return render_template('auth/change_password.html', form=form)
+
+# Route for the user to view and update their own profile
+@bp.route('/perfil', methods=['GET', 'POST'])
+@login_required
+def perfil():
+    """Autoatendimento: o usuário edita o próprio nome, departamento e senha.
+    E-mail (login) e papel só mudam pela administração."""
+    form = ProfileForm(obj=current_user)
+    if form.validate_on_submit():
+        # Instância fresca do banco (mesmo cuidado da troca de senha)
+        user = User.query.filter_by(id=current_user.id).first()
+        if not user:
+            flash('Erro de sessão. Faça login novamente.', 'danger')
+            return redirect(url_for('auth.logout'))
+
+        user.full_name = form.full_name.data
+        user.department = form.department.data or None
+        if form.password.data:
+            user.set_password(form.password.data)
+            user.force_password_change = False
+        db.session.commit()
+        db.session.refresh(user)
+        flash('Seu perfil foi atualizado com sucesso.', 'success')
+        return redirect(url_for('auth.perfil'))
+
+    return render_template('auth/perfil.html', form=form)
 
 # Route for user logout
 @bp.route('/logout')

@@ -107,6 +107,52 @@ class ChangePasswordForm(BaseForm):
     submit = SubmitField('Atualizar Senha')
 
 
+class ProfileForm(BaseForm):
+    """Autoatendimento do usuário: nome, departamento e troca opcional de senha.
+    O e-mail não é editável aqui — ele é o login do usuário e só um
+    administrador pode alterá-lo (página de edição de usuários)."""
+    full_name = StringField('Nome Completo', validators=[DataRequired(), Length(max=120)])
+    department = StringField('Departamento', validators=[Optional(), Length(max=120)])
+    # Sem Optional(): ele solta StopValidation com campo vazio e pularia o
+    # validate_current_password (último da cadeia) — a exigência da senha
+    # atual quando há troca é coberta no próprio validador inline.
+    current_password = PasswordField('Senha Atual')
+    password = PasswordField('Nova Senha', validators=[Optional(), Length(min=8, message='A nova senha deve ter pelo menos 8 caracteres.')])
+    confirm_password = PasswordField('Confirmar Nova Senha', validators=[Optional(), EqualTo('password', message='As senhas não coincidem.')])
+    submit = SubmitField('Salvar Alterações')
+
+    # Nomes e departamentos importados do sistema antigo trazem números e
+    # pontuação (T.I, D'Ávila): o filtro permissivo evita bloquear o
+    # autoatendimento de quem já possui esses valores gravados.
+    _PADRAO_TEXTO_PERFIL = re.compile(r'^[A-Za-zÀ-ÿ0-9\s\-.,()/&\']+$')
+
+    def _validar_texto(self, field, campo):
+        if field.data and not self._PADRAO_TEXTO_PERFIL.match(field.data):
+            raise ValidationError(f'{campo} contém caracteres não permitidos. '
+                                  f'Use letras, números, espaços ou . , - ( ) / & \'')
+
+    def validate_full_name(self, field):
+        self._validar_texto(field, 'Nome Completo')
+
+    def validate_department(self, field):
+        self._validar_texto(field, 'Departamento')
+
+    def validate_current_password(self, field):
+        # A senha atual só é exigida quando o usuário está trocando a senha
+        if self.password.data:
+            from flask_login import current_user
+            if not field.data:
+                raise ValidationError('Informe sua senha atual para alterar a senha.')
+            if not current_user.check_password(field.data):
+                raise ValidationError('Senha atual incorreta.')
+
+    def validate_password(self, field):
+        if field.data:
+            from flask_login import current_user
+            if current_user.check_password(field.data):
+                raise ValidationError('A nova senha não pode ser igual à senha atual. Escolha uma senha diferente.')
+
+
 # =============================================================================
 # USER FORM — cadastro unificado de Professor e Funcionário
 # =============================================================================
