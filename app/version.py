@@ -10,12 +10,22 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.5.5'
+APP_VERSION = '1.5.6'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.5.6',
+        'data': '2026-09-16',
+        'titulo': 'Seletor de unidade compatível com Firefox',
+        'grupos': [
+            ('Corrigido', [
+                'No Firefox, a seta do seletor de unidade continuava sobreposta ao nome — a seta foi movida para fora do select (ícone externo com espaço reservado pelo padding), eliminando a sobreposição em qualquer navegador.',
+            ]),
+        ],
+    },
     {
         'versao': '1.5.5',
         'data': '2026-09-16',
