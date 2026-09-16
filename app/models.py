@@ -1,6 +1,6 @@
 # Defaults de data/dhora usam lambda: passar datetime.now(timezone.utc) direto
 # avaliaria UMA vez no import, congelando created_at/updated_at no boot da app.
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import re
 
@@ -294,6 +294,18 @@ class TeacherOvertimePay(db.Model):
 
     teacher = db.relationship('User', foreign_keys=[teacher_id])
     accountable = db.relationship('User', foreign_keys=[accountable_id])
+
+    @property
+    def is_editable(self):
+        """False para lançamentos de meses anteriores ou com mais de 30 dias.
+
+        Mesma regra validada nos routes de editar/excluir (payments.py) —
+        usada também para esconder os botões na listagem.
+        """
+        now = datetime.now()
+        if (self.created_at.year, self.created_at.month) < (now.year, now.month):
+            return False
+        return now.date() - self.created_at.date() <= timedelta(days=30)
 
 # Registro do módulo Vale Transporte (Financeiro): uma linha por colaborador,
 # espelhando todas as colunas da aba "Vale Transporte" do Pedido de Compra

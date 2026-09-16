@@ -144,7 +144,7 @@
                 <tbody>
                 {% for r in records %}
                 {% set flagged_row = r.original_name or r.duplicate_name or r.duplicate_registration %}
-                    <tr class="{{ 'table-warning' if flagged_row }}">
+                    <tr id="vt-{{ r.id }}" class="{{ 'table-warning' if flagged_row }}">
                         <td class="ps-4">
                             {{ r.registration }}
                             {% if r.duplicate_registration %}
@@ -179,7 +179,7 @@
                         <td>R$ {{ '%.2f'|format(r.total_value or 0) }}</td>
                         <td class="text-end pe-4 text-nowrap">
                             {% if can_edit %}
-                            <a href="{{ url_for('vt.edit_record', record_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                            <a href="{{ url_for('vt.edit_record', record_id=r.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
                             {% endif %}

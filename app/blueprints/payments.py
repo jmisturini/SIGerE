@@ -6,12 +6,13 @@ from app.models import User, TeacherOvertimePay
 from app.forms import FormTeacherOvertimePay
 from app.extensions import db
 from app.unity_context import current_unity_id
-from datetime import datetime, timedelta
+from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.styles import Border, Side, Font, Alignment
 from io import BytesIO
 from decimal import Decimal, InvalidOperation
 from app.permissions import require_module, require_permission
+from app.utils import redirect_back, redirect_preserving_args
 
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 
@@ -86,12 +87,6 @@ def _get_overtime_scoped(overtime_id):
     if overtime.unity_id != current_unity_id():
         abort(404)
     return overtime
-
-def validate_30_days_rule(created_at):
-    if (datetime.now().date() - created_at.date() > timedelta(days=30)):
-        flash('Erro: Registros com mais de 30 dias não podem ser alterados!', 'danger')
-        return False
-    return True
 
 def parse_currency(value_str):
     """Converte texto de valor monetário em Decimal.
@@ -193,7 +188,7 @@ def create_overtime():
         db.session.add(overtime)
         db.session.commit()
         flash('Lançamento de Hora Extra realizado!', 'success')
-        return redirect(url_for('payments.list_overtime'))
+        return redirect_preserving_args('payments.list_overtime')
 
     return render_template('payments/form_overtime.html', form=form, title='Nova Hora Extra')
 
@@ -204,15 +199,11 @@ def create_overtime():
 def edit_overtime(overtime_id):
     overtime = _get_overtime_scoped(overtime_id)
 
-    # CORREÇÃO: comparação anterior usava apenas .month, ignorando o ano.
-    # Ex.: registro de dez/2025 seria editável em jan/2026 pois 12 > 1.
-    # Agora compara a data completa (ano + mês).
-    now = datetime.now()
-    record_ym = (overtime.created_at.year, overtime.created_at.month)
-    now_ym = (now.year, now.month)
-    if record_ym < now_ym or (now.date() - overtime.created_at.date() > timedelta(days=30)):
+    # Regra centralizada em TeacherOvertimePay.is_editable (mês anterior ao
+    # atual ou mais de 30 dias não podem ser alterados).
+    if not overtime.is_editable:
         flash('Erro: Registros dos meses anteriores não podem ser alterados.', 'danger')
-        return redirect(url_for('payments.list_overtime'))
+        return redirect_back('payments.list_overtime')
 
     form = FormTeacherOvertimePay(obj=overtime)
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
@@ -233,6 +224,7 @@ def edit_overtime(overtime_id):
             flash('Erro: O Mês Base inserido não é uma data válida.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
+        now = datetime.now()
         if month_base_str < now.strftime('%Y-%m'):
             flash('Erro: Não é possível definir o Mês Base para um mês anterior ao atual.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
@@ -255,7 +247,7 @@ def edit_overtime(overtime_id):
 
         db.session.commit()
         flash('Alteração realizada!', 'success')
-        return redirect(url_for('payments.list_overtime'))
+        return redirect_preserving_args('payments.list_overtime')
 
     return render_template('payments/form_overtime.html', form=form, title='Editar Hora Extra')
 
@@ -265,18 +257,15 @@ def edit_overtime(overtime_id):
 @require_module('finance')
 def delete_overtime(overtime_id):
     overtime = _get_overtime_scoped(overtime_id)
-    # CORREÇÃO: mesma correção de ano aplicada no edit — compara (year, month) completo.
-    now = datetime.now()
-    record_ym = (overtime.created_at.year, overtime.created_at.month)
-    now_ym = (now.year, now.month)
-    if record_ym < now_ym or (now.date() - overtime.created_at.date() > timedelta(days=30)):
+    # Regra centralizada em TeacherOvertimePay.is_editable — igual ao edit.
+    if not overtime.is_editable:
         flash('Erro: Registros dos meses anteriores não podem ser excluídos.', 'danger')
-        return redirect(url_for('payments.list_overtime'))
+        return redirect_back('payments.list_overtime')
 
     db.session.delete(overtime)
     db.session.commit()
     flash('Registro de Hora Extra excluído', 'success')
-    return redirect(url_for('payments.list_overtime'))
+    return redirect_back('payments.list_overtime')
 
 # ================= EXCEL EXPORT ROUTES =================
 

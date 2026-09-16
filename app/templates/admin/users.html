@@ -13,8 +13,8 @@
             <i class="bi bi-plus-lg me-1"></i> Cadastrar Usuário
         </button>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="registerUserDropdown">
-            <li><a class="dropdown-item" href="{{ url_for('admin.create_teacher') }}"><i class="bi bi-mortarboard me-2"></i> Cadastrar Professor</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.create_employee') }}"><i class="bi bi-briefcase me-2"></i> Cadastrar Funcionário</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.create_teacher', **request.args.to_dict()) }}"><i class="bi bi-mortarboard me-2"></i> Cadastrar Professor</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.create_employee', **request.args.to_dict()) }}"><i class="bi bi-briefcase me-2"></i> Cadastrar Funcionário</a></li>
         </ul>
     </div>
 </div>
@@ -60,7 +60,7 @@
                 </thead>
                 <tbody>
                 {% for u in users %}
-                    <tr>
+                    <tr id="user-{{ u.id }}">
                         <td class="ps-4 fw-bold">{{ u.full_name }}</td>
                         <td>
                             <span class="badge text-bg-info-subtle text-info border border-info-subtle">
@@ -92,7 +92,7 @@
                             {% endif %}
                         </td>
                         <td class="text-end pe-4">
-                            <a href="{{ url_for('admin.edit_user', user_id=u.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                            <a href="{{ url_for('admin.edit_user', user_id=u.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
                             <form method="POST" action="{{ url_for('admin.toggle_user', user_id=u.id) }}" class="d-inline">

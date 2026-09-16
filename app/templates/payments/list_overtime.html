@@ -21,7 +21,7 @@
         <a href="https://antigaintranet.sc.senac.br/formularios/classificaProjetosEspeciais/form.php" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary">
             <i class="bi bi-box-arrow-up-right me-1"></i> Formulário FIC
         </a>
-        <a href="{{ url_for('payments.create_overtime') }}" class="btn btn-primary">
+        <a href="{{ url_for('payments.create_overtime', **request.args.to_dict()) }}" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i> Nova Hora Extra
         </a>
     </div>
@@ -88,7 +88,7 @@
                 </thead>
                 <tbody>
                 {% for o in infos %}
-                    <tr>
+                    <tr id="overtime-{{ o.id }}">
                         <td class="ps-4 fw-bold">{{ o.teacher.full_name }}</td>
                         <td>{{ o.month_base }}</td>
                         <td>{{ o.teaching_level }}</td>
@@ -104,15 +104,26 @@
                                     data-bs-target="#view-overtime-{{ o.id }}" title="Ver informações do lançamento">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
-                                <i class="bi bi-pencil"></i>
-                            </a>
-                            <form method="POST" action="{{ url_for('payments.delete_overtime', overtime_id=o.id) }}" class="d-inline" onsubmit="return confirm('Excluir Hora Extra?');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button class="btn btn-sm btn-outline-danger" title="Excluir">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
+                            {% if o.is_editable %}
+                                {% if current_user.has_permission('payment:edit') %}
+                                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                {% endif %}
+                                {% if current_user.has_permission('payment:delete') %}
+                                <form method="POST" action="{{ url_for('payments.delete_overtime', overtime_id=o.id) }}" class="d-inline" onsubmit="return confirm('Excluir Hora Extra?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            {% else %}
+                                {# Lançamento trancado: mês anterior ou mais de 30 dias #}
+                                <span class="d-inline-block ms-1" title="Trancado: lançamentos de meses anteriores ou com mais de 30 dias não podem ser alterados.">
+                                    <i class="bi bi-lock-fill text-muted"></i>
+                                </span>
+                            {% endif %}
                         </td>
                     </tr>
                 {% else %}
@@ -184,8 +195,8 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
-                {% if current_user.has_permission('payment:edit') %}
-                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id) }}" class="btn btn-primary">
+                {% if o.is_editable and current_user.has_permission('payment:edit') %}
+                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id, **request.args.to_dict()) }}" class="btn btn-primary">
                     <i class="bi bi-pencil me-1"></i> Editar
                 </a>
                 {% endif %}
@@ -194,6 +205,8 @@
     </div>
 </div>
 {% endfor %}
+
+{{ render_pagination(pagination, 'payments.list_overtime') }}
 
 {% endblock %}
 
@@ -219,5 +232,4 @@ document.addEventListener('DOMContentLoaded', function() {
     teacherSelect.addEventListener('change', updateExportBtn);
 });
 </script>
-{{ render_pagination(pagination, 'payments.list_overtime') }}
 {% endblock %}

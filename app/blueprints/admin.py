@@ -13,7 +13,7 @@ from app.extensions import db
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
 from wtforms.validators import Optional
 from app.permissions import require_permission
-from app.utils import gerar_slug, slug_unico
+from app.utils import gerar_slug, slug_unico, redirect_back, redirect_preserving_args
 from app.unity_context import current_unity_id, unity_module_enabled
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -190,7 +190,7 @@ def _criar_usuario(profile_type):
         db.session.add(user)
         db.session.commit()
         flash(f'{_PERFIL_LABEL[user.profile_type]} cadastrado com sucesso.', 'success')
-        return redirect(url_for('admin.list_users'))
+        return redirect_preserving_args('admin.list_users')
     return render_template('admin/user_form.html', form=form,
                            title=f'Cadastrar Novo {_PERFIL_LABEL[profile_type]}',
                            modo_edicao=False)
@@ -232,7 +232,7 @@ def edit_user(user_id):
                 user.force_password_change = True
             db.session.commit()
             flash('Usuário atualizado com sucesso.', 'success')
-            return redirect(url_for('admin.list_users'))
+            return redirect_preserving_args('admin.list_users')
     return render_template('admin/user_form.html', form=form,
                            title=f"Editar {_PERFIL_LABEL[user.profile_type]}",
                            modo_edicao=True, user=user)
@@ -244,11 +244,11 @@ def toggle_user(user_id):
     user = _unity_scoped_or_404(db.get_or_404(User, user_id))
     if user.id == current_user.id:
         flash('Você não pode desativar sua própria conta.', 'danger')
-        return redirect(url_for('admin.list_users'))
+        return redirect_back('admin.list_users')
     user.is_active_user = not user.is_active_user
     db.session.commit()
     flash(f'Usuário {user.full_name} {"ativado" if user.is_active_user else "desativado"}.', 'success')
-    return redirect(url_for('admin.list_users'))
+    return redirect_back('admin.list_users', anchor=f'user-{user_id}')
 
 @bp.route('/users/<int:user_id>/reset-password', methods=['POST'])
 @login_required
@@ -263,7 +263,7 @@ def reset_user_password(user_id):
     db.session.commit()
     flash(f'Senha de {user.full_name} redefinida. Senha temporária '
           f'(exibida apenas agora — copie e envie ao usuário): {temp_password}', 'success')
-    return redirect(url_for('admin.list_users'))
+    return redirect_back('admin.list_users', anchor=f'user-{user_id}')
 
 # ================= ROOM MANAGEMENT =================
 
@@ -346,7 +346,7 @@ def toggle_room(room_id):
     classroom.is_active = not classroom.is_active
     db.session.commit()
     flash(f'Sala {classroom.code} {"ativada" if classroom.is_active else "desativada"}.', 'success')
-    return redirect(url_for('admin.list_rooms'))
+    return redirect_back('admin.list_rooms', anchor=f'room-{room_id}')
 
 # ================= COURSE MANAGEMENT =================
 
@@ -390,8 +390,8 @@ def toggle_course(course_id):
     course = _unity_scoped_or_404(db.get_or_404(Course, course_id))
     course.is_active = not course.is_active
     db.session.commit()
-    flash(f'Curso {course.code} {"ativado" if course.is_active else "desativado"}.', 'success')
-    return redirect(url_for('admin.list_courses'))
+    flash(f'Curso {course.code} {"ativada" if course.is_active else "desativado"}.', 'success')
+    return redirect_back('admin.list_courses', anchor=f'course-{course_id}')
 
 # ================= SUBJECT MANAGEMENT =================
 
@@ -440,7 +440,7 @@ def toggle_subject(subject_id):
     subj.is_active = not subj.is_active
     db.session.commit()
     flash(f'Disciplina {subj.code} {"ativada" if subj.is_active else "desativada"}.', 'success')
-    return redirect(url_for('admin.list_subjects'))
+    return redirect_back('admin.list_subjects', anchor=f'subject-{subject_id}')
 
 # ================= HOLIDAY MANAGEMENT =================
 
@@ -488,7 +488,7 @@ def delete_holiday(holiday_id):
     db.session.delete(h)
     db.session.commit()
     flash('Feriado excluído.', 'info')
-    return redirect(url_for('admin.list_holidays'))
+    return redirect_back('admin.list_holidays')
 
 @bp.route('/holidays/import', methods=['POST'])
 @login_required
@@ -498,7 +498,7 @@ def import_holidays():
 
     if not (2000 <= year <= 2100):
         flash('Ano inválido. Use um valor entre 2000 e 2100.', 'danger')
-        return redirect(url_for('admin.list_holidays'))
+        return redirect_back('admin.list_holidays')
 
     url = f"https://brasilapi.com.br/api/feriados/v1/{year}"
 
@@ -526,7 +526,7 @@ def import_holidays():
     except Exception:
         current_app.logger.exception('Falha ao importar feriados da BrasilAPI')
         flash('Erro ao buscar os feriados na BrasilAPI. Tente novamente mais tarde.', 'danger')
-    return redirect(url_for('admin.list_holidays'))
+    return redirect_back('admin.list_holidays')
 
 # ================= ROLE MANAGEMENT =================
 
@@ -636,15 +636,15 @@ def delete_role(role_id):
     role = db.get_or_404(Role, role_id)
     if role.is_system:
         flash('Papéis do sistema não podem ser excluídos.', 'danger')
-        return redirect(url_for('admin.list_roles'))
+        return redirect_back('admin.list_roles', anchor=f'role-{role_id}')
     if len(role.users) > 0:
         flash('Não é possível excluir um papel que possui usuários vinculados. Mude os usuários de papel primeiro.', 'danger')
-        return redirect(url_for('admin.list_roles'))
-        
+        return redirect_back('admin.list_roles', anchor=f'role-{role_id}')
+
     db.session.delete(role)
     db.session.commit()
     flash('Papel excluído.', 'info')
-    return redirect(url_for('admin.list_roles'))
+    return redirect_back('admin.list_roles')
 
 # ================= ROOM CATEGORY MANAGEMENT =================
 
@@ -707,7 +707,7 @@ def toggle_category(cat_id):
     cat.is_active = not cat.is_active
     db.session.commit()
     flash(f'Categoria {cat.name} {"ativada" if cat.is_active else "desativada"}.', 'success')
-    return redirect(url_for('admin.list_categories'))
+    return redirect_back('admin.list_categories', anchor=f'category-{cat_id}')
 
 # ================= UNITY MANAGEMENT (Multi-unidade) =================
 
@@ -752,7 +752,7 @@ def sync_unities():
     das existentes, sem duplicar (idempotente)."""
     if not os.path.exists(UNIDADES_JSON_PADRAO):
         flash(f'Arquivo de unidades não encontrado: {UNIDADES_JSON_PADRAO}', 'danger')
-        return redirect(url_for('admin.list_unities'))
+        return redirect_back('admin.list_unities')
     try:
         criadas, atualizadas, ignorados = _seed_unidades(UNIDADES_JSON_PADRAO)
         db.session.commit()
@@ -760,11 +760,11 @@ def sync_unities():
         db.session.rollback()
         current_app.logger.exception('Falha ao reler o arquivo de unidades.')
         flash(f'Falha ao reler o arquivo de unidades: {exc}', 'danger')
-        return redirect(url_for('admin.list_unities'))
+        return redirect_back('admin.list_unities')
     flash(f'Unidades atualizadas do arquivo do portal. Criadas: {criadas} | Atualizadas: {atualizadas}.', 'success')
     if ignorados:
         flash('Ignorados (sem cadastro_sugerido no JSON): ' + ', '.join(ignorados), 'info')
-    return redirect(url_for('admin.list_unities'))
+    return redirect_back('admin.list_unities')
 
 @bp.route('/unities/create', methods=['GET', 'POST'])
 @login_required
@@ -856,11 +856,11 @@ def toggle_unity(unity_id):
     unity = _unity_visivel_or_404(db.get_or_404(Unity, unity_id))
     if unity.is_active and unity.id == current_unity_id():
         flash('Não é possível desativar a unidade em que você está operando.', 'danger')
-        return redirect(url_for('admin.list_unities'))
+        return redirect_back('admin.list_unities')
     unity.is_active = not unity.is_active
     db.session.commit()
     flash(f'Unidade {unity.name} {"ativada" if unity.is_active else "desativada"}.', 'success')
-    return redirect(url_for('admin.list_unities'))
+    return redirect_back('admin.list_unities', anchor=f'unity-{unity_id}')
 
 
 @bp.route('/unities/<int:unity_id>/modules/<module_code>/toggle', methods=['POST'])
@@ -947,7 +947,7 @@ def toggle_api_token(token_id):
     db.session.commit()
     flash(f'Token "{token.name}" {"reativado" if token.is_active else "revogado"}.',
           'success' if token.is_active else 'warning')
-    return redirect(url_for('admin.list_api_tokens'))
+    return redirect_back('admin.list_api_tokens', anchor=f'token-{token_id}')
 
 
 @bp.route('/api-tokens/<int:token_id>/delete', methods=['POST'])
@@ -958,4 +958,4 @@ def delete_api_token(token_id):
     db.session.delete(token)
     db.session.commit()
     flash(f'Token "{token.name}" excluído permanentemente.', 'success')
-    return redirect(url_for('admin.list_api_tokens'))
+    return redirect_back('admin.list_api_tokens')

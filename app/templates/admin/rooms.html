@@ -30,7 +30,7 @@
                 </thead>
                 <tbody>
                 {% for r in rooms %}
-                    <tr>
+                    <tr id="room-{{ r.id }}">
                         <td class="ps-4 fw-bold">{{ r.name }}</td>
                         <td><span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">{{ r.code }}</span></td>
                         <td>{{ r.room_number }}</td>

@@ -27,7 +27,7 @@
                 </thead>
                 <tbody>
                 {% for s in subjects %}
-                    <tr>
+                    <tr id="subject-{{ s.id }}">
                         <td class="ps-4 fw-bold">{{ s.name }}</td>
                         <td><code>{{ s.code }}</code></td>
                         <td>{{ s.course.name if s.course else '-' }}</td>
