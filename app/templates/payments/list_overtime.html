@@ -21,7 +21,7 @@
         <a href="https://antigaintranet.sc.senac.br/formularios/classificaProjetosEspeciais/form.php" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary">
             <i class="bi bi-box-arrow-up-right me-1"></i> Formulário FIC
         </a>
-        <a href="{{ url_for('payments.create_overtime') }}" class="btn btn-primary">
+        <a href="{{ url_for('payments.create_overtime', **request.args.to_dict()) }}" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i> Nova Hora Extra
         </a>
     </div>
@@ -88,7 +88,7 @@
                 </thead>
                 <tbody>
                 {% for o in infos %}
-                    <tr>
+                    <tr id="overtime-{{ o.id }}">
                         <td class="ps-4 fw-bold">{{ o.teacher.full_name }}</td>
                         <td>{{ o.month_base }}</td>
                         <td>{{ o.teaching_level }}</td>
@@ -106,7 +106,7 @@
                             </button>
                             {% if o.is_editable %}
                                 {% if current_user.has_permission('payment:edit') %}
-                                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 {% endif %}
@@ -196,7 +196,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
                 {% if o.is_editable and current_user.has_permission('payment:edit') %}
-                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id) }}" class="btn btn-primary">
+                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id, **request.args.to_dict()) }}" class="btn btn-primary">
                     <i class="bi bi-pencil me-1"></i> Editar
                 </a>
                 {% endif %}

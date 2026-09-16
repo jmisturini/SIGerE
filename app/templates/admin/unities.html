@@ -53,7 +53,7 @@
                 </thead>
                 <tbody>
                 {% for u in unities %}
-                    <tr class="{{ 'table-active' if current_unity and current_unity.id == u.id }}">
+                    <tr id="unity-{{ u.id }}" class="{{ 'table-active' if current_unity and current_unity.id == u.id }}">
                         <td class="ps-4">
                             <div class="fw-bold">{{ u.name }}</div>
                             {% if current_unity and current_unity.id == u.id %}

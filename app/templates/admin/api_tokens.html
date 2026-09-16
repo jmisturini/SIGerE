@@ -79,7 +79,7 @@
                 </thead>
                 <tbody>
                 {% for t in tokens %}
-                    <tr>
+                    <tr id="token-{{ t.id }}">
                         <td class="ps-4 fw-bold">{{ t.name }}</td>
                         <td><code title="Prefixo do token (o valor completo não é recuperável)">{{ t.prefix }}</code></td>
                         <td>{{ t.created_by.full_name if t.created_by else '—' }}</td>

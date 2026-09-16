@@ -30,7 +30,7 @@
                 </thead>
                 <tbody>
                 {% for c in categories %}
-                    <tr>
+                    <tr id="category-{{ c.id }}">
                         <td class="ps-4 fw-bold">{{ c.name }}</td>
                         <td>{% if c.controla_computadores %}<span class="badge text-bg-info-subtle text-info border border-info-subtle"><i class="bi bi-pc-display me-1"></i>Computadores</span>{% else %}—{% endif %}</td>
                         <td>

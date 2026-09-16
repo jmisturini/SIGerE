@@ -301,6 +301,19 @@ class PaymentsTestCase(unittest.TestCase):
         response = self.client.post(f'/payments/overtime/delete/{record_id}', follow_redirects=True)
         self.assertIn('não podem ser excluídos', response.get_data(as_text=True))
 
+    def test_delete_overtime_preserva_filtros_de_origem(self):
+        # Excluir a partir da linha não pode devolver a listagem limpa
+        # (sem o mês/professor filtrados nem a página atual).
+        record_id = self._add_overtime(datetime.now().strftime('%Y-%m'))
+        referrer = ('http://localhost/payments/overtime/list'
+                    f'?month_base={datetime.now().strftime("%Y-%m")}&page=2')
+        response = self.client.post(f'/payments/overtime/delete/{record_id}',
+                                    headers={'Referer': referrer})
+        location = response.headers.get('Location', '')
+        self.assertIn('/payments/overtime/list?', location)
+        self.assertIn('month_base=', location)
+        self.assertIn('page=2', location)
+
     # ---------- Paginação dentro do bloco de conteúdo ----------
 
     def test_pagination_renders_inside_page_content(self):

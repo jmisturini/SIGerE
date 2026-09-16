@@ -26,7 +26,7 @@
                 </thead>
                 <tbody>
                 {% for c in courses %}
-                    <tr>
+                    <tr id="course-{{ c.id }}">
                         <td class="ps-4 fw-bold">{{ c.name }}</td>
                         <td><code>{{ c.code }}</code></td>
                         <td>

@@ -47,7 +47,7 @@
                 </thead>
                 <tbody>
                 {% for h in holidays %}
-                    <tr>
+                    <tr id="holiday-{{ h.id }}">
                         <td class="ps-4 fw-bold text-nowrap">{{ h.date.strftime('%d/%m/%Y') }}</td>
                         <td>{{ h.name }}</td>
                         <td>

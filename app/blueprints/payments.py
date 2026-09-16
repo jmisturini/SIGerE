@@ -12,6 +12,7 @@ from openpyxl.styles import Border, Side, Font, Alignment
 from io import BytesIO
 from decimal import Decimal, InvalidOperation
 from app.permissions import require_module, require_permission
+from app.utils import redirect_back, redirect_preserving_args
 
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 
@@ -187,7 +188,7 @@ def create_overtime():
         db.session.add(overtime)
         db.session.commit()
         flash('Lançamento de Hora Extra realizado!', 'success')
-        return redirect(url_for('payments.list_overtime'))
+        return redirect_preserving_args('payments.list_overtime')
 
     return render_template('payments/form_overtime.html', form=form, title='Nova Hora Extra')
 
@@ -202,7 +203,7 @@ def edit_overtime(overtime_id):
     # atual ou mais de 30 dias não podem ser alterados).
     if not overtime.is_editable:
         flash('Erro: Registros dos meses anteriores não podem ser alterados.', 'danger')
-        return redirect(url_for('payments.list_overtime'))
+        return redirect_back('payments.list_overtime')
 
     form = FormTeacherOvertimePay(obj=overtime)
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
@@ -246,7 +247,7 @@ def edit_overtime(overtime_id):
 
         db.session.commit()
         flash('Alteração realizada!', 'success')
-        return redirect(url_for('payments.list_overtime'))
+        return redirect_preserving_args('payments.list_overtime')
 
     return render_template('payments/form_overtime.html', form=form, title='Editar Hora Extra')
 
@@ -259,12 +260,12 @@ def delete_overtime(overtime_id):
     # Regra centralizada em TeacherOvertimePay.is_editable — igual ao edit.
     if not overtime.is_editable:
         flash('Erro: Registros dos meses anteriores não podem ser excluídos.', 'danger')
-        return redirect(url_for('payments.list_overtime'))
+        return redirect_back('payments.list_overtime')
 
     db.session.delete(overtime)
     db.session.commit()
     flash('Registro de Hora Extra excluído', 'success')
-    return redirect(url_for('payments.list_overtime'))
+    return redirect_back('payments.list_overtime')
 
 # ================= EXCEL EXPORT ROUTES =================
 

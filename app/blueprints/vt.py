@@ -31,6 +31,7 @@ from app.models import VtRecord
 from app.permissions import require_module, require_permission
 from app.unity_context import current_unity_id
 from app.blueprints.payments import parse_currency
+from app.utils import redirect_back, redirect_preserving_args
 
 bp = Blueprint('vt', __name__, url_prefix='/vt')
 
@@ -373,7 +374,7 @@ def edit_record(record_id):
         _apply_record_form(record, form)
         db.session.commit()
         flash(f'Registro de {record.full_name} atualizado.', 'success')
-        return redirect(url_for('vt.records'))
+        return redirect_preserving_args('vt.records')
 
     return render_template('vt/form.html', form=form, record=record)
 
@@ -388,7 +389,7 @@ def delete_record(record_id):
     db.session.delete(record)
     db.session.commit()
     flash(f'Registro de {name} excluído.', 'info')
-    return redirect(url_for('vt.records'))
+    return redirect_back('vt.records')
 
 
 @bp.route('/limpar', methods=['POST'])
@@ -400,7 +401,7 @@ def clear_all():
     removed = VtRecord.query.filter_by(unity_id=current_unity_id()).delete()
     db.session.commit()
     flash(f'{removed} registro(s) removido(s).', 'info')
-    return redirect(url_for('vt.records'))
+    return redirect_back('vt.records')
 
 
 @bp.route('/exportar')
