@@ -224,25 +224,108 @@ def my_reservations():
                            upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status)
 
 # Admin route to view all reservations
+# Períodos do dia com os mesmos limites do filtro do calendário (schedule.events)
+_PERIODOS_RESERVA = {
+    'morning': (time(0, 0), time(12, 0)),
+    'afternoon': (time(12, 0), time(18, 0)),
+    'night': (time(18, 0), time(23, 59)),
+}
+
+ORDENS_RESERVA = ('data_asc', 'data_desc', 'sala', 'professor')
+
+
+def _data_iso(texto):
+    """Converte 'AAAA-MM-DD' em date; inválido/vazio vira None (sem filtro)."""
+    if not texto:
+        return None
+    try:
+        return datetime.strptime(texto, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
 @bp.route('/all')
 @login_required
 @require_permission('reservation:read_all')
 def all_reservations():
-    status = request.args.get('status', 'all')
-    query = Reservation.query.filter_by(unity_id=current_unity_id())
-    if status != 'all':
-        query = query.filter_by(status=status)
+    """Lista gerencial das reservas da unidade, em duas abas — Atuais/Futuras
+    (hoje em diante) e Passadas — com os mesmos filtros do calendário (datas,
+    período do dia, sala, professor, curso, disciplina) mais status e
+    ordenação. Padrão: data crescente, da atual para a futura."""
+    periodo = request.args.get('periodo', 'atuais')
+    if periodo not in ('atuais', 'passadas'):
+        periodo = 'atuais'
+    ordem = request.args.get('ordem', 'data_asc')
+    if ordem not in ORDENS_RESERVA:
+        ordem = 'data_asc'
 
-    pagination = db.paginate(query.order_by(Reservation.date.desc(), Reservation.start_time),
-                             page=request.args.get('page', 1, type=int),
+    hoje = date.today()
+    query = Reservation.query.filter_by(unity_id=current_unity_id())
+    if periodo == 'atuais':
+        query = query.filter(Reservation.date >= hoje)
+    else:
+        query = query.filter(Reservation.date < hoje)
+
+    # Mesmos filtros do calendário
+    data_inicial = _data_iso(request.args.get('start'))
+    data_final = _data_iso(request.args.get('end'))
+    if data_inicial:
+        query = query.filter(Reservation.date >= data_inicial)
+    if data_final:
+        query = query.filter(Reservation.date <= data_final)
+
+    room_id = request.args.get('room_id', type=int)
+    teacher_id = request.args.get('teacher_id', type=int)
+    course_id = request.args.get('course_id', type=int)
+    subject_id = request.args.get('subject_id', type=int)
+    if room_id:
+        query = query.filter(Reservation.classroom_id == room_id)
+    if teacher_id:
+        query = query.filter(Reservation.teacher_id == teacher_id)
+    if course_id:
+        query = query.filter(Reservation.course_id == course_id)
+    if subject_id:
+        query = query.filter(Reservation.subject_id == subject_id)
+
+    # Status (antiga barra de abas virou filtro comum)
+    status = request.args.get('status', '')
+    if status in ('approved', 'pending', 'cancelled'):
+        query = query.filter(Reservation.status == status)
+
+    # Período do dia: sobreposição de horário, igual ao calendário
+    period = request.args.get('period', '')
+    if period in _PERIODOS_RESERVA:
+        p_start, p_end = _PERIODOS_RESERVA[period]
+        query = query.filter(Reservation.start_time < p_end, Reservation.end_time > p_start)
+
+    # Ordenação (padrão: data crescente — da atual para a futura)
+    if ordem == 'data_desc':
+        query = query.order_by(Reservation.date.desc(), Reservation.start_time.desc())
+    elif ordem == 'sala':
+        query = query.join(Classroom, Reservation.classroom_id == Classroom.id) \
+                     .order_by(Classroom.code, Reservation.date, Reservation.start_time)
+    elif ordem == 'professor':
+        query = query.join(User, Reservation.teacher_id == User.id) \
+                     .order_by(User.full_name, Reservation.date, Reservation.start_time)
+    else:
+        query = query.order_by(Reservation.date, Reservation.start_time)
+
+    pagination = db.paginate(query, page=request.args.get('page', 1, type=int),
                              per_page=RESERVATIONS_PER_PAGE, error_out=False)
 
-    today = date.today()
-    upcoming_reservations = [r for r in pagination.items if r.date >= today]
-    past_reservations = [r for r in pagination.items if r.date < today]
+    uid = current_unity_id()
+    # Abas preservam os filtros ativos ao trocar (menos a página e o próprio
+    # período, que cada aba define explicitamente)
+    base_args = {k: v for k, v in request.args.to_dict().items()
+                 if k not in ('page', 'periodo')}
 
-    return render_template('reservations/all.html', pagination=pagination,
-                           upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status)
+    return render_template('reservations/all.html',
+                           pagination=pagination, reservas=pagination.items,
+                           periodo=periodo, ordem=ordem, base_args=base_args,
+                           classrooms=Classroom.query.filter_by(unity_id=uid, is_active=True).order_by(Classroom.code).all(),
+                           teachers=_teachers_for_current_unity(),
+                           courses=Course.query.filter_by(unity_id=uid, is_active=True).order_by(Course.name).all(),
+                           subjects=Subject.query.filter_by(unity_id=uid, is_active=True).order_by(Subject.name).all())
 
 # Route to view details of a specific reservation
 @bp.route('/<int:reservation_id>')

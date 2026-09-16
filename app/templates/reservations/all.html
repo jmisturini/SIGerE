@@ -10,27 +10,113 @@
     </div>
 </div>
 
+<!-- Abas de período: atuais/futuras e passadas -->
 <ul class="nav nav-tabs mb-4">
-    {% for s in ['all', 'approved', 'pending', 'cancelled'] %}
     <li class="nav-item">
-        <a class="nav-link {{ 'active' if current_status == s }}" href="{{ url_for('reservations.all_reservations', status=s) }}">
-            {% if s == 'all' %}Todas
-            {% elif s == 'approved' %}Aprovadas
-            {% elif s == 'pending' %}Pendentes
-            {% else %}Canceladas
-            {% endif %}
+        <a class="nav-link {{ 'active' if periodo == 'atuais' }}"
+           href="{{ url_for('reservations.all_reservations', periodo='atuais', **base_args) }}">
+            <i class="bi bi-calendar-event me-1"></i> Atuais e Futuras
         </a>
     </li>
-    {% endfor %}
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if periodo == 'passadas' }}"
+           href="{{ url_for('reservations.all_reservations', periodo='passadas', **base_args) }}">
+            <i class="bi bi-clock-history me-1"></i> Passadas
+        </a>
+    </li>
 </ul>
 
-<!-- Reservas Atuais e Futuras -->
+<!-- Filtros: os mesmos do calendário + status e ordenação -->
 <div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3"><i class="bi bi-funnel"></i> Filtros</h5>
+        <form method="GET" class="row g-3 align-items-end">
+            <input type="hidden" name="periodo" value="{{ periodo }}">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Data Inicial</label>
+                <input type="date" name="start" class="form-control" value="{{ request.args.get('start', '') }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Data Final</label>
+                <input type="date" name="end" class="form-control" value="{{ request.args.get('end', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Período</label>
+                <select name="period" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="morning" {{ 'selected' if request.args.get('period') == 'morning' }}>Manhã</option>
+                    <option value="afternoon" {{ 'selected' if request.args.get('period') == 'afternoon' }}>Tarde</option>
+                    <option value="night" {{ 'selected' if request.args.get('period') == 'night' }}>Noite</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">Todos os status</option>
+                    <option value="approved" {{ 'selected' if request.args.get('status') == 'approved' }}>Aprovada</option>
+                    <option value="pending" {{ 'selected' if request.args.get('status') == 'pending' }}>Pendente</option>
+                    <option value="cancelled" {{ 'selected' if request.args.get('status') == 'cancelled' }}>Cancelada</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Sala</label>
+                <select name="room_id" class="form-select">
+                    <option value="">Todas</option>
+                    {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('room_id') == c.id|string }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Professor</label>
+                <select name="teacher_id" class="form-select">
+                    <option value="">Todos</option>
+                    {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('teacher_id') == t.id|string }}>{{ t.full_name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Curso</label>
+                <select name="course_id" class="form-select">
+                    <option value="">Todos</option>
+                    {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('course_id') == c.id|string }}>{{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Disciplina</label>
+                <select name="subject_id" class="form-select">
+                    <option value="">Todas</option>
+                    {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if request.args.get('subject_id') == s.id|string }}>{{ s.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Ordenar por</label>
+                <select name="ordem" class="form-select">
+                    <option value="data_asc" {{ 'selected' if ordem == 'data_asc' }}>Data — da atual para a futura</option>
+                    <option value="data_desc" {{ 'selected' if ordem == 'data_desc' }}>Data — da futura para a atual</option>
+                    <option value="sala" {{ 'selected' if ordem == 'sala' }}>Sala (código)</option>
+                    <option value="professor" {{ 'selected' if ordem == 'professor' }}>Professor (nome)</option>
+                </select>
+            </div>
+            <div class="col-12 mt-3 d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Aplicar Filtros</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('reservations.all_reservations', periodo=periodo) }}">
+                    <i class="bi bi-eraser me-1"></i> Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Listagem do período selecionado -->
+<div class="card">
     <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-        <h5 class="mb-0"><i class="bi bi-calendar-event text-primary me-2"></i> Reservas Atuais e Futuras</h5>
+        {% if periodo == 'passadas' %}
+            <h5 class="mb-0"><i class="bi bi-clock-history text-muted me-2"></i> Reservas Passadas (Somente Leitura)</h5>
+        {% else %}
+            <h5 class="mb-0"><i class="bi bi-calendar-event text-primary me-2"></i> Reservas Atuais e Futuras</h5>
+        {% endif %}
+        <span class="badge text-bg-light border">{{ pagination.total }} reserva(s)</span>
     </div>
     <div class="card-body p-0">
-    {% if upcoming_reservations %}
+    {% if reservas %}
         <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
                 <thead>
@@ -39,8 +125,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                {% for r in upcoming_reservations %}
-                <tr>
+                {% for r in reservas %}
+                <tr {{ 'class="text-muted"' if periodo == 'passadas' }}>
                     <td class="ps-4 text-nowrap fw-bold">{{ r.date.strftime('%d/%m/%Y') }}</td>
                     <td class="text-nowrap">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
                     <td><span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">{{ r.classroom.code }}</span></td>
@@ -62,64 +148,12 @@
                         <a href="{{ url_for('reservations.detail', reservation_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver Detalhes">
                             <i class="bi bi-eye"></i>
                         </a>
+                        {% if periodo != 'passadas' %}
                         <a href="{{ url_for('reservations.edit', reservation_id=r.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </a>
-                    </td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <div class="text-center text-muted p-5">
-            <i class="bi bi-calendar-check fs-2 d-block mb-2"></i>
-            <h5 class="mb-1">Nenhuma reserva futura</h5>
-            <p class="small mb-0">Não há reservas atuais ou futuras no sistema.</p>
-        </div>
-    {% endif %}
-    </div>
-</div>
-
-<!-- Reservas Passadas -->
-<div class="card">
-    <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-        <h5 class="mb-0"><i class="bi bi-clock-history text-muted me-2"></i> Reservas Passadas (Somente Leitura)</h5>
-    </div>
-    <div class="card-body p-0">
-    {% if past_reservations %}
-        <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle">
-                <thead>
-                    <tr>
-                        <th class="ps-4">Data</th><th>Horário</th><th>Sala</th><th>Título</th><th>Professor</th><th>Reservado por</th><th>Status</th><th class="text-end pe-4">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for r in past_reservations %}
-                <tr class="text-muted">
-                    <td class="ps-4 text-nowrap fw-bold">{{ r.date.strftime('%d/%m/%Y') }}</td>
-                    <td class="text-nowrap">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
-                    <td><span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ r.classroom.code }}</span></td>
-                    <td>{{ r.title }}</td>
-                    <td>{{ r.teacher.full_name if r.teacher else '-' }}</td>
-                    <td>{{ r.user.full_name }}</td>
-                    <td>
-                        {% if r.status == 'approved' %}
-                            <span class="badge text-bg-success-subtle text-success border border-success-subtle">Aprovada</span>
-                        {% elif r.status == 'pending' %}
-                            <span class="badge text-bg-warning-subtle text-warning border border-warning-subtle">Pendente</span>
-                        {% elif r.status == 'cancelled' %}
-                            <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Cancelada</span>
-                        {% else %}
-                            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ r.status }}</span>
                         {% endif %}
                     </td>
-                    <td class="text-end pe-4">
-                        <a href="{{ url_for('reservations.detail', reservation_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver Detalhes">
-                            <i class="bi bi-eye"></i>
-                        </a>
-                    </td>
                 </tr>
                 {% endfor %}
                 </tbody>
@@ -127,9 +161,15 @@
         </div>
     {% else %}
         <div class="text-center text-muted p-5">
-            <i class="bi bi-archive fs-2 d-block mb-2"></i>
-            <h5 class="mb-1">Nenhum histórico</h5>
-            <p class="small mb-0">Não há reservas passadas no sistema.</p>
+            {% if periodo == 'passadas' %}
+                <i class="bi bi-archive fs-2 d-block mb-2"></i>
+                <h5 class="mb-1">Nenhum histórico</h5>
+                <p class="small mb-0">Não há reservas passadas com esses filtros.</p>
+            {% else %}
+                <i class="bi bi-calendar-check fs-2 d-block mb-2"></i>
+                <h5 class="mb-1">Nenhuma reserva futura</h5>
+                <p class="small mb-0">Não há reservas atuais ou futuras com esses filtros.</p>
+            {% endif %}
         </div>
     {% endif %}
     </div>

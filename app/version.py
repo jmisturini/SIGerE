@@ -10,12 +10,26 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.3.1'
+APP_VERSION = '1.4.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.4.0',
+        'data': '2026-09-16',
+        'titulo': 'Todas as Reservas com filtros do calendário',
+        'grupos': [
+            ('Adicionado', [
+                'A página Todas as Reservas ganhou os mesmos filtros do calendário — datas inicial/final, período do dia (manhã/tarde/noite), sala, professor, curso e disciplina — além de filtro por status e de ordenação (data crescente/decrescente, sala ou professor).',
+                'Filtro de ordenamento com padrão "Data — da atual para a futura"; abas e filtros continuam aplicados ao trocar de página da paginação.',
+            ]),
+            ('Alterado', [
+                'A barra de abas Todas/Aprovadas/Pendentes/Canceladas foi substituída por duas abas — Atuais e Futuras, e Passadas — com contagem de registros; o status virou filtro comum na barra de filtros.',
+            ]),
+        ],
+    },
     {
         'versao': '1.3.1',
         'data': '2026-09-16',
