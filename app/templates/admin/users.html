@@ -8,15 +8,9 @@
         <h3 class="fw-bold mb-1">Gerenciar Usuários</h3>
         <p class="text-muted mb-0">Visualize, edite e gerencie contas de professores e funcionários.</p>
     </div>
-    <div class="dropdown">
-        <button class="btn btn-primary dropdown-toggle" type="button" id="registerUserDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-plus-lg me-1"></i> Cadastrar Usuário
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="registerUserDropdown">
-            <li><a class="dropdown-item" href="{{ url_for('admin.create_teacher', **request.args.to_dict()) }}"><i class="bi bi-mortarboard me-2"></i> Cadastrar Professor</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.create_employee', **request.args.to_dict()) }}"><i class="bi bi-briefcase me-2"></i> Cadastrar Funcionário</a></li>
-        </ul>
-    </div>
+    <a class="btn btn-primary" href="{{ url_for('admin.create_user', **request.args.to_dict()) }}">
+        <i class="bi bi-plus-lg me-1"></i> Cadastrar Usuário
+    </a>
 </div>
 
 <form method="GET" class="card mb-4">

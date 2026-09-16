@@ -10,12 +10,25 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.2.0'
+APP_VERSION = '1.2.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.2.1',
+        'data': '2026-09-16',
+        'titulo': 'Entrada única de cadastro de usuário',
+        'grupos': [
+            ('Alterado', [
+                'A tela "Gerenciar Usuários" agora abre o formulário único por um único botão "Cadastrar Usuário" — o tipo (Professor/Funcionário) é escolhido dentro do formulário, que abre pedindo a seleção.',
+            ]),
+            ('Corrigido', [
+                'O seletor de tipo de perfil vinha renderizado desabilitado na criação, impedindo a troca do perfil no navegador.',
+            ]),
+        ],
+    },
     {
         'versao': '1.2.0',
         'data': '2026-09-15',
