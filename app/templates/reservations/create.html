@@ -116,6 +116,8 @@
                     subjectSelect.value = currentValue;
                 }
             }
+            // Select com busca (Tom Select): espelha as opções recarregadas.
+            if (window.tomSelectSync) tomSelectSync(subjectSelect);
         }
         courseSelect.addEventListener('change', function() {
             userChangedCourse = true;

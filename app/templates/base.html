@@ -18,6 +18,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
 <body>
@@ -300,6 +301,57 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.popular.min.js"></script>
+<script>
+        // Selects com muitas opções viram caixas com busca (Tom Select). Selects
+        // pequenos, desabilitados e já convertidos seguem nativos — sem mudar a
+        // UX onde a busca não traz ganho.
+        //
+        // Páginas que recarregam opções de um select via JS (ex.: disciplinas
+        // por curso nas reservas) devem chamar tomSelectSync(select) ao final
+        // da atualização — o sync() nativo do Tom Select só acrescenta opções,
+        // nunca remove as que saíram do DOM.
+        window.tomSelectSync = function (sel) {
+            var ts = sel.tomselect;
+            if (!ts) return;
+            try {
+                var presentes = {};
+                Array.from(sel.options).forEach(function (o) { presentes[o.value] = o.textContent.trim(); });
+                var mudou = false;
+                Object.keys(ts.options).forEach(function (v) {
+                    if (!(v in presentes)) { ts.removeOption(v, true); mudou = true; }
+                });
+                Array.from(sel.options).forEach(function (o) {
+                    if (o.value && !ts.options[o.value]) {
+                        ts.addOption({ value: o.value, text: presentes[o.value] });
+                        mudou = true;
+                    }
+                });
+                var atuais = Array.from(sel.options).filter(function (o) { return o.selected; })
+                                              .map(function (o) { return o.value; });
+                var iguais = atuais.length === ts.items.length &&
+                            atuais.every(function (v) { return ts.items.indexOf(v) !== -1; });
+                if (!iguais) { ts.setValue(atuais, true); mudou = true; }
+                if (mudou) { ts.refreshOptions(ts.isOpen); ts.refreshItems(); }
+            } catch (e) { /* falha do espelho nunca pode quebrar o filtro da página */ }
+        };
+        (function () {
+            var LIMIAR_OPCOES = 6;
+            document.querySelectorAll('select.form-select').forEach(function (sel) {
+                if (sel.disabled || sel.tomselect || sel.options.length < LIMIAR_OPCOES) return;
+                var config = { maxOptions: 1000 };
+                if (sel.multiple) {
+                    config.maxItems = null;
+                    config.plugins = ['remove_button'];
+                    config.hideSelected = true;
+                } else if (sel.options[0] && sel.options[0].value === '') {
+                    config.allowEmptyOption = true;
+                    config.placeholder = sel.options[0].text;
+                }
+                new TomSelect(sel, config);
+            });
+        })();
+    </script>
 <script>
     const themeToggle = document.getElementById('theme-toggle');
     const themeIcon = document.getElementById('theme-icon');
