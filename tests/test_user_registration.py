@@ -297,6 +297,35 @@ class UserRegistrationTestCase(unittest.TestCase):
         self.assertIn('Selecione o tipo de perfil', response.get_data(as_text=True))
         self.assertIsNone(self._get_user_by_email('maria.souza@escola.edu'))
 
+    def test_setor_e_funcao_aceitam_siglas_e_abreviacoes(self):
+        # Valores reais como "T.I" e "Assist. Suporte em TI" têm pontos — o
+        # antigo filtro "apenas alfabético" os recusava na criação e na edição.
+        self.client.post('/admin/users/create',
+                         data=self._payload(profile_type='employee',
+                                            email='gabriel.homem@escola.edu',
+                                            full_name='Gabriel Homem',
+                                            registration='FUN010',
+                                            sector='T.I',
+                                            function='Assist. Suporte em TI'),
+                         follow_redirects=True)
+        with self.app.app_context():
+            user = db.session.query(User).filter_by(email='gabriel.homem@escola.edu').first()
+            user_id = user.id
+            self.assertEqual(user.sector, 'T.I')
+            self.assertEqual(user.function, 'Assist. Suporte em TI')
+        # Edição mantendo os mesmos valores (antes falhava sem alterar nada)
+        payload = self._payload(profile_type='employee',
+                                email='gabriel.homem@escola.edu',
+                                full_name='Gabriel Homem', registration='FUN010',
+                                sector='T.I', function='Assist. Suporte em TI',
+                                password='')
+        response = self.client.post(f'/admin/users/{user_id}/edit',
+                                    data=payload, follow_redirects=True)
+        self.assertIn('Usuário atualizado com sucesso', response.get_data(as_text=True))
+        with self.app.app_context():
+            user = db.session.get(User, user_id)
+            self.assertEqual((user.sector, user.function), ('T.I', 'Assist. Suporte em TI'))
+
     def test_edicao_nao_altera_perfil_mesmo_com_post_forjado(self):
         # O seletor de perfil vem desabilitado na edição: um POST tentando
         # trocar profile_type não pode mudar o perfil persistido.

@@ -10,12 +10,22 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.2.1'
+APP_VERSION = '1.2.2'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.2.2',
+        'data': '2026-09-16',
+        'titulo': 'Setor e Função aceitam siglas e abreviações',
+        'grupos': [
+            ('Corrigido', [
+                'Cadastro/edição de usuários: Setor e Função (e Departamento) passam a aceitar pontos, números e pontuação — valores reais como "T.I" e "Assist. Suporte em TI" eram recusados pela validação "apenas alfabética".',
+            ]),
+        ],
+    },
     {
         'versao': '1.2.1',
         'data': '2026-09-16',
