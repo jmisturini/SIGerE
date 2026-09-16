@@ -10,12 +10,22 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.4.0'
+APP_VERSION = '1.4.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.4.1',
+        'data': '2026-09-16',
+        'titulo': 'Editar reservas direto da página da sala',
+        'grupos': [
+            ('Adicionado', [
+                'A lista de próximas reservas na página de detalhes da sala ganhou botão de edição — visível para quem tem permissão de editar qualquer reserva ou para o dono da reserva.',
+            ]),
+        ],
+    },
     {
         'versao': '1.4.0',
         'data': '2026-09-16',
