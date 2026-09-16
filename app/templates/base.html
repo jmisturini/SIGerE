@@ -234,32 +234,37 @@
             <button class="btn btn-link d-lg-none" id="sidebar-toggle" type="button">
                 <i class="bi bi-list"></i>
             </button>
-            
-            <div class="ms-auto d-flex align-items-center">
-                {% if current_user.is_authenticated and can_switch_unity and switchable_unities|length > 1 %}
-                <form method="POST" action="{{ url_for('main.switch_unity') }}" class="me-2">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    {# A seta é um ícone externo ao select: navegadores cortam o
-                       texto em pontos diferentes e ela acabava sobreposta ao
-                       nome quando a unidade tinha nome longo. #}
-                    <div class="unity-switch">
-                        <select name="unity_id" class="form-select form-select-sm bg-transparent border-0 fw-semibold"
-                                onchange="this.form.submit()"
-                                title="{{ current_unity.name }} — unidade ativa de operação"
-                                aria-label="Unidade ativa de operação">
-                            {% for u in switchable_unities %}
-                            <option value="{{ u.id }}" {{ 'selected' if current_unity and current_unity.id == u.id }}>{{ u.name|truncate(24, True, '…', 0) }}</option>
-                            {% endfor %}
-                        </select>
-                        <i class="bi bi-chevron-down unity-switch-caret" aria-hidden="true"></i>
-                    </div>
-                </form>
-                {% elif current_user.is_authenticated and current_unity %}
-                <span class="badge text-bg-light border me-2 d-none d-md-inline-block" title="Unidade ativa de operação">
-                    <i class="bi bi-geo-alt me-1"></i>{{ current_unity.name }}
-                </span>
-                {% endif %}
 
+            {% if current_user.is_authenticated and current_unity %}
+            {# Unidade ativa à esquerda do topbar, ao lado da barra lateral #}
+            <div class="unity-area d-none d-md-flex align-items-center gap-2" title="{{ current_unity.name }} — unidade ativa de operação">
+                <i class="bi bi-geo-alt text-muted"></i>
+                <span class="fw-semibold unity-name">{{ current_unity.name }}</span>
+                {% if can_switch_unity and switchable_unities|length > 1 %}
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
+                            aria-expanded="false" title="Trocar unidade ativa">
+                        Trocar
+                    </button>
+                    <ul class="dropdown-menu">
+                        {% for u in switchable_unities %}
+                        <li>
+                            <form method="POST" action="{{ url_for('main.switch_unity') }}" class="m-0">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="unity_id" value="{{ u.id }}">
+                                <button type="submit" class="dropdown-item" {{ 'disabled' if current_unity.id == u.id }}>
+                                    {{ u.name }}{% if current_unity.id == u.id %} <i class="bi bi-check2"></i>{% endif %}
+                                </button>
+                            </form>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="ms-auto d-flex align-items-center">
                 <button id="theme-toggle" class="btn btn-sm btn-icon" title="Alternar tema">
                     <i class="bi bi-sun-fill" id="theme-icon"></i>
                 </button>

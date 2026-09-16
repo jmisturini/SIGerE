@@ -391,28 +391,20 @@ body {
 
 /* Seletor de unidade da topbar: inline no base.html não dá para sobrescrever,
    então a largura vive aqui (o inline vencia qualquer media query). */
-.unity-switch {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    max-width: 220px;
-    color: var(--bs-body-color);
+/* Unidade ativa no topo (à esquerda, ao lado da barra lateral) */
+.unity-area {
+    min-width: 0;
 }
 
-/* Seta externa ao select: o Firefox não corta o texto do select no mesmo
-   ponto do Chromium e ele acabava desenhado por baixo da background-image. */
-.unity-switch .form-select {
-    background-image: none !important;
-    padding-right: 1.6rem;
+.unity-name {
+    white-space: nowrap;
+    overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.unity-switch-caret {
-    position: absolute;
-    right: .4rem;
-    pointer-events: none;
-    font-size: .8rem;
-    color: var(--text-muted);
+/* Dropdown de troca de unidade: formulários por item sem margens */
+.unity-area .dropdown-menu form {
+    display: contents;
 }
 
 /* Nav-tabs e paginação são flex-nowrap no Bootstrap: com 4 abas ou muitas
@@ -449,10 +441,6 @@ body {
     }
     .topbar {
         padding: 0 1rem;
-    }
-    .unity-switch {
-        max-width: 150px;
-        font-size: 0.875rem;
     }
 }
 
