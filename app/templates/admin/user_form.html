@@ -21,8 +21,12 @@
                     <div class="row g-3">
                         <div class="col-md-4">
                             {{ form.profile_type.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                            {{ form.profile_type(class="form-select", disabled=modo_edicao or None) }}
-                            {% if modo_edicao %}<div class="form-text small">O tipo de perfil não pode ser alterado.</div>{% endif %}
+                            {% if modo_edicao %}
+                            {{ form.profile_type(class="form-select", disabled=True) }}
+                            <div class="form-text small">O tipo de perfil não pode ser alterado.</div>
+                            {% else %}
+                            {{ form.profile_type(class="form-select") }}
+                            {% endif %}
                             {% for err in form.profile_type.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
@@ -125,12 +129,14 @@
         var seletor = document.getElementById('profile_type');
         if (!seletor) return;
         function alternarCamposPerfil() {
+            // Sem tipo escolhido (entrada única /users/create), nenhum grupo aparece.
             var ehProfessor = seletor.value === 'teacher';
+            var ehFuncionario = seletor.value === 'employee';
             document.querySelectorAll('.campos-professor').forEach(function (el) {
                 el.classList.toggle('d-none', !ehProfessor);
             });
             document.querySelectorAll('.campos-funcionario').forEach(function (el) {
-                el.classList.toggle('d-none', ehProfessor);
+                el.classList.toggle('d-none', !ehFuncionario);
             });
         }
         seletor.addEventListener('change', alternarCamposPerfil);

@@ -197,6 +197,9 @@ class UserRegistrationTestCase(unittest.TestCase):
         self.assertNotIn('Editar Teacher', teacher_page)
         self.assertIn('Editar Funcionário', employee_page)
         self.assertNotIn('Editar Employee', employee_page)
+        # Na edição o seletor de perfil fica desabilitado (tipo imutável).
+        seletor = re.search(r'<select[^>]*name="profile_type"[^>]*>', teacher_page).group(0)
+        self.assertIn('disabled', seletor)
 
     # ---------- Formulário unificado: mapeamento perfil → papel legado ----------
 
@@ -258,6 +261,41 @@ class UserRegistrationTestCase(unittest.TestCase):
                 r'<option[^>]*value="%s"[^>]*selected|<option[^>]*selected[^>]*value="%s"'
                 % (selecionado, selecionado))
             self.assertIsNotNone(opcao.search(page), url)
+
+    def test_entrada_unica_cadastro_usuario(self):
+        # O botão "Cadastrar Usuário" abre /admin/users/create sem tipo
+        # pré-selecionado: a escolha acontece no próprio formulário.
+        page = self.client.get('/admin/users/create').get_data(as_text=True)
+        self.assertIn('Cadastrar Novo Usuário', page)
+        self.assertIn('Selecione o tipo de perfil', page)
+        for tipo in ('teacher', 'employee'):
+            opcao = re.compile(
+                r'<option[^>]*value="%s"[^>]*selected|<option[^>]*selected[^>]*value="%s"'
+                % (tipo, tipo))
+            self.assertIsNone(opcao.search(page), tipo)
+        # O seletor vem HABILITADO na criação (um `disabled="None"` renderizado
+        # travaria a escolha do tipo no navegador).
+        seletor = re.search(r'<select[^>]*name="profile_type"[^>]*>', page).group(0)
+        self.assertNotIn('disabled', seletor)
+
+    def test_entrada_unica_cadastra_professor(self):
+        # A URL única serve para os dois perfis — aqui o tipo "Professor" é
+        # escolhido no formulário (como o navegador envia após a escolha).
+        response = self.client.post('/admin/users/create',
+                                    data=self._payload(profile_type='teacher'),
+                                    follow_redirects=True)
+        self.assertIn('Professor cadastrado com sucesso', response.get_data(as_text=True))
+        with self.app.app_context():
+            user = db.session.query(User).filter_by(email='maria.souza@escola.edu').first()
+            self.assertEqual(user.profile_type, 'teacher')
+            self.assertEqual(user.role, 'room')
+
+    def test_entrada_unica_exige_tipo(self):
+        # Payload sem profile_type (o padrão da URL neutra): a validação pede
+        # a escolha do tipo e nenhum usuário é criado.
+        response = self.client.post('/admin/users/create', data=self._payload())
+        self.assertIn('Selecione o tipo de perfil', response.get_data(as_text=True))
+        self.assertIsNone(self._get_user_by_email('maria.souza@escola.edu'))
 
     def test_edicao_nao_altera_perfil_mesmo_com_post_forjado(self):
         # O seletor de perfil vem desabilitado na edição: um POST tentando

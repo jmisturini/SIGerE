@@ -158,6 +158,13 @@ def _aplicar_perfil(user, form, profile):
         user.is_teacher = form.is_teacher.data
 
 
+@bp.route('/users/create', methods=['GET', 'POST'])
+@login_required
+@require_permission('user:create')
+def create_user():
+    return _criar_usuario(None)
+
+
 @bp.route('/users/create-teacher', methods=['GET', 'POST'])
 @login_required
 @require_permission('user:create')
@@ -173,9 +180,14 @@ def create_employee():
 
 
 def _criar_usuario(profile_type):
-    """Cadastro unificado: as duas URLs apenas pré-selecionam o perfil
-    (default do campo, que o formulário dinâmico permite trocar)."""
-    form = _preparar_form_usuario(UserForm(profile_type=profile_type))
+    """Cadastro unificado (formulário único). A URL /users/create — usada pelo
+    botão "Cadastrar Usuário" — abre sem tipo pré-escolhido; create-teacher e
+    create-employee (checklist e compatibilidade) apenas pré-selecionam o
+    perfil, que o formulário dinâmico permite trocar antes de salvar."""
+    form = _preparar_form_usuario(UserForm(profile_type=profile_type or ''))
+    if profile_type is None:
+        # Opção vazia: força a escolha do tipo no próprio formulário.
+        form.profile_type.choices = [('', 'Selecione o tipo de perfil…')] + list(form.profile_type.choices)
     if form.validate_on_submit():
         user = User(
             email=form.email.data, full_name=form.full_name.data,
@@ -192,7 +204,7 @@ def _criar_usuario(profile_type):
         flash(f'{_PERFIL_LABEL[user.profile_type]} cadastrado com sucesso.', 'success')
         return redirect_preserving_args('admin.list_users')
     return render_template('admin/user_form.html', form=form,
-                           title=f'Cadastrar Novo {_PERFIL_LABEL[profile_type]}',
+                           title=f"Cadastrar Novo {_PERFIL_LABEL.get(profile_type, 'Usuário')}",
                            modo_edicao=False)
 
 @bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
