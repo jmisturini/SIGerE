@@ -366,8 +366,20 @@ def toggle_room(room_id):
 @login_required
 @require_permission('course:read')
 def list_courses():
-    courses = Course.query.filter_by(unity_id=current_unity_id()).order_by(Course.name).all()
-    return render_template('admin/courses.html', courses=courses)
+    courses = Course.query.filter_by(unity_id=current_unity_id()).all()
+    # Ordenação escolhida no filtro da página (padrão: nome A–Z). Feita em
+    # Python para ser case-insensitive e contar disciplinas sem subconsulta.
+    ordem = request.args.get('ordem', 'nome')
+    if ordem == 'nome_desc':
+        courses.sort(key=lambda c: c.name.lower(), reverse=True)
+    elif ordem == 'codigo':
+        courses.sort(key=lambda c: c.code.lower())
+    elif ordem == 'disciplinas':
+        courses.sort(key=lambda c: (-len(c.subjects), c.name.lower()))
+    else:
+        ordem = 'nome'
+        courses.sort(key=lambda c: c.name.lower())
+    return render_template('admin/courses.html', courses=courses, ordem=ordem)
 
 @bp.route('/courses/create', methods=['GET', 'POST'])
 @login_required
@@ -411,8 +423,22 @@ def toggle_course(course_id):
 @login_required
 @require_permission('course:read')
 def list_subjects():
-    subjects = Subject.query.filter_by(unity_id=current_unity_id()).order_by(Subject.name).all()
-    return render_template('admin/subjects.html', subjects=subjects)
+    subjects = Subject.query.filter_by(unity_id=current_unity_id()).all()
+    # Ordenação escolhida no filtro da página (padrão: nome A–Z). Feita em
+    # Python para ordenar case-insensitive e agrupar por curso com as
+    # disciplinas sem curso ao final.
+    ordem = request.args.get('ordem', 'nome')
+    if ordem == 'nome_desc':
+        subjects.sort(key=lambda s: s.name.lower(), reverse=True)
+    elif ordem == 'codigo':
+        subjects.sort(key=lambda s: s.code.lower())
+    elif ordem == 'curso':
+        subjects.sort(key=lambda s: (s.course.name.lower() if s.course else '\uffff',
+                                     s.name.lower()))
+    else:
+        ordem = 'nome'
+        subjects.sort(key=lambda s: s.name.lower())
+    return render_template('admin/subjects.html', subjects=subjects, ordem=ordem)
 
 @bp.route('/subjects/create', methods=['GET', 'POST'])
 @login_required
