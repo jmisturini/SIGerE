@@ -519,6 +519,11 @@ h1, h2, h3, h4, h5, h6 {
     color: #c9d1d9;
 }
 
+/* Botão de revelar contas desativadas (listagens administrativas) */
+.btn.border-dashed {
+    border-style: dashed;
+}
+
 /* ===== Tom Select (selects com busca) =====
    O tema bootstrap5 do Tom Select acompanha o claro; abaixo, a integração
    com o tema escuro (mesma paleta de .form-control/.form-select). */
