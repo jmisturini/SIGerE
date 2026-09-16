@@ -41,25 +41,29 @@
         <div class="sidebar-menu">
             <ul class="nav flex-column">
                 {% if current_user.is_authenticated %}
+                {# Endpoint atual abreviado para as regras de destaque do menu #}
+                {% set ep = request.endpoint or '' %}
                 <li class="nav-section">Geral</li>
                 <li class="nav-item">
-                    <a class="nav-link" title="Painel" href="{{ url_for('main.index') }}">
+                    <a class="nav-link {{ 'active' if ep == 'main.index' }}" title="Painel" href="{{ url_for('main.index') }}">
                         <i class="bi bi-speedometer2"></i> <span>Painel</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" title="Calendário" href="{{ url_for('schedule.view') }}">
+                    <a class="nav-link {{ 'active' if ep.startswith('schedule.') }}" title="Calendário" href="{{ url_for('schedule.view') }}">
                         <i class="bi bi-calendar3"></i> <span>Calendário</span>
                     </a>
                 </li>
 
                 <li class="nav-section">Salas e Reservas</li>
+                {# Salas inclui a gestão administrativa (admin/rooms, categorias) e as telas públicas #}
+                {% set in_salas = ep.startswith('classrooms') or ep.startswith('admin.rooms') or ep.startswith('admin.categories') %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('classrooms') }}" title="Salas" href="{{ url_for('classrooms.list_classrooms') }}">
+                    <a class="nav-link {{ 'active' if in_salas }}" title="Salas" href="{{ url_for('classrooms.list_classrooms') }}">
                         <i class="bi bi-door-open"></i> <span>Salas</span>
                     </a>
                 </li>
-                {% set in_reservations = request.endpoint and request.endpoint.startswith('reservations.') %}
+                {% set in_reservations = ep.startswith('reservations.') %}
                 {% if current_user.has_permission('reservation:create') or current_user.has_permission('reservation:read_all') or current_user.has_permission('reservation:read_own') %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if in_reservations else '' }}" title="Reservas" data-bs-toggle="collapse" href="#menu-reservas" role="button" aria-expanded="{{ 'true' if in_reservations else 'false' }}" aria-controls="menu-reservas">
@@ -70,21 +74,21 @@
                         <ul class="nav flex-column nav-submenu">
                             {% if current_user.has_permission('reservation:create') %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('reservations.create') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.create') }}" href="{{ url_for('reservations.create') }}">
                                     <i class="bi bi-plus-circle"></i> <span>Nova Reserva</span>
                                 </a>
                             </li>
                             {% endif %}
                             {% if current_user.has_permission('reservation:read_own') %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('reservations.my_reservations') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.my') }}" href="{{ url_for('reservations.my_reservations') }}">
                                     <i class="bi bi-calendar-check"></i> <span>Minhas Reservas</span>
                                 </a>
                             </li>
                             {% endif %}
                             {% if current_user.has_permission('reservation:read_all') %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('reservations.all_reservations') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.all') }}" href="{{ url_for('reservations.all_reservations') }}">
                                     <i class="bi bi-people"></i> <span>Todas as Reservas</span>
                                 </a>
                             </li>
@@ -109,13 +113,13 @@
                     <div class="collapse {{ 'show' if in_overtime else '' }}" id="menu-hora-extra">
                         <ul class="nav flex-column nav-submenu">
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('payments.list_overtime') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.list') }}" href="{{ url_for('payments.list_overtime') }}">
                                     <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
                                 </a>
                             </li>
                             {% if current_user.has_permission('payment:create') %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('payments.create_overtime') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.create') or ep.startswith('payments.edit') }}" href="{{ url_for('payments.create_overtime') }}">
                                     <i class="bi bi-plus-circle"></i> <span>Nova Hora Extra</span>
                                 </a>
                             </li>
@@ -133,12 +137,12 @@
                     <div class="collapse {{ 'show' if in_vt else '' }}" id="menu-vt">
                         <ul class="nav flex-column nav-submenu">
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('vt.index') }}">
+                                <a class="nav-link {{ 'active' if ep == 'vt.index' }}" href="{{ url_for('vt.index') }}">
                                     <i class="bi bi-cloud-arrow-up"></i> <span>Importar Pedido</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('vt.records') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('vt.records') }}" href="{{ url_for('vt.records') }}">
                                     <i class="bi bi-people"></i> <span>Colaboradores</span>
                                 </a>
                             </li>
@@ -152,18 +156,18 @@
                 {% if current_user.has_permission('kitchen:read') and unity_module_enabled('kitchen') %}
                 <li class="nav-section">Cozinha</li>
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint == 'kitchen.sheets' }}" title="Ficha Técnica" href="{{ url_for('kitchen.sheets') }}">
+                    <a class="nav-link {{ 'active' if ep.startswith('kitchen.sheet') }}" title="Ficha Técnica" href="{{ url_for('kitchen.sheets') }}">
                         <i class="bi bi-file-earmark-word"></i> <span>Ficha Técnica</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint == 'kitchen.preparations' }}" title="Preparações" href="{{ url_for('kitchen.preparations') }}">
+                    <a class="nav-link {{ 'active' if ep.startswith('kitchen.preparation') }}" title="Preparações" href="{{ url_for('kitchen.preparations') }}">
                         <i class="bi bi-journal-text"></i> <span>Preparações</span>
                     </a>
                 </li>
                 {% if current_user.has_permission('kitchen:shopping_export') %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint == 'kitchen.shopping' }}" title="Compras" href="{{ url_for('kitchen.shopping') }}">
+                    <a class="nav-link {{ 'active' if ep.startswith('kitchen.shopping') }}" title="Compras" href="{{ url_for('kitchen.shopping') }}">
                         <i class="bi bi-cart-check"></i> <span>Compras</span>
                     </a>
                 </li>
@@ -173,23 +177,30 @@
                 {% if current_user.has_permission('system:dashboard') or current_user.has_permission('unity:read') %}
                 <li class="nav-section">Administração</li>
                 {% endif %}
+                {% set in_unidades = ep.startswith('admin.') and 'unit' in ep %}
+                {% set in_tokens = ep.startswith('admin.') and 'api_token' in ep %}
+                {# Painel Admin fica ativo nas páginas de gestão sem item próprio
+                   no menu (usuários, cursos, disciplinas, feriados, papéis) #}
+                {# Painel Admin é o fallback das demais páginas administrativas sem item
+   próprio no menu (usuários, cursos, disciplinas, feriados, papéis...) #}
+                {% set in_painel_admin = ep.startswith('admin.') and not in_unidades and not in_tokens and not in_salas_admin %}
                 {% if current_user.has_permission('system:dashboard') %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('admin.') }}" title="Painel Admin" href="{{ url_for('admin.dashboard') }}">
+                    <a class="nav-link {{ 'active' if in_painel_admin }}" title="Painel Admin" href="{{ url_for('admin.dashboard') }}">
                         <i class="bi bi-gear"></i> <span>Painel Admin</span>
                     </a>
                 </li>
                 {% endif %}
                 {% if current_user.has_permission('unity:read') %}
                 <li class="nav-item">
-                    <a class="nav-link" title="Unidades" href="{{ url_for('admin.list_unities') }}">
+                    <a class="nav-link {{ 'active' if in_unidades }}" title="Unidades" href="{{ url_for('admin.list_unities') }}">
                         <i class="bi bi-buildings"></i> <span>Unidades</span>
                     </a>
                 </li>
                 {% endif %}
                 {% if current_user.has_permission('api:manage') %}
                 <li class="nav-item">
-                    <a class="nav-link" title="Tokens da API" href="{{ url_for('admin.list_api_tokens') }}">
+                    <a class="nav-link {{ 'active' if in_tokens }}" title="Tokens da API" href="{{ url_for('admin.list_api_tokens') }}">
                         <i class="bi bi-key"></i> <span>Tokens da API</span>
                     </a>
                 </li>

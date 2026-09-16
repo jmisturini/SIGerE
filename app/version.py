@@ -10,12 +10,23 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.5.4'
+APP_VERSION = '1.5.5'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.5.5',
+        'data': '2026-09-16',
+        'titulo': 'Menu lateral sinaliza corretamente a página visitada',
+        'grupos': [
+            ('Corrigido', [
+                'Unidades agora fica sinalizado no menu ao acessar qualquer tela de unidades — antes o destaque ficava preso no Painel Admin.',
+                'Painel, Calendário, itens do submenu (Nova/Minhas/Todas as Reservas, Hora Extra, Vale-Transporte) e Cozinha também mantêm o destaque nas respectivas páginas, incluindo telas de detalhe e edição.',
+            ]),
+        ],
+    },
     {
         'versao': '1.5.4',
         'data': '2026-09-16',
