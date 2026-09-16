@@ -164,6 +164,16 @@ class UserForm(BaseForm):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
             raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
 
+    # Departamento/Setor/Função carregam siglas e abreviações reais (T.I,
+    # Assist. Suporte em TI, Recursos Humanos): o filtro "apenas alfabético"
+    # recusava valores legítimos — mesmo padrão permissivo do nome de salas.
+    _PADRAO_TEXTO_PERFIL = re.compile(r'^[A-Za-zÀ-ÿ0-9\s\-.,()/&]+$')
+
+    def _validate_texto_perfil(self, field, field_name):
+        if field.data and not self._PADRAO_TEXTO_PERFIL.match(field.data):
+            raise ValidationError(
+                f'{field_name} contém caracteres não permitidos. Use letras, números, espaços ou . , - ( ) / &')
+
     def _perfil(self):
         return self.profile_type.data or 'employee'
 
@@ -176,13 +186,13 @@ class UserForm(BaseForm):
         self._validate_alpha_only(field, 'Nome Completo')
 
     def validate_department(self, field):
-        self._validate_alpha_only(field, 'Departamento')
+        self._validate_texto_perfil(field, 'Departamento')
 
     def validate_sector(self, field):
-        self._validate_alpha_only(field, 'Setor')
+        self._validate_texto_perfil(field, 'Setor')
 
     def validate_function(self, field):
-        self._validate_alpha_only(field, 'Função')
+        self._validate_texto_perfil(field, 'Função')
 
     def validate_registration(self, field):
         # A matrícula é obrigatória para ambos os perfis; a mensagem cita o
