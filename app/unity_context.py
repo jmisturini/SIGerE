@@ -2,8 +2,10 @@
 
 Cada requisição autenticada opera dentro de UMA unidade:
 - Usuários comuns ficam fixados na própria unidade (User.unity_id);
-- Usuários com a permissão '*' ou 'unity:switch' podem alternar a unidade
-  ativa pelo seletor no topo (armazenada na sessão, chave 'unity_id');
+- Apenas o super-admin (permissão '*') alterna a unidade ativa pelo seletor
+  no topo (armazenada na sessão, chave 'unity_id') — a permissão
+  'unity:switch', que antes também liberava o seletor, ficou reservada: sem
+  o '*', nenhum operador comum muda de unidade;
 - Sem unidade definida, cai para a primeira unidade ativa por nome.
 
 Os blueprints usam current_unity_id() para filtrar todas as queries.
@@ -11,13 +13,13 @@ Os blueprints usam current_unity_id() para filtrar todas as queries.
 from flask import session, g
 from flask_login import current_user
 
-SWITCHABLE_PERMISSIONS = ('*', 'unity:switch')
+SWITCHABLE_PERMISSIONS = ('*',)
 
 SESSION_KEY = 'unity_id'
 
 
 def can_switch_unity():
-    """Usuários autorizados a alternar entre unidades (admins globais)."""
+    """Somente o super-admin ('*') alterna a unidade ativa de operação."""
     if not current_user.is_authenticated:
         return False
     return any(current_user.has_permission(code) for code in SWITCHABLE_PERMISSIONS)

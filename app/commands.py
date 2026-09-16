@@ -26,7 +26,11 @@ PERMISSION_DATA = [
     ('unity:create', 'unity', 'create', 'Criar unidades educacionais'),
     ('unity:edit', 'unity', 'edit', 'Editar unidades educacionais'),
     ('unity:toggle', 'unity', 'toggle', 'Ativar/desativar unidades educacionais'),
-    ('unity:switch', 'unity', 'switch', 'Alternar a unidade ativa de operação'),
+    # Reservada ao super-administrador: a alternância da unidade ativa só
+    # responde ao '*' (SWITCHABLE_PERMISSIONS em app.unity_context) — manter
+    # esta permissão atribuída não dá o poder de trocar de unidade.
+    ('unity:switch', 'unity', 'switch',
+     'Alternar a unidade ativa de operação (reservada ao super-admin)'),
     ('unity:modules', 'unity', 'modules', 'Ativar/desativar módulos da unidade (Cozinha, Financeiro)'),
     ('room:read', 'room', 'read', 'Visualizar salas'),
     ('room:create', 'room', 'create', 'Criar salas'),
@@ -91,7 +95,7 @@ ROLES_CONFIG = {
         'is_system': True,
         'permissions': [
             'user:read', 'user:create', 'user:edit', 'user:toggle',
-            'unity:read', 'unity:create', 'unity:edit', 'unity:toggle', 'unity:switch',
+            'unity:read', 'unity:create', 'unity:edit', 'unity:toggle',
             'unity:modules',
             'room:read', 'room:create', 'room:edit', 'room:toggle',
             'course:read', 'course:create', 'course:edit', 'course:toggle',

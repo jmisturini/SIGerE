@@ -114,7 +114,8 @@ class ApiTokensAdminTestCase(unittest.TestCase):
 
     def test_gerar_token_exibe_valor_uma_vez(self):
         response = self.client.post('/admin/api-tokens/create',
-                                    data={'name': 'Painel porta S101', 'duration': 0})
+                                    data={'name': 'Painel porta S101', 'duration': 0},
+                                    follow_redirects=True)
         page = response.get_data(as_text=True)
         match = TOKEN_RE.search(page)
         self.assertIsNotNone(match, 'Valor completo do token deve aparecer na página')
@@ -139,7 +140,8 @@ class ApiTokensAdminTestCase(unittest.TestCase):
 
     def test_token_gerado_autentica_a_api(self):
         response = self.client.post('/admin/api-tokens/create',
-                                    data={'name': 'Integração', 'duration': 0})
+                                    data={'name': 'Integração', 'duration': 0},
+                                    follow_redirects=True)
         raw = TOKEN_RE.search(response.get_data(as_text=True)).group(1)
 
         response = self.client.get('/api/v1/reservations',
@@ -169,7 +171,8 @@ class ApiTokensAdminTestCase(unittest.TestCase):
 
     def test_revogar_e_reativar_token(self):
         response = self.client.post('/admin/api-tokens/create',
-                                    data={'name': 'Para revogar', 'duration': 0})
+                                    data={'name': 'Para revogar', 'duration': 0},
+                                    follow_redirects=True)
         raw = TOKEN_RE.search(response.get_data(as_text=True)).group(1)
         with self.app.app_context():
             token_id = ApiToken.query.first().id
@@ -190,7 +193,8 @@ class ApiTokensAdminTestCase(unittest.TestCase):
 
     def test_excluir_token(self):
         response = self.client.post('/admin/api-tokens/create',
-                                    data={'name': 'Para excluir', 'duration': 0})
+                                    data={'name': 'Para excluir', 'duration': 0},
+                                    follow_redirects=True)
         raw = TOKEN_RE.search(response.get_data(as_text=True)).group(1)
         with self.app.app_context():
             token_id = ApiToken.query.first().id
@@ -205,12 +209,78 @@ class ApiTokensAdminTestCase(unittest.TestCase):
 
     def test_ultimo_uso_aparece_na_listagem(self):
         response = self.client.post('/admin/api-tokens/create',
-                                    data={'name': 'Uso registrado', 'duration': 0})
+                                    data={'name': 'Uso registrado', 'duration': 0},
+                                    follow_redirects=True)
         raw = TOKEN_RE.search(response.get_data(as_text=True)).group(1)
         self.client.get('/api/v1/reservations',
                         headers={'Authorization': f'Bearer {raw}'})
         response = self.client.get('/admin/api-tokens')
         self.assertNotIn('>nunca<', response.get_data(as_text=True))
+
+    # ── Regressões: criação sem Post/Redirect/Get ──
+    # Renderizar a listagem direto na resposta do POST mantinha o navegador
+    # em /admin/api-tokens/create: recarregar reenviava o POST (novo token a
+    # cada F5) e o redirect_back da primeira ação seguinte devolvia GET em
+    # /create, rota apenas-POST → 405.
+
+    def test_criar_segue_padrao_prg_redirect(self):
+        response = self.client.post('/admin/api-tokens/create',
+                                    data={'name': 'Padrao PRG', 'duration': 0})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.endswith('/admin/api-tokens'))
+
+    def test_recarregar_pagina_nao_gera_novos_tokens(self):
+        # F5 re-emite a última requisição do navegador. Com PRG, a última
+        # requisição após criar é o GET da listagem (redirect) — repeti-lo
+        # é seguro; sem o redirect, seria o POST /create (novo token a cada F5).
+        response = self.client.post('/admin/api-tokens/create',
+                                    data={'name': 'Recarga', 'duration': 0})
+        self.assertEqual(response.status_code, 302)
+        url_atual = response.location
+
+        primeira = self.client.get(url_atual)
+        self.assertEqual(primeira.status_code, 200)
+        raw = TOKEN_RE.search(primeira.get_data(as_text=True)).group(1)
+
+        for _ in range(2):
+            recarregada = self.client.get(url_atual)
+            self.assertEqual(recarregada.status_code, 200)
+            self.assertNotIn(raw, recarregada.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(ApiToken.query.count(), 1)
+
+    def test_primeira_acao_apos_criar_nao_resulta_em_405(self):
+        # O navegador segue o redirect da criação e passa a exibir a listagem:
+        # é dela que sai o referrer da primeira ação. Sem o redirect, a URL
+        # corrente era /create e o redirect_back devolvia GET em rota
+        # apenas-POST → 405 na primeira revogação/exclusão.
+        response = self.client.post('/admin/api-tokens/create',
+                                    data={'name': 'Primeira acao', 'duration': 0})
+        url_atual = response.location
+        self.assertEqual(self.client.get(url_atual).status_code, 200)
+        with self.app.app_context():
+            token_id = ApiToken.query.first().id
+
+        response = self.client.post(
+            f'/admin/api-tokens/{token_id}/toggle',
+            headers={'Referer': f'http://localhost{url_atual}'},
+            follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('revogado', response.get_data(as_text=True))
+
+        # /create continua apenas-POST (GET direto → 405): o bug era cair
+        # nessa URL via redirect_back; o redirect da criação elimina isso
+        self.assertEqual(self.client.get('/admin/api-tokens/create').status_code, 405)
+
+        # mesmo cenário para a exclusão, com referrer da listagem
+        self.client.post(f'/admin/api-tokens/{token_id}/toggle')  # reativa
+        response = self.client.post(
+            f'/admin/api-tokens/{token_id}/delete',
+            headers={'Referer': f'http://localhost{url_atual}'},
+            follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(ApiToken.query.count(), 0)
 
 
 if __name__ == '__main__':
