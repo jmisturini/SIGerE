@@ -10,12 +10,22 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.4.1'
+APP_VERSION = '1.4.2'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.4.2',
+        'data': '2026-09-16',
+        'titulo': 'Ordenação nas páginas de Cursos e Disciplinas',
+        'grupos': [
+            ('Adicionado', [
+                'Filtro "Ordenar por" nas páginas de Cursos e Disciplinas: nome (A–Z/Z–A), código e — nos cursos — quantidade de disciplinas; nas disciplinas, agrupamento por curso (sem curso por último).',
+            ]),
+        ],
+    },
     {
         'versao': '1.4.1',
         'data': '2026-09-16',
