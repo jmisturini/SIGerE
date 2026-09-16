@@ -10,12 +10,25 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.2.2'
+APP_VERSION = '1.3.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.3.0',
+        'data': '2026-09-16',
+        'titulo': 'Busca nas caixas de seleção',
+        'grupos': [
+            ('Adicionado', [
+                'Caixas de seleção com muitas opções (a partir de 6) ganharam busca digitável em todo o sistema — papéis, unidades, módulos, salas, cursos, disciplinas e professores — com seleção múltipla em etiquetas removíveis e tema claro/escuro integrado.',
+            ]),
+            ('Alterado', [
+                'O filtro curso → disciplina das reservas atualiza também a caixa com busca, mantendo a disciplina já escolhida quando ela continua válida.',
+            ]),
+        ],
+    },
     {
         'versao': '1.2.2',
         'data': '2026-09-16',
