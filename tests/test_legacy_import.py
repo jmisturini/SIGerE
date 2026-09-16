@@ -148,5 +148,130 @@ class LegacyImportGuardTestCase(unittest.TestCase):
             self.assertEqual(room.unity_id, target.id)
 
 
+class LegacyImportUserProfileRuleTestCase(unittest.TestCase):
+    """Regra do quadro: com setor/departamento/função preenchidos o usuário
+    importado é funcionário (is_teacher=True preserva a designação em
+    reservas); professor é quem não tem nenhum vínculo administrativo."""
+
+    DUMP = (
+        "-- phpMyAdmin SQL Dump\n"
+        "-- --------------------------------------------------------\n"
+        "--\n-- Table structure for table `cores`\n--\n\n"
+        "CREATE TABLE `cores` (`id` int NOT NULL, `core` varchar(100) NOT NULL);\n"
+        "--\n-- Dumping data for table `cores`\n--\n\n"
+        "INSERT INTO `cores` (`id`, `core`) VALUES\n"
+        "(1, 'Núcleo Tecnológico');\n"
+        "-- --------------------------------------------------------\n"
+        "--\n-- Table structure for table `sectors`\n--\n\n"
+        "CREATE TABLE `sectors` (`id` int NOT NULL, `sector` varchar(100) NOT NULL);\n"
+        "--\n-- Dumping data for table `sectors`\n--\n\n"
+        "INSERT INTO `sectors` (`id`, `sector`) VALUES\n"
+        "(1, 'Setor de TI');\n"
+        "-- --------------------------------------------------------\n"
+        "--\n-- Table structure for table `functions`\n--\n\n"
+        "CREATE TABLE `functions` (`id` int NOT NULL, `function` varchar(100) NOT NULL);\n"
+        "--\n-- Dumping data for table `functions`\n--\n\n"
+        "INSERT INTO `functions` (`id`, `function`) VALUES\n"
+        "(1, 'Professor de Gastronomia'),\n"
+        "(2, 'Coordenador de Curso');\n"
+        "-- --------------------------------------------------------\n"
+        "--\n-- Table structure for table `authenticator_customuser`\n--\n\n"
+        "CREATE TABLE `authenticator_customuser` (`id` int NOT NULL, `registration` int,\n"
+        " `email` varchar(100), `first_name` varchar(50), `last_name` varchar(50),\n"
+        " `username` varchar(50), `is_active` int, `is_superuser` int, `is_staff` int,\n"
+        " `unit_id` int, `core_id` int, `sector_id` int, `function_id` int,\n"
+        " `password` varchar(200), `date_joined` datetime);\n"
+        "--\n-- Dumping data for table `authenticator_customuser`\n--\n\n"
+        "INSERT INTO `authenticator_customuser` (`id`, `registration`, `email`,\n"
+        " `first_name`, `last_name`, `username`, `is_active`, `is_superuser`,\n"
+        " `is_staff`, `unit_id`, `core_id`, `sector_id`, `function_id`,\n"
+        " `password`, `date_joined`) VALUES\n"
+        "(1, 100, 'carla@senac.br', 'Carla', 'Com Lotacao', 'carla', 1, 0, 0, 1, 1, 1, 1, 'lixo', '2023-05-10 10:00:00'),\n"
+        "(2, 200, 'diego@senac.br', 'Diego', 'Coordenador', 'diego', 1, 0, 0, 1, 1, NULL, 2, 'lixo', '2023-05-10 10:00:00'),\n"
+        "(3, 300, 'elena@senac.br', 'Elena', 'Sem Lotacao', 'elena', 1, 0, 0, 1, NULL, NULL, NULL, 'lixo', '2023-05-10 10:00:00');\n"
+        "-- --------------------------------------------------------\n"
+        "--\n-- Table structure for table `authenticator_teachersuser`\n--\n\n"
+        "CREATE TABLE `authenticator_teachersuser` (`registration` int NOT NULL,\n"
+        " `email` varchar(100), `first_name` varchar(50), `last_name` varchar(50),\n"
+        " `username` varchar(50), `is_active` int, `unit_id` int,\n"
+        " `password` varchar(200), `date_joined` datetime);\n"
+        "--\n-- Dumping data for table `authenticator_teachersuser`\n--\n\n"
+        "INSERT INTO `authenticator_teachersuser` (`registration`, `email`,\n"
+        " `first_name`, `last_name`, `username`, `is_active`, `unit_id`,\n"
+        " `password`, `date_joined`) VALUES\n"
+        "(100, 'carla@senac.br', 'Carla', 'Com Lotacao', 'carla', 1, 1, 'lixo', '2023-05-10 10:00:00'),\n"
+        "(300, 'elena@senac.br', 'Elena', 'Sem Lotacao', 'elena', 1, 1, 'lixo', '2023-05-10 10:00:00'),\n"
+        "(400, 'fernanda@senac.br', 'Fernanda', 'Pura', 'fernanda', 1, 1, 'lixo', '2023-05-10 10:00:00');\n"
+    )
+
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        TestConfig.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + self.db_path.replace('\\', '/')
+        self.app = create_app(TestConfig)
+        with self.app.app_context():
+            db.create_all()
+            db.session.commit()
+        fd, self.dump_path = tempfile.mkstemp(suffix='.sql')
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(self.DUMP)
+
+    def tearDown(self):
+        with self.app.app_context():
+            db.session.remove()
+            db.engine.dispose()
+        for suffix in ('', '-wal', '-shm'):
+            path = self.db_path + suffix
+            if os.path.exists(path):
+                os.remove(path)
+        os.remove(self.dump_path)
+
+    def _usuarios_por_matricula(self):
+        from app.models import User
+        return {u.registration: u for u in User.query.all()}
+
+    def test_com_lotacao_o_perfil_e_funcionario(self):
+        from app.legacy_import import import_legacy
+        with self.app.app_context():
+            import_legacy(self.dump_path, force=True)
+        with self.app.app_context():
+            usuarios = self._usuarios_por_matricula()
+            # Função de professora + setor/departamento preenchidos → funcionária
+            carla = usuarios['100']
+            self.assertEqual(carla.profile_type, 'employee')
+            self.assertTrue(carla.is_teacher)  # segue designável em reservas
+            self.assertEqual(carla.role, 'employee')
+            self.assertEqual(carla.sector, 'Setor de TI')
+
+    def test_quadro_sem_docencia_e_funcionario(self):
+        from app.legacy_import import import_legacy
+        with self.app.app_context():
+            import_legacy(self.dump_path, force=True)
+        with self.app.app_context():
+            diego = self._usuarios_por_matricula()['200']
+            self.assertEqual(diego.profile_type, 'employee')
+            self.assertFalse(diego.is_teacher)
+
+    def test_professor_sem_lotacao_vira_professor(self):
+        from app.legacy_import import import_legacy
+        with self.app.app_context():
+            import_legacy(self.dump_path, force=True)
+        with self.app.app_context():
+            elena = self._usuarios_por_matricula()['300']
+            # dedup com teachersuser: sem nenhum vínculo administrativo → professor
+            self.assertEqual(elena.profile_type, 'teacher')
+            self.assertTrue(elena.is_teacher)
+            self.assertEqual(elena.role, 'teacher')
+
+    def test_professor_puro_da_tabela_de_professores(self):
+        from app.legacy_import import import_legacy
+        with self.app.app_context():
+            import_legacy(self.dump_path, force=True)
+        with self.app.app_context():
+            fernanda = self._usuarios_por_matricula()['400']
+            self.assertEqual(fernanda.profile_type, 'teacher')
+            self.assertTrue(fernanda.is_teacher)
+
+
 if __name__ == '__main__':
     unittest.main()

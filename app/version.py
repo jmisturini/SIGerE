@@ -10,12 +10,23 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.5.0'
+APP_VERSION = '1.5.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.5.1',
+        'data': '2026-09-16',
+        'titulo': 'Importação legada: quadro lotado entra como funcionário',
+        'grupos': [
+            ('Alterado', [
+                'Na importação do sistema antigo, usuário com setor, departamento ou função preenchidos passa a ser importado como funcionário — mesmo com função de professor, que segue podendo ser designado nas reservas (flag "também professor").',
+                'Professor passa a ser apenas quem não tem nenhum vínculo administrativo: os importados só da tabela de professores ou os que chegam sem setor/departamento/função.',
+            ]),
+        ],
+    },
     {
         'versao': '1.5.0',
         'data': '2026-09-16',

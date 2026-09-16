@@ -23,7 +23,7 @@ responsabilidade). Ao final, imprime um relatório com as contagens.
 | Legado (MySQL) | SIGERE | Observações |
 |---|---|---|
 | `units` | `unities` (unidade única) | **Não cria as unidades do dump.** Todo o acervo (salas, cursos, matérias, reservas, usuários, hora extra) fica na unidade **Faculdade Senac Florianópolis** (código `FLO`, mesmo cadastro do seed padrão em `docs/unidades-senac-sc.json` — criada pelo importador se ainda não existir). |
-| `authenticator_customuser` + `authenticator_teachersuser` | `users` | **Fusão por `registration`** (matrícula): quem existe nas duas tabelas vira um usuário único (dados do quadro prevalecem; perfil docente marcado). 64 + 182 − 11 = 235 usuários. |
+| `authenticator_customuser` + `authenticator_teachersuser` | `users` | **Fusão por `registration`** (matrícula): quem existe nas duas tabelas vira um usuário único (dados do quadro prevalecem). **Perfil:** com setor/departamento/função preenchidos no quadro, o cadastro é **funcionário** — mesmo quem tem função de professor, que segue designável em reservas via `is_teacher`; professor é quem não tem nenhum vínculo administrativo (só consta na tabela de professores). 64 + 182 − 11 = 235 usuários. |
 | `classroom` | `classrooms` + `room_categories` | Categoria deduzida da descrição (informática/saúde/cozinha/sala). “Sem Uso” vira sala inativa. Capacidade nula de sala ativa = 30. |
 | — (módulo próprio) | sala sintética **Auditório** (`AUDITORIO`) | O legado gerenciava o auditório fora da tabela de salas. |
 | `courses` | `courses` | Código gerado `C{id:4}`; núcleo (NES/NEB…) preservado na descrição. |
