@@ -230,9 +230,13 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <select name="unity_id" class="form-select form-select-sm bg-transparent border-0 fw-semibold unity-switch"
                             onchange="this.form.submit()"
-                            title="Unidade ativa de operação">
+                            title="{{ current_unity.name }} — unidade ativa de operação"
+                            aria-label="Unidade ativa de operação">
                         {% for u in switchable_unities %}
-                        <option value="{{ u.id }}" {{ 'selected' if current_unity and current_unity.id == u.id }}>{{ u.name }}</option>
+                        {# Nome truncado: nomes longos transbordavam por baixo
+                           da seta do select em alguns navegadores (o corte
+                           nativo não é confiável). Nome completo no tooltip. #}
+                        <option value="{{ u.id }}" {{ 'selected' if current_unity and current_unity.id == u.id }}>{{ u.name|truncate(24, True, '…', 0) }}</option>
                         {% endfor %}
                     </select>
                 </form>
