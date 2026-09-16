@@ -10,6 +10,7 @@ from app.models import User, Classroom, Course, Subject, Holiday, Role, Permissi
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm)
 from app.extensions import db
+from sqlalchemy import func
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
 from wtforms.validators import Optional
 from app.permissions import require_permission
@@ -129,14 +130,30 @@ def list_users():
     if filter_type in ['teacher', 'employee']:
         query = query.filter_by(profile_type=filter_type)
 
-    users = db.paginate(query.order_by(User.role, User.full_name),
+    # Ordenação (padrão: papel, depois nome — agrupamento original da página)
+    ordem = request.args.get('ordem', 'padrao')
+    if ordem == 'nome':
+        query = query.order_by(func.lower(User.full_name))
+    elif ordem == 'nome_desc':
+        query = query.order_by(func.lower(User.full_name).desc())
+    elif ordem == 'matricula':
+        # matrícula vazia por último; depois nome
+        query = query.order_by(User.registration.is_(None), User.registration,
+                               func.lower(User.full_name))
+    elif ordem == 'status':
+        query = query.order_by(User.is_active_user.desc(), func.lower(User.full_name))
+    else:
+        ordem = 'padrao'
+        query = query.order_by(User.role, func.lower(User.full_name))
+
+    users = db.paginate(query,
                         page=request.args.get('page', 1, type=int),
                         per_page=USERS_PER_PAGE, error_out=False)
     # users: Pagination (iterável) usado pela tabela; pagination: mesmo objeto
     # para os controles de página do template.
     return render_template('admin/users.html', users=users, pagination=users,
                            search_name=search_name, filter_type=filter_type,
-                           mostrar_inativos=mostrar_inativos)
+                           mostrar_inativos=mostrar_inativos, ordem=ordem)
 
 _PERFIL_LABEL = {'teacher': 'Professor', 'employee': 'Funcionário'}
 
@@ -290,8 +307,22 @@ def reset_user_password(user_id):
 @login_required
 @require_permission('room:read')
 def list_rooms():
-    rooms = Classroom.query.filter_by(unity_id=current_unity_id()).order_by(Classroom.code).all()
-    return render_template('admin/rooms.html', rooms=rooms)
+    rooms = Classroom.query.filter_by(unity_id=current_unity_id()).all()
+    # Ordenação escolhida no filtro da página (padrão: código, como antes)
+    ordem = request.args.get('ordem', 'codigo')
+    if ordem == 'nome':
+        rooms.sort(key=lambda r: r.name.lower())
+    elif ordem == 'nome_desc':
+        rooms.sort(key=lambda r: r.name.lower(), reverse=True)
+    elif ordem == 'capacidade':
+        rooms.sort(key=lambda r: (-(r.capacity or 0), r.code))
+    elif ordem == 'predio':
+        rooms.sort(key=lambda r: ((r.building or '').lower(), r.floor or '',
+                                  r.code))
+    else:
+        ordem = 'codigo'
+        rooms.sort(key=lambda r: r.code)
+    return render_template('admin/rooms.html', rooms=rooms, ordem=ordem)
 
 @bp.route('/rooms/create', methods=['GET', 'POST'])
 @login_required
@@ -615,8 +646,15 @@ def _grupos_de_permissoes():
 @login_required
 @require_permission('role:read')
 def list_roles():
-    roles = Role.query.order_by(Role.name).all()
-    return render_template('admin/roles.html', roles=roles)
+    roles = Role.query.all()
+    # Ordenação escolhida no filtro da página (padrão: nome A–Z)
+    ordem = request.args.get('ordem', 'nome')
+    if ordem == 'nome_desc':
+        roles.sort(key=lambda r: r.name.lower(), reverse=True)
+    else:
+        ordem = 'nome'
+        roles.sort(key=lambda r: r.name.lower())
+    return render_template('admin/roles.html', roles=roles, ordem=ordem)
 
 @bp.route('/roles/create', methods=['GET', 'POST'])
 @login_required
@@ -696,8 +734,15 @@ def delete_role(role_id):
 @login_required
 @require_permission('room:read')
 def list_categories():
-    categories = RoomCategory.query.order_by(RoomCategory.name).all()
-    return render_template('admin/categories.html', categories=categories)
+    categories = RoomCategory.query.all()
+    # Ordenação escolhida no filtro da página (padrão: nome A–Z)
+    ordem = request.args.get('ordem', 'nome')
+    if ordem == 'nome_desc':
+        categories.sort(key=lambda c: c.name.lower(), reverse=True)
+    else:
+        ordem = 'nome'
+        categories.sort(key=lambda c: c.name.lower())
+    return render_template('admin/categories.html', categories=categories, ordem=ordem)
 
 @bp.route('/categories/create', methods=['GET', 'POST'])
 @login_required

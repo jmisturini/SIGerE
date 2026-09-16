@@ -38,6 +38,16 @@
                     <option value="employee" {{ 'selected' if filter_type == 'employee' }}>Funcionário</option>
                 </select>
             </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Ordenar por</label>
+                <select name="ordem" class="form-select">
+                    <option value="padrao" {{ 'selected' if ordem == 'padrao' }}>Papel, depois nome</option>
+                    <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
+                    <option value="nome_desc" {{ 'selected' if ordem == 'nome_desc' }}>Nome (Z–A)</option>
+                    <option value="matricula" {{ 'selected' if ordem == 'matricula' }}>Matrícula</option>
+                    <option value="status" {{ 'selected' if ordem == 'status' }}>Status (ativas primeiro)</option>
+                </select>
+            </div>
             <input type="hidden" name="inativos" value="{{ '1' if mostrar_inativos else '0' }}">
             <div class="col-md-3 d-flex gap-2">
                 <button type="submit" class="btn btn-outline-primary flex-grow-1"><i class="bi bi-funnel me-1"></i> Filtrar</button>
