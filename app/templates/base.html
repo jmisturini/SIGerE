@@ -364,6 +364,9 @@
             var LIMIAR_OPCOES = 6;
             document.querySelectorAll('select.form-select').forEach(function (sel) {
                 if (sel.disabled || sel.tomselect || sel.options.length < LIMIAR_OPCOES) return;
+                // .input-group: o Tom Select quebra o layout com botões anexos
+                // (ex.: seletor de ícone da categoria com o preview ao lado)
+                if (sel.closest('.input-group')) return;
                 var config = { maxOptions: 1000 };
                 if (sel.multiple) {
                     config.maxItems = null;
