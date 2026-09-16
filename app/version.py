@@ -10,12 +10,27 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.6.1'
+APP_VERSION = '1.7.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.7.0',
+        'data': '2026-09-16',
+        'titulo': 'Conta super-administrador protegida e tokens da API sem reenvio',
+        'grupos': [
+            ('Adicionado', [
+                'A conta super-administrador ficou protegida: operadores sem a permissão universal não podem editá-la, desativá-la nem redefinir sua senha — a listagem de usuários exibe o selo "Protegida" nessas linhas.',
+                'Atribuir papéis com permissão universal (*) passou a ser exclusivo do super-administrador, na criação e na edição de usuários; a permissão "*" também saiu da grade do formulário de papéis para quem não é super-admin, e POST forjado é rejeitado.',
+                'Alternar a unidade ativa de operação agora é exclusivo do super-administrador: a permissão "unity:switch" deixou de liberar o seletor do topo e saiu do papel padrão Administrador.',
+            ]),
+            ('Corrigido', [
+                'A criação de token da API voltou a seguir o padrão Post/Redirect/Get: recarregar a página logo após gerar um token não cria mais tokens extras, e a primeira revogação/exclusão depois da criação não falha mais com erro 405.',
+            ]),
+        ],
+    },
     {
         'versao': '1.6.1',
         'data': '2026-09-16',

@@ -4,7 +4,8 @@ import secrets
 
 import requests
 from datetime import datetime, timedelta, timezone
-from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify, current_app
+from flask import (Blueprint, render_template, redirect, url_for, flash, abort,
+                   request, jsonify, current_app, session)
 from flask_login import login_required, current_user
 from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity, ApiToken, ROLE_POR_PERFIL
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
@@ -41,6 +42,40 @@ def _unity_visivel_or_404(unity):
     if unity.id != current_user.unity_id:
         abort(404)
     return unity
+
+
+def _proteger_super_admin(user):
+    """Bloqueia a edição/ação sobre uma conta super-admin por operador que
+    não seja o próprio super-admin: quem tem user:edit mas não tem '*'
+    não pode alterar dados, senha nem ativar/desativar o super-admin
+    (trocar a senha ou o e-mail dele seria assumir a conta)."""
+    if user.has_permission('*') and not current_user.has_permission('*'):
+        abort(403)
+
+
+def _ids_papeis_super():
+    """IDs dos papéis que concedem a permissão universal '*' — atribuir um
+    deles equivale a promover a super-admin, logo é operação exclusiva do
+    próprio super-admin."""
+    return {r.id for r in Role.query.all()
+            if any(p.code == '*' for p in r.permissions)}
+
+
+def _negar_papel_super(form, atuais=()):
+    """Valida que operador sem '*' não atribua papel super-admin (novo ou
+    adicional). `atuais` são os papéis que o usuário já possui — mantê-los é
+    permitido (a edição de outros campos não pode ser bloqueada por papel
+    pré-existente, atribuído pelo super-admin). Retorna mensagem de erro ou
+    None quando a atribuição é válida."""
+    if current_user.has_permission('*'):
+        return None
+    super_ids = _ids_papeis_super()
+    escolhidos = {form.role_id.data, *form.extra_roles.data}
+    if (escolhidos - set(atuais)) & super_ids:
+        return ('Apenas o super-administrador pode atribuir papéis com '
+                'permissão universal (*).')
+    return None
+
 
 def _setup_checklist():
     """Passos da configuração inicial do sistema, cada um com o estado real
@@ -212,6 +247,12 @@ def _criar_usuario(profile_type):
         # Opção vazia: força a escolha do tipo no próprio formulário.
         form.profile_type.choices = [('', 'Selecione o tipo de perfil…')] + list(form.profile_type.choices)
     if form.validate_on_submit():
+        erro_papel = _negar_papel_super(form)
+        if erro_papel:
+            flash(erro_papel, 'danger')
+            return render_template('admin/user_form.html', form=form,
+                                   title=f"Cadastrar Novo {_PERFIL_LABEL.get(profile_type, 'Usuário')}",
+                                   modo_edicao=False)
         user = User(
             email=form.email.data, full_name=form.full_name.data,
             registration=form.registration.data,
@@ -235,6 +276,7 @@ def _criar_usuario(profile_type):
 @require_permission('user:edit')
 def edit_user(user_id):
     user = _unity_scoped_or_404(db.get_or_404(User, user_id))
+    _proteger_super_admin(user)
 
     form = UserForm(obj=user)
     form._obj_id = user.id
@@ -247,8 +289,12 @@ def edit_user(user_id):
         # de obj=user (int(Role) falha silenciosamente) — setar os ids à mão.
         form.extra_roles.data = [r.id for r in user.extra_roles]
     if form.validate_on_submit():
+        atuais = {user.role_id, *(r.id for r in user.extra_roles)}
+        erro_papel = _negar_papel_super(form, atuais)
         if user.id == current_user.id and form.is_active_user.data == False:
             flash('Você não pode desativar sua própria conta.', 'danger')
+        elif erro_papel:
+            flash(erro_papel, 'danger')
         else:
             user.email = form.email.data
             user.full_name = form.full_name.data
@@ -277,6 +323,7 @@ def edit_user(user_id):
 @require_permission('user:toggle')
 def toggle_user(user_id):
     user = _unity_scoped_or_404(db.get_or_404(User, user_id))
+    _proteger_super_admin(user)
     if user.id == current_user.id:
         flash('Você não pode desativar sua própria conta.', 'danger')
         return redirect_back('admin.list_users')
@@ -292,6 +339,7 @@ def reset_user_password(user_id):
     """Gera uma senha temporária aleatória, exibe UMA vez ao administrador e
     força a troca no próximo login do usuário."""
     user = _unity_scoped_or_404(db.get_or_404(User, user_id))
+    _proteger_super_admin(user)
     temp_password = secrets.token_urlsafe(9)
     user.set_password(temp_password)
     user.force_password_change = True
@@ -631,15 +679,30 @@ def _grupos_de_permissoes():
     modulo_unidade), ...] — alimentando a grade de checkboxes (com
     marcar/limpar por módulo). modulo_unidade é o código do módulo ligável
     por unidade que controla o grupo (None quando não depende de módulo) e
-    serve ao aviso contextual de módulo desligado no formulário de papéis."""
+    serve ao aviso contextual de módulo desligado no formulário de papéis.
+    A permissão universal '*' fica de fora da grade para operadores sem o
+    próprio '*' (em par com _choices_permissoes_papel)."""
+    perms = Permission.query.order_by(Permission.module, Permission.action).all()
+    if not current_user.has_permission('*'):
+        perms = [p for p in perms if p.code != '*']
     grupos, ordem = {}, []
-    for p in Permission.query.order_by(Permission.module, Permission.action).all():
+    for p in perms:
         if p.module not in grupos:
             grupos[p.module] = []
             ordem.append(p.module)
         grupos[p.module].append(p)
     return [(MODULO_LABELS.get(m, m.title()), grupos[m],
              MODULO_PERMISSAO_PARA_MODULO_UNIDADE.get(m)) for m in ordem]
+
+
+def _choices_permissoes_papel():
+    """Choices da grade de permissões do formulário de papéis. A permissão
+    universal '*' não aparece para operadores sem o próprio '*': marcá-la
+    num papel criado/editado por eles seria auto-promoção a super-admin."""
+    perms = Permission.query.order_by(Permission.module, Permission.action).all()
+    if not current_user.has_permission('*'):
+        perms = [p for p in perms if p.code != '*']
+    return [(p.id, f"{p.module}: {p.action} ({p.code})") for p in perms]
 
 
 @bp.route('/roles')
@@ -661,7 +724,7 @@ def list_roles():
 @require_permission('role:create')
 def create_role():
     form = RoleForm()
-    form.permissions.choices = [(p.id, f"{p.module}: {p.action} ({p.code})") for p in Permission.query.order_by(Permission.module, Permission.action).all()]
+    form.permissions.choices = _choices_permissoes_papel()
     
     if form.validate_on_submit():
         # Nome de sistema gerado automaticamente do rótulo (slug único).
@@ -683,7 +746,7 @@ def create_role():
 def edit_role(role_id):
     role = db.get_or_404(Role, role_id)
     form = RoleForm(obj=role)
-    form.permissions.choices = [(p.id, f"{p.module}: {p.action} ({p.code})") for p in Permission.query.order_by(Permission.module, Permission.action).all()]
+    form.permissions.choices = _choices_permissoes_papel()
     
     if request.method == 'GET':
         form.permissions.data = [p.id for p in role.permissions]
@@ -698,6 +761,10 @@ def edit_role(role_id):
         # que seguem valendo nas outras unidades. Tornam a ser editáveis
         # quando o módulo for reativado.
         for p in role.permissions:
+            # '*' não chega no POST de operador sem '*' (checkbox oculto):
+            # preservada para a edição não revogar o super-admin do papel.
+            if p.code == '*':
+                selecionadas.add(p.id)
             modulo = MODULO_PERMISSAO_PARA_MODULO_UNIDADE.get(p.module)
             if modulo and not unity_module_enabled(modulo):
                 selecionadas.add(p.id)
@@ -994,8 +1061,14 @@ def _token_hash(raw):
 @require_permission('api:manage')
 def list_api_tokens():
     tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
+    # O token recém-gerado chega pela sessão (padrão PRG) e é consumido aqui:
+    # exibido uma única vez — recarregar a página não reexibe o valor nem
+    # cria novo token.
+    new_token = session.pop('new_api_token', None)
+    new_token_name = session.pop('new_api_token_name', None)
     return render_template('admin/api_tokens.html', tokens=tokens,
-                           durations=TOKEN_DURATIONS)
+                           durations=TOKEN_DURATIONS, new_token=new_token,
+                           new_token_name=new_token_name)
 
 
 @bp.route('/api-tokens/create', methods=['POST'])
@@ -1020,11 +1093,13 @@ def create_api_token():
                      expires_at=expires_at)
     db.session.add(token)
     db.session.commit()
-    # Renderiza a própria listagem com o valor completo exibido uma única vez.
-    tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
-    return render_template('admin/api_tokens.html', tokens=tokens,
-                           durations=TOKEN_DURATIONS, new_token=raw,
-                           new_token_name=name)
+    # PRG (Post/Redirect/Get): o valor completo vai para a sessão e a rota
+    # redireciona. Renderizar a listagem direto no POST mantinha o navegador
+    # em /create — recarregar reenviava o POST gerando novos tokens, e o
+    # redirect_back da primeira ação seguinte voltava a GET /create → 405.
+    session['new_api_token'] = raw
+    session['new_api_token_name'] = name
+    return redirect(url_for('admin.list_api_tokens'))
 
 
 @bp.route('/api-tokens/<int:token_id>/toggle', methods=['POST'])
