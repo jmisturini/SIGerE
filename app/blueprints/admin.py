@@ -9,7 +9,7 @@ from flask import (Blueprint, render_template, redirect, url_for, flash, abort,
 from flask_login import login_required, current_user
 from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity, ApiToken, VtEmpresa, VtEmpresaValor, ROLE_POR_PERFIL
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
-                   RoomCategoryForm, UnityForm, FormVtEmpresa)
+                   RoomCategoryForm, UnityForm, FormVtEmpresa, VT_TRAJETOS_PEDIDO)
 from app.extensions import db
 from sqlalchemy import func
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
@@ -1103,31 +1103,49 @@ def list_vt_empresas():
                            unities=unities)
 
 
+def _linhas_tarifa_do_post():
+    """Lê e valida as linhas dinâmicas de tarifa (trajeto + valor) do POST.
+    Devolve (linhas, erro): linhas é a lista [(trajeto, Decimal)] validada e
+    erro a mensagem amigável (ou None)."""
+    from app.forms import parse_tarifa_linhas
+    try:
+        return parse_tarifa_linhas(request.form.getlist('trajeto'),
+                                   request.form.getlist('valor')), None
+    except ValueError as exc:
+        return None, str(exc)
+
+
 @bp.route('/vt-empresas/create', methods=['GET', 'POST'])
 @login_required
 @require_permission('vt:empresas')
 def create_vt_empresa():
     form = FormVtEmpresa()
     if form.validate_on_submit():
-        # Nome único no escopo visível da unidade ativa: empresas de outras
-        # unidades podem repetir o nome.
-        duplicada = VtEmpresa.query.filter(
-            func.lower(VtEmpresa.nome) == form.nome.data.strip().lower(),
-            db.or_(VtEmpresa.unity_id == current_unity_id(),
-                   VtEmpresa.unity_id.is_(None))).first()
-        if duplicada:
+        linhas, erro = _linhas_tarifa_do_post()
+        if erro:
+            flash(erro, 'danger')
+        elif VtEmpresa.query.filter(
+                func.lower(VtEmpresa.nome) == form.nome.data.strip().lower(),
+                db.or_(VtEmpresa.unity_id == current_unity_id(),
+                       VtEmpresa.unity_id.is_(None))).first():
             flash('Já existe uma empresa com este nome nesta unidade.', 'danger')
         else:
             empresa = VtEmpresa(nome=form.nome.data.strip(),
                                 is_active=form.is_active.data,
                                 unity_id=current_unity_id())
-            empresa.valores = [VtEmpresaValor(valor=t) for t in form.tarifas]
+            empresa.valores = [VtEmpresaValor(trajeto=t, valor=v) for t, v in linhas]
             db.session.add(empresa)
             db.session.commit()
             flash(f'Empresa {empresa.nome} criada com sucesso.', 'success')
             return redirect(url_for('admin.list_vt_empresas'))
+    # Re-render: repõe as linhas digitadas (ou uma vazia no primeiro acesso).
+    linhas_tarifas = (list(zip(request.form.getlist('trajeto'),
+                               request.form.getlist('valor')))
+                      if request.method == 'POST' else [('', '')])
     return render_template('admin/vt_empresa_form.html', form=form,
-                           title='Nova Empresa de Ônibus')
+                           title='Nova Empresa de Ônibus',
+                           linhas_tarifas=linhas_tarifas,
+                           trajetos=VT_TRAJETOS_PEDIDO)
 
 
 @bp.route('/vt-empresas/<int:empresa_id>/edit', methods=['GET', 'POST'])
@@ -1137,25 +1155,33 @@ def edit_vt_empresa(empresa_id):
     empresa = _get_vt_empresa_editavel(empresa_id)
     form = FormVtEmpresa(obj=empresa)
     form._obj_id = empresa.id
-    if request.method == 'GET':
-        form.valores.data = '\n'.join(v.valor_texto for v in empresa.valores)
     if form.validate_on_submit():
-        duplicada = VtEmpresa.query.filter(
-            func.lower(VtEmpresa.nome) == form.nome.data.strip().lower(),
-            db.or_(VtEmpresa.unity_id == current_unity_id(),
-                   VtEmpresa.unity_id.is_(None)),
-            VtEmpresa.id != empresa.id).first()
-        if duplicada:
+        linhas, erro = _linhas_tarifa_do_post()
+        if erro:
+            flash(erro, 'danger')
+        elif VtEmpresa.query.filter(
+                func.lower(VtEmpresa.nome) == form.nome.data.strip().lower(),
+                db.or_(VtEmpresa.unity_id == current_unity_id(),
+                       VtEmpresa.unity_id.is_(None)),
+                VtEmpresa.id != empresa.id).first():
             flash('Já existe outra empresa com este nome nesta unidade.', 'danger')
         else:
             empresa.nome = form.nome.data.strip()
             empresa.is_active = form.is_active.data
-            empresa.valores = [VtEmpresaValor(valor=t) for t in form.tarifas]
+            empresa.valores = [VtEmpresaValor(trajeto=t, valor=v) for t, v in linhas]
             db.session.commit()
             flash(f'Empresa {empresa.nome} atualizada.', 'success')
             return redirect(url_for('admin.list_vt_empresas'))
+    # Re-render: linhas digitadas no POST ou as vigentes da empresa.
+    if request.method == 'POST':
+        linhas_tarifas = list(zip(request.form.getlist('trajeto'),
+                                  request.form.getlist('valor')))
+    else:
+        linhas_tarifas = [(v.trajeto, v.valor_texto) for v in empresa.valores]
     return render_template('admin/vt_empresa_form.html', form=form,
-                           title='Editar Empresa de Ônibus', empresa=empresa)
+                           title='Editar Empresa de Ônibus', empresa=empresa,
+                           linhas_tarifas=linhas_tarifas,
+                           trajetos=VT_TRAJETOS_PEDIDO)
 
 
 @bp.route('/vt-empresas/<int:empresa_id>/delete', methods=['POST'])

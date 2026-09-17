@@ -483,7 +483,10 @@ def export():
 
 def _criar_pedido_de_form(form, unity_id):
     """VtRequest preenchido a partir do FormVtPedido validado, vinculado à
-    unidade do link público usado."""
+    unidade do link público usado. Valor e trajeto vêm das linhas de tarifa
+    resolvidas na validação."""
+    linha_a = getattr(form, '_linha_a', None)
+    linha_b = getattr(form, '_linha_b', None)
     return VtRequest(
         unity_id=unity_id,
         email=form.email.data.strip().lower(),
@@ -494,13 +497,13 @@ def _criar_pedido_de_form(form, unity_id):
         link=form.link.data,
         company_count=int(form.company_count.data) if form.company_count.data else 0,
         company_a_name=form.company_a_name.data or None,
-        company_a_value=parse_currency(form.company_a_value.data),
+        company_a_value=linha_a.valor if linha_a else None,
         company_a_passes=form.company_a_passes.data,
-        company_a_route=form.company_a_route.data,
+        company_a_route=linha_a.trajeto if linha_a else None,
         company_b_name=form.company_b_name.data or None,
-        company_b_value=parse_currency(form.company_b_value.data),
+        company_b_value=linha_b.valor if linha_b else None,
         company_b_passes=form.company_b_passes.data,
-        company_b_route=form.company_b_route.data,
+        company_b_route=linha_b.trajeto if linha_b else None,
     )
 
 
@@ -520,18 +523,17 @@ def _pedido_unity():
 def _preparar_form_pedido(form, unity):
     """Choices de empresa/tarifa do pedido público a partir do cadastro
     administrado em /admin/vt-empresas (empresas da unidade mais as
-    compartilhadas). As tarifas do select de valor são a união das vigentes
-    (o pareamento empresa↔tarifa é validado no form)."""
+    compartilhadas). O select de valor lista as LINHAS de tarifa da empresa
+    (id de VtEmpresaValor — "Trajeto — R$ valor"); o pareamento é validado
+    no form."""
     form._unity_id = unity.id if unity else None
     empresas = VtEmpresa.empresas_ativas(unity.id if unity else None)
     nomes = [(e.nome, e.nome) for e in empresas]
-    tarifas = sorted({v.valor for e in empresas for v in e.valores})
-    textos = [(f'{float(t):.2f}'.replace('.', ','),
-               f'R$ {float(t):.2f}'.replace('.', ',')) for t in tarifas]
+    linhas = [(str(v.id), v.rotulo) for e in empresas for v in e.valores]
     form.company_a_name.choices = [('', 'Selecione…')] + nomes
     form.company_b_name.choices = [('', 'Selecione…')] + nomes
-    form.company_a_value.choices = [('', 'Selecione…')] + textos
-    form.company_b_value.choices = [('', 'Selecione…')] + textos
+    form.company_a_value.choices = [('', 'Selecione…')] + linhas
+    form.company_b_value.choices = [('', 'Selecione…')] + linhas
     return form
 
 
@@ -552,11 +554,16 @@ def request_form():
         return redirect(url_for('vt.request_form', unity=unity.id) if unity
                         else url_for('vt.request_form'))
     # ocultar_sidebar: página pública em tela cheia, sem a navegação do painel.
-    # empresas_valores alimenta o select de tarifa dependente da empresa.
+    # empresas_valores alimenta o select de tarifa dependente da empresa
+    # (linhas com trajeto + valor, em formato simples para o JavaScript).
+    unity_id = unity.id if unity else None
+    empresas_valores = {
+        nome: [{'id': v.id, 'rotulo': v.rotulo} for v in linhas]
+        for nome, linhas in VtEmpresa.mapa_tarifas(unity_id).items()
+    }
     return render_template('vt/pedido.html', form=form, ocultar_sidebar=True,
                            pedido_unity=unity,
-                           empresas_valores=VtEmpresa.mapa_tarifas(
-                               unity.id if unity else None))
+                           empresas_valores=empresas_valores)
 
 
 @bp.route('/pedido/colaborador')

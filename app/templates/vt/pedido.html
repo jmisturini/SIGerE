@@ -102,7 +102,9 @@
                                 </div>
                                 <div class="mb-3">
                                     {{ form.company_a_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    {{ form.company_a_value(class="form-select") }}
+                                    {{ form.company_a_value(class="form-select", **{"data-nativo": "true"}) }}
+                                    <div class="form-text small">Cada opção é o trajeto com a tarifa vigente — ela já
+                                        define o trajeto do pedido.</div>
                                     {{ erro(form.company_a_value) }}
                                 </div>
                                 <div class="mb-3">
@@ -111,8 +113,6 @@
                                     <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
                                     {{ erro(form.company_a_passes) }}
                                 </div>
-                                <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
-                                {{ radios_lista(form.company_a_route, 'company_a_route') }}
                             </div>
                         </div>
 
@@ -127,7 +127,7 @@
                                 </div>
                                 <div class="mb-3">
                                     {{ form.company_b_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    {{ form.company_b_value(class="form-select") }}
+                                    {{ form.company_b_value(class="form-select", **{"data-nativo": "true"}) }}
                                     {{ erro(form.company_b_value) }}
                                 </div>
                                 <div class="mb-3">
@@ -136,8 +136,6 @@
                                     <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
                                     {{ erro(form.company_b_passes) }}
                                 </div>
-                                <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
-                                {{ radios_lista(form.company_b_route, 'company_b_route') }}
                             </div>
                         </div>
                     </div>
@@ -191,7 +189,8 @@
             });
         }
 
-        // Obrigatórios do ramo visível — espelho da validação do servidor.
+        // Obrigatórios do ramo visível — espelho da validação do servidor
+        // (o trajeto já vem na linha de tarifa escolhida).
         function pedidoPronto() {
             if (!preenchido('email') || !preenchido('full_name') ||
                 !preenchido('registration') || !preenchido('optant')) return false;
@@ -203,21 +202,20 @@
                 if (sufixo === 'b' && valor('company_count') !== '2') break;
                 if (!preenchido(`company_${sufixo}_name`) ||
                     !preenchido(`company_${sufixo}_value`) ||
-                    !preenchido(`company_${sufixo}_passes`) ||
-                    !preenchido(`company_${sufixo}_route`)) return false;
+                    !preenchido(`company_${sufixo}_passes`)) return false;
             }
             return true;
         }
 
-        // Tarifas do select de valor conforme a empresa escolhida: se a
-        // tarifa antes selecionada não existir na nova empresa, é limpa.
+        // Linhas de tarifa da empresa escolhida: cada opção carrega o id da
+        // linha (gravação) e o rótulo "Trajeto — R$ valor". A tarifa antes
+        // selecionada é mantida se ainda existir na nova empresa.
         function preencherValores(empresaSelect, valorSelect) {
-            const empresa = empresaSelect.value;
-            const tarifas = EMPRESAS_VALORES[empresa] || [];
+            const linhas = EMPRESAS_VALORES[empresaSelect.value] || [];
             const anterior = valorSelect.value;
-            valorSelect.innerHTML = '<option value="">Selecione…</option>' + tarifas.map(t =>
-                `<option value="${t}" ${t === anterior ? 'selected' : ''}>R$ ${t}</option>`).join('');
-            valorSelect.disabled = tarifas.length === 0;
+            valorSelect.innerHTML = '<option value="">Selecione…</option>' + linhas.map(l =>
+                `<option value="${l.id}" ${String(l.id) === anterior ? 'selected' : ''}>${l.rotulo}</option>`).join('');
+            valorSelect.disabled = linhas.length === 0;
         }
 
         function atualizar() {
@@ -231,9 +229,6 @@
                 const professor = valor('link') === 'Professor(a)';
                 document.querySelectorAll('.subtitulo-vales').forEach(el => {
                     el.textContent = professor ? TEXTO_NEB : TEXTO_RH;
-                });
-                document.querySelectorAll('.rotulo-trajeto').forEach(el => {
-                    el.textContent = professor ? 'Selecione o trajeto' : 'Selecione o número de trajetos';
                 });
 
                 const duasEmpresas = valor('company_count') === '2';

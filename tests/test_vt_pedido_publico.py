@@ -26,12 +26,14 @@ from app.models import (Permission, Role, Unity, User, VtEmpresa,
 EMAIL = 'gestor-vt@escola.edu'
 PASSWORD = 'SenhaForte123'
 
-# Mesmas empresas/tarifas que a migration c8d4a1e6f2b9 semeia no banco real.
+# Mesmas empresas/tarifas que a migration c8d4a1e6f2b9 semeia no banco real
+# (com trajeto por linha de tarifa — a migration f9c1a4e7b2d6 as deixa com
+# trajeto NULL, aqui o teste já cadastra completo).
 EMPRESAS_INICIAIS = {
-    'Consórcio Fênix': ['7,20'],
-    'Jotur': ['7,24', '7,38', '10,10', '12,08'],
-    'Biguaçu': ['7,24', '7,38', '10,10', '10,23', '12,08'],
-    'Estrela': ['7,24', '7,38', '10,10'],
+    'Consórcio Fênix': [('Ida e Volta', '7,20')],
+    'Jotur': [('Ida e Volta', '7,24'), ('Somente Volta', '3,62')],
+    'Biguaçu': [('Ida e Volta', '10,23'), ('Somente Volta', '5,12')],
+    'Estrela': [('Ida e Volta', '7,38')],
 }
 
 
@@ -71,8 +73,9 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             # Empresas do cadastro administrado (/admin/vt-empresas).
             for nome, tarifas in EMPRESAS_INICIAIS.items():
                 empresa = VtEmpresa(nome=nome, is_active=True)
-                empresa.valores = [VtEmpresaValor(valor=Decimal(t.replace(',', '.')))
-                                   for t in tarifas]
+                empresa.valores = [VtEmpresaValor(trajeto=t,
+                                                  valor=Decimal(v.replace(',', '.')))
+                                   for t, v in tarifas]
                 db.session.add(empresa)
             db.session.flush()
 
@@ -111,6 +114,13 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         payload.update(overrides)
         return payload
 
+    def _linha_id(self, empresa_nome, trajeto):
+        """Id da linha de tarifa (empresa + trajeto) — o select de valor do
+        pedido grava o id da linha do cadastro."""
+        with self.app.app_context():
+            empresa = VtEmpresa.query.filter_by(nome=empresa_nome).first()
+            return next(v.id for v in empresa.valores if v.trajeto == trajeto)
+
     def _payload_sim_uma_empresa(self, **overrides):
         base = dict(
             optant='Sim',
@@ -118,9 +128,8 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             link='Técnico - Administrativo',
             company_count='1',
             company_a_name='Jotur',
-            company_a_value='7,24',
-            company_a_passes='22',
-            company_a_route='Ida e Volta')
+            company_a_value=str(self._linha_id('Jotur', 'Ida e Volta')),
+            company_a_passes='22')
         base.update(overrides)
         return self._payload(**base)
 
@@ -133,7 +142,8 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
                          company_a_passes=p.company_a_passes,
                          company_a_route=p.company_a_route,
                          company_b_name=p.company_b_name,
-                         company_b_value=p.company_b_value)
+                         company_b_value=p.company_b_value,
+                         company_b_route=p.company_b_route)
                     for p in VtRequest.query.all()]
 
     # ---------- Página pública ----------
@@ -204,6 +214,7 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertEqual(pedido['company_a_name'], 'Jotur')
         self.assertEqual(float(pedido['company_a_value']), 7.24)
         self.assertEqual(pedido['company_a_passes'], 22)
+        # O trajeto vem da linha de tarifa escolhida.
         self.assertEqual(pedido['company_a_route'], 'Ida e Volta')
         self.assertIsNone(pedido['company_b_name'])
 
@@ -211,21 +222,22 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
             company_count='2',
             company_b_name='Biguaçu',
-            company_b_value='10,23',
-            company_b_passes='10',
-            company_b_route='Somente Volta'), follow_redirects=True)
+            company_b_value=str(self._linha_id('Biguaçu', 'Ida e Volta')),
+            company_b_passes='10'), follow_redirects=True)
         self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
 
         pedido = self._pedidos()[0]
         self.assertEqual(pedido['company_count'], 2)
         self.assertEqual(pedido['company_b_name'], 'Biguaçu')
         self.assertEqual(float(pedido['company_b_value']), 10.23)
+        self.assertEqual(pedido['company_b_route'], 'Ida e Volta')
 
     def test_post_valor_invalido_para_empresa_rejeitado(self):
-        """A tarifa precisa ser da empresa escolhida (7,20 é só da Fênix)."""
+        """A tarifa precisa ser da empresa escolhida: linha da Fênix com
+        Jotur selecionado é rejeitada."""
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
-            company_a_value='7,20'))
-        self.assertIn('Valor não é uma tarifa vigente da empresa selecionada.',
+            company_a_value=str(self._linha_id('Consórcio Fênix', 'Ida e Volta'))))
+        self.assertIn('A tarifa selecionada não pertence à empresa escolhida.',
                       response.get_data(as_text=True))
         self.assertEqual(self._pedidos(), [])
 

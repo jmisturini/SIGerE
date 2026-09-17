@@ -33,7 +33,7 @@
                         <td class="ps-4 fw-bold">{{ e.nome }}</td>
                         <td>
                             {% for v in e.valores %}
-                            <span class="badge text-bg-info-subtle text-info border border-info-subtle me-1">R$ {{ v.valor_texto }}</span>
+                            <span class="badge text-bg-info-subtle text-info border border-info-subtle me-1">{{ v.rotulo }}</span>
                             {% else %}
                             <span class="text-muted small">Nenhuma tarifa</span>
                             {% endfor %}

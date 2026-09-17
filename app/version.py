@@ -10,12 +10,26 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.11.0'
+APP_VERSION = '1.11.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.11.1',
+        'data': '2026-09-17',
+        'titulo': 'Tarifa por trajeto e ajuste no pedido de VT',
+        'grupos': [
+            ('Alterado', [
+                'No cadastro de empresas de ônibus, as tarifas passaram a ser linhas dinâmicas com trajeto e valor (botão "Adicionar tarifa") — cada empresa informa a tarifa de cada trajeto.',
+                'No pedido público, a opção de "Valor do vale" mostra o trajeto junto ("Ida e Volta — R$ 7,24") e já define o trajeto do pedido; a pergunta separada de trajeto foi incorporada a essa escolha.',
+            ]),
+            ('Corrigido', [
+                'No pedido público, ao selecionar uma empresa o select de tarifa continuava exibindo as tarifas de todas as empresas (o autocomplete Tom Select guardava as opções do carregamento inicial).',
+            ]),
+        ],
+    },
     {
         'versao': '1.11.0',
         'data': '2026-09-17',

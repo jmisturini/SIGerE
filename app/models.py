@@ -426,11 +426,10 @@ class VtEmpresa(db.Model):
 
     @classmethod
     def mapa_tarifas(cls, unity_id):
-        """Mapa {nome_da_empresa: ['7,24', '10,10', ...]} da unidade (próprias
-        + compartilhadas) — alimenta as opções e a validação empresa↔tarifa
-        do formulário."""
-        return {e.nome: [v.valor_texto for v in e.valores]
-                for e in cls.empresas_ativas(unity_id)}
+        """Mapa {nome_da_empresa: [VtEmpresaValor...]} da unidade (próprias +
+        compartilhadas) — alimenta as opções e a validação empresa↔tarifa do
+        formulário; cada linha carrega id, trajeto e valor."""
+        return {e.nome: list(e.valores) for e in cls.empresas_ativas(unity_id)}
 
 
 class VtEmpresaValor(db.Model):
@@ -438,12 +437,21 @@ class VtEmpresaValor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey('vt_empresas.id', ondelete='CASCADE'),
                            nullable=False, index=True)
+    trajeto = db.Column(db.String(20))                               # Somente Volta / Ida e Volta
     valor = db.Column(db.Numeric(10, 2), nullable=False)             # tarifa em reais
 
     @property
     def valor_texto(self):
         """Tarifa no formato do formulário: '7,24'."""
         return f'{float(self.valor):.2f}'.replace('.', ',')
+
+    @property
+    def rotulo(self):
+        """Rótulo da opção no formulário público: 'Ida e Volta — R$ 7,24'
+        (linhas antigas sem trajeto mostram só o valor)."""
+        if self.trajeto:
+            return f'{self.trajeto} — R$ {self.valor_texto}'
+        return f'R$ {self.valor_texto}'
 
 # Tabela de junção entre Roles e Permissions
 role_permissions = db.Table('role_permissions',

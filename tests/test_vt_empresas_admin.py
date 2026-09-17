@@ -75,8 +75,10 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
             db.session.commit()
 
             # 'Jotur' pertence à unidade; 'Estrela' é compartilhada (NULL).
-            self.jotur_id = self._criar_empresa('Jotur', ['7,24', '10,10'])
-            self.estrela_id = self._criar_empresa('Estrela', ['7,38'], unity_id=None)
+            self.jotur_id = self._criar_empresa(
+                'Jotur', [('Ida e Volta', '7,24'), ('Somente Volta', '3,62')])
+            self.estrela_id = self._criar_empresa(
+                'Estrela', [('Somente Volta', '7,38')], unity_id=None)
 
         self._login()
 
@@ -94,8 +96,9 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
             empresa = VtEmpresa(
                 nome=nome, is_active=True,
                 unity_id=self.unity.id if unity_id == '__none__' else unity_id)
-            empresa.valores = [VtEmpresaValor(valor=Decimal(t.replace(',', '.')))
-                               for t in tarifas]
+            empresa.valores = [VtEmpresaValor(trajeto=t,
+                                              valor=Decimal(v.replace(',', '.')))
+                               for t, v in tarifas]
             db.session.add(empresa)
             db.session.commit()
             return empresa.id
@@ -130,8 +133,8 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
         response = self.client.get('/admin/vt-empresas')
         page = response.get_data(as_text=True)
         self.assertIn('Jotur', page)
-        self.assertIn('R$ 7,24', page)
-        self.assertIn('R$ 10,10', page)
+        self.assertIn('Ida e Volta — R$ 7,24', page)
+        self.assertIn('Somente Volta — R$ 3,62', page)
         self.assertIn('Ativa', page)
         # A compartilhada aparece com o selo, mas sem botões de edição.
         self.assertIn('Compartilhada', page)
@@ -163,7 +166,9 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
             db.session.commit()
 
         response = self.client.post('/admin/vt-empresas/create', data={
-            'nome': 'Sul Transportes', 'valores': '8,50',
+            'nome': 'Sul Transportes',
+            'trajeto': ['Ida e Volta'],
+            'valor': ['8,50'],
         }, follow_redirects=True)
         self.assertIn('Sul Transportes criada com sucesso',
                       response.get_data(as_text=True))
@@ -174,21 +179,26 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
     def test_criar_empresa(self):
         response = self.client.post('/admin/vt-empresas/create', data={
             'nome': 'Consórcio Fênix',
-            'valores': '7,20\n7,38',
+            'trajeto': ['Ida e Volta', 'Somente Volta'],
+            'valor': ['7,20', '3,60'],
             'is_active': 'y',
         }, follow_redirects=True)
         page = response.get_data(as_text=True)
         self.assertIn('Consórcio Fênix criada com sucesso', page)
-        self.assertIn('R$ 7,20', page)
+        self.assertIn('Ida e Volta — R$ 7,20', page)
+        self.assertIn('Somente Volta — R$ 3,60', page)
 
-        # A empresa nova aparece nas opções do formulário público.
+        # A empresa nova aparece nas opções do formulário público, com as
+        # linhas de tarifa (trajeto + valor).
         publico = self.client.get('/vt/pedido')
-        self.assertIn('Consórcio Fênix', publico.get_data(as_text=True))
+        page_publico = publico.get_data(as_text=True)
+        self.assertIn('Consórcio Fênix', page_publico)
+        self.assertIn('Ida e Volta — R$ 7,20', page_publico)
 
     def test_criar_empresa_duplicada_rejeitada(self):
         # O flash aparece na re-renderização do próprio POST.
         response = self.client.post('/admin/vt-empresas/create', data={
-            'nome': 'jotur', 'valores': '7,24',
+            'nome': 'jotur', 'trajeto': ['Ida e Volta'], 'valor': ['7,24'],
         }, follow_redirects=True)
         self.assertIn('Já existe uma empresa com este nome',
                       response.get_data(as_text=True))
@@ -196,17 +206,33 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
 
     def test_criar_empresa_sem_tarifa_rejeitada(self):
         response = self.client.post('/admin/vt-empresas/create', data={
-            'nome': 'Sem Tarifa', 'valores': '',
+            'nome': 'Sem Tarifa', 'trajeto': [], 'valor': [],
         }, follow_redirects=True)
-        self.assertIn('Informe pelo menos uma tarifa', response.get_data(as_text=True))
+        self.assertIn('Adicione pelo menos uma tarifa',
+                      response.get_data(as_text=True))
         self.assertEqual(self._contagem(), 2)
 
     def test_criar_empresa_tarifa_invalida_rejeitada(self):
         response = self.client.post('/admin/vt-empresas/create', data={
-            'nome': 'Inválida', 'valores': '7,24\nabc',
+            'nome': 'Inválida', 'trajeto': ['Ida e Volta'], 'valor': ['abc'],
         }, follow_redirects=True)
-        # As aspas do texto chegam escapadas no HTML (&#34;abc&#34;).
-        self.assertIn('Tarifa inválida', response.get_data(as_text=True))
+        self.assertIn('Valor de tarifa inválido', response.get_data(as_text=True))
+        self.assertEqual(self._contagem(), 2)
+
+    def test_criar_empresa_sem_trajeto_rejeitado(self):
+        response = self.client.post('/admin/vt-empresas/create', data={
+            'nome': 'Sem Trajeto', 'trajeto': [''], 'valor': ['7,24'],
+        }, follow_redirects=True)
+        self.assertIn('Informe o trajeto de cada tarifa',
+                      response.get_data(as_text=True))
+        self.assertEqual(self._contagem(), 2)
+
+    def test_criar_empresa_trajeto_repetido_rejeitado(self):
+        response = self.client.post('/admin/vt-empresas/create', data={
+            'nome': 'Repetida', 'trajeto': ['Ida e Volta', 'Ida e Volta'],
+            'valor': ['7,24', '7,50'],
+        }, follow_redirects=True)
+        self.assertIn('mais de uma tarifa', response.get_data(as_text=True))
         self.assertEqual(self._contagem(), 2)
 
     # ---------- Edição ----------
@@ -214,7 +240,8 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
     def test_editar_empresa(self):
         response = self.client.post(f'/admin/vt-empresas/{self.jotur_id}/edit', data={
             'nome': 'Jotur Transportes',
-            'valores': '7,38\n12,08',
+            'trajeto': ['Ida e Volta', 'Somente Volta'],
+            'valor': ['7,38', '3,69'],
             'is_active': 'y',
         }, follow_redirects=True)
         self.assertIn('Jotur Transportes atualizada', response.get_data(as_text=True))
@@ -222,8 +249,9 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
         with self.app.app_context():
             empresa = db.session.get(VtEmpresa, self.jotur_id)
             self.assertEqual(empresa.nome, 'Jotur Transportes')
-            self.assertEqual([v.valor_texto for v in empresa.valores],
-                             ['7,38', '12,08'])
+            # A listagem ordena por valor (relationship), não pela ordem digitada.
+            self.assertEqual({(v.trajeto, v.valor_texto) for v in empresa.valores},
+                             {('Ida e Volta', '7,38'), ('Somente Volta', '3,69')})
 
         # O formulário público reflete a tarifa nova e abandona a antiga.
         publico = self.client.get('/vt/pedido')
@@ -232,16 +260,16 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
         self.assertNotIn('R$ 7,24', page)
 
     def test_editar_para_nome_de_outra_rejeitado(self):
-        self._criar_empresa('Biguaçu', ['7,24'])
+        self._criar_empresa('Biguaçu', [('Ida e Volta', '7,24')])
         response = self.client.post(f'/admin/vt-empresas/{self.jotur_id}/edit', data={
-            'nome': 'Biguaçu', 'valores': '7,24',
+            'nome': 'Biguaçu', 'trajeto': ['Ida e Volta'], 'valor': ['7,24'],
         }, follow_redirects=True)
         self.assertIn('Já existe outra empresa com este nome',
                       response.get_data(as_text=True))
 
     def test_empresa_inativa_sai_do_formulario_publico(self):
         self.client.post(f'/admin/vt-empresas/{self.jotur_id}/edit', data={
-            'nome': 'Jotur', 'valores': '7,24',
+            'nome': 'Jotur', 'trajeto': ['Ida e Volta'], 'valor': ['7,24'],
         }, follow_redirects=True)  # sem is_active: desmarca o checkbox
 
         page = self.client.get('/vt/pedido').get_data(as_text=True)
