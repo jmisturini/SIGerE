@@ -10,12 +10,48 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.9.0'
+APP_VERSION = '1.11.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.11.0',
+        'data': '2026-09-17',
+        'titulo': 'Vale-Transporte gerenciável por unidade',
+        'grupos': [
+            ('Adicionado', [
+                'O pedido público de Vale-Transporte passou a pertencer a uma unidade: o link enviado aos colaboradores leva a unidade (/vt/pedido?unity=N, exibida no topo do formulário) e as respostas ficam na listagem e na exportação da unidade ativa.',
+                'O cadastro de empresas de ônibus ficou por unidade — cada uma mantém as próprias empresas e tarifas. As cadastradas antes da atualização viraram "compartilhadas", valendo para todas as unidades e editáveis apenas por contas globais ou super-admin.',
+                'Nomes de empresa podem se repetir entre unidades diferentes; a checagem de duplicidade é dentro da unidade.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.10.0',
+        'data': '2026-09-17',
+        'titulo': 'Empresas de ônibus gerenciáveis na administração',
+        'grupos': [
+            ('Adicionado', [
+                'Nova área Administração → Empresas de Ônibus (permissão "vt:empresas", concedida ao papel Administrador): cadastro de empresas e tarifas vigentes usadas pelo pedido público de Vale-Transporte, com criação, edição, exclusão e ativação/desativação — excluí-las não afeta pedidos antigos.',
+            ]),
+            ('Alterado', [
+                'As empresas e tarifas do pedido público de VT deixaram de ser fixas no código e passaram a vir desse cadastro; papel "Administrador" padrão recebe a permissão de gerenciá-las.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.9.1',
+        'data': '2026-09-17',
+        'titulo': 'Empresa e tarifa separadas no pedido de VT',
+        'grupos': [
+            ('Alterado', [
+                'No pedido público de Vale-Transporte, a empresa de ônibus passou a mostrar apenas o nome; logo abaixo, um campo de valor oferece as tarifas vigentes da empresa escolhida (7,20 a 12,08, conforme a empresa).',
+                'A tarifa escolhida agora é gravada e exportada separadamente nas respostas (colunas Valor A e Valor B da exportação .xlsx).',
+            ]),
+        ],
+    },
     {
         'versao': '1.9.0',
         'data': '2026-09-17',

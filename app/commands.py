@@ -67,6 +67,7 @@ PERMISSION_DATA = [
     ('vt:edit', 'vt', 'edit', 'Editar registros do Vale-Transporte'),
     ('vt:delete', 'vt', 'delete', 'Excluir registros do Vale-Transporte'),
     ('vt:export', 'vt', 'export', 'Exportar a planilha de pagamento do Vale-Transporte'),
+    ('vt:empresas', 'vt', 'empresas', 'Gerenciar empresas de ônibus e tarifas do pedido de VT'),
     # Módulo de Cozinha (fichas técnicas, preparações e compras)
     ('kitchen:read', 'kitchen', 'read', 'Acessar o módulo de Cozinha (fichas técnicas, preparações e compras)'),
     ('kitchen:sheet_create', 'kitchen', 'sheet_create', 'Enviar e salvar fichas técnicas (DOCX)'),
@@ -105,7 +106,8 @@ ROLES_CONFIG = {
             'system:dashboard', 'system:export',
             'api:manage',
             'role:read', 'role:create', 'role:edit', 'role:delete',
-            'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export'
+            'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export',
+            'vt:empresas'
         ]
     },
     'coordinator': {

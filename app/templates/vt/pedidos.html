@@ -9,8 +9,9 @@
             <strong>{{ total_com_vt }}</strong> desejando VT.</p>
     </div>
     <div class="d-flex gap-2">
-        <button type="button" class="btn btn-outline-primary" data-copy-link="{{ url_for('vt.request_form', _external=True) }}"
-                title="Copiar o link público do formulário para enviar aos colaboradores">
+        <button type="button" class="btn btn-outline-primary"
+                data-copy-link="{{ url_for('vt.request_form', unity=current_unity.id, _external=True) if current_unity else url_for('vt.request_form', _external=True) }}"
+                title="Copiar o link público do formulário desta unidade para enviar aos colaboradores">
             <i class="bi bi-link-45deg me-1"></i> Copiar link do formulário
         </button>
         {% if can_export %}
@@ -75,9 +76,11 @@
                                 -
                             {% else %}
                                 <div><span class="fw-semibold">{{ p.company_a_name or '-' }}</span>
+                                    {% if p.company_a_value %}(R$ {{ '%.2f'|format(p.company_a_value)|replace('.', ',') }}){% endif %}
                                     — {{ p.company_a_passes or 0 }} vale(s), {{ p.company_a_route or '-' }}</div>
                                 {% if p.company_b_name %}
                                 <div><span class="fw-semibold">{{ p.company_b_name }}</span>
+                                    {% if p.company_b_value %}(R$ {{ '%.2f'|format(p.company_b_value)|replace('.', ',') }}){% endif %}
                                     — {{ p.company_b_passes or 0 }} vale(s), {{ p.company_b_route or '-' }}</div>
                                 {% endif %}
                             {% endif %}

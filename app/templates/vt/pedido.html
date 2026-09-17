@@ -22,6 +22,12 @@
         <div class="page-header text-center mb-4">
             <h3 class="fw-bold mb-2"><i class="bi bi-bus-front text-primary me-2"></i> Pedido de Vale-Transporte</h3>
             <p class="text-muted mb-0">Responda ao pedido do mês — o acesso é identificado apenas pelo seu e-mail.</p>
+            {% if pedido_unity %}
+            <p class="small text-muted mb-0 mt-1">
+                <i class="bi bi-geo-alt me-1"></i> Formulário da unidade
+                <strong>{{ pedido_unity.name }}</strong>
+            </p>
+            {% endif %}
         </div>
 
         <div class="card">
@@ -95,6 +101,11 @@
                                     {{ erro(form.company_a_name) }}
                                 </div>
                                 <div class="mb-3">
+                                    {{ form.company_a_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.company_a_value(class="form-select") }}
+                                    {{ erro(form.company_a_value) }}
+                                </div>
+                                <div class="mb-3">
                                     {{ form.company_a_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                                     {{ form.company_a_passes(class="form-control", style="max-width: 12rem") }}
                                     <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
@@ -113,6 +124,11 @@
                                     {{ form.company_b_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                                     {{ form.company_b_name(class="form-select") }}
                                     {{ erro(form.company_b_name) }}
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.company_b_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.company_b_value(class="form-select") }}
+                                    {{ erro(form.company_b_value) }}
                                 </div>
                                 <div class="mb-3">
                                     {{ form.company_b_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
@@ -156,6 +172,9 @@
         const blocoB = document.getElementById('bloco-empresa-b');
         const TEXTO_RH = 'Consulte o e-mail enviado pelo RH.';
         const TEXTO_NEB = 'Consulte com o NEB o número de passes necessários.';
+        // Empresa → tarifas vigentes (alimenta o select de valor, que fica
+        // logo abaixo do select de empresa e só habilita com uma escolhida).
+        const EMPRESAS_VALORES = {{ empresas_valores | tojson }};
 
         // Funciona para campos de texto e grupos de rádio (RadioNodeList
         // devolve o valor do marcado, ou '' quando nenhum).
@@ -183,10 +202,22 @@
             for (const sufixo of ['a', 'b']) {
                 if (sufixo === 'b' && valor('company_count') !== '2') break;
                 if (!preenchido(`company_${sufixo}_name`) ||
+                    !preenchido(`company_${sufixo}_value`) ||
                     !preenchido(`company_${sufixo}_passes`) ||
                     !preenchido(`company_${sufixo}_route`)) return false;
             }
             return true;
+        }
+
+        // Tarifas do select de valor conforme a empresa escolhida: se a
+        // tarifa antes selecionada não existir na nova empresa, é limpa.
+        function preencherValores(empresaSelect, valorSelect) {
+            const empresa = empresaSelect.value;
+            const tarifas = EMPRESAS_VALORES[empresa] || [];
+            const anterior = valorSelect.value;
+            valorSelect.innerHTML = '<option value="">Selecione…</option>' + tarifas.map(t =>
+                `<option value="${t}" ${t === anterior ? 'selected' : ''}>R$ ${t}</option>`).join('');
+            valorSelect.disabled = tarifas.length === 0;
         }
 
         function atualizar() {
@@ -205,9 +236,20 @@
                     el.textContent = professor ? 'Selecione o trajeto' : 'Selecione o número de trajetos';
                 });
 
-                setarBloco(blocoB, valor('company_count') === '2');
+                const duasEmpresas = valor('company_count') === '2';
+                setarBloco(blocoB, duasEmpresas);
+                // O valor só é selecionável depois da empresa (setarBloco
+                // reabilita tudo do bloco; aqui restringe de novo).
+                ajustarValor('a', true);
+                ajustarValor('b', duasEmpresas);
             }
             submitBtn.disabled = !pedidoPronto();
+        }
+
+        // Habilita o select de tarifa apenas com empresa escolhida.
+        function ajustarValor(sufixo, visivel) {
+            const tarifas = EMPRESAS_VALORES[valor(`company_${sufixo}_name`)] || [];
+            form.elements[`company_${sufixo}_value`].disabled = !visivel || tarifas.length === 0;
         }
 
         // ── Auto-preenchimento pelo e-mail (conta ativa) ──
@@ -230,6 +272,16 @@
             timer = setTimeout(buscarColaborador, 500);
         });
         emailInput.addEventListener('change', buscarColaborador);
+
+        // Select de tarifa dependente da empresa escolhida.
+        preencherValores(form.elements['company_a_name'], form.elements['company_a_value']);
+        preencherValores(form.elements['company_b_name'], form.elements['company_b_value']);
+        form.elements['company_a_name'].addEventListener('change', () => {
+            preencherValores(form.elements['company_a_name'], form.elements['company_a_value']);
+        });
+        form.elements['company_b_name'].addEventListener('change', () => {
+            preencherValores(form.elements['company_b_name'], form.elements['company_b_value']);
+        });
 
         form.querySelectorAll('input, select').forEach(campo => {
             campo.addEventListener('change', atualizar);

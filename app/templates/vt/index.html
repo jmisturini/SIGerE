@@ -54,8 +54,13 @@
     <i class="bi bi-inbox me-2 fs-5"></i>
     <div class="me-auto">
         <strong>Pedidos do formulário público:</strong> os colaboradores respondem ao
-        pedido de VT em <a href="{{ url_for('vt.request_form') }}" target="_blank" rel="noopener">{{ url_for('vt.request_form', _external=True) }}</a>
-        (acesso livre, identificação por e-mail).
+        pedido de VT em
+        {% if current_unity %}
+        <a href="{{ url_for('vt.request_form', unity=current_unity.id) }}" target="_blank" rel="noopener">{{ url_for('vt.request_form', unity=current_unity.id, _external=True) }}</a>
+        {% else %}
+        <a href="{{ url_for('vt.request_form') }}" target="_blank" rel="noopener">{{ url_for('vt.request_form', _external=True) }}</a>
+        {% endif %}
+        (acesso livre, identificação por e-mail; as respostas ficam nesta unidade).
     </div>
     <a href="{{ url_for('vt.requests') }}" class="btn btn-sm btn-outline-primary">
         <i class="bi bi-box-arrow-in-right me-1"></i> Ver respostas

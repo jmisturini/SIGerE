@@ -12,6 +12,7 @@ import io
 import os
 import tempfile
 import unittest
+from decimal import Decimal
 
 from openpyxl import load_workbook
 
@@ -19,10 +20,19 @@ from app import create_app
 from app.commands import _seed_permissions
 from app.config import Config
 from app.extensions import db
-from app.models import Permission, Role, Unity, User, VtRequest
+from app.models import (Permission, Role, Unity, User, VtEmpresa,
+                        VtEmpresaValor, VtRequest)
 
 EMAIL = 'gestor-vt@escola.edu'
 PASSWORD = 'SenhaForte123'
+
+# Mesmas empresas/tarifas que a migration c8d4a1e6f2b9 semeia no banco real.
+EMPRESAS_INICIAIS = {
+    'Consórcio Fênix': ['7,20'],
+    'Jotur': ['7,24', '7,38', '10,10', '12,08'],
+    'Biguaçu': ['7,24', '7,38', '10,10', '10,23', '12,08'],
+    'Estrela': ['7,24', '7,38', '10,10'],
+}
 
 
 class TestConfig(Config):
@@ -47,6 +57,7 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             self.unity = Unity(name='Unidade Teste', code='UT')
             db.session.add(self.unity)
             db.session.commit()
+            self.unity_id = self.unity.id
             _seed_permissions()
             db.session.commit()
 
@@ -55,6 +66,14 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             gestor_role = Role(name='gestor-vt', label='Gestor de VT',
                                permissions=perms)
             db.session.add(gestor_role)
+            db.session.flush()
+
+            # Empresas do cadastro administrado (/admin/vt-empresas).
+            for nome, tarifas in EMPRESAS_INICIAIS.items():
+                empresa = VtEmpresa(nome=nome, is_active=True)
+                empresa.valores = [VtEmpresaValor(valor=Decimal(t.replace(',', '.')))
+                                   for t in tarifas]
+                db.session.add(empresa)
             db.session.flush()
 
             gestor = User(
@@ -98,7 +117,8 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             unity='Faculdade',
             link='Técnico - Administrativo',
             company_count='1',
-            company_a_name='Jotur - R$ 7,24',
+            company_a_name='Jotur',
+            company_a_value='7,24',
             company_a_passes='22',
             company_a_route='Ida e Volta')
         base.update(overrides)
@@ -109,9 +129,11 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             return [dict(email=p.email, optant=p.optant, unity=p.unity,
                          link=p.link, company_count=p.company_count,
                          company_a_name=p.company_a_name,
+                         company_a_value=p.company_a_value,
                          company_a_passes=p.company_a_passes,
                          company_a_route=p.company_a_route,
-                         company_b_name=p.company_b_name)
+                         company_b_name=p.company_b_name,
+                         company_b_value=p.company_b_value)
                     for p in VtRequest.query.all()]
 
     # ---------- Página pública ----------
@@ -126,6 +148,7 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertIn('name="email"', page)
         self.assertIn('name="optant"', page)
         self.assertIn('name="company_a_name"', page)
+        self.assertIn('name="company_a_value"', page)
         self.assertIn('sem-sidebar', page)
         self.assertNotIn('<nav class="sidebar">', page)
         self.assertIn('disabled', page)
@@ -178,7 +201,8 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertEqual(pedido['optant'], 'Sim')
         self.assertEqual(pedido['unity'], 'Faculdade')
         self.assertEqual(pedido['company_count'], 1)
-        self.assertEqual(pedido['company_a_name'], 'Jotur - R$ 7,24')
+        self.assertEqual(pedido['company_a_name'], 'Jotur')
+        self.assertEqual(float(pedido['company_a_value']), 7.24)
         self.assertEqual(pedido['company_a_passes'], 22)
         self.assertEqual(pedido['company_a_route'], 'Ida e Volta')
         self.assertIsNone(pedido['company_b_name'])
@@ -186,14 +210,31 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
     def test_post_sim_duas_empresas(self):
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
             company_count='2',
-            company_b_name='Biguaçu - R$ 10,23',
+            company_b_name='Biguaçu',
+            company_b_value='10,23',
             company_b_passes='10',
             company_b_route='Somente Volta'), follow_redirects=True)
         self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
 
         pedido = self._pedidos()[0]
         self.assertEqual(pedido['company_count'], 2)
-        self.assertEqual(pedido['company_b_name'], 'Biguaçu - R$ 10,23')
+        self.assertEqual(pedido['company_b_name'], 'Biguaçu')
+        self.assertEqual(float(pedido['company_b_value']), 10.23)
+
+    def test_post_valor_invalido_para_empresa_rejeitado(self):
+        """A tarifa precisa ser da empresa escolhida (7,20 é só da Fênix)."""
+        response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
+            company_a_value='7,20'))
+        self.assertIn('Valor não é uma tarifa vigente da empresa selecionada.',
+                      response.get_data(as_text=True))
+        self.assertEqual(self._pedidos(), [])
+
+    def test_post_sem_valor_rejeitado(self):
+        payload = self._payload_sim_uma_empresa()
+        payload.pop('company_a_value')
+        response = self.client.post('/vt/pedido', data=payload)
+        self.assertIn('Selecione o valor do vale.', response.get_data(as_text=True))
+        self.assertEqual(self._pedidos(), [])
 
     def test_post_sim_incompleto_rejeitado(self):
         """"Sim" na Faculdade sem vínculo/empresas: formulário volta com
@@ -247,6 +288,53 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertIn('Endereço de e-mail inválido.', response.get_data(as_text=True))
         self.assertEqual(self._pedidos(), [])
 
+    def test_pedidos_escopados_por_unidade(self):
+        """O pedido fica na unidade do link usado: o enviado para a unidade
+        Sul não aparece na listagem da unidade Teste."""
+        with self.app.app_context():
+            sul = Unity(name='Unidade Sul', code='US')
+            db.session.add(sul)
+            db.session.commit()
+            sul_id = sul.id
+        teste_id = self.unity_id
+
+        self.client.post(f'/vt/pedido?unity={sul_id}',
+                         data=self._payload_sim_uma_empresa(
+                             full_name='Colaborador Sul'))
+        self.client.post(f'/vt/pedido?unity={teste_id}', data=self._payload())
+
+        self._login()
+        page = self.client.get('/vt/pedidos').get_data(as_text=True)
+        self.assertIn('Colaborador Teste', page)
+        self.assertNotIn('Colaborador Sul', page)
+
+    def test_empresas_do_formulario_sao_por_unidade(self):
+        """Empresa exclusiva da unidade Sul só aparece no link dela; as
+        compartilhadas valem para todas."""
+        with self.app.app_context():
+            sul = Unity(name='Unidade Sul', code='US')
+            db.session.add(sul)
+            db.session.commit()
+            sul_id = sul.id
+            empresa = VtEmpresa(nome='Empresa Sul', is_active=True,
+                                unity_id=sul_id)
+            empresa.valores = [VtEmpresaValor(valor=Decimal('9,99'.replace(',', '.')))]
+            db.session.add(empresa)
+            db.session.commit()
+
+        page_padrao = self.client.get(f'/vt/pedido?unity={self.unity_id}').get_data(as_text=True)
+        self.assertNotIn('Empresa Sul', page_padrao)
+        self.assertIn('Jotur', page_padrao)  # compartilhada vale para todas
+
+        page_sul = self.client.get(f'/vt/pedido?unity={sul_id}').get_data(as_text=True)
+        self.assertIn('Empresa Sul', page_sul)
+        self.assertIn('Unidade Sul', page_sul)
+
+    def test_unidade_invalida_cai_no_fallback(self):
+        """?unity inválido usa a primeira unidade ativa."""
+        page = self.client.get('/vt/pedido?unity=99999').get_data(as_text=True)
+        self.assertIn('Unidade Teste', page)
+
     # ---------- Listagem e exportação (restritas) ----------
 
     def test_listagem_exige_login(self):
@@ -264,7 +352,8 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         page = response.get_data(as_text=True)
         self.assertIn('Colaborador Teste', page)
         self.assertIn('colaborador@senac.sc.br', page)
-        self.assertIn('Jotur - R$ 7,24', page)
+        self.assertIn('Jotur', page)
+        self.assertIn('(R$ 7,24)', page)
         self.assertIn('Outro Colaborador', page)
         self.assertIn('2 pedido(s)', page)
 
@@ -289,9 +378,11 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         workbook = load_workbook(io.BytesIO(response.data))
         rows = list(workbook.active.iter_rows(values_only=True))
         self.assertEqual(rows[0][:4], ('Data', 'E-mail', 'Nome', 'Matrícula'))
+        self.assertEqual(rows[0][8:12], ('Empresa A', 'Valor A', 'Vales A', 'Trajeto A'))
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[1][2], 'Colaborador Teste')
-        self.assertEqual(rows[1][8], 'Jotur - R$ 7,24')
+        self.assertEqual(rows[1][8], 'Jotur')
+        self.assertEqual(rows[1][9], 7.24)
 
 
 if __name__ == '__main__':

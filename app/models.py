@@ -372,6 +372,9 @@ class VtRecord(db.Model):
 class VtRequest(db.Model):
     __tablename__ = 'vt_requests'
     id = db.Column(db.Integer, primary_key=True)
+    # Unidade dona do pedido (resolvida pela URL do formulário público:
+    # /vt/pedido?unity=N); as listagens são escopadas à unidade ativa.
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     email = db.Column(db.String(255), nullable=False, index=True)    # identificação (acesso público)
     full_name = db.Column(db.String(255), nullable=False)            # Nome
     registration = db.Column(db.String(20), nullable=False)          # Matrícula
@@ -379,13 +382,68 @@ class VtRequest(db.Model):
     unity = db.Column(db.String(100))                                # Unidade do formulário
     link = db.Column(db.String(50))                                  # Vínculo
     company_count = db.Column(db.Integer, default=0)                 # nº de empresas de ônibus (1/2)
-    company_a_name = db.Column(db.String(100))                       # Empresa A (opção completa, com tarifa)
+    company_a_name = db.Column(db.String(100))                       # Empresa A (nome)
+    company_a_value = db.Column(db.Numeric(10, 2))                   # tarifa do vale A
     company_a_passes = db.Column(db.Integer)                         # nº de vales A
     company_a_route = db.Column(db.String(20))                       # trajeto A (Somente Volta / Ida e Volta)
     company_b_name = db.Column(db.String(100))                       # Empresa B
+    company_b_value = db.Column(db.Numeric(10, 2))                   # tarifa do vale B
     company_b_passes = db.Column(db.Integer)                         # nº de vales B
     company_b_route = db.Column(db.String(20))                       # trajeto B
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# Empresas de ônibus e tarifas vigentes do pedido público de Vale-Transporte
+# (/vt/pedido), gerenciadas na área de administração (/admin/vt-empresas) e
+# ESCOPADAS POR UNIDADE: cada unidade mantém o próprio cadastro, e
+# unity_id NULL marca empresa compartilhada por todas (as sementes originais
+# ficaram assim na migration). Substituíram as opções fixas que eram cópia
+# do formulário original do Microsoft Forms. Pedidos antigos guardam
+# nome/tarifa como texto — apagar a empresa não afeta o histórico.
+class VtEmpresa(db.Model):
+    __tablename__ = 'vt_empresas'
+    id = db.Column(db.Integer, primary_key=True)
+    # Sem unique no banco: o mesmo nome pode existir em unidades diferentes —
+    # a unicidade é por escopo visível, validada na rota.
+    nome = db.Column(db.String(100), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    # Unidade dona do cadastro; NULL = compartilhada por todas as unidades.
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    valores = db.relationship('VtEmpresaValor', backref='empresa',
+                              cascade='all, delete-orphan',
+                              order_by='VtEmpresaValor.valor')
+
+    @classmethod
+    def empresas_ativas(cls, unity_id):
+        """Empresas disponíveis no formulário público da unidade: as dela
+        mais as compartilhadas (NULL), em ordem alfabética."""
+        return (cls.query
+                .filter(db.or_(cls.unity_id == unity_id, cls.unity_id.is_(None)),
+                        cls.is_active == True)
+                .order_by(cls.nome).all())
+
+    @classmethod
+    def mapa_tarifas(cls, unity_id):
+        """Mapa {nome_da_empresa: ['7,24', '10,10', ...]} da unidade (próprias
+        + compartilhadas) — alimenta as opções e a validação empresa↔tarifa
+        do formulário."""
+        return {e.nome: [v.valor_texto for v in e.valores]
+                for e in cls.empresas_ativas(unity_id)}
+
+
+class VtEmpresaValor(db.Model):
+    __tablename__ = 'vt_empresas_valores'
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('vt_empresas.id', ondelete='CASCADE'),
+                           nullable=False, index=True)
+    valor = db.Column(db.Numeric(10, 2), nullable=False)             # tarifa em reais
+
+    @property
+    def valor_texto(self):
+        """Tarifa no formato do formulário: '7,24'."""
+        return f'{float(self.valor):.2f}'.replace('.', ',')
 
 # Tabela de junção entre Roles e Permissions
 role_permissions = db.Table('role_permissions',

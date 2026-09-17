@@ -32,7 +32,7 @@ from sqlalchemy import func
 from app.extensions import db, limiter
 from flask_login import current_user, login_required
 from app.forms import FormVtRecord, FormVtUpload, FormVtPedido
-from app.models import User, VtRecord, VtRequest
+from app.models import User, VtEmpresa, VtRecord, VtRequest
 from app.permissions import require_module, require_permission
 from app.unity_context import current_unity_id
 from app.blueprints.payments import parse_currency
@@ -481,9 +481,11 @@ def export():
 # vínculo → nº de empresas) são as mesmas do formulário original. As respostas
 # ficam em VtRequest, listadas em /vt/pedidos para conferência do RH.
 
-def _criar_pedido_de_form(form):
-    """VtRequest preenchido a partir do FormVtPedido validado."""
+def _criar_pedido_de_form(form, unity_id):
+    """VtRequest preenchido a partir do FormVtPedido validado, vinculado à
+    unidade do link público usado."""
     return VtRequest(
+        unity_id=unity_id,
         email=form.email.data.strip().lower(),
         full_name=form.full_name.data.strip(),
         registration=form.registration.data.strip(),
@@ -492,29 +494,69 @@ def _criar_pedido_de_form(form):
         link=form.link.data,
         company_count=int(form.company_count.data) if form.company_count.data else 0,
         company_a_name=form.company_a_name.data or None,
+        company_a_value=parse_currency(form.company_a_value.data),
         company_a_passes=form.company_a_passes.data,
         company_a_route=form.company_a_route.data,
         company_b_name=form.company_b_name.data or None,
+        company_b_value=parse_currency(form.company_b_value.data),
         company_b_passes=form.company_b_passes.data,
         company_b_route=form.company_b_route.data,
     )
+
+
+def _pedido_unity():
+    """Unidade do formulário público: ?unity=<id> ativa ou a primeira ativa
+    (fallback), mesmo comportamento do portal — o visitante é anônimo, então
+    não há unidade ativa de sessão; o RH distribui o link da própria unidade."""
+    from app.models import Unity
+    unity_id = request.args.get('unity', type=int)
+    if unity_id:
+        unity = Unity.query.filter_by(id=unity_id, is_active=True).first()
+        if unity:
+            return unity
+    return Unity.query.filter_by(is_active=True).order_by(Unity.name).first()
+
+
+def _preparar_form_pedido(form, unity):
+    """Choices de empresa/tarifa do pedido público a partir do cadastro
+    administrado em /admin/vt-empresas (empresas da unidade mais as
+    compartilhadas). As tarifas do select de valor são a união das vigentes
+    (o pareamento empresa↔tarifa é validado no form)."""
+    form._unity_id = unity.id if unity else None
+    empresas = VtEmpresa.empresas_ativas(unity.id if unity else None)
+    nomes = [(e.nome, e.nome) for e in empresas]
+    tarifas = sorted({v.valor for e in empresas for v in e.valores})
+    textos = [(f'{float(t):.2f}'.replace('.', ','),
+               f'R$ {float(t):.2f}'.replace('.', ',')) for t in tarifas]
+    form.company_a_name.choices = [('', 'Selecione…')] + nomes
+    form.company_b_name.choices = [('', 'Selecione…')] + nomes
+    form.company_a_value.choices = [('', 'Selecione…')] + textos
+    form.company_b_value.choices = [('', 'Selecione…')] + textos
+    return form
 
 
 @bp.route('/pedido', methods=['GET', 'POST'])
 @limiter.limit('10 per minute', methods=['POST'])
 def request_form():
     """Formulário público (sem login): o colaborador informa o e-mail e
-    responde ao pedido de VT. "Não" encerra o pedido; "Sim" abre unidade,
-    vínculo e os blocos de empresa/vales/trajeto guiados pela página."""
-    form = FormVtPedido()
+    responde ao pedido de VT da unidade do link (?unity=<id>). "Não" encerra
+    o pedido; "Sim" abre unidade, vínculo e os blocos de empresa/vales/
+    trajeto guiados pela página."""
+    unity = _pedido_unity()
+    form = _preparar_form_pedido(FormVtPedido(), unity)
     if form.validate_on_submit():
-        db.session.add(_criar_pedido_de_form(form))
+        db.session.add(_criar_pedido_de_form(form, unity.id if unity else None))
         db.session.commit()
         flash('Pedido enviado com sucesso! A equipe de RH receberá suas '
               'respostas.', 'success')
-        return redirect(url_for('vt.request_form'))
+        return redirect(url_for('vt.request_form', unity=unity.id) if unity
+                        else url_for('vt.request_form'))
     # ocultar_sidebar: página pública em tela cheia, sem a navegação do painel.
-    return render_template('vt/pedido.html', form=form, ocultar_sidebar=True)
+    # empresas_valores alimenta o select de tarifa dependente da empresa.
+    return render_template('vt/pedido.html', form=form, ocultar_sidebar=True,
+                           pedido_unity=unity,
+                           empresas_valores=VtEmpresa.mapa_tarifas(
+                               unity.id if unity else None))
 
 
 @bp.route('/pedido/colaborador')
@@ -542,13 +584,13 @@ def request_form_colaborador():
 @require_permission('vt:read')
 @require_module('finance')
 def requests():
-    """Respostas recebidas pelo formulário público, da mais recente para a
-    mais antiga. Escopo global (o colaborador anônimo não tem unidade no
-    sistema) — a unidade do pedido é a resposta do formulário."""
+    """Respostas recebidas pelo formulário público DA UNIDADE ATIVA, da mais
+    recente para a mais antiga (cada pedido fica vinculado à unidade do link
+    usado pelo colaborador)."""
     search = (request.args.get('q') or '').strip()
     optant_filter = request.args.get('optant') or ''
 
-    query = VtRequest.query
+    query = VtRequest.query.filter_by(unity_id=current_unity_id())
     if search:
         like = f'%{search}%'
         query = query.filter(db.or_(VtRequest.full_name.ilike(like),
@@ -570,12 +612,13 @@ def requests():
 @require_permission('vt:export')
 @require_module('finance')
 def requests_export():
-    """Exporta os pedidos do formulário para .xlsx (uma linha por resposta,
-    mesmos filtros da listagem) — base de conferência do RH."""
+    """Exporta os pedidos do formulário DA UNIDADE ATIVA para .xlsx (uma
+    linha por resposta, mesmos filtros da listagem) — base de conferência
+    do RH."""
     search = (request.args.get('q') or '').strip()
     optant_filter = request.args.get('optant') or ''
 
-    query = VtRequest.query
+    query = VtRequest.query.filter_by(unity_id=current_unity_id())
     if search:
         like = f'%{search}%'
         query = query.filter(db.or_(VtRequest.full_name.ilike(like),
@@ -590,15 +633,17 @@ def requests_export():
     worksheet.title = 'Pedidos VT'
     worksheet.append(['Data', 'E-mail', 'Nome', 'Matrícula', 'Deseja VT',
                       'Unidade', 'Vínculo', 'Nº Empresas',
-                      'Empresa A', 'Vales A', 'Trajeto A',
-                      'Empresa B', 'Vales B', 'Trajeto B'])
+                      'Empresa A', 'Valor A', 'Vales A', 'Trajeto A',
+                      'Empresa B', 'Valor B', 'Vales B', 'Trajeto B'])
     for pedido in pedidos:
         worksheet.append([
             pedido.created_at.strftime('%d/%m/%Y %H:%M') if pedido.created_at else '',
             pedido.email, pedido.full_name, pedido.registration, pedido.optant,
             pedido.unity, pedido.link, pedido.company_count or 0,
-            pedido.company_a_name, pedido.company_a_passes, pedido.company_a_route,
-            pedido.company_b_name, pedido.company_b_passes, pedido.company_b_route,
+            pedido.company_a_name, pedido.company_a_value,
+            pedido.company_a_passes, pedido.company_a_route,
+            pedido.company_b_name, pedido.company_b_value,
+            pedido.company_b_passes, pedido.company_b_route,
         ])
 
     output = io.BytesIO()

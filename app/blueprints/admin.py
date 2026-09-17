@@ -7,9 +7,9 @@ from datetime import datetime, timedelta, timezone
 from flask import (Blueprint, render_template, redirect, url_for, flash, abort,
                    request, jsonify, current_app, session)
 from flask_login import login_required, current_user
-from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity, ApiToken, ROLE_POR_PERFIL
+from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity, ApiToken, VtEmpresa, VtEmpresaValor, ROLE_POR_PERFIL
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
-                   RoomCategoryForm, UnityForm)
+                   RoomCategoryForm, UnityForm, FormVtEmpresa)
 from app.extensions import db
 from sqlalchemy import func
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
@@ -1056,6 +1056,121 @@ def toggle_unity_module(unity_id, module_code):
     estado = 'ativado' if getattr(unity, module['attr']) else 'desativado'
     flash(f'Módulo {module["label"]} {estado} para a unidade {unity.name}.', 'success')
     return redirect(url_for('admin.edit_unity', unity_id=unity.id))
+
+# ================= VT: EMPRESAS DE ÔNIBUS (pedido público) =================
+#
+# Cadastro de empresas de ônibus e tarifas vigentes usado pelo formulário
+# público de pedido de Vale-Transporte (/vt/pedido). Substituiu as opções
+# fixas que eram cópia do formulário original do Microsoft Forms. É escopado
+# por unidade: cada unidade gerencia as próprias empresas e as semeadas sem
+# unidade (NULL) são compartilhadas — editáveis apenas por contas globais
+# ou super-admin.
+
+
+def _pode_gerenciar_global():
+    """Contas globais (sem unidade) e super-admin gerenciam as empresas
+    compartilhadas (unity_id NULL); admins de unidade, só as próprias."""
+    return current_user.has_permission('*') or not current_user.unity_id
+
+
+def _get_vt_empresa_editavel(empresa_id):
+    """Empresa gerenciável pela unidade ativa: as da própria unidade sempre;
+    as compartilhadas (NULL) apenas para contas globais/super-admin —
+    fora do escopo, 404 (sem revelar que existem)."""
+    empresa = db.get_or_404(VtEmpresa, empresa_id)
+    if empresa.unity_id is None:
+        if not _pode_gerenciar_global():
+            abort(404)
+    elif empresa.unity_id != current_unity_id():
+        abort(404)
+    return empresa
+
+
+@bp.route('/vt-empresas')
+@login_required
+@require_permission('vt:empresas')
+def list_vt_empresas():
+    uid = current_unity_id()
+    empresas = (VtEmpresa.query
+                .filter(db.or_(VtEmpresa.unity_id == uid,
+                               VtEmpresa.unity_id.is_(None)))
+                .order_by(VtEmpresa.nome).all())
+    unities = {u.id: u.name for u in Unity.query.all()}
+    for empresa in empresas:
+        empresa.pode_editar = (empresa.unity_id == uid or
+                               (empresa.unity_id is None and _pode_gerenciar_global()))
+    return render_template('admin/vt_empresas.html', empresas=empresas,
+                           unities=unities)
+
+
+@bp.route('/vt-empresas/create', methods=['GET', 'POST'])
+@login_required
+@require_permission('vt:empresas')
+def create_vt_empresa():
+    form = FormVtEmpresa()
+    if form.validate_on_submit():
+        # Nome único no escopo visível da unidade ativa: empresas de outras
+        # unidades podem repetir o nome.
+        duplicada = VtEmpresa.query.filter(
+            func.lower(VtEmpresa.nome) == form.nome.data.strip().lower(),
+            db.or_(VtEmpresa.unity_id == current_unity_id(),
+                   VtEmpresa.unity_id.is_(None))).first()
+        if duplicada:
+            flash('Já existe uma empresa com este nome nesta unidade.', 'danger')
+        else:
+            empresa = VtEmpresa(nome=form.nome.data.strip(),
+                                is_active=form.is_active.data,
+                                unity_id=current_unity_id())
+            empresa.valores = [VtEmpresaValor(valor=t) for t in form.tarifas]
+            db.session.add(empresa)
+            db.session.commit()
+            flash(f'Empresa {empresa.nome} criada com sucesso.', 'success')
+            return redirect(url_for('admin.list_vt_empresas'))
+    return render_template('admin/vt_empresa_form.html', form=form,
+                           title='Nova Empresa de Ônibus')
+
+
+@bp.route('/vt-empresas/<int:empresa_id>/edit', methods=['GET', 'POST'])
+@login_required
+@require_permission('vt:empresas')
+def edit_vt_empresa(empresa_id):
+    empresa = _get_vt_empresa_editavel(empresa_id)
+    form = FormVtEmpresa(obj=empresa)
+    form._obj_id = empresa.id
+    if request.method == 'GET':
+        form.valores.data = '\n'.join(v.valor_texto for v in empresa.valores)
+    if form.validate_on_submit():
+        duplicada = VtEmpresa.query.filter(
+            func.lower(VtEmpresa.nome) == form.nome.data.strip().lower(),
+            db.or_(VtEmpresa.unity_id == current_unity_id(),
+                   VtEmpresa.unity_id.is_(None)),
+            VtEmpresa.id != empresa.id).first()
+        if duplicada:
+            flash('Já existe outra empresa com este nome nesta unidade.', 'danger')
+        else:
+            empresa.nome = form.nome.data.strip()
+            empresa.is_active = form.is_active.data
+            empresa.valores = [VtEmpresaValor(valor=t) for t in form.tarifas]
+            db.session.commit()
+            flash(f'Empresa {empresa.nome} atualizada.', 'success')
+            return redirect(url_for('admin.list_vt_empresas'))
+    return render_template('admin/vt_empresa_form.html', form=form,
+                           title='Editar Empresa de Ônibus', empresa=empresa)
+
+
+@bp.route('/vt-empresas/<int:empresa_id>/delete', methods=['POST'])
+@login_required
+@require_permission('vt:empresas')
+def delete_vt_empresa(empresa_id):
+    """Exclusão só remove do cadastro: os pedidos antigos guardam nome e
+    tarifa como texto, então o histórico permanece íntegro."""
+    empresa = _get_vt_empresa_editavel(empresa_id)
+    nome = empresa.nome
+    db.session.delete(empresa)
+    db.session.commit()
+    flash(f'Empresa {nome} excluída. Os pedidos antigos continuam com o '
+          'nome e a tarifa registrados.', 'info')
+    return redirect_back('admin.list_vt_empresas')
 
 # ================= API TOKENS (integrações externas) =================
 #
