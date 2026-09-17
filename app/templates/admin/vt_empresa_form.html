@@ -33,19 +33,17 @@
                         <div class="col-12">
                             <label class="form-label small fw-bold text-uppercase text-muted mb-1">Tarifas vigentes</label>
                             <div class="form-text small mb-2">Cada linha é uma opção de "Valor do vale" no pedido
-                                público: o trajeto e a tarifa daquele trajeto.</div>
+                                público: a identificação da tarifa aplicada (ex.: Patamar 3, da tabela da empresa)
+                                e o valor correspondente.</div>
                             <div id="linhas-tarifas">
-                                {% for trajeto, valor_texto in linhas_tarifas %}
+                                {% for identificacao, valor_texto in linhas_tarifas %}
                                 <div class="input-group mb-2 linha-tarifa">
-                                    <select name="trajeto" class="form-select" style="max-width: 16rem"
-                                            aria-label="Trajeto da tarifa">
-                                        <option value="">Trajeto…</option>
-                                        {% for t in trajetos %}
-                                        <option value="{{ t }}" {{ 'selected' if trajeto == t }}>{{ t }}</option>
-                                        {% endfor %}
-                                    </select>
-                                    <input type="text" name="valor" class="form-control" placeholder="Valor (ex.: 7,24)"
-                                           aria-label="Valor da tarifa" value="{{ valor_texto }}">
+                                    <input type="text" name="identificacao" class="form-control"
+                                           placeholder="Identificação (ex.: Patamar 3)" aria-label="Identificação da tarifa"
+                                           value="{{ identificacao }}">
+                                    <input type="text" name="valor" class="form-control" style="max-width: 12rem"
+                                           placeholder="Valor (ex.: 7,24)" aria-label="Valor da tarifa"
+                                           value="{{ valor_texto }}">
                                     <button type="button" class="btn btn-outline-danger remover-linha"
                                             title="Remover tarifa"><i class="bi bi-x-lg"></i></button>
                                 </div>
@@ -71,12 +69,10 @@
 {% block scripts %}
 <template id="modelo-linha">
     <div class="input-group mb-2 linha-tarifa">
-        <select name="trajeto" class="form-select" style="max-width: 16rem" aria-label="Trajeto da tarifa">
-            <option value="">Trajeto…</option>
-            {% for t in trajetos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
-        </select>
-        <input type="text" name="valor" class="form-control" placeholder="Valor (ex.: 7,24)"
-               aria-label="Valor da tarifa">
+        <input type="text" name="identificacao" class="form-control"
+               placeholder="Identificação (ex.: Patamar 3)" aria-label="Identificação da tarifa">
+        <input type="text" name="valor" class="form-control" style="max-width: 12rem"
+               placeholder="Valor (ex.: 7,24)" aria-label="Valor da tarifa">
         <button type="button" class="btn btn-outline-danger remover-linha" title="Remover tarifa">
             <i class="bi bi-x-lg"></i>
         </button>

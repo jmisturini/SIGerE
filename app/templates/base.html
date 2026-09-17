@@ -180,42 +180,24 @@
                 {% endif %}
                 {% endif %}
 
-                {% if current_user.has_permission('system:dashboard') or current_user.has_permission('unity:read') or current_user.has_permission('vt:empresas') %}
+                {# O Painel Admin é o hub das áreas administrativas: Unidades,
+                   Tokens da API, Empresas de Ônibus e Configurações do Pedido
+                   de VT vivem dentro dele (cards na página), então o item é
+                   visível para quem tem qualquer uma dessas permissões e fica
+                   ativo em todas as páginas /admin/*. #}
+                {% set painel_visivel = current_user.has_permission('system:dashboard')
+                    or current_user.has_permission('unity:read')
+                    or current_user.has_permission('api:manage')
+                    or current_user.has_permission('vt:empresas') %}
+                {% if painel_visivel %}
                 <li class="nav-section">Administração</li>
                 {% endif %}
-                {% set in_unidades = ep.startswith('admin.') and 'unit' in ep %}
-                {% set in_tokens = ep.startswith('admin.') and 'api_token' in ep %}
-                {% set in_vt_empresas = ep.startswith('admin.vt_empresa') %}
-                {# Painel Admin fica ativo nas páginas de gestão sem item próprio
-                   no menu (usuários, cursos, disciplinas, feriados, papéis) #}
-                {# Painel Admin é o fallback das demais páginas administrativas sem item
-   próprio no menu (usuários, cursos, disciplinas, feriados, papéis...) #}
-                {% set in_painel_admin = ep.startswith('admin.') and not in_unidades and not in_tokens and not in_salas_admin and not in_vt_empresas %}
-                {% if current_user.has_permission('system:dashboard') %}
+                {% set in_salas_admin = ep.startswith('admin.') and ('room' in ep or 'categor' in ep) %}
+                {% set in_painel_admin = ep.startswith('admin.') and not in_salas_admin %}
+                {% if painel_visivel %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if in_painel_admin }}" title="Painel Admin" href="{{ url_for('admin.dashboard') }}">
                         <i class="bi bi-gear"></i> <span>Painel Admin</span>
-                    </a>
-                </li>
-                {% endif %}
-                {% if current_user.has_permission('unity:read') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_unidades }}" title="Unidades" href="{{ url_for('admin.list_unities') }}">
-                        <i class="bi bi-buildings"></i> <span>Unidades</span>
-                    </a>
-                </li>
-                {% endif %}
-                {% if current_user.has_permission('vt:empresas') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_vt_empresas }}" title="Empresas de Ônibus" href="{{ url_for('admin.list_vt_empresas') }}">
-                        <i class="bi bi-bus-front"></i> <span>Empresas de Ônibus</span>
-                    </a>
-                </li>
-                {% endif %}
-                {% if current_user.has_permission('api:manage') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_tokens }}" title="Tokens da API" href="{{ url_for('admin.list_api_tokens') }}">
-                        <i class="bi bi-key"></i> <span>Tokens da API</span>
                     </a>
                 </li>
                 {% endif %}

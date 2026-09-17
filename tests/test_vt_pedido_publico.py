@@ -12,6 +12,7 @@ import io
 import os
 import tempfile
 import unittest
+from datetime import date, timedelta
 from decimal import Decimal
 
 from openpyxl import load_workbook
@@ -20,7 +21,7 @@ from app import create_app
 from app.commands import _seed_permissions
 from app.config import Config
 from app.extensions import db
-from app.models import (Permission, Role, Unity, User, VtEmpresa,
+from app.models import (Permission, Role, Unity, User, VtConfig, VtEmpresa,
                         VtEmpresaValor, VtRequest)
 
 EMAIL = 'gestor-vt@escola.edu'
@@ -30,10 +31,10 @@ PASSWORD = 'SenhaForte123'
 # (com trajeto por linha de tarifa — a migration f9c1a4e7b2d6 as deixa com
 # trajeto NULL, aqui o teste já cadastra completo).
 EMPRESAS_INICIAIS = {
-    'Consórcio Fênix': [('Ida e Volta', '7,20')],
-    'Jotur': [('Ida e Volta', '7,24'), ('Somente Volta', '3,62')],
-    'Biguaçu': [('Ida e Volta', '10,23'), ('Somente Volta', '5,12')],
-    'Estrela': [('Ida e Volta', '7,38')],
+    'Consórcio Fênix': [('Patamar 1', '7,20')],
+    'Jotur': [('Patamar 2', '7,24'), ('Patamar 1', '3,62')],
+    'Biguaçu': [('Patamar 5', '10,23'), ('Patamar 1', '5,12')],
+    'Estrela': [('Patamar 3', '7,38')],
 }
 
 
@@ -70,12 +71,29 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             db.session.add(gestor_role)
             db.session.flush()
 
-            # Empresas do cadastro administrado (/admin/vt-empresas).
+            # Colaboradores com cadastro no sistema (para identificação
+            # automática pelo e-mail): funcionário e professor.
+            maria = User(email='maria@escola.edu', full_name='Maria Identificada',
+                         registration='555777', role='room',
+                         profile_type='employee', unity_id=self.unity.id,
+                         force_password_change=False, is_active_user=True)
+            maria.set_password(PASSWORD)
+            db.session.add(maria)
+            professor = User(email='prof@escola.edu', full_name='Prof Identificado',
+                             registration='888999', role='teacher',
+                             profile_type='teacher', unity_id=self.unity.id,
+                             force_password_change=False, is_active_user=True)
+            professor.set_password(PASSWORD)
+            db.session.add(professor)
+
+            # Empresas do cadastro administrado (/admin/vt-empresas),
+            # pertencentes à unidade do teste.
             for nome, tarifas in EMPRESAS_INICIAIS.items():
-                empresa = VtEmpresa(nome=nome, is_active=True)
-                empresa.valores = [VtEmpresaValor(trajeto=t,
+                empresa = VtEmpresa(nome=nome, is_active=True,
+                                    unity_id=self.unity.id)
+                empresa.valores = [VtEmpresaValor(identificacao=i,
                                                   valor=Decimal(v.replace(',', '.')))
-                                   for t, v in tarifas]
+                                   for i, v in tarifas]
                 db.session.add(empresa)
             db.session.flush()
 
@@ -114,28 +132,31 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         payload.update(overrides)
         return payload
 
-    def _linha_id(self, empresa_nome, trajeto):
-        """Id da linha de tarifa (empresa + trajeto) — o select de valor do
-        pedido grava o id da linha do cadastro."""
+    def _linha_id(self, empresa_nome, identificacao):
+        """Id da linha de tarifa (empresa + identificação, ex.: Patamar 2) —
+        o select de valor do pedido grava o id da linha do cadastro."""
         with self.app.app_context():
             empresa = VtEmpresa.query.filter_by(nome=empresa_nome).first()
-            return next(v.id for v in empresa.valores if v.trajeto == trajeto)
+            return next(v.id for v in empresa.valores
+                        if v.identificacao == identificacao)
 
     def _payload_sim_uma_empresa(self, **overrides):
         base = dict(
             optant='Sim',
-            unity='Faculdade',
             link='Técnico - Administrativo',
             company_count='1',
             company_a_name='Jotur',
-            company_a_value=str(self._linha_id('Jotur', 'Ida e Volta')),
-            company_a_passes='22')
+            company_a_value=str(self._linha_id('Jotur', 'Patamar 2')),
+            company_a_passes='22',
+            company_a_route='Ida e Volta')
         base.update(overrides)
         return self._payload(**base)
 
     def _pedidos(self):
         with self.app.app_context():
-            return [dict(email=p.email, optant=p.optant, unity=p.unity,
+            return [dict(email=p.email, full_name=p.full_name,
+                         registration=p.registration,
+                         optant=p.optant, unity=p.unity,
                          link=p.link, company_count=p.company_count,
                          company_a_name=p.company_a_name,
                          company_a_value=p.company_a_value,
@@ -180,12 +201,17 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         dados = response.get_json()
         self.assertTrue(dados['found'])
         self.assertEqual(dados['full_name'], 'Gestor VT')
+        self.assertEqual(dados['vinculo'], 'Técnico - Administrativo')
+
+        response = self.client.get('/vt/pedido/colaborador?email=prof@escola.edu')
+        self.assertEqual(response.get_json()['vinculo'], 'Professor(a)')
 
         response = self.client.get(
             '/vt/pedido/colaborador?email=desconhecido@senac.sc.br')
         self.assertEqual(response.get_json(), {'found': False,
                                                'full_name': None,
-                                               'registration': None})
+                                               'registration': None,
+                                               'vinculo': None})
 
     # ---------- POST público ----------
 
@@ -209,7 +235,8 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
 
         pedido = self._pedidos()[0]
         self.assertEqual(pedido['optant'], 'Sim')
-        self.assertEqual(pedido['unity'], 'Faculdade')
+        # Sem pergunta de unidade: o pedido registra a unidade do link.
+        self.assertEqual(pedido['unity'], 'Unidade Teste')
         self.assertEqual(pedido['company_count'], 1)
         self.assertEqual(pedido['company_a_name'], 'Jotur')
         self.assertEqual(float(pedido['company_a_value']), 7.24)
@@ -222,8 +249,9 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
             company_count='2',
             company_b_name='Biguaçu',
-            company_b_value=str(self._linha_id('Biguaçu', 'Ida e Volta')),
-            company_b_passes='10'), follow_redirects=True)
+            company_b_value=str(self._linha_id('Biguaçu', 'Patamar 5')),
+            company_b_passes='10',
+            company_b_route='Ida e Volta'), follow_redirects=True)
         self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
 
         pedido = self._pedidos()[0]
@@ -236,7 +264,7 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         """A tarifa precisa ser da empresa escolhida: linha da Fênix com
         Jotur selecionado é rejeitada."""
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
-            company_a_value=str(self._linha_id('Consórcio Fênix', 'Ida e Volta'))))
+            company_a_value=str(self._linha_id('Consórcio Fênix', 'Patamar 1'))))
         self.assertIn('A tarifa selecionada não pertence à empresa escolhida.',
                       response.get_data(as_text=True))
         self.assertEqual(self._pedidos(), [])
@@ -249,42 +277,22 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertEqual(self._pedidos(), [])
 
     def test_post_sim_incompleto_rejeitado(self):
-        """"Sim" na Faculdade sem vínculo/empresas: formulário volta com
-        erros e nada é gravado — o POST forjado não furta a ramificação."""
-        response = self.client.post('/vt/pedido', data=self._payload(
-            optant='Sim', unity='Faculdade'))
+        """"Sim" sem vínculo/empresas: formulário volta com erros e nada é
+        gravado — o POST forjado não furta a ramificação."""
+        response = self.client.post('/vt/pedido', data=self._payload(optant='Sim'))
         page = response.get_data(as_text=True)
         self.assertIn('Selecione o vínculo.', page)
         self.assertIn('Selecione o número de empresas de ônibus.', page)
         self.assertIn('Selecione a empresa de ônibus.', page)
         self.assertEqual(self._pedidos(), [])
 
-    def test_post_sim_sem_unidade_rejeitado(self):
-        response = self.client.post('/vt/pedido', data=self._payload(optant='Sim'))
-        self.assertIn('Selecione a unidade.', response.get_data(as_text=True))
-        self.assertEqual(self._pedidos(), [])
-
-    def test_unidade_restaurante_assume_tecnico_administrativo(self):
-        """Fora da Faculdade o vínculo não é perguntado: o pedido sai como
-        Técnico-Administrativo mesmo sem o campo no POST (o que o JS faz ao
-        desabilitar o bloco)."""
-        payload = self._payload_sim_uma_empresa(
-            unity='Restaurante - ALESC/Palácio Barriga Verde')
-        payload.pop('link')
-        response = self.client.post('/vt/pedido', data=payload,
-                                    follow_redirects=True)
-        self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
-        pedido = self._pedidos()[0]
-        self.assertEqual(pedido['link'], 'Técnico - Administrativo')
-
-    def test_vinculo_forjado_com_restaurante_e_corrigido(self):
-        """POST forjado com outro vínculo nas unidades do Restaurante/
-        Lanchonete é sobrescrito para Técnico-Administrativo."""
+    def test_vinculo_sempre_perguntado(self):
+        """Sem a pergunta de unidade, o vínculo é escolhido livremente
+        (Professor(a) incluído) em qualquer unidade."""
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
-            unity='Lanchonete - ALESC/Unidade Administrativa',
             link='Professor(a)'), follow_redirects=True)
         self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
-        self.assertEqual(self._pedidos()[0]['link'], 'Técnico - Administrativo')
+        self.assertEqual(self._pedidos()[0]['link'], 'Professor(a)')
 
     def test_post_sim_segunda_empresa_faltando_rejeitado(self):
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
@@ -321,8 +329,7 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertNotIn('Colaborador Sul', page)
 
     def test_empresas_do_formulario_sao_por_unidade(self):
-        """Empresa exclusiva da unidade Sul só aparece no link dela; as
-        compartilhadas valem para todas."""
+        """Cada link mostra apenas as empresas da própria unidade."""
         with self.app.app_context():
             sul = Unity(name='Unidade Sul', code='US')
             db.session.add(sul)
@@ -336,16 +343,121 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
 
         page_padrao = self.client.get(f'/vt/pedido?unity={self.unity_id}').get_data(as_text=True)
         self.assertNotIn('Empresa Sul', page_padrao)
-        self.assertIn('Jotur', page_padrao)  # compartilhada vale para todas
+        self.assertIn('Jotur', page_padrao)  # empresa da própria unidade
 
         page_sul = self.client.get(f'/vt/pedido?unity={sul_id}').get_data(as_text=True)
         self.assertIn('Empresa Sul', page_sul)
         self.assertIn('Unidade Sul', page_sul)
+        self.assertNotIn('Jotur', page_sul)  # empresa da outra unidade
 
     def test_unidade_invalida_cai_no_fallback(self):
         """?unity inválido usa a primeira unidade ativa."""
         page = self.client.get('/vt/pedido?unity=99999').get_data(as_text=True)
         self.assertIn('Unidade Teste', page)
+
+    def test_email_cadastrado_trava_dados_no_servidor(self):
+        """E-mail de conta ativa: nome, matrícula e vínculo vêm do cadastro
+        mesmo que o POST tente enviar outros valores."""
+        response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
+            email='maria@escola.edu',
+            full_name='Nome Forjado',
+            registration='000000',
+            link='Professor(a)'), follow_redirects=True)
+        self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
+
+        pedido = self._pedidos()[0]
+        self.assertEqual(pedido['full_name'], 'Maria Identificada')
+        self.assertEqual(pedido['email'], 'maria@escola.edu')
+
+        with self.app.app_context():
+            pedido_bd = VtRequest.query.first()
+            self.assertEqual(pedido_bd.registration, '555777')
+            self.assertEqual(pedido_bd.link, 'Técnico - Administrativo')
+
+    def test_email_de_professor_define_vinculo(self):
+        """Professor identificado pelo cadastro tem vínculo Professor(a)."""
+        response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
+            email='prof@escola.edu'), follow_redirects=True)
+        self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
+
+        with self.app.app_context():
+            pedido_bd = VtRequest.query.first()
+            self.assertEqual(pedido_bd.full_name, 'Prof Identificado')
+            self.assertEqual(pedido_bd.link, 'Professor(a)')
+
+    def test_vales_acima_de_49_rejeitados(self):
+        """O nº de vales é livre, mas sempre menor que 50."""
+        response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
+            company_a_passes='50'))
+        self.assertIn('Informe um número de vales menor que 50.',
+                      response.get_data(as_text=True))
+        self.assertEqual(self._pedidos(), [])
+
+    def test_config_fechamento_bloqueia_formulario(self):
+        """Com data de fechamento no passado, o formulário exibe a mensagem
+        de encerrado e rejeita o POST (nada é gravado)."""
+        with self.app.app_context():
+            config = VtConfig(unity_id=self.unity_id,
+                              fecha_em=date.today() - timedelta(days=1))
+            db.session.add(config)
+            db.session.commit()
+
+        page = self.client.get('/vt/pedido').get_data(as_text=True)
+        self.assertIn('Formulário encerrado', page)
+        self.assertNotIn('id="form-pedido"', page)
+
+        response = self.client.post('/vt/pedido', data=self._payload(),
+                                    follow_redirects=True)
+        self.assertNotIn('Pedido enviado com sucesso',
+                         response.get_data(as_text=True))
+        self.assertEqual(self._pedidos(), [])
+
+    def test_config_fechamento_futuro_exibe_prazo(self):
+        """Data de fechamento no futuro: formulário aberto e prazo exibido."""
+        prazo = date.today() + timedelta(days=5)
+        with self.app.app_context():
+            db.session.add(VtConfig(unity_id=self.unity_id, fecha_em=prazo))
+            db.session.commit()
+
+        page = self.client.get('/vt/pedido').get_data(as_text=True)
+        self.assertIn('Preenchimento até', page)
+        self.assertIn(prazo.strftime('%d/%m/%Y'), page)
+        self.assertIn('id="form-pedido"', page)
+
+    def test_config_botao_valor_base(self):
+        """Com números base configurados, o formulário oferece o botão
+        "Usar valor base" (o valor continua livre para ajuste)."""
+        with self.app.app_context():
+            db.session.add(VtConfig(unity_id=self.unity_id,
+                                    vales_somente_ida=2,
+                                    vales_ida_e_volta=4))
+            db.session.commit()
+
+        page = self.client.get('/vt/pedido').get_data(as_text=True)
+        self.assertIn('Usar valor base', page)
+        self.assertIn('name="company_a_passes"', page)
+
+        response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
+            company_a_passes='2', company_a_route='Somente Volta'),
+            follow_redirects=True)
+        self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
+        pedido = self._pedidos()[0]
+        self.assertEqual(pedido['company_a_route'], 'Somente Volta')
+        self.assertEqual(pedido['company_a_passes'], 2)
+
+    def test_sem_config_vales_continuam_manuais(self):
+        """Sem configuração de vales, o campo manual segue no formulário,
+        sem o botão de valor base."""
+        page = self.client.get('/vt/pedido').get_data(as_text=True)
+        self.assertIn('name="company_a_passes"', page)
+        self.assertNotIn('data-sufixo=', page)
+
+        payload = self._payload_sim_uma_empresa()
+        payload.pop('company_a_passes')
+        response = self.client.post('/vt/pedido', data=payload)
+        self.assertIn('Digite o número de vales necessários.',
+                      response.get_data(as_text=True))
+        self.assertEqual(self._pedidos(), [])
 
     # ---------- Listagem e exportação (restritas) ----------
 

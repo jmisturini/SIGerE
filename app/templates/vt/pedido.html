@@ -32,6 +32,21 @@
 
         <div class="card">
             <div class="card-body p-4">
+                {% if fechado %}
+                <div class="text-center py-4">
+                    <i class="bi bi-lock-fill fs-1 text-danger d-block mb-3"></i>
+                    <h5 class="fw-bold">Formulário encerrado</h5>
+                    <p class="text-muted mb-0">O período para preencher o pedido de Vale-Transporte
+                        desta unidade encerrou-se em
+                        <strong>{{ config.fecha_em.strftime('%d/%m/%Y') }}</strong>.</p>
+                </div>
+                {% else %}
+                {% if config and config.fecha_em %}
+                <div class="alert alert-info py-2 px-3 small d-flex align-items-center" role="alert">
+                    <i class="bi bi-calendar-event me-2"></i>
+                    Preenchimento até <strong class="ms-1">{{ config.fecha_em.strftime('%d/%m/%Y') }}</strong>.
+                </div>
+                {% endif %}
                 <form method="POST" novalidate id="form-pedido">
                     {{ form.hidden_tag() }}
 
@@ -40,6 +55,10 @@
                         <div class="col-md-6">
                             {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
+                            <div class="form-text text-success" id="cadastro-aviso" hidden>
+                                <i class="bi bi-check-circle-fill me-1"></i> Identificado pelo cadastro —
+                                nome, matrícula e vínculo ficam travados.
+                            </div>
                             {{ erro(form.email) }}
                         </div>
                         <div class="col-md-6">
@@ -70,16 +89,11 @@
                     </div>
                     {{ erro(form.optant) }}
 
-                    {# ── Ramo "Sim": unidade, vínculo e empresas ── #}
+                    {# ── Ramo "Sim": vínculo e empresas ── #}
                     <div id="bloco-vt">
                         <hr class="my-4">
-                        <h6 class="fw-bold mb-3">{{ form.unity.label.text }}</h6>
-                        {{ radios_lista(form.unity, 'unity') }}
-
-                        <div id="bloco-vinculo">
-                            <h6 class="fw-bold mb-3 mt-4">{{ form.link.label.text }}</h6>
-                            {{ radios_lista(form.link, 'link') }}
-                        </div>
+                        <h6 class="fw-bold mb-3">{{ form.link.label.text }}</h6>
+                        {{ radios_lista(form.link, 'link') }}
 
                         <h6 class="fw-bold mb-3 mt-4">{{ form.company_count.label.text }}</h6>
                         <div class="btn-group" role="group" aria-label="Número de empresas de ônibus">
@@ -103,16 +117,25 @@
                                 <div class="mb-3">
                                     {{ form.company_a_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                                     {{ form.company_a_value(class="form-select", **{"data-nativo": "true"}) }}
-                                    <div class="form-text small">Cada opção é o trajeto com a tarifa vigente — ela já
-                                        define o trajeto do pedido.</div>
+                                    <div class="form-text small">Cada opção identifica a tarifa aplicada com o valor vigente.</div>
                                     {{ erro(form.company_a_value) }}
                                 </div>
                                 <div class="mb-3">
                                     {{ form.company_a_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    {{ form.company_a_passes(class="form-control", style="max-width: 12rem") }}
+                                    <div class="input-group input-group-sm" style="max-width: 15rem">
+                                        {{ form.company_a_passes(class="form-control", min=1, max=49) }}
+                                        {% if vales_base %}
+                                        <button type="button" class="btn btn-outline-primary usar-valor-base"
+                                                data-sufixo="a" title="Preencher com o número base de vales da unidade">
+                                            <i class="bi bi-magic me-1"></i> Usar valor base
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                     <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
                                     {{ erro(form.company_a_passes) }}
                                 </div>
+                                <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
+                                {{ radios_lista(form.company_a_route, 'company_a_route') }}
                             </div>
                         </div>
 
@@ -132,10 +155,20 @@
                                 </div>
                                 <div class="mb-3">
                                     {{ form.company_b_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    {{ form.company_b_passes(class="form-control", style="max-width: 12rem") }}
+                                    <div class="input-group input-group-sm" style="max-width: 15rem">
+                                        {{ form.company_b_passes(class="form-control", min=1, max=49) }}
+                                        {% if vales_base %}
+                                        <button type="button" class="btn btn-outline-primary usar-valor-base"
+                                                data-sufixo="b" title="Preencher com o número base de vales da unidade">
+                                            <i class="bi bi-magic me-1"></i> Usar valor base
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                     <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
                                     {{ erro(form.company_b_passes) }}
                                 </div>
+                                <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
+                                {{ radios_lista(form.company_b_route, 'company_b_route') }}
                             </div>
                         </div>
                     </div>
@@ -144,6 +177,7 @@
                         {{ form.submit(class="btn btn-primary px-4", disabled=True) }}
                     </div>
                 </form>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -155,24 +189,30 @@
     // Ramificação do formulário original (Microsoft Forms) + ajustes de UX:
     // 1. "Não" para o mês encerra o pedido — o bloco de perguntas seguinte
     //    some e seus campos são desabilitados (não seguem no POST);
-    // 2. O vínculo só é perguntado na Faculdade — em Restaurante/Lanchonete
-    //    o servidor assume Técnico-Administrativo;
-    // 3. O botão de envio fica desabilitado até os campos obrigatórios do
+    // 2. O botão de envio fica desabilitado até os campos obrigatórios do
     //    ramo visível estarem preenchidos;
-    // 4. O e-mail preenche automaticamente nome e matrícula quando a conta
-    //    ativa é encontrada.
+    // 3. O e-mail preenche automaticamente nome e matrícula quando a conta
+    //    ativa é encontrada;
+    // 4. O select de valor lista as linhas de tarifa da empresa escolhida
+    //    (cada opção traz a identificação da tarifa e o valor).
     (function () {
         const form = document.getElementById('form-pedido');
         const submitBtn = form.querySelector('input[type="submit"]');
         const emailInput = document.getElementById('email');
         const blocoVt = document.getElementById('bloco-vt');
-        const blocoVinculo = document.getElementById('bloco-vinculo');
         const blocoB = document.getElementById('bloco-empresa-b');
         const TEXTO_RH = 'Consulte o e-mail enviado pelo RH.';
         const TEXTO_NEB = 'Consulte com o NEB o número de passes necessários.';
-        // Empresa → tarifas vigentes (alimenta o select de valor, que fica
-        // logo abaixo do select de empresa e só habilita com uma escolhida).
+        // Empresa → linhas de tarifa [{id, rotulo}] (do cadastro da unidade).
         const EMPRESAS_VALORES = {{ empresas_valores | tojson }};
+        // Números base de vales configurados pela unidade (null quando não
+        // há): trajeto → nº de vales. Alimentam o botão "Usar valor base",
+        // oferecido apenas para Técnico-Administrativo.
+        {% if vales_base %}
+        const VALES_BASE = {'Somente Volta': {{ vales_base['Somente Volta'] }}, 'Ida e Volta': {{ vales_base['Ida e Volta'] }}};
+        {% else %}
+        const VALES_BASE = null;
+        {% endif %}
 
         // Funciona para campos de texto e grupos de rádio (RadioNodeList
         // devolve o valor do marcado, ou '' quando nenhum).
@@ -189,20 +229,21 @@
             });
         }
 
-        // Obrigatórios do ramo visível — espelho da validação do servidor
-        // (o trajeto já vem na linha de tarifa escolhida).
+        // Obrigatórios do ramo visível — espelho da validação do servidor.
+        // O trajeto é pergunta própria (Somente Volta / Ida e Volta),
+        // independente da tarifa (linha) escolhida.
         function pedidoPronto() {
             if (!preenchido('email') || !preenchido('full_name') ||
                 !preenchido('registration') || !preenchido('optant')) return false;
             if (valor('optant') !== 'Sim') return true;
-            if (!preenchido('unity')) return false;
-            if (valor('unity') === 'Faculdade' && !preenchido('link')) return false;
+            if (!preenchido('link')) return false;
             if (!preenchido('company_count')) return false;
             for (const sufixo of ['a', 'b']) {
                 if (sufixo === 'b' && valor('company_count') !== '2') break;
                 if (!preenchido(`company_${sufixo}_name`) ||
                     !preenchido(`company_${sufixo}_value`) ||
-                    !preenchido(`company_${sufixo}_passes`)) return false;
+                    !preenchido(`company_${sufixo}_passes`) ||
+                    !preenchido(`company_${sufixo}_route`)) return false;
             }
             return true;
         }
@@ -222,13 +263,12 @@
             const mostrarVt = valor('optant') === 'Sim';
             setarBloco(blocoVt, mostrarVt);
             if (mostrarVt) {
-                // Vínculo só existe na Faculdade; nas demais unidades o
-                // bloco some e o servidor assume Técnico-Administrativo.
-                setarBloco(blocoVinculo, valor('unity') === 'Faculdade');
-
                 const professor = valor('link') === 'Professor(a)';
                 document.querySelectorAll('.subtitulo-vales').forEach(el => {
                     el.textContent = professor ? TEXTO_NEB : TEXTO_RH;
+                });
+                document.querySelectorAll('.rotulo-trajeto').forEach(el => {
+                    el.textContent = professor ? 'Selecione o trajeto' : 'Selecione o número de trajetos';
                 });
 
                 const duasEmpresas = valor('company_count') === '2';
@@ -237,6 +277,7 @@
                 // reabilita tudo do bloco; aqui restringe de novo).
                 ajustarValor('a', true);
                 ajustarValor('b', duasEmpresas);
+                atualizarBotoesVales(duasEmpresas);
             }
             submitBtn.disabled = !pedidoPronto();
         }
@@ -247,18 +288,73 @@
             form.elements[`company_${sufixo}_value`].disabled = !visivel || tarifas.length === 0;
         }
 
+        // O botão "Usar valor base" só aparece para Técnico-Administrativo
+        // (professor digita) e habilita com um trajeto selecionado.
+        function atualizarBotoesVales(duasEmpresas) {
+            if (!VALES_BASE) return;
+            const tecnico = valor('link') === 'Técnico - Administrativo';
+            document.querySelectorAll('.usar-valor-base').forEach(btn => {
+                const sufixo = btn.dataset.sufixo;
+                const visivel = tecnico && (sufixo !== 'b' || duasEmpresas);
+                btn.classList.toggle('d-none', !visivel);
+                btn.disabled = !visivel || !valor(`company_${sufixo}_route`);
+            });
+        }
+
+        document.querySelectorAll('.usar-valor-base').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!VALES_BASE) return;
+                const sufixo = btn.dataset.sufixo;
+                const base = VALES_BASE[valor(`company_${sufixo}_route`)];
+                if (base) {
+                    form.elements[`company_${sufixo}_passes`].value = base;
+                    atualizar();
+                }
+            });
+        });
+
         // ── Auto-preenchimento pelo e-mail (conta ativa) ──
         let timer = null;
+        // Identificação pelo cadastro: nome, matrícula e vínculo vêm do
+        // sistema e ficam travados (readonly/disabled). E-mail sem cadastro
+        // devolve os campos para a digitação manual.
+        let identificado = false;
+        function identificar(dados) {
+            const nome = document.getElementById('full_name');
+            const matricula = document.getElementById('registration');
+            if (dados.full_name) nome.value = dados.full_name;
+            if (dados.registration) matricula.value = dados.registration;
+            nome.readOnly = true;
+            matricula.readOnly = true;
+            document.querySelectorAll('input[name="link"]').forEach(radio => {
+                radio.checked = radio.value === dados.vinculo;
+                radio.disabled = true;
+            });
+            document.getElementById('cadastro-aviso').hidden = false;
+            identificado = true;
+        }
+
+        function liberarCampos() {
+            if (!identificado) return;
+            ['full_name', 'registration'].forEach(id => {
+                document.getElementById(id).readOnly = false;
+            });
+            document.querySelectorAll('input[name="link"]').forEach(radio => {
+                radio.disabled = false;
+            });
+            document.getElementById('cadastro-aviso').hidden = true;
+            identificado = false;
+        }
+
         async function buscarColaborador() {
             const email = emailInput.value.trim();
-            if (!email || !email.includes('@')) return;
+            if (!email || !email.includes('@')) { liberarCampos(); return; }
             try {
                 const resp = await fetch(`{{ url_for('vt.request_form_colaborador') }}?email=${encodeURIComponent(email)}`);
                 if (!resp.ok) return;
                 const dados = await resp.json();
-                if (!dados.found) return;
-                if (dados.full_name) document.getElementById('full_name').value = dados.full_name;
-                if (dados.registration) document.getElementById('registration').value = dados.registration;
+                if (!dados.found) { liberarCampos(); return; }
+                identificar(dados);
                 atualizar();
             } catch (e) { /* falha na busca: preenchimento manual segue */ }
         }

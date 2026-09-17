@@ -74,21 +74,37 @@ class SidebarActiveTestCase(unittest.TestCase):
         m = re.search(r'<a class="nav-link ([^"]*)" title="' + titulo + '"', page)
         return m.group(1) if m else None
 
-    def test_unidades_fica_ativo_e_painel_admin_nao(self):
+    def test_unidades_vive_dentro_do_painel_admin(self):
+        """Sem item próprio na sidebar, Unidades destaca o Painel Admin."""
         page = self.client.get('/admin/unities').get_data(as_text=True)
-        self.assertEqual(self._navlink(page, 'Unidades'), 'active')
-        self.assertIsNotNone(self._navlink(page, 'Painel Admin'))
-        self.assertNotIn('active', self._navlink(page, 'Painel Admin'))
+        self.assertIsNone(self._navlink(page, 'Unidades'))
+        self.assertEqual(self._navlink(page, 'Painel Admin'), 'active')
 
     def test_painel_admin_ativo_na_pagina_de_usuarios(self):
         page = self.client.get('/admin/users').get_data(as_text=True)
         self.assertEqual(self._navlink(page, 'Painel Admin'), 'active')
-        self.assertIsNotNone(self._navlink(page, 'Unidades'))
-        self.assertNotIn('active', self._navlink(page, 'Unidades'))
 
     def test_painel_admin_ativo_no_dashboard(self):
         page = self.client.get('/admin/').get_data(as_text=True)
         self.assertEqual(self._navlink(page, 'Painel Admin'), 'active')
+        # O dashboard é o hub: card de Unidades visível para quem tem unity:read.
+        self.assertIn('Unidades', page)
+
+    def test_dashboard_acessivel_sem_system_dashboard(self):
+        """Quem só tem unity:read acessa o Painel Admin (hub) e vê o card
+        de Unidades — mas nada de que não tenha permissão."""
+        with self.app.app_context():
+            user = User.query.filter_by(email=EMAIL).first()
+            user.role_obj.permissions = [Permission.query.filter_by(code='unity:read').first()]
+            db.session.commit()
+        self.client.get('/logout')
+        self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
+                         follow_redirects=True)
+        response = self.client.get('/admin/')
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        self.assertIn('Unidades', page)
+        self.assertNotIn('Tokens da API', page)
 
 
 if __name__ == '__main__':

@@ -22,7 +22,7 @@ organizado em duas páginas:
 import io
 import os
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, send_file, url_for)
@@ -32,7 +32,7 @@ from sqlalchemy import func
 from app.extensions import db, limiter
 from flask_login import current_user, login_required
 from app.forms import FormVtRecord, FormVtUpload, FormVtPedido
-from app.models import User, VtEmpresa, VtRecord, VtRequest
+from app.models import User, VtConfig, VtEmpresa, VtRecord, VtRequest
 from app.permissions import require_module, require_permission
 from app.unity_context import current_unity_id
 from app.blueprints.payments import parse_currency
@@ -481,29 +481,31 @@ def export():
 # vínculo → nº de empresas) são as mesmas do formulário original. As respostas
 # ficam em VtRequest, listadas em /vt/pedidos para conferência do RH.
 
-def _criar_pedido_de_form(form, unity_id):
+def _criar_pedido_de_form(form, unity):
     """VtRequest preenchido a partir do FormVtPedido validado, vinculado à
-    unidade do link público usado. Valor e trajeto vêm das linhas de tarifa
-    resolvidas na validação."""
+    unidade do link público usado — sem pergunta de unidade no formulário: a
+    coluna unity registra o nome da unidade do link. O valor vem da linha de
+    tarifa resolvida na validação; o trajeto é a resposta própria do
+    formulário."""
     linha_a = getattr(form, '_linha_a', None)
     linha_b = getattr(form, '_linha_b', None)
     return VtRequest(
-        unity_id=unity_id,
+        unity_id=unity.id if unity else None,
+        unity=unity.name if unity else None,
         email=form.email.data.strip().lower(),
         full_name=form.full_name.data.strip(),
         registration=form.registration.data.strip(),
         optant=form.optant.data,
-        unity=form.unity.data,
         link=form.link.data,
         company_count=int(form.company_count.data) if form.company_count.data else 0,
         company_a_name=form.company_a_name.data or None,
         company_a_value=linha_a.valor if linha_a else None,
         company_a_passes=form.company_a_passes.data,
-        company_a_route=linha_a.trajeto if linha_a else None,
+        company_a_route=form.company_a_route.data,
         company_b_name=form.company_b_name.data or None,
         company_b_value=linha_b.valor if linha_b else None,
         company_b_passes=form.company_b_passes.data,
-        company_b_route=linha_b.trajeto if linha_b else None,
+        company_b_route=form.company_b_route.data,
     )
 
 
@@ -522,9 +524,25 @@ def _pedido_unity():
 
 def _preparar_form_pedido(form, unity):
     """Choices de empresa/tarifa do pedido público a partir do cadastro
-    administrado em /admin/vt-empresas (empresas da unidade mais as
-    compartilhadas). O select de valor lista as LINHAS de tarifa da empresa
+    administrado em /admin/vt-empresas (empresas da unidade do link). O select de valor lista as LINHAS de tarifa da empresa
     (id de VtEmpresaValor — "Trajeto — R$ valor"); o pareamento é validado
+    no form."""
+    form._unity_id = unity.id if unity else None
+    empresas = VtEmpresa.empresas_ativas(unity.id if unity else None)
+    nomes = [(e.nome, e.nome) for e in empresas]
+    linhas = [(str(v.id), v.rotulo) for e in empresas for v in e.valores]
+    form.company_a_name.choices = [('', 'Selecione…')] + nomes
+    form.company_b_name.choices = [('', 'Selecione…')] + nomes
+    form.company_a_value.choices = [('', 'Selecione…')] + linhas
+    form.company_b_value.choices = [('', 'Selecione…')] + linhas
+    return form
+
+
+def _preparar_form_pedido(form, unity):
+    """Choices de empresa/tarifa do pedido público a partir do cadastro
+    administrado em /admin/vt-empresas (empresas da unidade do link). O
+    select de valor lista as LINHAS de tarifa da empresa (id de
+    VtEmpresaValor — "Identificação — R$ valor"); o pareamento é validado
     no form."""
     form._unity_id = unity.id if unity else None
     empresas = VtEmpresa.empresas_ativas(unity.id if unity else None)
@@ -542,12 +560,26 @@ def _preparar_form_pedido(form, unity):
 def request_form():
     """Formulário público (sem login): o colaborador informa o e-mail e
     responde ao pedido de VT da unidade do link (?unity=<id>). "Não" encerra
-    o pedido; "Sim" abre unidade, vínculo e os blocos de empresa/vales/
-    trajeto guiados pela página."""
+    o pedido; "Sim" abre vínculo e os blocos de empresa/vales/trajeto
+    guiados pela página. Quando a unidade configura os números base de
+    vales, eles são aplicados automaticamente conforme o trajeto; depois da
+    data de fechamento o formulário é bloqueado."""
     unity = _pedido_unity()
+    config = (VtConfig.query.filter_by(unity_id=unity.id).first()
+              if unity else None)
+    hoje = date.today()
+    fechado = config.esta_fechado(hoje) if config else False
+
     form = _preparar_form_pedido(FormVtPedido(), unity)
-    if form.validate_on_submit():
-        db.session.add(_criar_pedido_de_form(form, unity.id if unity else None))
+    # Números base da unidade: alimentam o botão "usar valor base" do
+    # formulário (oferecido apenas para Técnico-Administrativo).
+    vales_base = None
+    if config and config.vales_somente_ida and config.vales_ida_e_volta:
+        vales_base = {'Somente Volta': config.vales_somente_ida,
+                      'Ida e Volta': config.vales_ida_e_volta}
+
+    if not fechado and form.validate_on_submit():
+        db.session.add(_criar_pedido_de_form(form, unity))
         db.session.commit()
         flash('Pedido enviado com sucesso! A equipe de RH receberá suas '
               'respostas.', 'success')
@@ -555,23 +587,30 @@ def request_form():
                         else url_for('vt.request_form'))
     # ocultar_sidebar: página pública em tela cheia, sem a navegação do painel.
     # empresas_valores alimenta o select de tarifa dependente da empresa
-    # (linhas com trajeto + valor, em formato simples para o JavaScript).
+    # (linhas identificação + valor, em formato simples para o JavaScript).
     unity_id = unity.id if unity else None
     empresas_valores = {
         nome: [{'id': v.id, 'rotulo': v.rotulo} for v in linhas]
         for nome, linhas in VtEmpresa.mapa_tarifas(unity_id).items()
     }
     return render_template('vt/pedido.html', form=form, ocultar_sidebar=True,
-                           pedido_unity=unity,
+                           pedido_unity=unity, config=config,
+                           fechado=fechado, vales_base=vales_base,
                            empresas_valores=empresas_valores)
+
+
+def _vinculo_por_perfil(user):
+    """Vínculo do formulário de VT derivado do perfil do usuário: professor
+    é Professor(a); demais perfis (funcionário) são Técnico-Administrativo."""
+    return 'Professor(a)' if user.profile_type == 'teacher' else 'Técnico - Administrativo'
 
 
 @bp.route('/pedido/colaborador')
 @limiter.limit('30 per minute')
 def request_form_colaborador():
     """Auto-preenchimento do formulário público: dado o e-mail informado,
-    devolve nome e matrícula da conta ATIVA correspondente (None quando não
-    há — o colaborador preenche à mão)."""
+    devolve nome, matrícula e vínculo da conta ATIVA correspondente (found
+    false quando não há — o colaborador preenche à mão)."""
     email = (request.args.get('email') or '').strip().lower()
     user = None
     if email:
@@ -583,6 +622,7 @@ def request_form_colaborador():
         'found': user is not None,
         'full_name': user.full_name if user else None,
         'registration': user.registration if user else None,
+        'vinculo': _vinculo_por_perfil(user) if user else None,
     })
 
 

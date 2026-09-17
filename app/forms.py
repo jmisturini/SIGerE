@@ -5,10 +5,11 @@ from wtforms import (StringField, PasswordField, SubmitField, IntegerField, Floa
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, date
 import re
+from sqlalchemy import func
 # CORREÇÃO: Holiday e Role não estavam importados — os validadores de
 # HolidayForm.validate_date e RoleForm.validate_name geravam NameError (erro 500).
 from app.models import (User, Course, Subject, RoomCategory, Holiday, Role, Unity,
-                        VtEmpresa)
+                        VtEmpresa, VtConfig)
 from app.unity_context import current_unity_id
 
 # =============================================================================
@@ -695,33 +696,36 @@ class FormVtRecord(BaseForm):
 # campo de valor (logo abaixo) oferece as tarifas da empresa escolhida. Os
 # textos de unidade e vínculo coincidem com VtRecord.RESTAURANTE_UNITIES e
 # VtRecord.link, e a resposta chega pronta para conferência do RH.
-VT_UNIDADES_PEDIDO = [
-    'Faculdade',
-    'Restaurante - ALESC/Palácio Barriga Verde',
-    'Lanchonete - ALESC/Unidade Administrativa',
-]
 VT_VINCULOS_PEDIDO = ['Técnico - Administrativo', 'Professor(a)']
 VT_TRAJETOS_PEDIDO = ['Somente Volta', 'Ida e Volta']
 
 
-def parse_tarifa_linhas(trajetos, valores):
-    """Combina as linhas do formulário dinâmico de tarifas (um trajeto e um
-    valor por linha) em [(trajeto, Decimal), ...] ordenada. Linhas
-    totalmente vazias são ignoradas; ValueError com mensagem amigável para
-    linha incompleta, valor inválido ou trajeto repetido."""
-    trajetos_validos = set(VT_TRAJETOS_PEDIDO)
+def parse_tarifa_linhas(identificacoes, valores):
+    """Combina as linhas do formulário dinâmico de tarifas (uma
+    identificação e um valor por linha) em [(identificacao, Decimal), ...]
+    ordenada. A identificação é texto livre que rotula a tarifa aplicada
+    (ex.: "Patamar 3", da tabela da empresa). Linhas totalmente vazias são
+    ignoradas; ValueError com mensagem amigável para linha incompleta,
+    valor inválido ou identificação repetida."""
     linhas, vistos = [], set()
-    for trajeto, bruto in zip(trajetos, valores):
-        trajeto = (trajeto or '').strip()
+    for identificacao, bruto in zip(identificacoes, valores):
+        identificacao = (identificacao or '').strip()
         bruto = (bruto or '').strip().upper().replace('R$', '').strip()
-        if not trajeto and not bruto:
+        if not identificacao and not bruto:
             continue  # linha vazia acrescentada e não preenchida
-        if not trajeto:
-            raise ValueError('Informe o trajeto de cada tarifa.')
-        if trajeto not in trajetos_validos:
-            raise ValueError(f'Trajeto inválido: "{trajeto}".')
+        if not identificacao:
+            raise ValueError('Informe a identificação de cada tarifa '
+                             '(ex.: Patamar 3).')
+        if len(identificacao) > 100:
+            raise ValueError(f'A identificação "{identificacao[:30]}…" é muito '
+                             'longa (máximo de 100 caracteres).')
+        if identificacao.casefold() in vistos:
+            raise ValueError(f'A identificação "{identificacao}" tem mais de '
+                             'uma tarifa — cada identificação deve aparecer '
+                             'uma única vez.')
+        vistos.add(identificacao.casefold())
         if not bruto:
-            raise ValueError(f'Informe o valor da tarifa do trajeto "{trajeto}".')
+            raise ValueError(f'Informe o valor da tarifa "{identificacao}".')
         if ',' in bruto:
             bruto = bruto.replace('.', '').replace(',', '.')
         try:
@@ -729,24 +733,50 @@ def parse_tarifa_linhas(trajetos, valores):
         except InvalidOperation:
             raise ValueError(f'Valor de tarifa inválido: "{bruto}". '
                              'Use reais com vírgula decimal (ex.: 7,24).')
-        if trajeto in vistos:
-            raise ValueError(f'O trajeto "{trajeto}" tem mais de uma tarifa — '
-                             'cada trajeto deve aparecer uma única vez.')
-        vistos.add(trajeto)
-        linhas.append((trajeto, valor))
+        linhas.append((identificacao, valor))
     if not linhas:
-        raise ValueError('Adicione pelo menos uma tarifa (trajeto + valor).')
-    return sorted(linhas)
+        raise ValueError('Adicione pelo menos uma tarifa (identificação + valor).')
+    return sorted(linhas, key=lambda l: l[0].casefold())
 
 
 class FormVtEmpresa(BaseForm):
     """Empresa de ônibus do pedido de VT (formulário público) e suas tarifas
     vigentes — gerenciada na área de administração (/admin/vt-empresas). As
-    tarifas são linhas dinâmicas (trajeto + valor) tratadas pela rota, que
-    valida com parse_tarifa_linhas()."""
+    tarifas são linhas dinâmicas (identificação + valor) tratadas pela rota,
+    que valida com parse_tarifa_linhas()."""
     nome = StringField('Nome da empresa', validators=[DataRequired(), Length(max=100)])
     is_active = BooleanField('Disponível no formulário público', default=True)
     submit = SubmitField('Salvar empresa')
+
+
+class FormVtConfig(BaseForm):
+    """Configurações do pedido público de VT da unidade: números base de
+    vales por trajeto (quando definidos, o pedido os usa automaticamente em
+    vez de pedir que o colaborador digite) e data de fechamento do
+    formulário (último dia para preencher)."""
+    vales_somente_ida = IntegerField(
+        'Nº base de vales — Somente Volta',
+        validators=[Optional(), NumberRange(min=1, max=999,
+                                            message='Informe um número entre 1 e 999.')])
+    vales_ida_e_volta = IntegerField(
+        'Nº base de vales — Ida e Volta',
+        validators=[Optional(), NumberRange(min=1, max=999,
+                                            message='Informe um número entre 1 e 999.')])
+    fecha_em = DateField('Fechamento do formulário', validators=[Optional()])
+    submit = SubmitField('Salvar configurações')
+
+    def validate(self, extra_validators=None):
+        if not super().validate(extra_validators):
+            return False
+        # Os números base valem em par: informar só um deles deixaria o
+        # pedido sem valor para o outro trajeto.
+        if ((self.vales_somente_ida.data is None)
+                != (self.vales_ida_e_volta.data is None)):
+            self.vales_somente_ida.errors.append(
+                'Informe os dois números base de vales (ou deixe ambos vazios '
+                'para o colaborador digitar).')
+            return False
+        return True
 
 
 class FormVtPedido(BaseForm):
@@ -766,9 +796,8 @@ class FormVtPedido(BaseForm):
                         choices=[('Sim', 'Sim'), ('Não', 'Não')],
                         validators=[DataRequired()])
     # Campos do ramo "Sim": obrigatórios via validate(), não por validador.
-    unity = RadioField('Unidade',
-                       choices=[(v, v) for v in VT_UNIDADES_PEDIDO],
-                       validators=[Optional()])
+    # Sem pergunta de unidade: o pedido já fica registrado na unidade do link
+    # usado pelo colaborador.
     link = RadioField('Vínculo',
                       choices=[(v, v) for v in VT_VINCULOS_PEDIDO],
                       validators=[Optional()])
@@ -784,32 +813,61 @@ class FormVtPedido(BaseForm):
                                   choices=[('', 'Selecione…')], validators=[Optional()])
     company_a_passes = IntegerField(
         'Digite o número de vales necessários',
-        validators=[Optional(), NumberRange(min=1, max=999,
-                                            message='Informe um número de vales entre 1 e 999.')])
+        validators=[Optional(), NumberRange(min=1, max=49,
+                                            message='Informe um número de vales menor que 50.')])
     company_b_name = SelectField('Selecione uma empresa de ônibus',
                                  choices=[('', 'Selecione…')], validators=[Optional()])
     company_b_value = SelectField('Valor do vale (tarifa)',
                                   choices=[('', 'Selecione…')], validators=[Optional()])
     company_b_passes = IntegerField(
         'Digite o número de vales necessários',
-        validators=[Optional(), NumberRange(min=1, max=999,
-                                            message='Informe um número de vales entre 1 e 999.')])
+        validators=[Optional(), NumberRange(min=1, max=49,
+                                            message='Informe um número de vales menor que 50.')])
+    # Trajeto: pergunta separada do formulário original (Somente Volta /
+    # Ida e Volta) — independente da tarifa (linha) escolhida.
+    company_a_route = RadioField('Selecione o número de trajetos',
+                                 choices=[(v, v) for v in VT_TRAJETOS_PEDIDO],
+                                 validators=[Optional()])
+    company_b_route = RadioField('Selecione o número de trajetos',
+                                 choices=[(v, v) for v in VT_TRAJETOS_PEDIDO],
+                                 validators=[Optional()])
     submit = SubmitField('Enviar pedido')
+
+    def _identificar_por_email(self):
+        """Quando o e-mail informado é de uma conta ATIVA, nome, matrícula e
+        vínculo vêm do cadastro e sobrescrevem o POST (no navegador os campos
+        ficam travados; aqui é a trava de verdade)."""
+        if not self.email.data:
+            return None
+        usuario = (User.query
+                   .filter(func.lower(User.email) == self.email.data.strip().lower(),
+                           User.is_active_user == True)
+                   .first())
+        if usuario is None:
+            return None
+        self.full_name.data = usuario.full_name
+        self.registration.data = usuario.registration or self.registration.data
+        self.link.data = ('Professor(a)' if usuario.profile_type == 'teacher'
+                          else 'Técnico - Administrativo')
+        return usuario
 
     def validate(self, extra_validators=None):
         if not super().validate(extra_validators):
             return False
+        self._identificar_por_email()
         if self.optant.data != 'Sim':
             return True
 
         # Ramo "Sim": as perguntas seguintes do formulário viram obrigatórias
         # (no Microsoft Forms o desvio "Não" simplesmente pula o restante).
+        # Sem pergunta de unidade: o pedido pertence à unidade do link.
         obrigatorio = [
-            (self.unity, 'Selecione a unidade.'),
+            (self.link, 'Selecione o vínculo.'),
             (self.company_count, 'Selecione o número de empresas de ônibus.'),
             (self.company_a_name, 'Selecione a empresa de ônibus.'),
             (self.company_a_value, 'Selecione o valor do vale.'),
             (self.company_a_passes, 'Digite o número de vales necessários.'),
+            (self.company_a_route, 'Selecione o trajeto.'),
         ]
         valido = True
         for campo, mensagem in obrigatorio:
@@ -821,6 +879,7 @@ class FormVtPedido(BaseForm):
                 (self.company_b_name, 'Selecione a segunda empresa de ônibus.'),
                 (self.company_b_value, 'Selecione o valor do vale da segunda empresa.'),
                 (self.company_b_passes, 'Digite o número de vales da segunda empresa.'),
+                (self.company_b_route, 'Selecione o trajeto da segunda empresa.'),
             ]:
                 if campo.data in (None, ''):
                     campo.errors.append(mensagem)
@@ -829,7 +888,8 @@ class FormVtPedido(BaseForm):
         # Empresa x tarifa: a linha selecionada (id) precisa pertencer à
         # empresa escolhida no cadastro da unidade (o select da página já
         # filtra; aqui cobre POST forjado com combinação inválida). A linha
-        # resolvida fornece valor E trajeto gravados no pedido.
+        # resolvida fornece o valor gravado no pedido (o trajeto é a resposta
+        # própria do formulário).
         mapa = VtEmpresa.mapa_tarifas(self._unity_id)
         self._linha_a = self._linha_b = None
         for nome_campo, valor_campo, atributo in (
@@ -845,15 +905,4 @@ class FormVtPedido(BaseForm):
                 valido = False
             else:
                 setattr(self, atributo, linha)
-
-        # Vínculo: a pergunta só aparece para a Faculdade. Nas unidades do
-        # Restaurante/Lanchonete o vínculo é sempre Técnico-Administrativo —
-        # o valor é assumido aqui, cobrindo também POST forjado com outro
-        # vínculo.
-        if self.unity.data == 'Faculdade':
-            if not self.link.data:
-                self.link.errors.append('Selecione o vínculo.')
-                valido = False
-        else:
-            self.link.data = 'Técnico - Administrativo' if self.unity.data else None
         return valido

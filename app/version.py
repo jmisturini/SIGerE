@@ -10,12 +10,87 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.11.1'
+APP_VERSION = '1.12.2'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.12.2',
+        'data': '2026-09-18',
+        'titulo': 'Nº de vales livre com botão de valor base',
+        'grupos': [
+            ('Alterado', [
+                'O nº de vales do pedido público voltou a ser um campo livre (somente número, menor que 50); quando a unidade configura os números base, o botão "Usar valor base" preenche o campo com um clique conforme o trajeto escolhido.',
+                'O botão "Usar valor base" é oferecido apenas para o vínculo Técnico-Administrativo — professores digitam o número.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.12.1',
+        'data': '2026-09-18',
+        'titulo': 'Identificação do colaborador travada pelo cadastro',
+        'grupos': [
+            ('Alterado', [
+                'No pedido público de VT, ao informar um e-mail de conta ativa do sistema, nome, matrícula e vínculo passam a vir direto do cadastro e ficam travados (o vínculo é derivado do perfil: funcionário é Técnico-Administrativo e professor é Professor(a)); e-mail sem cadastro mantém a digitação manual.',
+            ]),
+            ('Corrigido', [
+                'Valores enviados por POST para nome, matrícula ou vínculo diferentes do cadastro são ignorados quando o e-mail corresponde a uma conta ativa.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.12.0',
+        'data': '2026-09-18',
+        'titulo': 'Painel Administrativo como central de gestão e configurações do pedido de VT',
+        'grupos': [
+            ('Adicionado', [
+                'Nova página "Configurações do Pedido de VT" na administração (por unidade): números base de vales para Somente Volta e Ida e Volta — quando definidos, o pedido público aplica o número automaticamente conforme o trajeto, sem o colaborador digitar — e data de fechamento do formulário, que passa a ser bloqueado após o prazo, com aviso do último dia durante o período aberto.',
+                'O Painel Administrativo virou a central de gestão: cards de acesso a Unidades, Tokens da API, Empresas de Ônibus e Configurações do Pedido de VT, cada um exibido conforme a permissão.',
+            ]),
+            ('Alterado', [
+                'As páginas de Unidades e Tokens da API saíram da barra lateral e passam a ser acessadas pelo Painel Administrativo; quem tem qualquer uma das permissões de administração acessa o painel, mesmo sem a permissão de painel do sistema.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.4',
+        'data': '2026-09-17',
+        'titulo': 'Pergunta de unidade removida do pedido de VT',
+        'grupos': [
+            ('Removido', [
+                'A pergunta "Unidade" (Faculdade / Restaurante / Lanchonete) saiu do pedido público — o pedido já fica registrado na unidade do link usado pelo colaborador, e a coluna Unidade da listagem passa a mostrar essa unidade.',
+            ]),
+            ('Alterado', [
+                'Com a pergunta de unidade removida, o vínculo (Técnico-Administrativo ou Professor) passou a ser perguntado para todos os colaboradores, sem exceção por unidade.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.3',
+        'data': '2026-09-17',
+        'titulo': 'Empresas de ônibus exclusivas de cada unidade',
+        'grupos': [
+            ('Alterado', [
+                'As empresas de ônibus do pedido de VT deixaram de ser compartilhadas entre unidades: cada empresa pertence exclusivamente à unidade que a cadastrou, aparece apenas no formulário e na administração dela, e as de outras unidades ficam invisíveis.',
+            ]),
+            ('Removido', [
+                'O conceito de empresa compartilhada (visível/editável por todas as unidades) — as empresas cadastradas antes da atualização foram atribuídas à primeira unidade ativa.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.2',
+        'data': '2026-09-17',
+        'titulo': 'Identificação da tarifa no lugar do trajeto',
+        'grupos': [
+            ('Alterado', [
+                'No cadastro de empresas, o primeiro campo da linha de tarifa passou a ser a identificação da tarifa aplicada, em texto livre (ex.: "Patamar 3", da tabela Metropolis) — no pedido público, a opção aparece como "Patamar 3 — R$ 7,38".',
+                'A pergunta de trajeto (Somente Volta / Ida e Volta) voltou ao pedido público, agora independente da tarifa escolhida.',
+            ]),
+        ],
+    },
     {
         'versao': '1.11.1',
         'data': '2026-09-17',

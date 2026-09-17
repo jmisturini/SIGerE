@@ -6,8 +6,8 @@
     <div>
         <h3 class="fw-bold mb-1"><i class="bi bi-bus-front text-primary me-2"></i>Empresas de Ônibus</h3>
         <p class="text-muted mb-0">Empresas e tarifas vigentes oferecidas no pedido público de
-            Vale-Transporte (<a href="{{ url_for('vt.request_form', unity=current_unity.id) if current_unity else url_for('vt.request_form') }}" target="_blank" rel="noopener">/vt/pedido</a>).
-            Cada unidade gerencia as próprias; empresas <strong>compartilhadas</strong> valem para todas.</p>
+            Vale-Transporte (<a href="{{ url_for('vt.request_form', unity=current_unity.id) if current_unity else url_for('vt.request_form') }}" target="_blank" rel="noopener">/vt/pedido</a>)
+            — cadastro desta unidade.</p>
     </div>
     <a href="{{ url_for('admin.create_vt_empresa') }}" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i> Nova Empresa
@@ -22,7 +22,6 @@
                     <tr>
                         <th class="ps-4">Empresa</th>
                         <th>Tarifas vigentes</th>
-                        <th>Unidade</th>
                         <th>Situação</th>
                         <th class="text-end pe-4">Ações</th>
                     </tr>
@@ -38,14 +37,6 @@
                             <span class="text-muted small">Nenhuma tarifa</span>
                             {% endfor %}
                         </td>
-                        <td class="small">
-                            {% if e.unity_id %}
-                                {{ unities.get(e.unity_id, '—') }}
-                            {% else %}
-                            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle"
-                                  title="Vale para todas as unidades">Compartilhada</span>
-                            {% endif %}
-                        </td>
                         <td>
                             {% if e.is_active %}
                             <span class="badge text-bg-success-subtle text-success border border-success-subtle">Ativa</span>
@@ -54,7 +45,6 @@
                             {% endif %}
                         </td>
                         <td class="text-end pe-4">
-                            {% if e.pode_editar %}
                             <a href="{{ url_for('admin.edit_vt_empresa', empresa_id=e.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
@@ -65,16 +55,11 @@
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>
-                            {% else %}
-                            <span class="text-muted small" title="Empresa compartilhada: apenas contas globais podem editá-la.">
-                                <i class="bi bi-lock-fill me-1"></i>Compartilhada
-                            </span>
-                            {% endif %}
                         </td>
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted p-5">
+                        <td colspan="4" class="text-center text-muted p-5">
                             <i class="bi bi-bus-front fs-2 d-block mb-2"></i>
                             <h5 class="mb-1">Nenhuma empresa cadastrada</h5>
                             <p class="small mb-0">Cadastre as empresas de ônibus para o pedido público de Vale-Transporte desta unidade.</p>

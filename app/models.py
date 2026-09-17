@@ -395,11 +395,11 @@ class VtRequest(db.Model):
 
 # Empresas de ônibus e tarifas vigentes do pedido público de Vale-Transporte
 # (/vt/pedido), gerenciadas na área de administração (/admin/vt-empresas) e
-# ESCOPADAS POR UNIDADE: cada unidade mantém o próprio cadastro, e
-# unity_id NULL marca empresa compartilhada por todas (as sementes originais
-# ficaram assim na migration). Substituíram as opções fixas que eram cópia
-# do formulário original do Microsoft Forms. Pedidos antigos guardam
-# nome/tarifa como texto — apagar a empresa não afeta o histórico.
+# PERTENCENTES A UMA UNIDADE: cada unidade mantém o próprio cadastro, e o
+# formulário público mostra apenas as empresas da unidade do link.
+# Substituíram as opções fixas que eram cópia do formulário original do
+# Microsoft Forms. Pedidos antigos guardam nome/tarifa como texto — apagar a
+# empresa não afeta o histórico.
 class VtEmpresa(db.Model):
     __tablename__ = 'vt_empresas'
     id = db.Column(db.Integer, primary_key=True)
@@ -407,8 +407,8 @@ class VtEmpresa(db.Model):
     # a unicidade é por escopo visível, validada na rota.
     nome = db.Column(db.String(100), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
-    # Unidade dona do cadastro; NULL = compartilhada por todas as unidades.
-    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
+    # Unidade dona do cadastro (toda empresa pertence a uma unidade).
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     valores = db.relationship('VtEmpresaValor', backref='empresa',
@@ -417,19 +417,39 @@ class VtEmpresa(db.Model):
 
     @classmethod
     def empresas_ativas(cls, unity_id):
-        """Empresas disponíveis no formulário público da unidade: as dela
-        mais as compartilhadas (NULL), em ordem alfabética."""
+        """Empresas disponíveis no formulário público da unidade, em ordem
+        alfabética."""
         return (cls.query
-                .filter(db.or_(cls.unity_id == unity_id, cls.unity_id.is_(None)),
-                        cls.is_active == True)
+                .filter_by(unity_id=unity_id, is_active=True)
                 .order_by(cls.nome).all())
 
     @classmethod
     def mapa_tarifas(cls, unity_id):
-        """Mapa {nome_da_empresa: [VtEmpresaValor...]} da unidade (próprias +
-        compartilhadas) — alimenta as opções e a validação empresa↔tarifa do
-        formulário; cada linha carrega id, trajeto e valor."""
+        """Mapa {nome_da_empresa: [VtEmpresaValor...]} da unidade — alimenta
+        as opções e a validação empresa↔tarifa do formulário; cada linha
+        carrega id, identificação e valor."""
         return {e.nome: list(e.valores) for e in cls.empresas_ativas(unity_id)}
+
+
+# Configurações do pedido público de VT por unidade: números base de vales
+# por trajeto (quando definidos, o pedido usa esses valores em vez de pedir
+# que o colaborador digite) e data de fechamento do formulário (último dia
+# em que ele pode ser preenchido). Gerenciadas em /admin/vt-configuracao.
+class VtConfig(db.Model):
+    __tablename__ = 'vt_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=False,
+                         unique=True, index=True)
+    vales_somente_ida = db.Column(db.Integer)                        # nº base de vales — Somente Volta
+    vales_ida_e_volta = db.Column(db.Integer)                        # nº base de vales — Ida e Volta
+    fecha_em = db.Column(db.Date)                                    # último dia para preencher o pedido
+
+    def esta_fechado(self, hoje):
+        """True quando a data de fechamento já passou (o dia de fecha_em
+        ainda permite preencher). Aceita date ou datetime."""
+        if isinstance(hoje, datetime):
+            hoje = hoje.date()
+        return self.fecha_em is not None and hoje > self.fecha_em
 
 
 class VtEmpresaValor(db.Model):
@@ -437,7 +457,10 @@ class VtEmpresaValor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey('vt_empresas.id', ondelete='CASCADE'),
                            nullable=False, index=True)
-    trajeto = db.Column(db.String(20))                               # Somente Volta / Ida e Volta
+    # Texto livre que identifica a tarifa aplicada (ex.: "Patamar 3", da
+    # tabela Metropolis) — não é o trajeto (Somente Volta / Ida e Volta),
+    # que o colaborador escolhe no pedido.
+    identificacao = db.Column(db.String(100))
     valor = db.Column(db.Numeric(10, 2), nullable=False)             # tarifa em reais
 
     @property
@@ -447,10 +470,10 @@ class VtEmpresaValor(db.Model):
 
     @property
     def rotulo(self):
-        """Rótulo da opção no formulário público: 'Ida e Volta — R$ 7,24'
-        (linhas antigas sem trajeto mostram só o valor)."""
-        if self.trajeto:
-            return f'{self.trajeto} — R$ {self.valor_texto}'
+        """Rótulo da opção no formulário público: 'Patamar 3 — R$ 7,38'
+        (linhas antigas sem identificação mostram só o valor)."""
+        if self.identificacao:
+            return f'{self.identificacao} — R$ {self.valor_texto}'
         return f'R$ {self.valor_texto}'
 
 # Tabela de junção entre Roles e Permissions

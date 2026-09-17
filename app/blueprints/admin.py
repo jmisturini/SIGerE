@@ -3,13 +3,15 @@ import os
 import secrets
 
 import requests
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from flask import (Blueprint, render_template, redirect, url_for, flash, abort,
                    request, jsonify, current_app, session)
 from flask_login import login_required, current_user
-from app.models import User, Classroom, Course, Subject, Holiday, Role, Permission, RoomCategory, Unity, ApiToken, VtEmpresa, VtEmpresaValor, ROLE_POR_PERFIL
+from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permission,
+                        RoomCategory, Unity, ApiToken, VtConfig, VtEmpresa,
+                        VtEmpresaValor, ROLE_POR_PERFIL)
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
-                   RoomCategoryForm, UnityForm, FormVtEmpresa, VT_TRAJETOS_PEDIDO)
+                   RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig)
 from app.extensions import db
 from sqlalchemy import func
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
@@ -119,11 +121,16 @@ def _setup_checklist():
     ]
 
 
+PERMS_PAINEL = ('system:dashboard', 'unity:read', 'api:manage', 'vt:empresas')
+
 # Admin dashboard route
 @bp.route('/')
 @login_required
-@require_permission('system:dashboard')
 def dashboard():
+    # Hub do painel: quem tem qualquer uma das áreas abrigadas aqui acessa —
+    # os cartões são filtrados por permissão no template.
+    if not any(current_user.has_permission(p) for p in PERMS_PAINEL):
+        abort(403)
     uid = current_unity_id()
     users_count = User.query.filter((User.unity_id == uid) | (User.unity_id.is_(None))).count()
     rooms_count = Classroom.query.filter_by(unity_id=uid).count()
@@ -1057,59 +1064,56 @@ def toggle_unity_module(unity_id, module_code):
     flash(f'Módulo {module["label"]} {estado} para a unidade {unity.name}.', 'success')
     return redirect(url_for('admin.edit_unity', unity_id=unity.id))
 
+# ================= VT: CONFIGURAÇÃO DO PEDIDO (por unidade) =================
+
+@bp.route('/vt-configuracao', methods=['GET', 'POST'])
+@login_required
+@require_permission('vt:empresas')
+def vt_configuracao():
+    """Configurações do pedido público de VT da unidade ativa: números
+    base de vales por trajeto (quando definidos, o formulário os aplica
+    automaticamente) e data de fechamento (último dia para preencher)."""
+    config = VtConfig.query.filter_by(unity_id=current_unity_id()).first()
+    form = FormVtConfig(obj=config)
+    if form.validate_on_submit():
+        if config is None:
+            config = VtConfig(unity_id=current_unity_id())
+            db.session.add(config)
+        config.vales_somente_ida = form.vales_somente_ida.data
+        config.vales_ida_e_volta = form.vales_ida_e_volta.data
+        config.fecha_em = form.fecha_em.data
+        db.session.commit()
+        flash('Configurações do pedido de VT salvas.', 'success')
+        return redirect(url_for('admin.vt_configuracao'))
+    return render_template('admin/vt_configuracao.html', form=form,
+                           config=config)
+
+
 # ================= VT: EMPRESAS DE ÔNIBUS (pedido público) =================
 #
 # Cadastro de empresas de ônibus e tarifas vigentes usado pelo formulário
-# público de pedido de Vale-Transporte (/vt/pedido). Substituiu as opções
-# fixas que eram cópia do formulário original do Microsoft Forms. É escopado
-# por unidade: cada unidade gerencia as próprias empresas e as semeadas sem
-# unidade (NULL) são compartilhadas — editáveis apenas por contas globais
-# ou super-admin.
-
-
-def _pode_gerenciar_global():
-    """Contas globais (sem unidade) e super-admin gerenciam as empresas
-    compartilhadas (unity_id NULL); admins de unidade, só as próprias."""
-    return current_user.has_permission('*') or not current_user.unity_id
-
-
-def _get_vt_empresa_editavel(empresa_id):
-    """Empresa gerenciável pela unidade ativa: as da própria unidade sempre;
-    as compartilhadas (NULL) apenas para contas globais/super-admin —
-    fora do escopo, 404 (sem revelar que existem)."""
-    empresa = db.get_or_404(VtEmpresa, empresa_id)
-    if empresa.unity_id is None:
-        if not _pode_gerenciar_global():
-            abort(404)
-    elif empresa.unity_id != current_unity_id():
-        abort(404)
-    return empresa
-
+# público de pedido de Vale-Transporte (/vt/pedido). Cada empresa pertence
+# à unidade que a cadastrou: a listagem mostra só as da unidade ativa, o
+# formulário público usa as da unidade do link e empresas de outras
+# unidades ficam invisíveis (404).
 
 @bp.route('/vt-empresas')
 @login_required
 @require_permission('vt:empresas')
 def list_vt_empresas():
-    uid = current_unity_id()
     empresas = (VtEmpresa.query
-                .filter(db.or_(VtEmpresa.unity_id == uid,
-                               VtEmpresa.unity_id.is_(None)))
+                .filter_by(unity_id=current_unity_id())
                 .order_by(VtEmpresa.nome).all())
-    unities = {u.id: u.name for u in Unity.query.all()}
-    for empresa in empresas:
-        empresa.pode_editar = (empresa.unity_id == uid or
-                               (empresa.unity_id is None and _pode_gerenciar_global()))
-    return render_template('admin/vt_empresas.html', empresas=empresas,
-                           unities=unities)
+    return render_template('admin/vt_empresas.html', empresas=empresas)
 
 
 def _linhas_tarifa_do_post():
-    """Lê e valida as linhas dinâmicas de tarifa (trajeto + valor) do POST.
-    Devolve (linhas, erro): linhas é a lista [(trajeto, Decimal)] validada e
-    erro a mensagem amigável (ou None)."""
+    """Lê e valida as linhas dinâmicas de tarifa (identificação + valor)
+    do POST. Devolve (linhas, erro): linhas é a lista [(identificacao,
+    Decimal)] validada e erro a mensagem amigável (ou None)."""
     from app.forms import parse_tarifa_linhas
     try:
-        return parse_tarifa_linhas(request.form.getlist('trajeto'),
+        return parse_tarifa_linhas(request.form.getlist('identificacao'),
                                    request.form.getlist('valor')), None
     except ValueError as exc:
         return None, str(exc)
@@ -1126,33 +1130,33 @@ def create_vt_empresa():
             flash(erro, 'danger')
         elif VtEmpresa.query.filter(
                 func.lower(VtEmpresa.nome) == form.nome.data.strip().lower(),
-                db.or_(VtEmpresa.unity_id == current_unity_id(),
-                       VtEmpresa.unity_id.is_(None))).first():
+                VtEmpresa.unity_id == current_unity_id()).first():
             flash('Já existe uma empresa com este nome nesta unidade.', 'danger')
         else:
             empresa = VtEmpresa(nome=form.nome.data.strip(),
                                 is_active=form.is_active.data,
                                 unity_id=current_unity_id())
-            empresa.valores = [VtEmpresaValor(trajeto=t, valor=v) for t, v in linhas]
+            empresa.valores = [VtEmpresaValor(identificacao=t, valor=v) for t, v in linhas]
             db.session.add(empresa)
             db.session.commit()
             flash(f'Empresa {empresa.nome} criada com sucesso.', 'success')
             return redirect(url_for('admin.list_vt_empresas'))
     # Re-render: repõe as linhas digitadas (ou uma vazia no primeiro acesso).
-    linhas_tarifas = (list(zip(request.form.getlist('trajeto'),
+    linhas_tarifas = (list(zip(request.form.getlist('identificacao'),
                                request.form.getlist('valor')))
                       if request.method == 'POST' else [('', '')])
     return render_template('admin/vt_empresa_form.html', form=form,
                            title='Nova Empresa de Ônibus',
-                           linhas_tarifas=linhas_tarifas,
-                           trajetos=VT_TRAJETOS_PEDIDO)
+                           linhas_tarifas=linhas_tarifas)
 
 
 @bp.route('/vt-empresas/<int:empresa_id>/edit', methods=['GET', 'POST'])
 @login_required
 @require_permission('vt:empresas')
 def edit_vt_empresa(empresa_id):
-    empresa = _get_vt_empresa_editavel(empresa_id)
+    empresa = db.get_or_404(VtEmpresa, empresa_id)
+    if empresa.unity_id != current_unity_id():
+        abort(404)  # empresa de outra unidade nem deve parecer existir
     form = FormVtEmpresa(obj=empresa)
     form._obj_id = empresa.id
     if form.validate_on_submit():
@@ -1161,27 +1165,25 @@ def edit_vt_empresa(empresa_id):
             flash(erro, 'danger')
         elif VtEmpresa.query.filter(
                 func.lower(VtEmpresa.nome) == form.nome.data.strip().lower(),
-                db.or_(VtEmpresa.unity_id == current_unity_id(),
-                       VtEmpresa.unity_id.is_(None)),
+                VtEmpresa.unity_id == current_unity_id(),
                 VtEmpresa.id != empresa.id).first():
             flash('Já existe outra empresa com este nome nesta unidade.', 'danger')
         else:
             empresa.nome = form.nome.data.strip()
             empresa.is_active = form.is_active.data
-            empresa.valores = [VtEmpresaValor(trajeto=t, valor=v) for t, v in linhas]
+            empresa.valores = [VtEmpresaValor(identificacao=t, valor=v) for t, v in linhas]
             db.session.commit()
             flash(f'Empresa {empresa.nome} atualizada.', 'success')
             return redirect(url_for('admin.list_vt_empresas'))
     # Re-render: linhas digitadas no POST ou as vigentes da empresa.
     if request.method == 'POST':
-        linhas_tarifas = list(zip(request.form.getlist('trajeto'),
+        linhas_tarifas = list(zip(request.form.getlist('identificacao'),
                                   request.form.getlist('valor')))
     else:
-        linhas_tarifas = [(v.trajeto, v.valor_texto) for v in empresa.valores]
+        linhas_tarifas = [(v.identificacao, v.valor_texto) for v in empresa.valores]
     return render_template('admin/vt_empresa_form.html', form=form,
                            title='Editar Empresa de Ônibus', empresa=empresa,
-                           linhas_tarifas=linhas_tarifas,
-                           trajetos=VT_TRAJETOS_PEDIDO)
+                           linhas_tarifas=linhas_tarifas)
 
 
 @bp.route('/vt-empresas/<int:empresa_id>/delete', methods=['POST'])
@@ -1190,7 +1192,9 @@ def edit_vt_empresa(empresa_id):
 def delete_vt_empresa(empresa_id):
     """Exclusão só remove do cadastro: os pedidos antigos guardam nome e
     tarifa como texto, então o histórico permanece íntegro."""
-    empresa = _get_vt_empresa_editavel(empresa_id)
+    empresa = db.get_or_404(VtEmpresa, empresa_id)
+    if empresa.unity_id != current_unity_id():
+        abort(404)
     nome = empresa.nome
     db.session.delete(empresa)
     db.session.commit()
