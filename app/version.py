@@ -10,12 +10,23 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.7.0'
+APP_VERSION = '1.8.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.8.0',
+        'data': '2026-09-17',
+        'titulo': 'Pedido público de Vale-Transporte dentro do sistema',
+        'grupos': [
+            ('Adicionado', [
+                'O "Pedido de Vale-Transporte" (antes no Microsoft Forms) virou página do sistema: /vt/pedido é pública, com acesso identificado apenas pelo e-mail, e replica as perguntas originais — deseja VT no mês, unidade, vínculo, empresas de ônibus (com tarifas), número de vales e trajetos, com a mesma ramificação do formulário original.',
+                'As respostas recebidas aparecem em Vale Transporte → "Pedidos do Formulário", com busca e filtro por quem deseja VT, e exportação para .xlsx para a conferência do RH.',
+            ]),
+        ],
+    },
     {
         'versao': '1.7.0',
         'data': '2026-09-16',

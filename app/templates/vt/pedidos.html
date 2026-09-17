@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}Vale Transporte — Pedidos do Formulário{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-inbox text-primary me-2"></i>Pedidos do Formulário</h3>
+        <p class="text-muted mb-0">Respostas do pedido público de Vale-Transporte — {{ pedidos|length }} pedido(s),
+            <strong>{{ total_com_vt }}</strong> desejando VT.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" data-copy-link="{{ url_for('vt.request_form', _external=True) }}"
+                title="Copiar o link público do formulário para enviar aos colaboradores">
+            <i class="bi bi-link-45deg me-1"></i> Copiar link do formulário
+        </button>
+        {% if can_export %}
+        <a href="{{ url_for('vt.requests_export', q=search, optant=optant_filter) }}" class="btn btn-primary">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Exportar (.xlsx)
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <input type="text" name="q" class="form-control w-auto" placeholder="Buscar nome, e-mail ou matrícula"
+           value="{{ search }}" aria-label="Buscar">
+    <select name="optant" class="form-select w-auto" onchange="this.form.submit()" aria-label="Filtrar por deseja VT">
+        <option value="">Deseja VT: Todos</option>
+        <option value="Sim" {{ 'selected' if optant_filter == 'Sim' }}>Sim</option>
+        <option value="Não" {{ 'selected' if optant_filter == 'Não' }}>Não</option>
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Filtrar</button></noscript>
+    {% if search or optant_filter %}
+    <a href="{{ url_for('vt.requests') }}" class="btn btn-outline-secondary btn-sm">Limpar</a>
+    {% endif %}
+</form>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Data</th>
+                        <th>Colaborador</th>
+                        <th>E-mail</th>
+                        <th>Deseja VT</th>
+                        <th>Unidade</th>
+                        <th>Vínculo</th>
+                        <th class="pe-4">Empresas e vales</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for p in pedidos %}
+                    <tr>
+                        <td class="ps-4 text-nowrap">
+                            {% if p.created_at %}<span class="text-muted small">{{ p.created_at.strftime('%d/%m/%Y %H:%M') }}</span>{% else %}-{% endif %}
+                        </td>
+                        <td>
+                            <span class="fw-bold">{{ p.full_name }}</span>
+                            <div class="text-muted small">Matrícula {{ p.registration }}</div>
+                        </td>
+                        <td class="small">{{ p.email }}</td>
+                        <td>
+                            {% if p.optant == 'Sim' %}
+                            <span class="badge text-bg-success-subtle text-success border border-success-subtle">Sim</span>
+                            {% else %}
+                            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Não</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">{{ p.unity or '-' }}</td>
+                        <td class="small">{{ p.link or '-' }}</td>
+                        <td class="pe-4 small">
+                            {% if p.optant != 'Sim' %}
+                                -
+                            {% else %}
+                                <div><span class="fw-semibold">{{ p.company_a_name or '-' }}</span>
+                                    — {{ p.company_a_passes or 0 }} vale(s), {{ p.company_a_route or '-' }}</div>
+                                {% if p.company_b_name %}
+                                <div><span class="fw-semibold">{{ p.company_b_name }}</span>
+                                    — {{ p.company_b_passes or 0 }} vale(s), {{ p.company_b_route or '-' }}</div>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted p-5">
+                            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhum pedido recebido</h5>
+                            <p class="small mb-0">Envie o link público do formulário aos colaboradores para começar a receber respostas.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Copia o link público do formulário (fallback: prompt para copiar à mão,
+    // em navegadores sem clipboard API ou fora de HTTPS).
+    document.querySelectorAll('[data-copy-link]').forEach(botao => {
+        botao.addEventListener('click', async () => {
+            const link = botao.dataset.copyLink;
+            try {
+                await navigator.clipboard.writeText(link);
+                const anterior = botao.innerHTML;
+                botao.innerHTML = '<i class="bi bi-check-lg me-1"></i> Link copiado!';
+                setTimeout(() => { botao.innerHTML = anterior; }, 2500);
+            } catch (e) {
+                window.prompt('Copie o link do formulário:', link);
+            }
+        });
+    });
+</script>
+{% endblock %}

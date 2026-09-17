@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileAllowed, FileField, FileRequired
-from wtforms import (StringField, PasswordField, SubmitField, IntegerField, FloatField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField)
+from wtforms import (StringField, PasswordField, SubmitField, IntegerField, FloatField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField, RadioField)
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, date
 import re
@@ -681,3 +681,113 @@ class FormVtRecord(BaseForm):
 
     def validate_total_value(self, field):
         self._validate_money_format(field)
+
+
+# =============================================================================# 
+# PEDIDO PÚBLICO DE VALE-TRANSPORTE (/vt/pedido, sem login)
+# =============================================================================
+
+# Opções fiéis ao formulário "Pedido de Vale-Transporte" (Microsoft Forms)
+# que este sistema substitui. Os textos de unidade e vínculo coincidem com
+# VtRecord.RESTAURANTE_UNITIES e VtRecord.link, e a empresa guarda a tarifa —
+# a resposta chega pronta para conferência do RH.
+VT_UNIDADES_PEDIDO = [
+    'Faculdade',
+    'Restaurante - ALESC/Palácio Barriga Verde',
+    'Lanchonete - ALESC/Unidade Administrativa',
+]
+VT_VINCULOS_PEDIDO = ['Técnico - Administrativo', 'Professor(a)']
+VT_EMPRESAS_PEDIDO = [
+    'Consórcio Fênix - R$ 7,20',
+    'Jotur - R$ 7,24',
+    'Jotur - R$ 7,38',
+    'Jotur - R$ 10,10',
+    'Jotur - R$ 12,08',
+    'Biguaçu - R$ 7,24',
+    'Biguaçu - R$ 7,38',
+    'Biguaçu - R$ 10,10',
+    'Biguaçu - R$ 10,23',
+    'Biguaçu - R$ 12,08',
+    'Estrela - R$ 7,24',
+    'Estrela - R$ 7,38',
+    'Estrela - R$ 10,10',
+]
+VT_TRAJETOS_PEDIDO = ['Somente Volta', 'Ida e Volta']
+
+
+class FormVtPedido(BaseForm):
+    """Pedido público de Vale-Transporte: replica as perguntas do formulário
+    do Microsoft Forms, com a identificação por e-mail exigida pelo acesso
+    anônimo. A ramificação (deseja VT → vínculo → nº de empresas) é guiada
+    pelo JavaScript da página e espelhada aqui no servidor — o POST forjado
+    sem os campos obrigatórios do ramo escolhido é rejeitado."""
+
+    email = StringField('E-mail', validators=[
+        DataRequired(), Email(), Length(max=255)])
+    full_name = StringField('Nome', validators=[DataRequired(), Length(max=255)])
+    registration = StringField('Matrícula', validators=[DataRequired(), Length(max=20)])
+    optant = RadioField('Deseja Vale-Transporte para o mês',
+                        choices=[('Sim', 'Sim'), ('Não', 'Não')],
+                        validators=[DataRequired()])
+    # Campos do ramo "Sim": obrigatórios via validate(), não por validador.
+    unity = RadioField('Unidade',
+                       choices=[(v, v) for v in VT_UNIDADES_PEDIDO],
+                       validators=[Optional()])
+    link = RadioField('Vínculo',
+                      choices=[(v, v) for v in VT_VINCULOS_PEDIDO],
+                      validators=[Optional()])
+    company_count = RadioField(
+        'Selecione o número de empresas de ônibus você usa para se deslocar',
+        choices=[('1', '1'), ('2', '2')], validators=[Optional()])
+    company_a_name = SelectField('Selecione uma empresa de ônibus',
+                                 choices=[('', 'Selecione…')] +
+                                 [(v, v) for v in VT_EMPRESAS_PEDIDO],
+                                 validators=[Optional()])
+    company_a_passes = IntegerField(
+        'Digite o número de vales necessários',
+        validators=[Optional(), NumberRange(min=1, max=999,
+                                            message='Informe um número de vales entre 1 e 999.')])
+    company_a_route = RadioField('Selecione o número de trajetos',
+                                 choices=[(v, v) for v in VT_TRAJETOS_PEDIDO],
+                                 validators=[Optional()])
+    company_b_name = SelectField('Selecione uma empresa de ônibus',
+                                 choices=[('', 'Selecione…')] +
+                                 [(v, v) for v in VT_EMPRESAS_PEDIDO],
+                                 validators=[Optional()])
+    company_b_passes = IntegerField(
+        'Digite o número de vales necessários',
+        validators=[Optional(), NumberRange(min=1, max=999,
+                                            message='Informe um número de vales entre 1 e 999.')])
+    company_b_route = RadioField('Selecione o número de trajetos',
+                                 choices=[(v, v) for v in VT_TRAJETOS_PEDIDO],
+                                 validators=[Optional()])
+    submit = SubmitField('Enviar pedido')
+
+    def validate(self, extra_validators=None):
+        if not super().validate(extra_validators):
+            return False
+        if self.optant.data != 'Sim':
+            return True
+
+        # Ramo "Sim": as perguntas seguintes do formulário viram obrigatórias
+        # (no Microsoft Forms o desvio "Não" simplesmente pula o restante).
+        obrigatorios = [
+            (self.unity, 'Selecione a unidade.'),
+            (self.link, 'Selecione o vínculo.'),
+            (self.company_count, 'Selecione o número de empresas de ônibus.'),
+            (self.company_a_name, 'Selecione a empresa de ônibus.'),
+            (self.company_a_passes, 'Digite o número de vales necessários.'),
+            (self.company_a_route, 'Selecione o trajeto.'),
+        ]
+        if self.company_count.data == '2':
+            obrigatorios += [
+                (self.company_b_name, 'Selecione a segunda empresa de ônibus.'),
+                (self.company_b_passes, 'Digite o número de vales da segunda empresa.'),
+                (self.company_b_route, 'Selecione o trajeto da segunda empresa.'),
+            ]
+        valido = True
+        for campo, mensagem in obrigatorios:
+            if campo.data in (None, ''):
+                campo.errors.append(mensagem)
+                valido = False
+        return valido

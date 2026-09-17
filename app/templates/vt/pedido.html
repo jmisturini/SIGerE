@@ -1,0 +1,188 @@
+{% extends 'base.html' %}
+{% block title %}Pedido de Vale-Transporte{% endblock %}
+
+{% macro erro(field) %}
+{% for err in field.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+{% endmacro %}
+
+{% macro radios_lista(field, nome) %}
+{% for valor, rotulo in field.choices %}
+<div class="form-check">
+    <input class="form-check-input" type="radio" name="{{ nome }}" id="{{ nome }}-{{ loop.index }}"
+           value="{{ valor }}" {{ 'checked' if field.data == valor }}>
+    <label class="form-check-label" for="{{ nome }}-{{ loop.index }}">{{ rotulo }}</label>
+</div>
+{% endfor %}
+{{ erro(field) }}
+{% endmacro %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="page-header text-center mb-4">
+            <h3 class="fw-bold mb-2"><i class="bi bi-bus-front text-primary me-2"></i> Pedido de Vale-Transporte</h3>
+            <p class="text-muted mb-0">Responda ao pedido do mês — o acesso é identificado apenas pelo seu e-mail.</p>
+        </div>
+
+        <div class="card">
+            <div class="card-body p-4">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    {# ── Identificação (sempre visível) ── #}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
+                            {{ erro(form.email) }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.full_name(class="form-control") }}
+                            {{ erro(form.full_name) }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.registration(class="form-control", inputmode="numeric") }}
+                            <div class="form-text small">
+                                Para verificar sua matrícula, acesse o MyPlace —
+                                <a href="https://rh.sc.senac.br/myplace" target="_blank" rel="noopener">https://rh.sc.senac.br/myplace</a>
+                            </div>
+                            {{ erro(form.registration) }}
+                        </div>
+                    </div>
+
+                    {# ── Deseja VT para o mês? ── #}
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-3">{{ form.optant.label.text }}</h6>
+                    <div class="btn-group flex-wrap" role="group" aria-label="Deseja Vale-Transporte para o mês">
+                        {% for valor, rotulo in form.optant.choices %}
+                        <input type="radio" class="btn-check" name="optant" id="optant-{{ valor }}"
+                               value="{{ valor }}" autocomplete="off" {{ 'checked' if form.optant.data == valor }}>
+                        <label class="btn btn-outline-primary px-4" for="optant-{{ valor }}">{{ rotulo }}</label>
+                        {% endfor %}
+                    </div>
+                    {{ erro(form.optant) }}
+
+                    {# ── Ramo "Sim": unidade, vínculo e empresas ── #}
+                    <div id="bloco-vt">
+                        <hr class="my-4">
+                        <h6 class="fw-bold mb-3">{{ form.unity.label.text }}</h6>
+                        {{ radios_lista(form.unity, 'unity') }}
+
+                        <h6 class="fw-bold mb-3 mt-4">{{ form.link.label.text }}</h6>
+                        {{ radios_lista(form.link, 'link') }}
+
+                        <h6 class="fw-bold mb-3 mt-4">{{ form.company_count.label.text }}</h6>
+                        <div class="btn-group" role="group" aria-label="Número de empresas de ônibus">
+                            {% for valor, rotulo in form.company_count.choices %}
+                            <input type="radio" class="btn-check" name="company_count" id="count-{{ valor }}"
+                                   value="{{ valor }}" autocomplete="off" {{ 'checked' if form.company_count.data == valor }}>
+                            <label class="btn btn-outline-primary px-4" for="count-{{ valor }}">{{ rotulo }}</label>
+                            {% endfor %}
+                        </div>
+                        {{ erro(form.company_count) }}
+
+                        {# ── Empresa A ── #}
+                        <div class="card bg-body-tertiary border-0 mt-4">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3"><i class="bi bi-1-circle me-1"></i> Primeira empresa de ônibus</h6>
+                                <div class="mb-3">
+                                    {{ form.company_a_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.company_a_name(class="form-select") }}
+                                    {{ erro(form.company_a_name) }}
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.company_a_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.company_a_passes(class="form-control", style="max-width: 12rem") }}
+                                    <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
+                                    {{ erro(form.company_a_passes) }}
+                                </div>
+                                <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
+                                {{ radios_lista(form.company_a_route, 'company_a_route') }}
+                            </div>
+                        </div>
+
+                        {# ── Empresa B (só quando 2 empresas) ── #}
+                        <div id="bloco-empresa-b" class="card bg-body-tertiary border-0 mt-3">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3"><i class="bi bi-2-circle me-1"></i> Segunda empresa de ônibus</h6>
+                                <div class="mb-3">
+                                    {{ form.company_b_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.company_b_name(class="form-select") }}
+                                    {{ erro(form.company_b_name) }}
+                                </div>
+                                <div class="mb-3">
+                                    {{ form.company_b_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.company_b_passes(class="form-control", style="max-width: 12rem") }}
+                                    <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
+                                    {{ erro(form.company_b_passes) }}
+                                </div>
+                                <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
+                                {{ radios_lista(form.company_b_route, 'company_b_route') }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        {{ form.submit(class="btn btn-primary px-4") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Ramificação do formulário original (Microsoft Forms):
+    // 1. "Não" para o mês encerra o pedido — o bloco de perguntas seguinte
+    //    some e seus campos são desabilitados (não seguem no POST);
+    // 2. O vínculo troca os textos de apoio dos vales (RH x NEB) e do trajeto;
+    // 3. "1" empresa esconde o bloco da segunda empresa.
+    (function () {
+        const blocoVt = document.getElementById('bloco-vt');
+        const blocoB = document.getElementById('bloco-empresa-b');
+        const TEXTO_RH = 'Consulte o e-mail enviado pelo RH.';
+        const TEXTO_NEB = 'Consulte com o NEB o número de passes necessários.';
+
+        function valor(nome) {
+            const marcado = document.querySelector(`input[name="${nome}"]:checked`);
+            return marcado ? marcado.value : null;
+        }
+
+        function setarBloco(bloco, visivel) {
+            bloco.classList.toggle('d-none', !visivel);
+            bloco.querySelectorAll('input, select').forEach(campo => {
+                campo.disabled = !visivel;
+            });
+        }
+
+        function atualizar() {
+            const mostrarVt = valor('optant') === 'Sim';
+            setarBloco(blocoVt, mostrarVt);
+            if (!mostrarVt) return;
+
+            const professor = valor('link') === 'Professor(a)';
+            document.querySelectorAll('.subtitulo-vales').forEach(el => {
+                el.textContent = professor ? TEXTO_NEB : TEXTO_RH;
+            });
+            document.querySelectorAll('.rotulo-trajeto').forEach(el => {
+                el.textContent = professor ? 'Selecione o trajeto' : 'Selecione o número de trajetos';
+            });
+
+            setarBloco(blocoB, valor('company_count') === '2');
+        }
+
+        ['optant', 'link', 'company_count'].forEach(nome => {
+            document.querySelectorAll(`input[name="${nome}"]`).forEach(campo => {
+                campo.addEventListener('change', atualizar);
+            });
+        });
+        // Estado inicial (mantém a ramificação correta quando o servidor
+        // devolve a página com erros de validação).
+        atualizar();
+    })();
+</script>
+{% endblock %}

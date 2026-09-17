@@ -35,7 +35,7 @@
 {% endif %}
 
 {% if total %}
-<div class="alert alert-info border border-info-subtle d-flex align-items-center mb-0" role="alert">
+<div class="alert alert-info border border-info-subtle d-flex align-items-center mb-3" role="alert">
     <i class="bi bi-people me-3 fs-5"></i>
     <div>
         <strong>{{ total }} colaborador(es)</strong> importados na base atual.
@@ -49,4 +49,16 @@
     <p class="small mb-0">Envie o arquivo .xlsx do Pedido de Compra acima para começar.</p>
 </div>
 {% endif %}
+
+<div class="alert alert-light border d-flex flex-wrap align-items-center gap-2" role="alert">
+    <i class="bi bi-inbox me-2 fs-5"></i>
+    <div class="me-auto">
+        <strong>Pedidos do formulário público:</strong> os colaboradores respondem ao
+        pedido de VT em <a href="{{ url_for('vt.request_form') }}" target="_blank" rel="noopener">{{ url_for('vt.request_form', _external=True) }}</a>
+        (acesso livre, identificação por e-mail).
+    </div>
+    <a href="{{ url_for('vt.requests') }}" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-box-arrow-in-right me-1"></i> Ver respostas
+    </a>
+</div>
 {% endblock %}

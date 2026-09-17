@@ -13,7 +13,11 @@ organizado em duas páginas:
    (planilha_base_vt.xlsx, Matrícula/Nome/Total a partir da linha 5),
    filtrável pelos grupos do gerador: Técnico-Administrativo (Faculdade),
    Professores e Técnico-Administrativo (Restaurante/Lanchonete) — apenas
-   Optante VT "Sim" com passes > 0, critérios do script original.
+   Optante VT "Sim" com passes > 0, critérios do script original;
+3. Pedido público (/vt/pedido, sem login): réplica do formulário
+   "Pedido de Vale-Transporte" (Microsoft Forms) com identificação apenas
+   pelo e-mail; as respostas ficam em /vt/pedidos (listagem + exportação)
+   para conferência do RH antes da importação.
 """
 import io
 import os
@@ -22,12 +26,12 @@ from datetime import datetime
 
 from flask import (Blueprint, abort, current_app, flash, redirect,
                    render_template, request, send_file, url_for)
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 
-from app.extensions import db
+from app.extensions import db, limiter
 from flask_login import current_user, login_required
-from app.forms import FormVtRecord, FormVtUpload
-from app.models import VtRecord
+from app.forms import FormVtRecord, FormVtUpload, FormVtPedido
+from app.models import VtRecord, VtRequest
 from app.permissions import require_module, require_permission
 from app.unity_context import current_unity_id
 from app.blueprints.payments import parse_currency
@@ -464,5 +468,124 @@ def export():
     group_tag = GROUP_LABELS.get(group, 'Colaboradores')
     filename = f'Tabela Vale Transporte {group_tag} ({stamp}).xlsx'
     return send_file(output, as_attachment=True, download_name=filename,
+                     mimetype='application/vnd.openxmlformats-officedocument'
+                              '.spreadsheetml.sheet')
+
+
+# ── Pedido público de Vale-Transporte ────────────────────────────────────────
+#
+# Adaptação do formulário "Pedido de Vale-Transporte" (Microsoft Forms): a
+# página /vt/pedido é pública (sem login) e identifica o colaborador apenas
+# pelo e-mail informado — as demais perguntas e a ramificação (deseja VT →
+# vínculo → nº de empresas) são as mesmas do formulário original. As respostas
+# ficam em VtRequest, listadas em /vt/pedidos para conferência do RH.
+
+def _criar_pedido_de_form(form):
+    """VtRequest preenchido a partir do FormVtPedido validado."""
+    return VtRequest(
+        email=form.email.data.strip().lower(),
+        full_name=form.full_name.data.strip(),
+        registration=form.registration.data.strip(),
+        optant=form.optant.data,
+        unity=form.unity.data,
+        link=form.link.data,
+        company_count=int(form.company_count.data) if form.company_count.data else 0,
+        company_a_name=form.company_a_name.data or None,
+        company_a_passes=form.company_a_passes.data,
+        company_a_route=form.company_a_route.data,
+        company_b_name=form.company_b_name.data or None,
+        company_b_passes=form.company_b_passes.data,
+        company_b_route=form.company_b_route.data,
+    )
+
+
+@bp.route('/pedido', methods=['GET', 'POST'])
+@limiter.limit('10 per minute', methods=['POST'])
+def request_form():
+    """Formulário público (sem login): o colaborador informa o e-mail e
+    responde ao pedido de VT. "Não" encerra o pedido; "Sim" abre unidade,
+    vínculo e os blocos de empresa/vales/trajeto guiados pela página."""
+    form = FormVtPedido()
+    if form.validate_on_submit():
+        db.session.add(_criar_pedido_de_form(form))
+        db.session.commit()
+        flash('Pedido enviado com sucesso! A equipe de RH receberá suas '
+              'respostas.', 'success')
+        return redirect(url_for('vt.request_form'))
+    return render_template('vt/pedido.html', form=form)
+
+
+@bp.route('/pedidos')
+@login_required
+@require_permission('vt:read')
+@require_module('finance')
+def requests():
+    """Respostas recebidas pelo formulário público, da mais recente para a
+    mais antiga. Escopo global (o colaborador anônimo não tem unidade no
+    sistema) — a unidade do pedido é a resposta do formulário."""
+    search = (request.args.get('q') or '').strip()
+    optant_filter = request.args.get('optant') or ''
+
+    query = VtRequest.query
+    if search:
+        like = f'%{search}%'
+        query = query.filter(db.or_(VtRequest.full_name.ilike(like),
+                                    VtRequest.email.ilike(like),
+                                    VtRequest.registration.ilike(like)))
+    if optant_filter in ('Sim', 'Não'):
+        query = query.filter(VtRequest.optant == optant_filter)
+
+    pedidos = query.order_by(VtRequest.created_at.desc(), VtRequest.id.desc()).all()
+    com_vt = sum(1 for p in pedidos if p.optant == 'Sim')
+    return render_template('vt/pedidos.html', pedidos=pedidos,
+                           search=search, optant_filter=optant_filter,
+                           total_com_vt=com_vt,
+                           can_export=current_user.has_permission('vt:export'))
+
+
+@bp.route('/pedidos/exportar')
+@login_required
+@require_permission('vt:export')
+@require_module('finance')
+def requests_export():
+    """Exporta os pedidos do formulário para .xlsx (uma linha por resposta,
+    mesmos filtros da listagem) — base de conferência do RH."""
+    search = (request.args.get('q') or '').strip()
+    optant_filter = request.args.get('optant') or ''
+
+    query = VtRequest.query
+    if search:
+        like = f'%{search}%'
+        query = query.filter(db.or_(VtRequest.full_name.ilike(like),
+                                    VtRequest.email.ilike(like),
+                                    VtRequest.registration.ilike(like)))
+    if optant_filter in ('Sim', 'Não'):
+        query = query.filter(VtRequest.optant == optant_filter)
+    pedidos = query.order_by(VtRequest.created_at.desc(), VtRequest.id.desc()).all()
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = 'Pedidos VT'
+    worksheet.append(['Data', 'E-mail', 'Nome', 'Matrícula', 'Deseja VT',
+                      'Unidade', 'Vínculo', 'Nº Empresas',
+                      'Empresa A', 'Vales A', 'Trajeto A',
+                      'Empresa B', 'Vales B', 'Trajeto B'])
+    for pedido in pedidos:
+        worksheet.append([
+            pedido.created_at.strftime('%d/%m/%Y %H:%M') if pedido.created_at else '',
+            pedido.email, pedido.full_name, pedido.registration, pedido.optant,
+            pedido.unity, pedido.link, pedido.company_count or 0,
+            pedido.company_a_name, pedido.company_a_passes, pedido.company_a_route,
+            pedido.company_b_name, pedido.company_b_passes, pedido.company_b_route,
+        ])
+
+    output = io.BytesIO()
+    workbook.save(output)
+    workbook.close()
+    output.seek(0)
+
+    stamp = datetime.now().strftime('%d-%m-%Y %H-%M-%S')
+    return send_file(output, as_attachment=True,
+                     download_name=f'Pedidos Vale Transporte ({stamp}).xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument'
                               '.spreadsheetml.sheet')

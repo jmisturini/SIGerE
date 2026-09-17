@@ -362,6 +362,31 @@ class VtRecord(db.Model):
     def is_exportable(self):
         return self.optant == 'Sim' and bool(self.total_passes)
 
+
+# Pedido de Vale-Transporte enviado pelo formulário público (/vt/pedido) —
+# adaptação do "Pedido de Vale-Transporte" (Microsoft Forms) que o RH usava
+# fora do sistema. Acesso anônimo: a identificação é apenas o e-mail
+# informado. Os textos de unidade/vínculo/empresa são exatamente as opções
+# do formulário, compatíveis com VtRecord.link / VtRecord.RESTAURANTE_UNITIES
+# para que o RH converta o pedido em registro na importação da planilha.
+class VtRequest(db.Model):
+    __tablename__ = 'vt_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, index=True)    # identificação (acesso público)
+    full_name = db.Column(db.String(255), nullable=False)            # Nome
+    registration = db.Column(db.String(20), nullable=False)          # Matrícula
+    optant = db.Column(db.String(3), nullable=False, default='Não')  # "Deseja VT para o mês" (Sim/Não)
+    unity = db.Column(db.String(100))                                # Unidade do formulário
+    link = db.Column(db.String(50))                                  # Vínculo
+    company_count = db.Column(db.Integer, default=0)                 # nº de empresas de ônibus (1/2)
+    company_a_name = db.Column(db.String(100))                       # Empresa A (opção completa, com tarifa)
+    company_a_passes = db.Column(db.Integer)                         # nº de vales A
+    company_a_route = db.Column(db.String(20))                       # trajeto A (Somente Volta / Ida e Volta)
+    company_b_name = db.Column(db.String(100))                       # Empresa B
+    company_b_passes = db.Column(db.Integer)                         # nº de vales B
+    company_b_route = db.Column(db.String(20))                       # trajeto B
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
 # Tabela de junção entre Roles e Permissions
 role_permissions = db.Table('role_permissions',
     db.Column('role_id', db.Integer, db.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),

@@ -146,6 +146,11 @@
                                     <i class="bi bi-people"></i> <span>Colaboradores</span>
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep.startswith('vt.requests') }}" href="{{ url_for('vt.requests') }}">
+                                    <i class="bi bi-inbox"></i> <span>Pedidos do Formulário</span>
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </li>
