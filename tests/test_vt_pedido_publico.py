@@ -117,7 +117,8 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
     # ---------- Página pública ----------
 
     def test_formulario_publico_sem_login(self):
-        """A página do pedido é acessível anônima e traz as perguntas."""
+        """A página do pedido é acessível anônima, sem a barra lateral do
+        painel, e traz as perguntas com o botão de envio desabilitado."""
         response = self.client.get('/vt/pedido')
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
@@ -125,6 +126,33 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertIn('name="email"', page)
         self.assertIn('name="optant"', page)
         self.assertIn('name="company_a_name"', page)
+        self.assertIn('sem-sidebar', page)
+        self.assertNotIn('<nav class="sidebar">', page)
+        self.assertIn('disabled', page)
+        self.assertIn('name="link"', page)
+
+    def test_outras_paginas_mantem_sidebar(self):
+        """O esconderijo da sidebar vale só para a página do pedido."""
+        response = self.client.get('/login')
+        page = response.get_data(as_text=True)
+        self.assertIn('<nav class="sidebar">', page)
+
+    def test_busca_colaborador_por_email(self):
+        """Auto-preenchimento: e-mail de conta ativa devolve nome e
+        matrícula (busca sem diferenciar maiúsculas); e-mail desconhecido
+        devolve found=false."""
+        response = self.client.get(
+            '/vt/pedido/colaborador?email=GESTOR-VT@escola.edu')
+        self.assertEqual(response.status_code, 200)
+        dados = response.get_json()
+        self.assertTrue(dados['found'])
+        self.assertEqual(dados['full_name'], 'Gestor VT')
+
+        response = self.client.get(
+            '/vt/pedido/colaborador?email=desconhecido@senac.sc.br')
+        self.assertEqual(response.get_json(), {'found': False,
+                                               'full_name': None,
+                                               'registration': None})
 
     # ---------- POST público ----------
 
@@ -168,14 +196,42 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertEqual(pedido['company_b_name'], 'Biguaçu - R$ 10,23')
 
     def test_post_sim_incompleto_rejeitado(self):
-        """"Sim" sem unidade/vínculo/empresas: formulário volta com erros e
-        nada é gravado — o POST forjado não furta a ramificação."""
-        response = self.client.post('/vt/pedido', data=self._payload(optant='Sim'))
+        """"Sim" na Faculdade sem vínculo/empresas: formulário volta com
+        erros e nada é gravado — o POST forjado não furta a ramificação."""
+        response = self.client.post('/vt/pedido', data=self._payload(
+            optant='Sim', unity='Faculdade'))
         page = response.get_data(as_text=True)
-        self.assertIn('Selecione a unidade.', page)
         self.assertIn('Selecione o vínculo.', page)
         self.assertIn('Selecione o número de empresas de ônibus.', page)
+        self.assertIn('Selecione a empresa de ônibus.', page)
         self.assertEqual(self._pedidos(), [])
+
+    def test_post_sim_sem_unidade_rejeitado(self):
+        response = self.client.post('/vt/pedido', data=self._payload(optant='Sim'))
+        self.assertIn('Selecione a unidade.', response.get_data(as_text=True))
+        self.assertEqual(self._pedidos(), [])
+
+    def test_unidade_restaurante_assume_tecnico_administrativo(self):
+        """Fora da Faculdade o vínculo não é perguntado: o pedido sai como
+        Técnico-Administrativo mesmo sem o campo no POST (o que o JS faz ao
+        desabilitar o bloco)."""
+        payload = self._payload_sim_uma_empresa(
+            unity='Restaurante - ALESC/Palácio Barriga Verde')
+        payload.pop('link')
+        response = self.client.post('/vt/pedido', data=payload,
+                                    follow_redirects=True)
+        self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
+        pedido = self._pedidos()[0]
+        self.assertEqual(pedido['link'], 'Técnico - Administrativo')
+
+    def test_vinculo_forjado_com_restaurante_e_corrigido(self):
+        """POST forjado com outro vínculo nas unidades do Restaurante/
+        Lanchonete é sobrescrito para Técnico-Administrativo."""
+        response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
+            unity='Lanchonete - ALESC/Unidade Administrativa',
+            link='Professor(a)'), follow_redirects=True)
+        self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
+        self.assertEqual(self._pedidos()[0]['link'], 'Técnico - Administrativo')
 
     def test_post_sim_segunda_empresa_faltando_rejeitado(self):
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(

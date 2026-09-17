@@ -771,23 +771,36 @@ class FormVtPedido(BaseForm):
 
         # Ramo "Sim": as perguntas seguintes do formulário viram obrigatórias
         # (no Microsoft Forms o desvio "Não" simplesmente pula o restante).
-        obrigatorios = [
+        obrigatorio = [
             (self.unity, 'Selecione a unidade.'),
-            (self.link, 'Selecione o vínculo.'),
             (self.company_count, 'Selecione o número de empresas de ônibus.'),
             (self.company_a_name, 'Selecione a empresa de ônibus.'),
             (self.company_a_passes, 'Digite o número de vales necessários.'),
             (self.company_a_route, 'Selecione o trajeto.'),
         ]
-        if self.company_count.data == '2':
-            obrigatorios += [
-                (self.company_b_name, 'Selecione a segunda empresa de ônibus.'),
-                (self.company_b_passes, 'Digite o número de vales da segunda empresa.'),
-                (self.company_b_route, 'Selecione o trajeto da segunda empresa.'),
-            ]
         valido = True
-        for campo, mensagem in obrigatorios:
+        for campo, mensagem in obrigatorio:
             if campo.data in (None, ''):
                 campo.errors.append(mensagem)
                 valido = False
+        if self.company_count.data == '2':
+            for campo, mensagem in [
+                (self.company_b_name, 'Selecione a segunda empresa de ônibus.'),
+                (self.company_b_passes, 'Digite o número de vales da segunda empresa.'),
+                (self.company_b_route, 'Selecione o trajeto da segunda empresa.'),
+            ]:
+                if campo.data in (None, ''):
+                    campo.errors.append(mensagem)
+                    valido = False
+
+        # Vínculo: a pergunta só aparece para a Faculdade. Nas unidades do
+        # Restaurante/Lanchonete o vínculo é sempre Técnico-Administrativo —
+        # o valor é assumido aqui, cobrindo também POST forjado com outro
+        # vínculo.
+        if self.unity.data == 'Faculdade':
+            if not self.link.data:
+                self.link.errors.append('Selecione o vínculo.')
+                valido = False
+        else:
+            self.link.data = 'Técnico - Administrativo' if self.unity.data else None
         return valido

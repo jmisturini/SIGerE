@@ -26,7 +26,7 @@
 
         <div class="card">
             <div class="card-body p-4">
-                <form method="POST" novalidate>
+                <form method="POST" novalidate id="form-pedido">
                     {{ form.hidden_tag() }}
 
                     {# ── Identificação (sempre visível) ── #}
@@ -70,8 +70,10 @@
                         <h6 class="fw-bold mb-3">{{ form.unity.label.text }}</h6>
                         {{ radios_lista(form.unity, 'unity') }}
 
-                        <h6 class="fw-bold mb-3 mt-4">{{ form.link.label.text }}</h6>
-                        {{ radios_lista(form.link, 'link') }}
+                        <div id="bloco-vinculo">
+                            <h6 class="fw-bold mb-3 mt-4">{{ form.link.label.text }}</h6>
+                            {{ radios_lista(form.link, 'link') }}
+                        </div>
 
                         <h6 class="fw-bold mb-3 mt-4">{{ form.company_count.label.text }}</h6>
                         <div class="btn-group" role="group" aria-label="Número de empresas de ônibus">
@@ -125,7 +127,7 @@
                     </div>
 
                     <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-                        {{ form.submit(class="btn btn-primary px-4") }}
+                        {{ form.submit(class="btn btn-primary px-4", disabled=True) }}
                     </div>
                 </form>
             </div>
@@ -136,21 +138,32 @@
 
 {% block scripts %}
 <script>
-    // Ramificação do formulário original (Microsoft Forms):
+    // Ramificação do formulário original (Microsoft Forms) + ajustes de UX:
     // 1. "Não" para o mês encerra o pedido — o bloco de perguntas seguinte
     //    some e seus campos são desabilitados (não seguem no POST);
-    // 2. O vínculo troca os textos de apoio dos vales (RH x NEB) e do trajeto;
-    // 3. "1" empresa esconde o bloco da segunda empresa.
+    // 2. O vínculo só é perguntado na Faculdade — em Restaurante/Lanchonete
+    //    o servidor assume Técnico-Administrativo;
+    // 3. O botão de envio fica desabilitado até os campos obrigatórios do
+    //    ramo visível estarem preenchidos;
+    // 4. O e-mail preenche automaticamente nome e matrícula quando a conta
+    //    ativa é encontrada.
     (function () {
+        const form = document.getElementById('form-pedido');
+        const submitBtn = form.querySelector('input[type="submit"]');
+        const emailInput = document.getElementById('email');
         const blocoVt = document.getElementById('bloco-vt');
+        const blocoVinculo = document.getElementById('bloco-vinculo');
         const blocoB = document.getElementById('bloco-empresa-b');
         const TEXTO_RH = 'Consulte o e-mail enviado pelo RH.';
         const TEXTO_NEB = 'Consulte com o NEB o número de passes necessários.';
 
-        function valor(nome) {
-            const marcado = document.querySelector(`input[name="${nome}"]:checked`);
-            return marcado ? marcado.value : null;
-        }
+        // Funciona para campos de texto e grupos de rádio (RadioNodeList
+        // devolve o valor do marcado, ou '' quando nenhum).
+        const valor = nome => {
+            const campo = form.elements[nome];
+            return campo ? (campo.value || '') : '';
+        };
+        const preenchido = nome => valor(nome).trim() !== '';
 
         function setarBloco(bloco, visivel) {
             bloco.classList.toggle('d-none', !visivel);
@@ -159,29 +172,71 @@
             });
         }
 
+        // Obrigatórios do ramo visível — espelho da validação do servidor.
+        function pedidoPronto() {
+            if (!preenchido('email') || !preenchido('full_name') ||
+                !preenchido('registration') || !preenchido('optant')) return false;
+            if (valor('optant') !== 'Sim') return true;
+            if (!preenchido('unity')) return false;
+            if (valor('unity') === 'Faculdade' && !preenchido('link')) return false;
+            if (!preenchido('company_count')) return false;
+            for (const sufixo of ['a', 'b']) {
+                if (sufixo === 'b' && valor('company_count') !== '2') break;
+                if (!preenchido(`company_${sufixo}_name`) ||
+                    !preenchido(`company_${sufixo}_passes`) ||
+                    !preenchido(`company_${sufixo}_route`)) return false;
+            }
+            return true;
+        }
+
         function atualizar() {
             const mostrarVt = valor('optant') === 'Sim';
             setarBloco(blocoVt, mostrarVt);
-            if (!mostrarVt) return;
+            if (mostrarVt) {
+                // Vínculo só existe na Faculdade; nas demais unidades o
+                // bloco some e o servidor assume Técnico-Administrativo.
+                setarBloco(blocoVinculo, valor('unity') === 'Faculdade');
 
-            const professor = valor('link') === 'Professor(a)';
-            document.querySelectorAll('.subtitulo-vales').forEach(el => {
-                el.textContent = professor ? TEXTO_NEB : TEXTO_RH;
-            });
-            document.querySelectorAll('.rotulo-trajeto').forEach(el => {
-                el.textContent = professor ? 'Selecione o trajeto' : 'Selecione o número de trajetos';
-            });
+                const professor = valor('link') === 'Professor(a)';
+                document.querySelectorAll('.subtitulo-vales').forEach(el => {
+                    el.textContent = professor ? TEXTO_NEB : TEXTO_RH;
+                });
+                document.querySelectorAll('.rotulo-trajeto').forEach(el => {
+                    el.textContent = professor ? 'Selecione o trajeto' : 'Selecione o número de trajetos';
+                });
 
-            setarBloco(blocoB, valor('company_count') === '2');
+                setarBloco(blocoB, valor('company_count') === '2');
+            }
+            submitBtn.disabled = !pedidoPronto();
         }
 
-        ['optant', 'link', 'company_count'].forEach(nome => {
-            document.querySelectorAll(`input[name="${nome}"]`).forEach(campo => {
-                campo.addEventListener('change', atualizar);
-            });
+        // ── Auto-preenchimento pelo e-mail (conta ativa) ──
+        let timer = null;
+        async function buscarColaborador() {
+            const email = emailInput.value.trim();
+            if (!email || !email.includes('@')) return;
+            try {
+                const resp = await fetch(`{{ url_for('vt.request_form_colaborador') }}?email=${encodeURIComponent(email)}`);
+                if (!resp.ok) return;
+                const dados = await resp.json();
+                if (!dados.found) return;
+                if (dados.full_name) document.getElementById('full_name').value = dados.full_name;
+                if (dados.registration) document.getElementById('registration').value = dados.registration;
+                atualizar();
+            } catch (e) { /* falha na busca: preenchimento manual segue */ }
+        }
+        emailInput.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(buscarColaborador, 500);
         });
-        // Estado inicial (mantém a ramificação correta quando o servidor
-        // devolve a página com erros de validação).
+        emailInput.addEventListener('change', buscarColaborador);
+
+        form.querySelectorAll('input, select').forEach(campo => {
+            campo.addEventListener('change', atualizar);
+            campo.addEventListener('input', atualizar);
+        });
+        // Estado inicial (mantém a ramificação e o botão corretos quando o
+        // servidor devolve a página com erros de validação).
         atualizar();
     })();
 </script>

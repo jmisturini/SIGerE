@@ -10,12 +10,27 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.8.0'
+APP_VERSION = '1.9.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.9.0',
+        'data': '2026-09-17',
+        'titulo': 'Ajustes no pedido público de Vale-Transporte',
+        'grupos': [
+            ('Adicionado', [
+                'O formulário público de VT em tela cheia, sem a barra lateral do painel.',
+                'Ao informar o e-mail, nome e matrícula são preenchidos automaticamente quando existe conta ativa com aquele e-mail.',
+                'O botão de envio só é habilitado quando os campos obrigatórios da ramificação visível estão preenchidos.',
+            ]),
+            ('Alterado', [
+                'A pergunta de vínculo agora aparece apenas quando a unidade é a Faculdade; Restaurante e Lanchonete assumem Técnico-Administrativo no pedido.',
+            ]),
+        ],
+    },
     {
         'versao': '1.8.0',
         'data': '2026-09-17',

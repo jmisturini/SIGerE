@@ -22,7 +22,8 @@
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
 <body>
-<div class="app-container">
+<div class="app-container {{ 'sem-sidebar' if ocultar_sidebar else '' }}">
+    {% if not ocultar_sidebar %}
     <!-- Sidebar -->
     <nav class="sidebar">
         <div class="sidebar-header">
@@ -231,14 +232,17 @@
             </ul>
         </div>
     </nav>
+    {% endif %}
 
     <!-- Main Content -->
     <div class="main-content">
         <!-- Topbar -->
         <nav class="topbar">
+            {% if not ocultar_sidebar %}
             <button class="btn btn-link d-lg-none" id="sidebar-toggle" type="button">
                 <i class="bi bi-list"></i>
             </button>
+            {% endif %}
 
             {% if current_user.is_authenticated and current_unity %}
             {# Unidade ativa à esquerda do topbar, ao lado da barra lateral #}

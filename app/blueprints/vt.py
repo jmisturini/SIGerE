@@ -24,14 +24,15 @@ import os
 from collections import Counter
 from datetime import datetime
 
-from flask import (Blueprint, abort, current_app, flash, redirect,
+from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, send_file, url_for)
 from openpyxl import load_workbook, Workbook
+from sqlalchemy import func
 
 from app.extensions import db, limiter
 from flask_login import current_user, login_required
 from app.forms import FormVtRecord, FormVtUpload, FormVtPedido
-from app.models import VtRecord, VtRequest
+from app.models import User, VtRecord, VtRequest
 from app.permissions import require_module, require_permission
 from app.unity_context import current_unity_id
 from app.blueprints.payments import parse_currency
@@ -512,7 +513,28 @@ def request_form():
         flash('Pedido enviado com sucesso! A equipe de RH receberá suas '
               'respostas.', 'success')
         return redirect(url_for('vt.request_form'))
-    return render_template('vt/pedido.html', form=form)
+    # ocultar_sidebar: página pública em tela cheia, sem a navegação do painel.
+    return render_template('vt/pedido.html', form=form, ocultar_sidebar=True)
+
+
+@bp.route('/pedido/colaborador')
+@limiter.limit('30 per minute')
+def request_form_colaborador():
+    """Auto-preenchimento do formulário público: dado o e-mail informado,
+    devolve nome e matrícula da conta ATIVA correspondente (None quando não
+    há — o colaborador preenche à mão)."""
+    email = (request.args.get('email') or '').strip().lower()
+    user = None
+    if email:
+        user = (User.query
+                .filter(func.lower(User.email) == email,
+                        User.is_active_user == True)
+                .first())
+    return jsonify({
+        'found': user is not None,
+        'full_name': user.full_name if user else None,
+        'registration': user.registration if user else None,
+    })
 
 
 @bp.route('/pedidos')
