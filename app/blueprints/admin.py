@@ -705,6 +705,13 @@ def _choices_permissoes_papel():
     return [(p.id, f"{p.module}: {p.action} ({p.code})") for p in perms]
 
 
+def _e_papel_super_admin(role):
+    """O papel do super-admin é o que carrega a permissão curinga '*' —
+    identificá-lo pelo código (e não pelo nome) cobre também papéis
+    customizados que venham a receber a permissão universal."""
+    return any(p.code == '*' for p in role.permissions)
+
+
 @bp.route('/roles')
 @login_required
 @require_permission('role:read')
@@ -717,7 +724,9 @@ def list_roles():
     else:
         ordem = 'nome'
         roles.sort(key=lambda r: r.name.lower())
-    return render_template('admin/roles.html', roles=roles, ordem=ordem)
+    return render_template('admin/roles.html', roles=roles, ordem=ordem,
+                           ids_papel_super_admin={r.id for r in roles
+                                                  if _e_papel_super_admin(r)})
 
 @bp.route('/roles/create', methods=['GET', 'POST'])
 @login_required
@@ -745,6 +754,12 @@ def create_role():
 @require_permission('role:edit')
 def edit_role(role_id):
     role = db.get_or_404(Role, role_id)
+    # O papel do super-admin só pode ser alterado pelo próprio super-admin:
+    # um admin comum (role:edit) poderia esvaziá-lo ou renomeá-lo, derrubando
+    # o acesso universal do sistema. Vale para GET (formulário) e POST.
+    if _e_papel_super_admin(role) and not current_user.has_permission('*'):
+        flash('Apenas o super-admin pode editar o papel de Super Administrador.', 'danger')
+        return redirect_back('admin.list_roles', anchor=f'role-{role_id}')
     form = RoleForm(obj=role)
     form.permissions.choices = _choices_permissoes_papel()
     
