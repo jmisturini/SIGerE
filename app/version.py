@@ -10,12 +10,25 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.14.0'
+APP_VERSION = '1.14.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.14.1',
+        'data': '2026-09-18',
+        'titulo': 'Grupos da planilha de pagamento simplificados',
+        'grupos': [
+            ('Alterado', [
+                'Os grupos de colaboradores da planilha de pagamento do Vale-Transporte passam a ser apenas "Técnico-Administrativo" e "Professores", definidos pelo vínculo do pedido — técnicos de todas as unidades entram no grupo único de Técnico-Administrativo.',
+            ]),
+            ('Removido', [
+                'O grupo "Técnico-Administrativo (Restaurante/Lanchonete)" da exportação — a divisão por unidade (Faculdade / Restaurante/Lanchonete) herdada do gerador original saiu da planilha.',
+            ]),
+        ],
+    },
     {
         'versao': '1.14.0',
         'data': '2026-09-18',

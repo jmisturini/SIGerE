@@ -620,7 +620,7 @@ class TestPedidosVT(unittest.TestCase):
         # Badge de empresas com a tarifa no tooltip.
         self.assertIn('R$ 7.24 × 22 vale(s)', page)
         # Contagem de exportáveis por grupo.
-        self.assertIn('Técnico-Administrativo (Faculdade): 1', page)
+        self.assertIn('Técnico-Administrativo: 1', page)
         self.assertIn('Professores: 1', page)
         self.assertIn('2</strong> desejando VT', page)
 
@@ -746,7 +746,7 @@ class TestPedidosVT(unittest.TestCase):
         self.assertIn('R$ 86,88 por optante', page)
         # Resumo por empresa e por grupo da planilha.
         self.assertIn('Jotur', page)
-        self.assertIn('Técnico-Administrativo (Faculdade)', page)
+        self.assertIn('Técnico-Administrativo', page)
         self.assertIn('R$ 159,28', page)
         self.assertIn('Professores', page)
         self.assertIn('R$ 14,48', page)
@@ -769,7 +769,7 @@ class TestPedidosVT(unittest.TestCase):
                            registration='111222', optant='Não')
 
         self._login(self.EMAIL_GESTOR)
-        response = self.client.get('/vt/pedidos/exportar-pagamento?group=faculdade')
+        response = self.client.get('/vt/pedidos/exportar-pagamento?group=tecnico')
         self.assertEqual(response.status_code, 200)
         self.assertIn('spreadsheetml', response.headers['Content-Type'])
 
@@ -781,13 +781,13 @@ class TestPedidosVT(unittest.TestCase):
         self.assertAlmostEqual(worksheet['C5'].value, 159.28)
         self.assertIsNone(worksheet['A6'].value)
 
-    def test_exportar_pagamento_unidade_com_nome_completo(self):
-        """O grupo da planilha reconhece o nome real da unidade — a
-        comparação exata com 'Faculdade' (texto do sistema antigo) deixava
-        de fora unidades como 'Faculdade Senac Florianópolis' e a
-        exportação recusava pedidos elegíveis."""
+    def test_exportar_pagamento_grupo_independe_da_unidade(self):
+        """Os grupos são apenas Técnico-Administrativo e Professores, pelo
+        vínculo: um técnico de unidade Restaurante/Lanchonete cai no grupo
+        único de Técnico-Administrativo."""
         with self.app.app_context():
-            unity = Unity(name='Faculdade Senac Florianópolis', code='FACSP')
+            unity = Unity(name='Restaurante - ALESC/Palácio Barriga Verde',
+                          code='RST')
             db.session.add(unity)
             db.session.commit()
             unity_id = unity.id
@@ -808,7 +808,7 @@ class TestPedidosVT(unittest.TestCase):
                          follow_redirects=True)
 
         self._login(self.EMAIL_GESTOR)
-        response = self.client.get('/vt/pedidos/exportar-pagamento?group=faculdade')
+        response = self.client.get('/vt/pedidos/exportar-pagamento?group=tecnico')
         self.assertEqual(response.status_code, 200)
         self.assertIn('spreadsheetml', response.headers['Content-Type'])
         workbook = load_workbook(io.BytesIO(response.data))

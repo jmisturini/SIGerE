@@ -9,10 +9,9 @@ organizado em duas páginas:
 2. Pedidos VT (/vt/pedidos): as respostas do formulário DA UNIDADE ATIVA,
    com filtros, correção individual (editar/excluir, vt:edit / vt:delete)
    e a planilha de pagamento (planilha_base_vt.xlsx, Matrícula/Nome/Total
-   a partir da linha 5) filtrável pelos grupos do gerador:
-   Técnico-Administrativo (Faculdade), Professores e
-   Técnico-Administrativo (Restaurante/Lanchonete) — apenas Optante VT
-   "Sim" com passes > 0, critérios do script original.
+   a partir da linha 5) filtrável pelos grupos Técnico-Administrativo e
+   Professores (pelo vínculo) — apenas Optante VT "Sim" com passes > 0,
+   critérios do script original.
 
 A importação do "Pedido de Compra" (.xlsx) e a listagem de colaboradores
 importados (VtRecord) saíram do ar: o formulário público alimenta a
@@ -46,9 +45,8 @@ VT_SOURCE_SHEET = 'Vale Transporte'
 VT_TEMPLATE_FILE = 'planilha_base_vt.xlsx'
 
 GROUP_LABELS = {
-    VtRecord.GROUP_FACULDADE: 'Técnico-Administrativo (Faculdade)',
+    VtRecord.GROUP_TECNICO: 'Técnico-Administrativo',
     VtRecord.GROUP_PROFESSORES: 'Professores',
-    VtRecord.GROUP_RESTAURANTE: 'Técnico-Administrativo (Restaurante/Lanchonete)',
 }
 
 

@@ -629,8 +629,8 @@ class RoomCategoryForm(BaseForm):
 # que este sistema substitui, com empresa e tarifa separadas: cada empresa
 # tem sua lista de tarifas vigentes — o formulário mostra só os nomes e o
 # campo de valor (logo abaixo) oferece as tarifas da empresa escolhida. Os
-# textos de unidade e vínculo coincidem com VtRecord.RESTAURANTE_UNITIES e
-# VtRecord.link, e a resposta chega pronta para conferência do RH.
+# textos de vínculo coincidem com VtRecord.link, e a resposta chega pronta
+# para conferência do RH.
 VT_VINCULOS_PEDIDO = ['Técnico - Administrativo', 'Professor(a)']
 VT_TRAJETOS_PEDIDO = ['Somente Volta', 'Ida e Volta']
 

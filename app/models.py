@@ -336,25 +336,19 @@ class VtRecord(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # Grupos de exportação do gerador unificado: a planilha final separa os
-    # colaboradores por vínculo/unidade (opções 1, 2 e 3 do script original).
-    GROUP_FACULDADE = 'faculdade'
+    # Grupos de exportação da planilha de pagamento: definidos pelo VÍNCULO
+    # do colaborador (Técnico-Administrativo e Professores).
+    GROUP_TECNICO = 'tecnico'
     GROUP_PROFESSORES = 'professores'
-    GROUP_RESTAURANTE = 'restaurante'
-    RESTAURANTE_UNITIES = ('Lanchonete - ALESC/Unidade Administrativa',
-                           'Restaurante - ALESC/Palácio Barriga Verde')
 
     @property
     def group(self):
         """Classificação do colaborador para a exportação (ou None se fora
-        dos grupos do gerador)."""
+        dos grupos)."""
         if self.link == 'Professor(a)':
             return self.GROUP_PROFESSORES
         if self.link == 'Técnico - Administrativo':
-            if self.unity == 'Faculdade':
-                return self.GROUP_FACULDADE
-            if self.unity in self.RESTAURANTE_UNITIES:
-                return self.GROUP_RESTAURANTE
+            return self.GROUP_TECNICO
         return None
 
     # Exportável = os mesmos critérios do script: optante "Sim" e passes > 0.
@@ -363,27 +357,12 @@ class VtRecord(db.Model):
         return self.optant == 'Sim' and bool(self.total_passes)
 
 
-def _grupo_vt_por_unidade(nome_unidade):
-    """Grupo da planilha de pagamento a partir do NOME da unidade: o
-    gerador original separava Faculdade e Restaurante/Lanchonete por texto
-    exato do sistema antigo — o casamento por trecho do nome cobre tanto
-    os nomes reais de hoje (ex.: "Faculdade Senac Florianópolis") quanto os
-    textos gravados na época da importação."""
-    nome = (nome_unidade or '').casefold()
-    if 'restaurante' in nome or 'lanchonete' in nome:
-        return VtRecord.GROUP_RESTAURANTE
-    if 'faculdade' in nome:
-        return VtRecord.GROUP_FACULDADE
-    return None
-
-
 # Pedido de Vale-Transporte enviado pelo formulário público (/vt/pedido) —
 # adaptação do "Pedido de Vale-Transporte" (Microsoft Forms) que o RH usava
 # fora do sistema. Acesso anônimo: a identificação é apenas o e-mail
-# informado. Os textos de unidade/vínculo/empresa são exatamente as opções
-# do formulário, compatíveis com VtRecord.link / VtRecord.RESTAURANTE_UNITIES
-# — a listagem Pedidos VT (/vt/pedidos) e a planilha de pagamento usam os
-# mesmos grupos do gerador original.
+# informado. Os textos de vínculo/empresa são exatamente as opções do
+# formulário, compatíveis com VtRecord.link — a listagem Pedidos VT
+# (/vt/pedidos) e a planilha de pagamento usam os mesmos grupos.
 class VtRequest(db.Model):
     __tablename__ = 'vt_requests'
     id = db.Column(db.Integer, primary_key=True)
@@ -420,20 +399,11 @@ class VtRequest(db.Model):
         return float(total)
 
     # Grupo de exportação da planilha de pagamento — mesmos grupos do
-    # VtRecord (vínculo/unidade): a planilha final do gerador não mudou.
+    # VtRecord: definidos pelo vínculo informado no pedido.
     @property
     def group(self):
-        if self.link == 'Professor(a)':
-            return VtRecord.GROUP_PROFESSORES
-        if self.link == 'Técnico - Administrativo':
-            # Nome vigente da unidade do pedido (o texto gravado no pedido
-            # serve de fallback para os antigos sem unity_id).
-            nome = None
-            if self.unity_id is not None:
-                unity = db.session.get(Unity, self.unity_id)
-                nome = unity.name if unity else None
-            return _grupo_vt_por_unidade(nome or self.unity)
-        return None
+        return {'Professor(a)': VtRecord.GROUP_PROFESSORES,
+                'Técnico - Administrativo': VtRecord.GROUP_TECNICO}.get(self.link)
 
     # Exportável = os mesmos critérios do script: optante "Sim" e passes > 0.
     @property
