@@ -180,27 +180,6 @@
                 {% endif %}
                 {% endif %}
 
-                {# O Painel Admin é o hub das áreas administrativas: Unidades,
-                   Tokens da API, Empresas de Ônibus e Configurações do Pedido
-                   de VT vivem dentro dele (cards na página), então o item é
-                   visível para quem tem qualquer uma dessas permissões e fica
-                   ativo em todas as páginas /admin/*. #}
-                {% set painel_visivel = current_user.has_permission('system:dashboard')
-                    or current_user.has_permission('unity:read')
-                    or current_user.has_permission('api:manage')
-                    or current_user.has_permission('vt:empresas') %}
-                {% if painel_visivel %}
-                <li class="nav-section">Administração</li>
-                {% endif %}
-                {% set in_salas_admin = ep.startswith('admin.') and ('room' in ep or 'categor' in ep) %}
-                {% set in_painel_admin = ep.startswith('admin.') and not in_salas_admin %}
-                {% if painel_visivel %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_painel_admin }}" title="Painel Admin" href="{{ url_for('admin.dashboard') }}">
-                        <i class="bi bi-gear"></i> <span>Painel Admin</span>
-                    </a>
-                </li>
-                {% endif %}
                                 {% else %}
                 {# Calendário removido do menu de visitantes: o schedule exige login #}
                 <li class="nav-item">
@@ -264,6 +243,26 @@
             {% endif %}
 
             <div class="ms-auto d-flex align-items-center">
+                {# O Painel Admin é o hub das áreas administrativas: Unidades,
+                   Tokens da API, Empresas de Ônibus e Configurações do Pedido
+                   de VT vivem dentro dele (cards na página), então o link é
+                   visível para quem tem qualquer uma dessas permissões e fica
+                   ativo em todas as páginas /admin/*. #}
+                {% if current_user.is_authenticated %}
+                {% set ep_top = request.endpoint or '' %}
+                {% set painel_visivel = current_user.has_permission('system:dashboard')
+                    or current_user.has_permission('unity:read')
+                    or current_user.has_permission('api:manage')
+                    or current_user.has_permission('vt:empresas') %}
+                {% set in_painel_admin = ep_top.startswith('admin.') and not ('room' in ep_top or 'categor' in ep_top) %}
+                {% if painel_visivel %}
+                <a class="topbar-painel {{ 'active' if in_painel_admin }}" title="Painel Admin"
+                   href="{{ url_for('admin.dashboard') }}">
+                    <i class="bi bi-gear"></i> <span class="d-none d-md-inline">Painel Admin</span>
+                </a>
+                {% endif %}
+                {% endif %}
+
                 <button id="theme-toggle" class="btn btn-sm btn-icon" title="Alternar tema">
                     <i class="bi bi-sun-fill" id="theme-icon"></i>
                 </button>

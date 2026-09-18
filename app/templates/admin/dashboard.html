@@ -46,213 +46,210 @@
 </div>
 {% endif %}
 
-<!-- Grupo 1: Usuários -->
-<div class="d-flex align-items-center mb-3">
-    <i class="bi bi-people-fill text-primary me-2 fs-5"></i>
-    <h5 class="mb-0">Usuários</h5>
-</div>
-<div class="row g-3 mb-5">
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Total</span>
-                    <i class="bi bi-people fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body">{{ users_count }}</div>
-                <a href="{{ url_for('admin.list_users') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+{# Hub em grade única: cards compactos e clicáveis por inteiro, ordenados
+   do operacional ao sistêmico; os cards de sistema aparecem conforme a
+   permissão de quem acessa. #}
+<div class="row g-3">
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_users') }}">
+            <span class="painel-card-icon"><i class="bi bi-people"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ users_count }}</span>
+                <span class="painel-card-label">Usuários</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
-</div>
-
-<!-- Grupo 2: Salas -->
-<div class="d-flex align-items-center mb-3">
-    <i class="bi bi-door-closed text-primary me-2 fs-5"></i>
-    <h5 class="mb-0">Salas e Espaços</h5>
-</div>
-<div class="row g-3 mb-5">
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Salas</span>
-                    <i class="bi bi-door-open fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body">{{ rooms_count }}</div>
-                <a href="{{ url_for('admin.list_rooms') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_roles') }}">
+            <span class="painel-card-icon"><i class="bi bi-shield-lock"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Papéis</span>
+                <span class="painel-card-sub">Perfis e permissões</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Categorias</span>
-                    <i class="bi bi-tags fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body"><i class="bi bi-collection"></i></div>
-                <a href="{{ url_for('admin.list_categories') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_courses') }}">
+            <span class="painel-card-icon"><i class="bi bi-mortarboard"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ courses_count }}</span>
+                <span class="painel-card-label">Cursos</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
-</div>
-
-<!-- Grupo 3: Cursos e Disciplinas -->
-<div class="d-flex align-items-center mb-3">
-    <i class="bi bi-book text-primary me-2 fs-5"></i>
-    <h5 class="mb-0">Cursos e Disciplinas</h5>
-</div>
-<div class="row g-3 mb-5">
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Cursos</span>
-                    <i class="bi bi-mortarboard fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body">{{ courses_count }}</div>
-                <a href="{{ url_for('admin.list_courses') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_subjects') }}">
+            <span class="painel-card-icon"><i class="bi bi-journal-text"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ subjects_count }}</span>
+                <span class="painel-card-label">Disciplinas</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Disciplinas</span>
-                    <i class="bi bi-journal-text fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body">{{ subjects_count }}</div>
-                <a href="{{ url_for('admin.list_subjects') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_rooms') }}">
+            <span class="painel-card-icon"><i class="bi bi-door-open"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ rooms_count }}</span>
+                <span class="painel-card-label">Salas</span>
+                <span class="painel-card-sub">{{ active_rooms }} ativas</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
-</div>
-
-<!-- Grupo 4: Feriados e Permissões -->
-<div class="d-flex align-items-center mb-3">
-    <i class="bi bi-gear-fill text-primary me-2 fs-5"></i>
-    <h5 class="mb-0">Feriados e Permissões</h5>
-</div>
-<div class="row g-3 mb-5">
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Feriados</span>
-                    <i class="bi bi-calendar-x fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body"><i class="bi bi-calendar-week"></i></div>
-                <a href="{{ url_for('admin.list_holidays') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_categories') }}">
+            <span class="painel-card-icon"><i class="bi bi-tags"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Categorias</span>
+                <span class="painel-card-sub">Tipos de sala</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Papéis</span>
-                    <i class="bi bi-shield-lock fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body"><i class="bi bi-person-check"></i></div>
-                <a href="{{ url_for('admin.list_roles') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_holidays') }}">
+            <span class="painel-card-icon"><i class="bi bi-calendar-x"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Feriados</span>
+                <span class="painel-card-sub">Bloqueiam reservas</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
-</div>
-
-<!-- Grupo 5: Administração (unidades, tokens e Vale-Transporte) -->
-<div class="d-flex align-items-center mb-3">
-    <i class="bi bi-sliders text-primary me-2 fs-5"></i>
-    <h5 class="mb-0">Administração</h5>
-</div>
-<div class="row g-3 mb-5">
     {% if current_user.has_permission('unity:read') %}
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Unidades</span>
-                    <i class="bi bi-buildings fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body"><i class="bi bi-hdd-network"></i></div>
-                <a href="{{ url_for('admin.list_unities') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_unities') }}">
+            <span class="painel-card-icon"><i class="bi bi-buildings"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Unidades</span>
+                <span class="painel-card-sub">Campus e sedes</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
     {% endif %}
     {% if current_user.has_permission('api:manage') %}
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Tokens da API</span>
-                    <i class="bi bi-key fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body"><i class="bi bi-plug"></i></div>
-                <a href="{{ url_for('admin.list_api_tokens') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_api_tokens') }}">
+            <span class="painel-card-icon"><i class="bi bi-key"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Tokens da API</span>
+                <span class="painel-card-sub">Integrações externas</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
     {% endif %}
     {% if current_user.has_permission('vt:empresas') %}
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Empresas de Ônibus</span>
-                    <i class="bi bi-bus-front fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body"><i class="bi bi-signpost-2"></i></div>
-                <a href="{{ url_for('admin.list_vt_empresas') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Gerenciar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_vt_empresas') }}">
+            <span class="painel-card-icon"><i class="bi bi-bus-front"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Empresas de Ônibus</span>
+                <span class="painel-card-sub">Tarifas e trajetos</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
-    <div class="col-lg-3 col-md-6 col-sm-6">
-        <div class="card h-100 hover-shadow">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted small text-uppercase fw-bold">Configurações do Pedido VT</span>
-                    <i class="bi bi-sliders fs-3 text-primary"></i>
-                </div>
-                <div class="display-6 fw-bold mb-3 text-body"><i class="bi bi-ui-checks"></i></div>
-                <a href="{{ url_for('admin.vt_configuracao') }}" class="btn btn-sm btn-outline-primary w-100 mt-auto">
-                    Configurar <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.vt_configuracao') }}">
+            <span class="painel-card-icon"><i class="bi bi-ui-checks"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Configurações do Pedido VT</span>
+                <span class="painel-card-sub">Formulário público</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
     </div>
     {% endif %}
 </div>
 
 <style>
-    .hover-shadow { 
-        transition: transform 0.2s ease, box-shadow 0.2s ease; 
+    /* Card-atalho do hub: inteiro clicável, ícone em selo suave e seta que
+       desliza no hover. Herda o raio/sombra dos cards do sistema. */
+    .painel-card {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+        height: 100%;
+        padding: 1rem;
+        background: var(--topbar-bg);
+        border-radius: 12px;
+        box-shadow: var(--card-shadow);
+        color: var(--text-color);
+        text-decoration: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .hover-shadow:hover { 
-        transform: translateY(-4px); 
-        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.1) !important; 
+
+    .painel-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0.75rem 1.25rem rgba(0, 0, 0, 0.12);
+    }
+
+    .painel-card:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+
+    .painel-card-icon {
+        flex-shrink: 0;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 1.35rem;
+        color: var(--primary-color);
+        background: rgba(var(--primary-color-rgb), 0.1);
+    }
+
+    .painel-card-body {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .painel-card-value {
+        font-size: 1.45rem;
+        font-weight: 700;
+        line-height: 1.15;
+    }
+
+    .painel-card-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        line-height: 1.25;
+    }
+
+    .painel-card-sub {
+        font-size: 0.74rem;
+        color: var(--text-muted);
+    }
+
+    .painel-card-arrow {
+        margin-left: auto;
+        color: #adb5bd;
+        transition: color 0.2s, transform 0.2s;
+    }
+
+    .painel-card:hover .painel-card-arrow {
+        color: var(--primary-color);
+        transform: translateX(2px);
+    }
+
+    /* Em celular o card ocupa metade da largura: encolhe o selo e a tipografia */
+    @media (max-width: 575.98px) {
+        .painel-card { gap: 0.6rem; padding: 0.7rem; }
+        .painel-card-icon { width: 38px; height: 38px; border-radius: 10px; font-size: 1.05rem; }
+        .painel-card-value { font-size: 1.2rem; }
+        .painel-card-label { font-size: 0.76rem; }
+        .painel-card-sub { font-size: 0.68rem; }
     }
 </style>
 {% endblock %}

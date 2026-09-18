@@ -260,6 +260,34 @@ body {
     border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
+/* Link do Painel Admin na topbar (hub das áreas administrativas) */
+.topbar-painel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.75rem;
+    margin-right: 0.35rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-color);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+}
+
+.topbar-painel:hover,
+.topbar-painel:focus-visible {
+    color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb), 0.08);
+}
+
+.topbar-painel.active {
+    color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb), 0.12);
+    font-weight: 600;
+}
+
 .btn-icon {
     background: transparent;
     border: none;
