@@ -281,7 +281,9 @@ class TeacherOvertimePay(db.Model):
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     teaching_level = db.Column(db.String(50), nullable=False) # E.g., 'Técnico', 'Superior'
-    weekly_workload = db.Column(db.Integer, nullable=False)
+    # Hora decimal com 2 casas (ex: 4.5 = 4h30) — o formulário recebe hora e
+    # minuto separados e grava o valor já convertido.
+    weekly_workload = db.Column(db.Numeric(5, 2), nullable=False)
     hourly_value = db.Column(db.Numeric(10, 2), nullable=False) # 10 dígitos no total, 2 decimais
     budget_code = db.Column(db.String(18), nullable=False)
     shift = db.Column(db.String(50), nullable=False) # E.g., 'Matutino', 'Vespertino', 'Noturno'

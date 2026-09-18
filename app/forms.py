@@ -1,4 +1,4 @@
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from flask_wtf import FlaskForm
 from wtforms import (StringField, PasswordField, SubmitField, IntegerField, FloatField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField, RadioField)
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
@@ -480,7 +480,14 @@ class FormTeacherOvertimePay(BaseForm):
         ('FIC II', 'FIC II'),
         ('FIC III', 'FIC III')
     ], validators=[DataRequired()])
-    weekly_workload = IntegerField('Carga Horária Semanal', validators=[DataRequired(), NumberRange(min=1, message="A carga horária deve ser maior que 0.")])
+    # Carga Horária Semanal em dois campos (hora e minuto): a conversão para
+    # hora decimal fica em workload_decimal() — é esse valor que é gravado,
+    # exportado na planilha e exibido na consulta. A validação do total (> 0)
+    # fica na rota, junto das demais checagens de negócio.
+    weekly_workload_hours = IntegerField('Carga Horária Semanal (hora)',
+                                         validators=[Optional(), NumberRange(min=0, message='As horas não podem ser negativas.')])
+    weekly_workload_minutes = IntegerField('Carga Horária Semanal (minuto)',
+                                           validators=[Optional(), NumberRange(min=0, max=59, message='Os minutos devem estar entre 0 e 59.')])
     hourly_value = StringField('Valor H/a (ex: 15,50)', validators=[DataRequired()])
     budget_code = StringField('Código Orçamentário', validators=[DataRequired()])
     shift = SelectField('Turno', choices=[('Matutino', 'Matutino'), ('Vespertino', 'Vespertino'), ('Noturno', 'Noturno')], validators=[DataRequired()])
@@ -490,6 +497,16 @@ class FormTeacherOvertimePay(BaseForm):
     # porque o Firefox não tem seletor nativo para <input type="month">.
     month_base = StringField('Mês Base', validators=[DataRequired()], render_kw={'type': 'hidden'})
     submit = SubmitField('Lançar Hora Extra')
+
+    def workload_decimal(self):
+        """Hora + minuto informados convertidos para hora decimal com 2 casas
+        (arredondamento comercial: 4h20 → 4.33). None quando algum campo não
+        é um número válido — a rota decide o que fazer com isso."""
+        if self.weekly_workload_hours.data is None or self.weekly_workload_minutes.data is None:
+            return None
+        total = (Decimal(self.weekly_workload_hours.data)
+                 + Decimal(self.weekly_workload_minutes.data) / Decimal(60))
+        return total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):

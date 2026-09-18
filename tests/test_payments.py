@@ -9,9 +9,11 @@ Cobre as regras pedidas no módulo Financeiro:
 - Máscara do Código Orçamentário (xx.xx.xxxx.xx e xx.xx.xxxx.xx.xxxx).
 """
 import os
+import re
 import tempfile
 import unittest
 from datetime import datetime, timedelta
+from decimal import Decimal
 from io import BytesIO
 from unittest.mock import patch
 
@@ -111,7 +113,8 @@ class PaymentsTestCase(unittest.TestCase):
             'teacher': str(self.teacher_id),
             'teaching_level': 'Superior',
             'shift': 'Noturno',
-            'weekly_workload': '4',
+            'weekly_workload_hours': '4',
+            'weekly_workload_minutes': '30',
             'hourly_value': '25,50',
             'budget_code': '950001234',
             'multiple_dates': '10/09/2026',
@@ -124,11 +127,12 @@ class PaymentsTestCase(unittest.TestCase):
     def _previous_month(self):
         return (datetime.now().replace(day=1) - timedelta(days=1)).strftime('%Y-%m')
 
-    def _add_overtime(self, month_base, teacher_id=None, budget_code='950001234', created_at=None):
+    def _add_overtime(self, month_base, teacher_id=None, budget_code='950001234', created_at=None,
+                      weekly_workload=4):
         with self.app.app_context():
             record = TeacherOvertimePay(
                 teacher_id=teacher_id or self.teacher_id, teaching_level='Superior',
-                unity_id=self.unity_id, weekly_workload=4, hourly_value=25.5,
+                unity_id=self.unity_id, weekly_workload=weekly_workload, hourly_value=25.5,
                 budget_code=budget_code, shift='Noturno', month_base=month_base,
             )
             if created_at is not None:
@@ -180,6 +184,73 @@ class PaymentsTestCase(unittest.TestCase):
         with self.app.app_context():
             record = db.session.query(TeacherOvertimePay).first()
             self.assertEqual(record.budget_code, '95.00.0123.40.1234')
+
+    # ---------- Carga horária semanal: hora + minuto → hora decimal ----------
+
+    def test_create_form_has_hours_minutes_fields_and_hint(self):
+        page = self.client.get('/payments/overtime/create').get_data(as_text=True)
+        self.assertIn('id="weekly_workload_hours"', page)
+        self.assertIn('id="weekly_workload_minutes"', page)
+        self.assertIn('id="workload-hint"', page)
+
+    def test_create_converts_hours_minutes_to_decimal(self):
+        # 4h30 é gravado como 4,5 (hora decimal) — valor exportado na planilha
+        # e exibido na consulta.
+        with patch('app.blueprints.payments.datetime', FixedDatetime):
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(), follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.weekly_workload, Decimal('4.50'))
+
+        page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        self.assertIn('<td>4,5</td>', page)
+
+    def test_create_rejects_minutes_out_of_range(self):
+        with patch('app.blueprints.payments.datetime', FixedDatetime):
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(weekly_workload_minutes='75'),
+                                        follow_redirects=True)
+        self.assertIn('Os minutos devem estar entre 0 e 59.', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.query(TeacherOvertimePay).count(), 0)
+
+    def test_create_rejects_zero_workload(self):
+        with patch('app.blueprints.payments.datetime', FixedDatetime):
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(weekly_workload_hours='0',
+                                                                  weekly_workload_minutes='0'),
+                                        follow_redirects=True)
+        self.assertIn('Carga Horária Semanal deve ser maior que 0', response.get_data(as_text=True))
+
+    def test_export_writes_decimal_hours(self):
+        # A planilha recebe a hora decimal (4,5) na coluna Horas
+        self._add_overtime(datetime.now().strftime('%Y-%m'), weekly_workload=Decimal('4.50'))
+        response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
+        workbook = load_workbook(BytesIO(response.data))
+        ws = workbook['Extra NEB']
+        self.assertEqual(ws.cell(row=7, column=3).value, 4.5)
+
+    def test_edit_get_splits_decimal_into_hours_minutes(self):
+        # 4.33 volta para o formulário como 4h20
+        record_id = self._add_overtime(datetime.now().strftime('%Y-%m'),
+                                       weekly_workload=Decimal('4.33'))
+        page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
+        self.assertRegex(page, r'id="weekly_workload_hours"[^>]*value="4"')
+        self.assertRegex(page, r'id="weekly_workload_minutes"[^>]*value="20"')
+
+    def test_edit_stores_converted_decimal(self):
+        record_id = self._add_overtime(datetime.now().strftime('%Y-%m'))
+        with patch('app.blueprints.payments.datetime', FixedDatetime):
+            response = self.client.post(f'/payments/overtime/edit/{record_id}',
+                                        data=self._create_payload(weekly_workload_hours='2',
+                                                                  weekly_workload_minutes='45'),
+                                        follow_redirects=True)
+        self.assertIn('Alteração realizada', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.get(TeacherOvertimePay, record_id)
+            self.assertEqual(record.weekly_workload, Decimal('2.75'))
 
     # ---------- Consulta: mês atual como padrão ----------
 

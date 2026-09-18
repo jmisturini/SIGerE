@@ -97,7 +97,7 @@
                                    title="{{ o.justification or '' }}">{{ o.justification or '-' }}</small></td>
                         <td>{{ o.shift }}</td>
                         <td>{{ o.budget_code | budget_code }}</td>
-                        <td>{{ o.weekly_workload }}</td>
+                        <td>{{ o.weekly_workload | decimal_hours }}</td>
                         <td>R$ {{ "%.2f"|format(o.hourly_value) }}</td>
                         <td class="text-end pe-4 text-nowrap">
                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
@@ -169,7 +169,7 @@
                     </div>
                     <div class="col-md-4">
                         <div class="small fw-bold text-uppercase text-muted">Carga Horária</div>
-                        <div>{{ o.weekly_workload }} h</div>
+                        <div>{{ o.weekly_workload | decimal_hours }} h</div>
                     </div>
                     <div class="col-md-4">
                         <div class="small fw-bold text-uppercase text-muted">Valor H/a</div>

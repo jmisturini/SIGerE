@@ -43,9 +43,23 @@
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.weekly_workload.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
-                            {{ form.weekly_workload(class="form-control") }}
-                            {% for err in form.weekly_workload.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            <label class="form-label small fw-bold text-uppercase text-muted mb-1">Carga Horária Semanal</label>
+                            {# Dois campos (hora e minuto): a dica abaixo mostra a
+                               conversão para hora decimal — valor que segue para
+                               a planilha e para a visualização. #}
+                            <div class="d-flex gap-2">
+                                <div class="input-group">
+                                    {{ form.weekly_workload_hours(class="form-control", min="0", step="1", placeholder="Hora", aria_label="Horas da carga horária semanal") }}
+                                    <span class="input-group-text">h</span>
+                                </div>
+                                <div class="input-group">
+                                    {{ form.weekly_workload_minutes(class="form-control", min="0", max="59", step="1", placeholder="Minuto", aria_label="Minutos da carga horária semanal") }}
+                                    <span class="input-group-text">min</span>
+                                </div>
+                            </div>
+                            <div class="form-text small" id="workload-hint" aria-live="polite"></div>
+                            {% for err in form.weekly_workload_hours.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            {% for err in form.weekly_workload_minutes.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
@@ -126,6 +140,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (parts.length === 2) {
             monthBaseMonth.value = String(parseInt(parts[1], 10));
             monthBaseYear.value = parts[0];
+            // Os selects viram Tom Select no base.html: mudar o nativo após o
+            // load não atualiza o controle visível — sincroniza manualmente.
+            if (window.tomSelectSync) {
+                window.tomSelectSync(monthBaseMonth);
+                window.tomSelectSync(monthBaseYear);
+            }
         }
     }
 
@@ -225,6 +245,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         this.value = masked;
     });
+
+    // Carga Horária Semanal: hora + minuto convertidos para hora decimal —
+    // a dica mostra exatamente o valor que será gravado e exportado.
+    const workloadHours = document.getElementById('weekly_workload_hours');
+    const workloadMinutes = document.getElementById('weekly_workload_minutes');
+    const workloadHint = document.getElementById('workload-hint');
+
+    function formatDecimalHoras(valor) {
+        return parseFloat(valor.toFixed(2)).toString().replace('.', ',');
+    }
+
+    function updateWorkloadHint() {
+        const horas = parseInt(workloadHours.value, 10);
+        const minutos = parseInt(workloadMinutes.value, 10);
+        if ((isNaN(horas) && isNaN(minutos)) || horas < 0 || minutos < 0 || minutos > 59) {
+            workloadHint.textContent = '';
+            return;
+        }
+        const total = (horas || 0) + (minutos || 0) / 60;
+        if (total <= 0) {
+            workloadHint.textContent = '';
+            return;
+        }
+        workloadHint.textContent = 'Equivale a ' + formatDecimalHoras(total) + ' h (hora decimal)';
+    }
+
+    workloadHours.addEventListener('input', updateWorkloadHint);
+    workloadMinutes.addEventListener('input', updateWorkloadHint);
+    updateWorkloadHint();
 
     // Ajusta o tamanho ao carregar a página (útil se vier de um formulário inválido)
     autoResize();
