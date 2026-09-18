@@ -363,6 +363,20 @@ class VtRecord(db.Model):
         return self.optant == 'Sim' and bool(self.total_passes)
 
 
+def _grupo_vt_por_unidade(nome_unidade):
+    """Grupo da planilha de pagamento a partir do NOME da unidade: o
+    gerador original separava Faculdade e Restaurante/Lanchonete por texto
+    exato do sistema antigo — o casamento por trecho do nome cobre tanto
+    os nomes reais de hoje (ex.: "Faculdade Senac Florianópolis") quanto os
+    textos gravados na época da importação."""
+    nome = (nome_unidade or '').casefold()
+    if 'restaurante' in nome or 'lanchonete' in nome:
+        return VtRecord.GROUP_RESTAURANTE
+    if 'faculdade' in nome:
+        return VtRecord.GROUP_FACULDADE
+    return None
+
+
 # Pedido de Vale-Transporte enviado pelo formulário público (/vt/pedido) —
 # adaptação do "Pedido de Vale-Transporte" (Microsoft Forms) que o RH usava
 # fora do sistema. Acesso anônimo: a identificação é apenas o e-mail
@@ -412,10 +426,13 @@ class VtRequest(db.Model):
         if self.link == 'Professor(a)':
             return VtRecord.GROUP_PROFESSORES
         if self.link == 'Técnico - Administrativo':
-            if self.unity == 'Faculdade':
-                return VtRecord.GROUP_FACULDADE
-            if self.unity in VtRecord.RESTAURANTE_UNITIES:
-                return VtRecord.GROUP_RESTAURANTE
+            # Nome vigente da unidade do pedido (o texto gravado no pedido
+            # serve de fallback para os antigos sem unity_id).
+            nome = None
+            if self.unity_id is not None:
+                unity = db.session.get(Unity, self.unity_id)
+                nome = unity.name if unity else None
+            return _grupo_vt_por_unidade(nome or self.unity)
         return None
 
     # Exportável = os mesmos critérios do script: optante "Sim" e passes > 0.

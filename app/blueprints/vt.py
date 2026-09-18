@@ -218,7 +218,8 @@ def payment_export():
 
     if not selected:
         flash('Nenhum pedido elegível para o grupo selecionado '
-              '(é preciso estar como Optante VT "Sim" e com passes maior que 0).',
+              '(é preciso ser Optante VT "Sim", com passes maior que 0, '
+              'e vínculo/unidade dentro de um dos grupos).',
               'warning')
         return redirect(url_for('vt.requests'))
 

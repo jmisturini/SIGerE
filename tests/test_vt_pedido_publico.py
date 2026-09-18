@@ -743,6 +743,41 @@ class TestPedidosVT(unittest.TestCase):
         self.assertAlmostEqual(worksheet['C5'].value, 159.28)
         self.assertIsNone(worksheet['A6'].value)
 
+    def test_exportar_pagamento_unidade_com_nome_completo(self):
+        """O grupo da planilha reconhece o nome real da unidade — a
+        comparação exata com 'Faculdade' (texto do sistema antigo) deixava
+        de fora unidades como 'Faculdade Senac Florianópolis' e a
+        exportação recusava pedidos elegíveis."""
+        with self.app.app_context():
+            unity = Unity(name='Faculdade Senac Florianópolis', code='FACSP')
+            db.session.add(unity)
+            db.session.commit()
+            unity_id = unity.id
+            empresa = VtEmpresa(nome='Jotur', is_active=True, unity_id=unity_id)
+            empresa.valores = [VtEmpresaValor(identificacao='Patamar 2',
+                                              valor=Decimal('7.24'))]
+            db.session.add(empresa)
+            db.session.commit()
+            linha_id = empresa.valores[0].id
+            # O gestor passa a operar na unidade nova (usuário comum fica
+            # fixado na própria unidade).
+            User.query.filter_by(email=self.EMAIL_GESTOR)\
+                .update({'unity_id': unity_id})
+            db.session.commit()
+
+        self.client.post(f'/vt/pedido?unity={unity_id}',
+                         data=self._payload_sim(company_a_value=str(linha_id)),
+                         follow_redirects=True)
+
+        self._login(self.EMAIL_GESTOR)
+        response = self.client.get('/vt/pedidos/exportar-pagamento?group=faculdade')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('spreadsheetml', response.headers['Content-Type'])
+        workbook = load_workbook(io.BytesIO(response.data))
+        worksheet = workbook['Vale Transporte']
+        self.assertEqual(worksheet['A5'].value, 123456)
+        self.assertAlmostEqual(worksheet['C5'].value, 159.28)
+
     def test_exportar_pagamento_sem_elegiveis_avisa(self):
         self._criar_pedido(optant='Não', link='')
         self._login(self.EMAIL_GESTOR)

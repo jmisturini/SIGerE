@@ -10,12 +10,22 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.13.3'
+APP_VERSION = '1.13.4'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.13.4',
+        'data': '2026-09-18',
+        'titulo': 'Planilha de pagamento reconhece as unidades reais',
+        'grupos': [
+            ('Corrigido', [
+                'A exportação da planilha de pagamento voltou a encontrar pedidos elegíveis: a classificação por grupo comparava o nome da unidade a textos exatos do sistema antigo ("Faculdade", "Restaurante - ALESC/…") e unidades com o nome real, como "Faculdade Senac Florianópolis", ficavam fora de todos os grupos — o reconhecimento agora é pelo trecho do nome da unidade do pedido.',
+            ]),
+        ],
+    },
     {
         'versao': '1.13.3',
         'data': '2026-09-18',
