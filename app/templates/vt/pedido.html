@@ -105,70 +105,78 @@
                         </div>
                         {{ erro(form.company_count) }}
 
-                        {# ── Empresa A ── #}
-                        <div class="card bg-body-tertiary border-0 mt-4">
-                            <div class="card-body">
-                                <h6 class="fw-bold mb-3"><i class="bi bi-1-circle me-1"></i> Primeira empresa de ônibus</h6>
-                                <div class="mb-3">
-                                    {{ form.company_a_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    {{ form.company_a_name(class="form-select") }}
-                                    {{ erro(form.company_a_name) }}
-                                </div>
-                                <div class="mb-3">
-                                    {{ form.company_a_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    {{ form.company_a_value(class="form-select", **{"data-nativo": "true"}) }}
-                                    <div class="form-text small">Cada opção identifica a tarifa aplicada com o valor vigente.</div>
-                                    {{ erro(form.company_a_value) }}
-                                </div>
-                                <div class="mb-3">
-                                    {{ form.company_a_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    <div class="input-group input-group-sm" style="max-width: 15rem">
-                                        {{ form.company_a_passes(class="form-control", min=1, max=49) }}
-                                        {% if vales_base %}
-                                        <button type="button" class="btn btn-outline-primary usar-valor-base"
-                                                data-sufixo="a" title="Preencher com o número base de vales da unidade">
-                                            <i class="bi bi-magic me-1"></i> Usar valor base
-                                        </button>
-                                        {% endif %}
+                        {# ── Empresas: o restante só aparece depois do
+                             número de empresas escolhido ── #}
+                        <div id="bloco-empresas">
+                            {# ── Empresa A ── #}
+                            <div class="card bg-body-tertiary border-0 mt-4">
+                                <div class="card-body">
+                                    <h6 class="fw-bold mb-3"><i class="bi bi-1-circle me-1"></i> Primeira empresa de ônibus</h6>
+                                    <div class="mb-3">
+                                        {{ form.company_a_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_name(class="form-select") }}
+                                        {{ erro(form.company_a_name) }}
                                     </div>
-                                    <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
-                                    {{ erro(form.company_a_passes) }}
+                                    <div class="mb-3">
+                                        {{ form.company_a_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_value(class="form-select", **{"data-nativo": "true"}) }}
+                                        <div class="form-text small">Cada opção identifica a tarifa aplicada com o valor vigente.</div>
+                                        {{ erro(form.company_a_value) }}
+                                    </div>
+                                    <div class="mb-3">
+                                        <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
+                                        {{ radios_lista(form.company_a_route, 'company_a_route') }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ form.company_a_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        <div class="input-group input-group-sm" style="max-width: 15rem">
+                                            {{ form.company_a_passes(class="form-control", min=1, max=49) }}
+                                            {% if vales_base %}
+                                            <button type="button" class="btn btn-outline-primary usar-valor-base"
+                                                    data-sufixo="a" title="Preencher com o número base de vales da unidade">
+                                                <i class="bi bi-magic me-1"></i> Usar valor base
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                        <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
+                                        {{ erro(form.company_a_passes) }}
+                                    </div>
                                 </div>
-                                <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
-                                {{ radios_lista(form.company_a_route, 'company_a_route') }}
                             </div>
-                        </div>
 
-                        {# ── Empresa B (só quando 2 empresas) ── #}
-                        <div id="bloco-empresa-b" class="card bg-body-tertiary border-0 mt-3">
-                            <div class="card-body">
-                                <h6 class="fw-bold mb-3"><i class="bi bi-2-circle me-1"></i> Segunda empresa de ônibus</h6>
-                                <div class="mb-3">
-                                    {{ form.company_b_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    {{ form.company_b_name(class="form-select") }}
-                                    {{ erro(form.company_b_name) }}
-                                </div>
-                                <div class="mb-3">
-                                    {{ form.company_b_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    {{ form.company_b_value(class="form-select", **{"data-nativo": "true"}) }}
-                                    {{ erro(form.company_b_value) }}
-                                </div>
-                                <div class="mb-3">
-                                    {{ form.company_b_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                                    <div class="input-group input-group-sm" style="max-width: 15rem">
-                                        {{ form.company_b_passes(class="form-control", min=1, max=49) }}
-                                        {% if vales_base %}
-                                        <button type="button" class="btn btn-outline-primary usar-valor-base"
-                                                data-sufixo="b" title="Preencher com o número base de vales da unidade">
-                                            <i class="bi bi-magic me-1"></i> Usar valor base
-                                        </button>
-                                        {% endif %}
+                            {# ── Empresa B (só quando 2 empresas) ── #}
+                            <div id="bloco-empresa-b" class="card bg-body-tertiary border-0 mt-3">
+                                <div class="card-body">
+                                    <h6 class="fw-bold mb-3"><i class="bi bi-2-circle me-1"></i> Segunda empresa de ônibus</h6>
+                                    <div class="mb-3">
+                                        {{ form.company_b_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_name(class="form-select") }}
+                                        {{ erro(form.company_b_name) }}
                                     </div>
-                                    <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
-                                    {{ erro(form.company_b_passes) }}
+                                    <div class="mb-3">
+                                        {{ form.company_b_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_value(class="form-select", **{"data-nativo": "true"}) }}
+                                        {{ erro(form.company_b_value) }}
+                                    </div>
+                                    <div class="mb-3">
+                                        <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
+                                        {{ radios_lista(form.company_b_route, 'company_b_route') }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ form.company_b_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        <div class="input-group input-group-sm" style="max-width: 15rem">
+                                            {{ form.company_b_passes(class="form-control", min=1, max=49) }}
+                                            {% if vales_base %}
+                                            <button type="button" class="btn btn-outline-primary usar-valor-base"
+                                                    data-sufixo="b" title="Preencher com o número base de vales da unidade">
+                                                <i class="bi bi-magic me-1"></i> Usar valor base
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                        <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
+                                        {{ erro(form.company_b_passes) }}
+                                    </div>
                                 </div>
-                                <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
-                                {{ radios_lista(form.company_b_route, 'company_b_route') }}
                             </div>
                         </div>
                     </div>
@@ -200,6 +208,7 @@
         const submitBtn = form.querySelector('input[type="submit"]');
         const emailInput = document.getElementById('email');
         const blocoVt = document.getElementById('bloco-vt');
+        const blocoEmpresas = document.getElementById('bloco-empresas');
         const blocoB = document.getElementById('bloco-empresa-b');
         const TEXTO_RH = 'Consulte o e-mail enviado pelo RH.';
         const TEXTO_NEB = 'Consulte com o NEB o número de passes necessários.';
@@ -262,6 +271,13 @@
         function atualizar() {
             const mostrarVt = valor('optant') === 'Sim';
             setarBloco(blocoVt, mostrarVt);
+            // setarBloco reabilita todos os campos do bloco — o vínculo
+            // identificado pelo cadastro precisa continuar travado.
+            if (mostrarVt && identificado) {
+                document.querySelectorAll('input[name="link"]').forEach(radio => {
+                    radio.disabled = true;
+                });
+            }
             if (mostrarVt) {
                 const professor = valor('link') === 'Professor(a)';
                 document.querySelectorAll('.subtitulo-vales').forEach(el => {
@@ -271,11 +287,15 @@
                     el.textContent = professor ? 'Selecione o trajeto' : 'Selecione o número de trajetos';
                 });
 
+                // As perguntas das empresas só aparecem depois do número
+                // de empresas escolhido.
+                const empresasVisiveis = valor('company_count') !== '';
                 const duasEmpresas = valor('company_count') === '2';
+                setarBloco(blocoEmpresas, empresasVisiveis);
                 setarBloco(blocoB, duasEmpresas);
                 // O valor só é selecionável depois da empresa (setarBloco
                 // reabilita tudo do bloco; aqui restringe de novo).
-                ajustarValor('a', true);
+                ajustarValor('a', empresasVisiveis);
                 ajustarValor('b', duasEmpresas);
                 atualizarBotoesVales(duasEmpresas);
             }
@@ -381,6 +401,15 @@
         // Estado inicial (mantém a ramificação e o botão corretos quando o
         // servidor devolve a página com erros de validação).
         atualizar();
+
+        // Recarregamento com o e-mail restaurado/autocompletado pelo
+        // navegador: o autofill não dispara "input"/"change", então a
+        // identificação pelo cadastro é refeita aqui (e no load, para cobrir
+        // preenchimento tardio do navegador) e os campos voltam a travar.
+        if (emailInput.value) buscarColaborador();
+        window.addEventListener('load', () => {
+            if (emailInput.value) buscarColaborador();
+        });
     })();
 </script>
 {% endblock %}
