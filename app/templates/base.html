@@ -254,7 +254,8 @@
                 {% set painel_visivel = current_user.has_permission('system:dashboard')
                     or current_user.has_permission('unity:read')
                     or current_user.has_permission('api:manage')
-                    or current_user.has_permission('vt:empresas') %}
+                    or current_user.has_permission('vt:empresas')
+                    or current_user.has_permission('vt:config') %}
                 {% set in_painel_admin = ep_top.startswith('admin.') and not ('room' in ep_top or 'categor' in ep_top) %}
                 {% if painel_visivel %}
                 <a class="topbar-painel {{ 'active' if in_painel_admin }}" title="Painel Admin"

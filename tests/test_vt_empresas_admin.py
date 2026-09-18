@@ -49,7 +49,7 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
             db.session.commit()
 
             perms = [Permission.query.filter_by(code=c).first()
-                     for c in ('vt:empresas',)]
+                     for c in ('vt:empresas', 'vt:config')]
             gestor_role = Role(name='gestor-empresas', label='Gestor de Empresas',
                                permissions=perms)
             db.session.add(gestor_role)
@@ -116,6 +116,30 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
             role = Role.query.filter_by(name='gestor-empresas').first()
             role.permissions = [Permission.query.filter_by(code='vt:read').first()]
             db.session.commit()
+        response = self.client.get('/admin/vt-empresas')
+        self.assertEqual(response.status_code, 403)
+
+    def test_configuracao_exige_permissao_propria(self):
+        """Configurações do pedido tem permissão própria (vt:config):
+        vt:empresas — que liberava a página antes da separação — e
+        vt:empresas+vt:read sem vt:config não dão mais acesso."""
+        with self.app.app_context():
+            role = Role.query.filter_by(name='gestor-empresas').first()
+            role.permissions = [Permission.query.filter_by(code='vt:empresas').first()]
+            db.session.commit()
+        response = self.client.get('/admin/vt-configuracao')
+        self.assertEqual(response.status_code, 403)
+
+        with self.app.app_context():
+            role = Role.query.filter_by(name='gestor-empresas').first()
+            role.permissions = [Permission.query.filter_by(code='vt:config').first()]
+            db.session.commit()
+        response = self.client.get('/admin/vt-configuracao')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Configurações do Pedido', response.get_data(as_text=True))
+
+        # E a separação vale nos dois sentidos: vt:config sozinho não abre
+        # o cadastro de empresas.
         response = self.client.get('/admin/vt-empresas')
         self.assertEqual(response.status_code, 403)
 

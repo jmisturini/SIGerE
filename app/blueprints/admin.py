@@ -121,7 +121,8 @@ def _setup_checklist():
     ]
 
 
-PERMS_PAINEL = ('system:dashboard', 'unity:read', 'api:manage', 'vt:empresas')
+PERMS_PAINEL = ('system:dashboard', 'unity:read', 'api:manage', 'vt:empresas',
+                'vt:config')
 
 # Admin dashboard route
 @bp.route('/')
@@ -1068,7 +1069,7 @@ def toggle_unity_module(unity_id, module_code):
 
 @bp.route('/vt-configuracao', methods=['GET', 'POST'])
 @login_required
-@require_permission('vt:empresas')
+@require_permission('vt:config')
 def vt_configuracao():
     """Configurações do pedido público de VT da unidade ativa: números
     base de vales por trajeto (quando definidos, o formulário os aplica

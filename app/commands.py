@@ -62,12 +62,12 @@ PERMISSION_DATA = [
     ('payment:export', 'payment', 'export', 'Exportar a planilha de pagamento extra (hora extra)'),
     # Módulo Vale-Transporte (área do Financeiro com papéis próprios, separada
     # do pagamento extra: um papel pode liberar só uma das duas)
-    ('vt:read', 'vt', 'read', 'Acessar o Vale-Transporte (importação e colaboradores)'),
-    ('vt:create', 'vt', 'create', 'Importar o Pedido de Compra (Vale-Transporte)'),
-    ('vt:edit', 'vt', 'edit', 'Editar registros do Vale-Transporte'),
-    ('vt:delete', 'vt', 'delete', 'Excluir registros do Vale-Transporte'),
+    ('vt:read', 'vt', 'read', 'Acessar o Vale-Transporte (pedidos e relatório)'),
+    ('vt:edit', 'vt', 'edit', 'Corrigir pedidos de VT recebidos'),
+    ('vt:delete', 'vt', 'delete', 'Excluir pedidos de VT'),
     ('vt:export', 'vt', 'export', 'Exportar a planilha de pagamento do Vale-Transporte'),
     ('vt:empresas', 'vt', 'empresas', 'Gerenciar empresas de ônibus e tarifas do pedido de VT'),
+    ('vt:config', 'vt', 'config', 'Configurar o pedido público de VT (vales base e data de fechamento)'),
     # Módulo de Cozinha (fichas técnicas, preparações e compras)
     ('kitchen:read', 'kitchen', 'read', 'Acessar o módulo de Cozinha (fichas técnicas, preparações e compras)'),
     ('kitchen:sheet_create', 'kitchen', 'sheet_create', 'Enviar e salvar fichas técnicas (DOCX)'),
@@ -107,7 +107,7 @@ ROLES_CONFIG = {
             'api:manage',
             'role:read', 'role:create', 'role:edit', 'role:delete',
             'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export',
-            'vt:empresas'
+            'vt:empresas', 'vt:config'
         ]
     },
     'coordinator': {
@@ -247,6 +247,7 @@ def sync_permissions_impl(verbose=True):
     existam em bancos já existentes sem passo manual.
     """
     created_perms, created_roles, created_links = 0, 0, 0
+    updated_perms, retired_perms = 0, 0
     log = click.echo if verbose else (lambda *a, **k: None)
 
     try:
@@ -257,6 +258,30 @@ def sync_permissions_impl(verbose=True):
                 db.session.add(p)
                 perm_objects[code] = p
                 created_perms += 1
+        db.session.flush()
+
+        # Descrições/módulo/ação que mudaram no código: bancos já existentes
+        # ficariam com o texto desatualizado (ex.: vt:read ainda citando a
+        # importação que saiu do ar).
+        for code, module, action, desc in PERMISSION_DATA:
+            p = perm_objects[code]
+            if (p.description != desc or p.module != module
+                    or p.action != action):
+                p.module = module
+                p.action = action
+                p.description = desc
+                updated_perms += 1
+        db.session.flush()
+
+        # Aposenta permissões removidas do código (ex.: vt:create da
+        # importação do Pedido de Compra, que saiu do ar): os vínculos com
+        # papéis caem junto, por cascade na tabela de junção. Seguro porque
+        # toda permissão do banco vem de PERMISSION_DATA.
+        codigos_vigentes = {code for code, _, _, _ in PERMISSION_DATA}
+        for code, p in list(perm_objects.items()):
+            if code not in codigos_vigentes:
+                db.session.delete(p)
+                retired_perms += 1
         db.session.flush()
 
         for role_name, config in ROLES_CONFIG.items():
@@ -278,6 +303,8 @@ def sync_permissions_impl(verbose=True):
         if verbose:
             click.echo(click.style("✅ Permissões sincronizadas com sucesso!", fg="green", bold=True))
             click.echo(f"   Permissões criadas: {created_perms}")
+            click.echo(f"   Permissões atualizadas: {updated_perms}")
+            click.echo(f"   Permissões aposentadas: {retired_perms}")
             click.echo(f"   Papéis criados: {created_roles}")
             click.echo(f"   Vínculos papel↔permissão adicionados: {created_links}")
         return created_perms, created_roles, created_links

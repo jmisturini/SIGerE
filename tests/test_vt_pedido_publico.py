@@ -721,6 +721,13 @@ class TestPedidosVT(unittest.TestCase):
         self.assertEqual(
             self.client.post(f'/vt/pedidos/{pedido_id}/excluir').status_code, 403)
 
+    def test_configuracao_exige_vt_config(self):
+        """Ler/editar/exportar pedidos não dá acesso às configurações do
+        pedido público: a página agora exige a permissão própria vt:config."""
+        self._login(self.EMAIL_EDITOR)
+        self.assertEqual(
+            self.client.get('/admin/vt-configuracao').status_code, 403)
+
     # ---------- Relatório visual ----------
 
     def test_relatorio_renderiza_com_dados(self):

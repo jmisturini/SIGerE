@@ -10,12 +10,28 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.15.0'
+APP_VERSION = '1.16.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.16.0',
+        'data': '2026-09-18',
+        'titulo': 'Permissões do Vale-Transporte revisadas',
+        'grupos': [
+            ('Adicionado', [
+                'Nova permissão "vt:config" (Configurar o pedido público de VT: vales base e data de fechamento) — as configurações deixam de emprestar a permissão de empresas de ônibus, permitindo separar quem gerencia tarifas de quem define prazos. O papel Administrador recebe a permissão nova automaticamente na sincronização.',
+            ]),
+            ('Alterado', [
+                'Descrições das permissões do Vale-Transporte atualizadas para o produto atual (Pedidos VT, relatório e correção individual) — a sincronização de permissões (flask sync-permissions, executada também no startup) passou a atualizar descrições de permissões já existentes, não só criar as novas.',
+            ]),
+            ('Removido', [
+                'A permissão "vt:create" (importação do Pedido de Compra) saiu do catálogo junto com a funcionalidade que foi desativada; a sincronização a aposenta dos bancos existentes, removendo os vínculos com papéis.',
+            ]),
+        ],
+    },
     {
         'versao': '1.15.0',
         'data': '2026-09-18',
