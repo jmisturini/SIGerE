@@ -10,12 +10,23 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.13.4'
+APP_VERSION = '1.14.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.14.0',
+        'data': '2026-09-18',
+        'titulo': 'Relatório visual do Vale-Transporte',
+        'grupos': [
+            ('Adicionado', [
+                'Nova página "Relatório" no módulo Vale Transporte: panorama dos pedidos da unidade com indicadores de pedidos recebidos, adesão ao benefício, vales necessários e investimento estimado; gráficos de optantes (deseja VT, vínculo, trajetos, empresas por pedido) e investimento por empresa de ônibus; resumo por empresa e por grupo da planilha de pagamento; conferências do RH (maior pedido, e-mails e matrículas repetidas).',
+                'O relatório tem versão para impressão/PDF pronta para apresentação — botão "Imprimir / PDF" que removes o painel de navegação e preserva as cores — e atalho no menu Vale Transporte e na página Pedidos VT.',
+            ]),
+        ],
+    },
     {
         'versao': '1.13.4',
         'data': '2026-09-18',

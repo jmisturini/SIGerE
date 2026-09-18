@@ -721,6 +721,44 @@ class TestPedidosVT(unittest.TestCase):
         self.assertEqual(
             self.client.post(f'/vt/pedidos/{pedido_id}/excluir').status_code, 403)
 
+    # ---------- Relatório visual ----------
+
+    def test_relatorio_renderiza_com_dados(self):
+        """O relatório junta adesão, passes, investimento (formato BR),
+        empresas, trajetos e grupos da planilha a partir dos pedidos."""
+        self._criar_pedido()
+        self._criar_pedido(email='prof@senac.sc.br', full_name='Ana Professora',
+                           registration='654321', link='Professor(a)',
+                           company_a_passes='2', company_a_route='Somente Volta')
+        self._criar_pedido(email='nao@senac.sc.br', full_name='Bruno Não Optante',
+                           registration='111222', optant='Não')
+
+        self._login(self.EMAIL_GESTOR)
+        page = self.client.get('/vt/relatorio').get_data(as_text=True)
+        self.assertIn('Relatório de Vale-Transporte', page)
+        self.assertIn('Optantes VT', page)
+        # 2 de 3 pedidos: adesão em porcentagem com vírgula.
+        self.assertIn('66,7%', page)
+        # 24 vales no total, 12,0 por optante.
+        self.assertIn('12,0 vales por optante', page)
+        # Investimento total (7,24 × 22 + 7,24 × 2) no formato brasileiro.
+        self.assertIn('R$ 173,76', page)
+        self.assertIn('R$ 86,88 por optante', page)
+        # Resumo por empresa e por grupo da planilha.
+        self.assertIn('Jotur', page)
+        self.assertIn('Técnico-Administrativo (Faculdade)', page)
+        self.assertIn('R$ 159,28', page)
+        self.assertIn('Professores', page)
+        self.assertIn('R$ 14,48', page)
+        # Sem o estado vazio.
+        self.assertNotIn('Nenhum pedido recebido ainda', page)
+
+    def test_relatorio_sem_pedidos_mostra_estado_vazio(self):
+        self._login()
+        page = self.client.get('/vt/relatorio').get_data(as_text=True)
+        self.assertIn('Nenhum pedido recebido ainda', page)
+        self.assertIn('Copiar link do formulário', page)
+
     # ---------- Planilha de pagamento gerada dos pedidos ----------
 
     def test_exportar_pagamento_por_grupo(self):

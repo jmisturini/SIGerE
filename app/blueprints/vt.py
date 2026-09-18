@@ -70,6 +70,17 @@ def _get_request_scoped(request_id):
     return pedido
 
 
+def _brl(valor):
+    """Valor no padrão brasileiro (R$ 1.234,56) para o relatório."""
+    return (f'R$ {valor:,.2f}'
+            .replace(',', 'X').replace('.', ',').replace('X', '.'))
+
+
+def _inteiro(valor):
+    """Inteiro com separador de milhar brasileiro (12.345)."""
+    return f'{valor:,.0f}'.replace(',', '.')
+
+
 # ── Rotas ────────────────────────────────────────────────────────────────────
 
 @bp.route('/')
@@ -261,6 +272,126 @@ def payment_export():
     return send_file(output, as_attachment=True, download_name=filename,
                      mimetype='application/vnd.openxmlformats-officedocument'
                               '.spreadsheetml.sheet')
+
+
+@bp.route('/relatorio')
+@login_required
+@require_permission('vt:read')
+@require_module('finance')
+def relatorio():
+    """Relatório visual dos pedidos VT da unidade ativa: adesão ao
+    benefício, vínculos, empresas de ônibus, trajetos, passes e
+    investimento — com versão para impressão/PDF, pronto para
+    apresentação."""
+    pedidos = (VtRequest.query.filter_by(unity_id=current_unity_id())
+               .order_by(VtRequest.created_at.desc(),
+                         VtRequest.id.desc()).all())
+
+    total = len(pedidos)
+    optantes = [p for p in pedidos if p.optant == 'Sim']
+    qtde_optantes = len(optantes)
+    # Vales e investimento só existem para quem disse que quer o benefício.
+    total_passes = sum(p.total_passes for p in optantes)
+    valor_total = sum(p.total_value for p in optantes)
+    adesao = (qtde_optantes / total * 100) if total else 0
+
+    datas = [p.created_at for p in pedidos if p.created_at]
+    periodo = (f"{min(datas).strftime('%d/%m/%Y')} – "
+               f"{max(datas).strftime('%d/%m/%Y')}") if datas else None
+    maior = max(optantes, key=lambda p: p.total_value, default=None)
+
+    # ── Vínculo (optantes): pedidos, passes e investimento ──
+    vinculos = {}
+    for p in optantes:
+        v = vinculos.setdefault(p.link or 'Não informado',
+                                {'pedidos': 0, 'passes': 0, 'valor': 0.0})
+        v['pedidos'] += 1
+        v['passes'] += p.total_passes
+        v['valor'] += p.total_value
+    vinculos_lista = sorted(
+        ({'nome': nome, 'pedidos': d['pedidos'], 'passes': d['passes'],
+          'valor': d['valor'], 'valor_brl': _brl(d['valor'])}
+         for nome, d in vinculos.items()),
+        key=lambda v: v['pedidos'], reverse=True)
+
+    # ── Empresas de ônibus (posições A e B dos optantes) ──
+    empresas = {}
+    for p in optantes:
+        for posicao in ('a', 'b'):
+            nome = getattr(p, f'company_{posicao}_name')
+            if not nome:
+                continue
+            e = empresas.setdefault(
+                nome, {'colaboradores': set(), 'passes': 0, 'valor': 0.0})
+            e['colaboradores'].add(p.email.casefold())
+            passes = getattr(p, f'company_{posicao}_passes') or 0
+            e['passes'] += passes
+            e['valor'] += float((getattr(p, f'company_{posicao}_value') or 0)
+                                * passes)
+    empresas_lista = sorted(
+        ({'nome': nome, 'colaboradores': len(d['colaboradores']),
+          'passes': d['passes'], 'valor': d['valor'],
+          'valor_brl': _brl(d['valor'])}
+         for nome, d in empresas.items()),
+        key=lambda e: e['valor'], reverse=True)
+    top_empresas = empresas_lista[:6]
+    outras_valor = sum(e['valor'] for e in empresas_lista[6:])
+
+    # ── Trajetos e nº de empresas por pedido (posições A e B) ──
+    trajetos = {'Somente Volta': 0, 'Ida e Volta': 0}
+    for p in optantes:
+        for posicao in ('a', 'b'):
+            trajeto = getattr(p, f'company_{posicao}_route')
+            if trajeto in trajetos:
+                trajetos[trajeto] += 1
+    uma_empresa = sum(1 for p in optantes if p.company_count == 1)
+    duas_empresas = sum(1 for p in optantes if p.company_count == 2)
+
+    # ── Grupos da planilha de pagamento (critérios do gerador) ──
+    grupos = [{'chave': chave, 'rotulo': rotulo, 'pedidos': 0, 'valor': 0.0}
+              for chave, rotulo in GROUP_LABELS.items()]
+    for p in pedidos:
+        if p.is_exportable and p.group:
+            for g in grupos:
+                if g['chave'] == p.group:
+                    g['pedidos'] += 1
+                    g['valor'] += p.total_value
+    total_grupo_valor = sum(g['valor'] for g in grupos)
+
+    # ── Conferência do RH: identificação única dos colaboradores ──
+    emails = [p.email.casefold() for p in pedidos]
+    matriculas = [p.registration for p in pedidos if p.registration]
+    emails_repetidos = len(emails) - len(set(emails))
+    matriculas_repetidas = len(matriculas) - len(set(matriculas))
+
+    return render_template('vt/relatorio.html',
+                           total=total,
+                           qtde_optantes=qtde_optantes,
+                           nao_optantes=total - qtde_optantes,
+                           adesao=adesao,
+                           total_passes=total_passes,
+                           media_passes=(total_passes / qtde_optantes
+                                         if qtde_optantes else 0),
+                           valor_total=valor_total,
+                           ticket_medio=(valor_total / qtde_optantes
+                                         if qtde_optantes else 0),
+                           valor_por_passe=(valor_total / total_passes
+                                            if total_passes else 0),
+                           periodo=periodo,
+                           maior_pedido=maior,
+                           vinculos=vinculos_lista,
+                           empresas=empresas_lista,
+                           top_empresas=top_empresas,
+                           outras_valor=outras_valor,
+                           trajetos=trajetos,
+                           uma_empresa=uma_empresa,
+                           duas_empresas=duas_empresas,
+                           grupos=grupos,
+                           total_grupo_valor=total_grupo_valor,
+                           emails_repetidos=emails_repetidos,
+                           matriculas_repetidas=matriculas_repetidas,
+                           brl=_brl, inteiro=_inteiro,
+                           gerado_em=datetime.now().strftime('%d/%m/%Y %H:%M'))
 
 
 # ── Pedido público de Vale-Transporte ────────────────────────────────────────
