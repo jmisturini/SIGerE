@@ -7,6 +7,12 @@
         if (localStorage.getItem('theme') === 'dark') {
             document.documentElement.setAttribute('data-theme', 'dark');
         }
+        // Tema de cor personalizado (accent): aplica antes da renderização
+        // para não piscar a paleta padrão.
+        const accentSalvo = localStorage.getItem('accent');
+        if (accentSalvo) {
+            document.documentElement.setAttribute('data-accent', accentSalvo);
+        }
         // Modo contraído da sidebar (só tem efeito no desktop; ver CSS)
         if (localStorage.getItem('sidebar-collapsed') === '1') {
             document.documentElement.classList.add('sidebar-collapsed');
@@ -258,9 +264,31 @@
                 {% endif %}
                 {% endif %}
 
-                <button id="theme-toggle" class="btn btn-sm btn-icon" title="Alternar tema">
+                <button id="theme-toggle" class="btn btn-sm btn-icon" title="Alternar tema claro/escuro">
                     <i class="bi bi-sun-fill" id="theme-icon"></i>
                 </button>
+
+                <div class="dropdown">
+                    <button id="accent-toggle" class="btn btn-sm btn-icon" title="Cor da interface"
+                            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                        <i class="bi bi-palette"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end p-3" aria-labelledby="accent-toggle">
+                        <div class="small text-muted text-uppercase fw-bold mb-2">Cor da interface</div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="accent-swatch" data-accent-opcao="" title="Azul Senac (padrão)"
+                                    style="--sw: #004b8d"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="verde" title="Verde"
+                                    style="--sw: #157347"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="roxo" title="Roxo"
+                                    style="--sw: #6f42c1"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="laranja" title="Laranja"
+                                    style="--sw: #b45309"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="grafite" title="Grafite"
+                                    style="--sw: #37474f"><i class="bi bi-check-lg"></i></button>
+                        </div>
+                    </div>
+                </div>
 
                 {% if current_user.is_authenticated %}
                 <div class="dropdown">
@@ -393,6 +421,28 @@
         }
         updateIcon();
     });
+
+    // Tema de cor (accent): a paleta vive no CSS ([data-accent=...]) e a
+    // escolha no localStorage. Ao trocar, recarrega a página para tudo
+    // (gráficos inclusive) nascer na nova cor.
+    const accentToggle = document.getElementById('accent-toggle');
+    if (accentToggle) {
+        document.querySelectorAll('.accent-swatch').forEach(botao => {
+            botao.addEventListener('click', () => {
+                const accent = botao.dataset.accentOpcao || '';
+                if (accent) localStorage.setItem('accent', accent);
+                else localStorage.removeItem('accent');
+                document.documentElement.setAttribute('data-accent', accent);
+                location.reload();
+            });
+        });
+        accentToggle.closest('.dropdown').addEventListener('show.bs.dropdown', () => {
+            const atual = document.documentElement.getAttribute('data-accent') || '';
+            document.querySelectorAll('.accent-swatch').forEach(b => {
+                b.classList.toggle('selected', (b.dataset.accentOpcao || '') === atual);
+            });
+        });
+    }
 
     // Sidebar toggle for mobile
     const sidebarToggle = document.getElementById('sidebar-toggle');

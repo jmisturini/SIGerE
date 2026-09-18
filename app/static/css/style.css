@@ -11,6 +11,10 @@
     --text-color: #333;
     --text-muted: #6c757d;
     --border-color: rgba(0, 0, 0, 0.05);
+    /* Tons derivados do accent: hover/ativo do botão sólido (mais escuros
+       que o base) — cada tema de cor sobrescreve estes tokens. */
+    --primary-hover: #003d70;
+    --primary-active: #003361;
     /* Tokens do Bootstrap alinhados à paleta institucional: sem isso, badges,
        links, abas, paginação, checkboxes e foco de campos usam o azul padrão
        do Bootstrap (#0d6efd), dessintonizado do azul Senac dos botões. */
@@ -36,6 +40,14 @@
     --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     --primary-color: #2c7be5;
     --primary-color-rgb: 44, 123, 229;
+    /* Tons derivados do accent no escuro: hover/ativo do botão sólido
+       (mais claros que o base) e o tom de link/outline legível sobre
+       superfícies escuras — cada tema de cor sobrescreve estes tokens. */
+    --primary-hover: #4a93ec;
+    --primary-active: #61a4f0;
+    --primary-light: #6ea8fe;
+    --primary-light-rgb: 110, 168, 254;
+    --primary-light-hover: #9cc2ff;
     --text-color: #c9d1d9;
     --text-muted: #8b949e;
     --border-color: rgba(255, 255, 255, 0.1);
@@ -44,14 +56,14 @@
     --bs-primary-rgb: 44, 123, 229;
     --bs-primary-bg-subtle: rgba(44, 123, 229, 0.18);
     --bs-primary-border-subtle: rgba(44, 123, 229, 0.45);
-    --bs-link-color: #6ea8fe;
-    --bs-link-color-rgb: 110, 168, 254;
-    --bs-link-hover-color: #9cc2ff;
-    --bs-pagination-active-bg: #2c7be5;
-    --bs-pagination-active-border-color: #2c7be5;
-    --bs-dropdown-link-active-bg: #2c7be5;
+    --bs-link-color: var(--primary-light);
+    --bs-link-color-rgb: var(--primary-light-rgb);
+    --bs-link-hover-color: var(--primary-light-hover);
+    --bs-pagination-active-bg: var(--primary-color);
+    --bs-pagination-active-border-color: var(--primary-color);
+    --bs-dropdown-link-active-bg: var(--primary-color);
     --bs-dropdown-link-active-color: #fff;
-    --bs-focus-ring-color: rgba(44, 123, 229, 0.35);
+    --bs-focus-ring-color: rgba(var(--primary-color-rgb), 0.35);
     /* Cinza secundário legível no escuro: botões outline-secondary
        ("Detalhes", "Exportar PDF") usam estes valores no Bootstrap 5.3. */
     --bs-secondary-color: rgba(201, 209, 217, 0.75);
@@ -346,22 +358,15 @@ body {
 .btn-primary {
     --bs-btn-bg: var(--primary-color);
     --bs-btn-border-color: var(--primary-color);
-    --bs-btn-hover-bg: #003d70;
-    --bs-btn-hover-border-color: #003d70;
-    --bs-btn-active-bg: #003361;
-    --bs-btn-active-border-color: #003361;
+    --bs-btn-hover-bg: var(--primary-hover);
+    --bs-btn-hover-border-color: var(--primary-hover);
+    --bs-btn-active-bg: var(--primary-active);
+    --bs-btn-active-border-color: var(--primary-active);
     --bs-btn-disabled-bg: var(--primary-color);
     --bs-btn-disabled-border-color: var(--primary-color);
     background-color: var(--primary-color);
     border-color: var(--primary-color);
     border-radius: 8px;
-}
-
-[data-theme="dark"] .btn-primary {
-    --bs-btn-hover-bg: #4a93ec;
-    --bs-btn-hover-border-color: #4a93ec;
-    --bs-btn-active-bg: #61a4f0;
-    --bs-btn-active-border-color: #61a4f0;
 }
 
 .btn-outline-primary {
@@ -379,10 +384,10 @@ body {
 }
 
 [data-theme="dark"] .btn-outline-primary {
-    --bs-btn-color: #6ea8fe;
+    --bs-btn-color: var(--primary-light);
     --bs-btn-hover-color: #fff;
     --bs-btn-active-color: #fff;
-    --bs-btn-disabled-color: #6ea8fe;
+    --bs-btn-disabled-color: var(--primary-light);
 }
 
 /* .btn-link herda --bs-link-color do Bootstrap 5.3 — corrigido pelos tokens
@@ -535,8 +540,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-theme="dark"] .form-control:focus {
     background-color: #0d1117;
     color: #c9d1d9;
-    border-color: #2c7be5;
-    box-shadow: 0 0 0 0.2rem rgba(44, 123, 229, 0.25);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.25);
 }
 
 /* Campos de seleção continuavam brancos no tema escuro (o override acima só
@@ -551,8 +556,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-theme="dark"] .form-select:focus {
     background-color: #0d1117;
     color: #c9d1d9;
-    border-color: #2c7be5;
-    box-shadow: 0 0 0 0.2rem rgba(44, 123, 229, 0.25);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.25);
 }
 
 [data-theme="dark"] .input-group-text {
@@ -593,8 +598,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 [data-theme="dark"] .ts-wrapper.focus .ts-control {
-    border-color: #2c7be5;
-    box-shadow: 0 0 0 0.2rem rgba(44, 123, 229, 0.25);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.25);
 }
 
 [data-theme="dark"] .ts-wrapper .ts-control input {
@@ -617,7 +622,7 @@ h1, h2, h3, h4, h5, h6 {
 
 [data-theme="dark"] .ts-dropdown .active,
 [data-theme="dark"] .ts-dropdown .option:hover {
-    background-color: rgba(44, 123, 229, 0.25);
+    background-color: rgba(var(--primary-color-rgb), 0.25);
     color: #ffffff;
 }
 
@@ -628,8 +633,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 [data-theme="dark"] .ts-wrapper.multi .ts-control > item {
-    background-color: rgba(44, 123, 229, 0.25);
-    border: 1px solid rgba(44, 123, 229, 0.45);
+    background-color: rgba(var(--primary-color-rgb), 0.25);
+    border: 1px solid rgba(var(--primary-color-rgb), 0.45);
     color: #c9d1d9;
 }
 
@@ -646,4 +651,174 @@ h1, h2, h3, h4, h5, h6 {
     --bs-btn-active-border-color: #6e7681;
     --bs-btn-disabled-color: #6e7681;
     --bs-btn-disabled-border-color: #30363d;
+}
+
+/* ===== Temas de cor personalizados (data-accent) =====
+   O Azul Senac é o padrão (sem data-accent). Cada paleta sobrescreve os
+   tokens de marca no modo claro e, combinada com o tema escuro
+   ([data-theme="dark"][data-accent=...]), redefine também os tons
+   derivados (hover/ativo do botão sólido e o tom de link legível sobre
+   superfícies escuras). A sidebar acompanha o tema com um tom próprio. */
+
+[data-accent="verde"] {
+    --primary-color: #157347;
+    --primary-color-rgb: 21, 115, 71;
+    --sidebar-bg: #0c3a25;
+    --bs-primary: #157347;
+    --bs-primary-rgb: 21, 115, 71;
+    --bs-primary-bg-subtle: #d7e9df;
+    --bs-primary-border-subtle: #a5d2bb;
+    --bs-link-color: #157347;
+    --bs-link-color-rgb: 21, 115, 71;
+    --bs-link-hover-color: #0e4f31;
+    --bs-pagination-active-bg: #157347;
+    --bs-pagination-active-border-color: #157347;
+    --bs-dropdown-link-active-bg: #157347;
+    --bs-focus-ring-color: rgba(21, 115, 71, 0.25);
+}
+
+[data-theme="dark"][data-accent="verde"] {
+    --primary-color: #2f9e63;
+    --primary-color-rgb: 47, 158, 99;
+    --primary-hover: #4cb47c;
+    --primary-active: #63c08d;
+    --primary-light: #7fd3a4;
+    --primary-light-rgb: 127, 211, 164;
+    --primary-light-hover: #a4e2c0;
+    --sidebar-bg: #0a1f13;
+    --bs-primary: #2f9e63;
+    --bs-primary-rgb: 47, 158, 99;
+    --bs-primary-bg-subtle: rgba(47, 158, 99, 0.18);
+    --bs-primary-border-subtle: rgba(47, 158, 99, 0.45);
+    --bs-focus-ring-color: rgba(47, 158, 99, 0.35);
+}
+
+[data-accent="roxo"] {
+    --primary-color: #6f42c1;
+    --primary-color-rgb: 111, 66, 193;
+    --sidebar-bg: #2b1a4e;
+    --bs-primary: #6f42c1;
+    --bs-primary-rgb: 111, 66, 193;
+    --bs-primary-bg-subtle: #e7ddf6;
+    --bs-primary-border-subtle: #c9b2ee;
+    --bs-link-color: #6f42c1;
+    --bs-link-color-rgb: 111, 66, 193;
+    --bs-link-hover-color: #532b94;
+    --bs-pagination-active-bg: #6f42c1;
+    --bs-pagination-active-border-color: #6f42c1;
+    --bs-dropdown-link-active-bg: #6f42c1;
+    --bs-focus-ring-color: rgba(111, 66, 193, 0.25);
+}
+
+[data-theme="dark"][data-accent="roxo"] {
+    --primary-color: #9d7bea;
+    --primary-color-rgb: 157, 123, 234;
+    --primary-hover: #b096ef;
+    --primary-active: #bda7f2;
+    --primary-light: #c3adf7;
+    --primary-light-rgb: 195, 173, 247;
+    --primary-light-hover: #d7c7fa;
+    --sidebar-bg: #150f28;
+    --bs-primary: #9d7bea;
+    --bs-primary-rgb: 157, 123, 234;
+    --bs-primary-bg-subtle: rgba(157, 123, 234, 0.18);
+    --bs-primary-border-subtle: rgba(157, 123, 234, 0.45);
+    --bs-focus-ring-color: rgba(157, 123, 234, 0.35);
+}
+
+[data-accent="laranja"] {
+    --primary-color: #b45309;
+    --primary-color-rgb: 180, 83, 9;
+    --sidebar-bg: #45230a;
+    --bs-primary: #b45309;
+    --bs-primary-rgb: 180, 83, 9;
+    --bs-primary-bg-subtle: #f7e5d2;
+    --bs-primary-border-subtle: #ecc9a3;
+    --bs-link-color: #b45309;
+    --bs-link-color-rgb: 180, 83, 9;
+    --bs-link-hover-color: #8a3e07;
+    --bs-pagination-active-bg: #b45309;
+    --bs-pagination-active-border-color: #b45309;
+    --bs-dropdown-link-active-bg: #b45309;
+    --bs-focus-ring-color: rgba(180, 83, 9, 0.25);
+}
+
+[data-theme="dark"][data-accent="laranja"] {
+    --primary-color: #e08c2b;
+    --primary-color-rgb: 224, 140, 43;
+    --primary-hover: #e8a353;
+    --primary-active: #edb26b;
+    --primary-light: #f2be7f;
+    --primary-light-rgb: 242, 190, 127;
+    --primary-light-hover: #f6d2a5;
+    --sidebar-bg: #1e1409;
+    --bs-primary: #e08c2b;
+    --bs-primary-rgb: 224, 140, 43;
+    --bs-primary-bg-subtle: rgba(224, 140, 43, 0.18);
+    --bs-primary-border-subtle: rgba(224, 140, 43, 0.45);
+    --bs-focus-ring-color: rgba(224, 140, 43, 0.35);
+}
+
+[data-accent="grafite"] {
+    --primary-color: #37474f;
+    --primary-color-rgb: 55, 71, 79;
+    --sidebar-bg: #1c262f;
+    --bs-primary: #37474f;
+    --bs-primary-rgb: 55, 71, 79;
+    --bs-primary-bg-subtle: #dfe5e9;
+    --bs-primary-border-subtle: #b6c2c9;
+    --bs-link-color: #37474f;
+    --bs-link-color-rgb: 55, 71, 79;
+    --bs-link-hover-color: #20313a;
+    --bs-pagination-active-bg: #37474f;
+    --bs-pagination-active-border-color: #37474f;
+    --bs-dropdown-link-active-bg: #37474f;
+    --bs-focus-ring-color: rgba(55, 71, 79, 0.25);
+}
+
+[data-theme="dark"][data-accent="grafite"] {
+    --primary-color: #93a8b3;
+    --primary-color-rgb: 147, 168, 179;
+    --primary-hover: #abbec7;
+    --primary-active: #bcccd3;
+    --primary-light: #c8d6dd;
+    --primary-light-rgb: 200, 214, 221;
+    --primary-light-hover: #dee6ea;
+    --sidebar-bg: #12181d;
+    --bs-primary: #93a8b3;
+    --bs-primary-rgb: 147, 168, 179;
+    --bs-primary-bg-subtle: rgba(147, 168, 179, 0.18);
+    --bs-primary-border-subtle: rgba(147, 168, 179, 0.45);
+    --bs-focus-ring-color: rgba(147, 168, 179, 0.35);
+}
+
+/* Seletor de tema de cor da topbar: amostras redondas; a escolhida recebe
+   um contorno e o "check". */
+.accent-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.08);
+    background: var(--sw);
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+    transition: transform 0.15s ease;
+}
+
+.accent-swatch:hover {
+    transform: scale(1.12);
+}
+
+.accent-swatch.selected {
+    outline: 2px solid var(--text-color);
+    outline-offset: 2px;
+    color: #fff;
+}
+
+.accent-swatch.selected i {
+    font-size: 0.8rem;
 }

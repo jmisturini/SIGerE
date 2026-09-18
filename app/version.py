@@ -10,12 +10,23 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.14.1'
+APP_VERSION = '1.15.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.15.0',
+        'data': '2026-09-18',
+        'titulo': 'Temas de cor personalizáveis',
+        'grupos': [
+            ('Adicionado', [
+                'Nova paleta de temas na topbar (botão de paleta, ao lado do claro/escuro): Azul Senac (padrão), Verde, Roxo, Laranja e Grafite — a cor escolhida tinge botões, links, foco de campos, paginação, sidebar e os gráficos do relatório, nos modos claro e escuro.',
+                'A escolha do tema e do modo fica salva no navegador (localStorage) e é aplicada antes da página renderizar, sem piscar a paleta padrão.',
+            ]),
+        ],
+    },
     {
         'versao': '1.14.1',
         'data': '2026-09-18',

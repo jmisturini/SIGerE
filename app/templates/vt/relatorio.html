@@ -291,6 +291,9 @@
         Chart.defaults.color = escuro ? '#adb5bd' : '#495057';
         Chart.defaults.borderColor = escuro ? 'rgba(173,181,189,.15)' : 'rgba(0,0,0,.08)';
         Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+        // Cor do tema escolhido (data-accent): gráficos primários acompanham.
+        const accent = (getComputedStyle(document.documentElement)
+            .getPropertyValue('--primary-color') || '').trim() || '#0d6efd';
 
         const opcoesRosca = {
             maintainAspectRatio: false,
@@ -318,7 +321,7 @@
                 datasets: [{
                     label: 'Optantes',
                     data: {{ vinculos | map(attribute='pedidos') | list | tojson }},
-                    backgroundColor: '#0d6efd',
+                    backgroundColor: accent,
                     borderRadius: 6,
                     maxBarThickness: 70
                 }]
@@ -336,7 +339,7 @@
                 labels: {{ trajetos.keys() | list | tojson }},
                 datasets: [{
                     data: {{ trajetos.values() | list | tojson }},
-                    backgroundColor: ['#0dcaf0', '#0d6efd'],
+                    backgroundColor: ['#0dcaf0', accent],
                     borderWidth: 0
                 }]
             },
