@@ -138,18 +138,8 @@
                     <div class="collapse {{ 'show' if in_vt else '' }}" id="menu-vt">
                         <ul class="nav flex-column nav-submenu">
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep == 'vt.index' }}" href="{{ url_for('vt.index') }}">
-                                    <i class="bi bi-cloud-arrow-up"></i> <span>Importar Pedido</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('vt.records') }}" href="{{ url_for('vt.records') }}">
-                                    <i class="bi bi-people"></i> <span>Colaboradores</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
                                 <a class="nav-link {{ 'active' if ep.startswith('vt.requests') }}" href="{{ url_for('vt.requests') }}">
-                                    <i class="bi bi-inbox"></i> <span>Pedidos do Formulário</span>
+                                    <i class="bi bi-inbox"></i> <span>Pedidos VT</span>
                                 </a>
                             </li>
                         </ul>

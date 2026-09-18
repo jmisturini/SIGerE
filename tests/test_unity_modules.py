@@ -178,23 +178,23 @@ class TestBloqueioDeRotas(UnityModulesTestCase):
         self._login('financeiro.beta')
         self.assertEqual(self.client.get('/payments/overtime/list').status_code, 403)
         self._login('vt.beta')
-        self.assertEqual(self.client.get('/vt/').status_code, 403)
+        self.assertEqual(self.client.get('/vt/pedidos').status_code, 403)
 
     def test_financeiro_funciona_na_unidade_com_modulo(self):
         self._login('financeiro.alfa')
         self.assertEqual(self.client.get('/payments/overtime/list').status_code, 200)
         self._login('vt.alfa')
-        self.assertEqual(self.client.get('/vt/').status_code, 200)
-        self.assertEqual(self.client.get('/vt/colaboradores').status_code, 200)
+        self.assertEqual(self.client.get('/vt/pedidos').status_code, 200)
+        self.assertEqual(self.client.get('/vt/pedidos').status_code, 200)
 
     def test_papeis_do_financeiro_sao_separados(self):
         """A permissão do Pagamento Extra (payment:*) não abre o
         Vale-Transporte (vt:*) e vice-versa: cada papel cobre só a sua área."""
         self._login('financeiro.alfa')
         self.assertEqual(self.client.get('/payments/overtime/list').status_code, 200)
-        self.assertEqual(self.client.get('/vt/').status_code, 403)
+        self.assertEqual(self.client.get('/vt/pedidos').status_code, 403)
         self._login('vt.alfa')
-        self.assertEqual(self.client.get('/vt/').status_code, 200)
+        self.assertEqual(self.client.get('/vt/pedidos').status_code, 200)
         self.assertEqual(self.client.get('/payments/overtime/list').status_code, 403)
 
     def test_reservas_core_funciona_mesmo_com_modulos_desligados(self):
@@ -222,7 +222,7 @@ class TestBloqueioDeRotas(UnityModulesTestCase):
         self.assertNotIn('Vale Transporte', page)
         # Quem só tem vt:read vê o Vale Transporte, mas não Hora Extra
         self._login('vt.alfa')
-        page = self.client.get('/vt/').get_data(as_text=True)
+        page = self.client.get('/vt/pedidos').get_data(as_text=True)
         self.assertIn('Vale Transporte', page)
         self.assertNotIn('Hora Extra', page)
 

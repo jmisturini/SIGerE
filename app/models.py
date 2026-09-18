@@ -368,7 +368,8 @@ class VtRecord(db.Model):
 # fora do sistema. Acesso anônimo: a identificação é apenas o e-mail
 # informado. Os textos de unidade/vínculo/empresa são exatamente as opções
 # do formulário, compatíveis com VtRecord.link / VtRecord.RESTAURANTE_UNITIES
-# para que o RH converta o pedido em registro na importação da planilha.
+# — a listagem Pedidos VT (/vt/pedidos) e a planilha de pagamento usam os
+# mesmos grupos do gerador original.
 class VtRequest(db.Model):
     __tablename__ = 'vt_requests'
     id = db.Column(db.Integer, primary_key=True)
@@ -391,6 +392,36 @@ class VtRequest(db.Model):
     company_b_passes = db.Column(db.Integer)                         # nº de vales B
     company_b_route = db.Column(db.String(20))                       # trajeto B
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Total de vales do pedido (empresas A + B).
+    @property
+    def total_passes(self):
+        return (self.company_a_passes or 0) + (self.company_b_passes or 0)
+
+    # Valor total do pedido: Σ tarifa × vales das empresas informadas.
+    @property
+    def total_value(self):
+        total = ((self.company_a_value or 0) * (self.company_a_passes or 0)
+                 + (self.company_b_value or 0) * (self.company_b_passes or 0))
+        return float(total)
+
+    # Grupo de exportação da planilha de pagamento — mesmos grupos do
+    # VtRecord (vínculo/unidade): a planilha final do gerador não mudou.
+    @property
+    def group(self):
+        if self.link == 'Professor(a)':
+            return VtRecord.GROUP_PROFESSORES
+        if self.link == 'Técnico - Administrativo':
+            if self.unity == 'Faculdade':
+                return VtRecord.GROUP_FACULDADE
+            if self.unity in VtRecord.RESTAURANTE_UNITIES:
+                return VtRecord.GROUP_RESTAURANTE
+        return None
+
+    # Exportável = os mesmos critérios do script: optante "Sim" e passes > 0.
+    @property
+    def is_exportable(self):
+        return self.optant == 'Sim' and bool(self.total_passes)
 
 
 # Empresas de ônibus e tarifas vigentes do pedido público de Vale-Transporte

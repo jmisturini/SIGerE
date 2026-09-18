@@ -10,12 +10,26 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.12.2'
+APP_VERSION = '1.13.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.13.0',
+        'data': '2026-09-17',
+        'titulo': 'Página única Pedidos VT',
+        'grupos': [
+            ('Adicionado', [
+                'A listagem "Pedidos VT" (respostas do formulário público) ganhou o layout completo da antiga página de Colaboradores: card de exportação da planilha de pagamento por grupo — agora calculada dos pedidos, com valor = tarifa × vales —, filtros de nome/vínculo/deseja VT, ordenação (mais recentes, nome, matrícula, valor) e opção de esconder não optantes.',
+                'Correção individual dos pedidos: editar (mesmo formulário do colaborador, com as tarifas do cadastro da unidade) e excluir, conforme as permissões vt:edit e vt:delete.',
+            ]),
+            ('Removido', [
+                'A importação do "Pedido de Compra" (.xlsx) e a listagem de colaboradores importados saíram do ar — o formulário público alimenta a listagem diretamente; /vt/ e /vt/colaboradores viraram redirecionamentos para Pedidos VT.',
+            ]),
+        ],
+    },
     {
         'versao': '1.12.2',
         'data': '2026-09-18',

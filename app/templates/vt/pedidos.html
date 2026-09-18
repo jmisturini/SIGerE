@@ -1,12 +1,13 @@
 {% extends 'base.html' %}
-{% block title %}Vale Transporte — Pedidos do Formulário{% endblock %}
+{% block title %}Vale Transporte — Pedidos VT{% endblock %}
 
 {% block content %}
+{% set filters_active = search or optant_filter or link_filter or hide_without_vt or sort %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
-        <h3 class="fw-bold mb-1"><i class="bi bi-inbox text-primary me-2"></i>Pedidos do Formulário</h3>
+        <h3 class="fw-bold mb-1"><i class="bi bi-inbox text-primary me-2"></i>Pedidos VT</h3>
         <p class="text-muted mb-0">Respostas do pedido público de Vale-Transporte — {{ pedidos|length }} pedido(s),
-            <strong>{{ total_com_vt }}</strong> desejando VT.</p>
+            <strong>{{ total_com_vt }}</strong> desejando VT. Revise, corrija e exporte.</p>
     </div>
     <div class="d-flex gap-2">
         <button type="button" class="btn btn-outline-primary"
@@ -15,25 +16,102 @@
             <i class="bi bi-link-45deg me-1"></i> Copiar link do formulário
         </button>
         {% if can_export %}
-        <a href="{{ url_for('vt.requests_export', q=search, optant=optant_filter) }}" class="btn btn-primary">
-            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Exportar (.xlsx)
+        <a href="{{ url_for('vt.requests_export', q=search, optant=optant_filter, link=link_filter) }}" class="btn btn-primary">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Exportar respostas (.xlsx)
         </a>
         {% endif %}
     </div>
 </div>
 
-<form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <input type="text" name="q" class="form-control w-auto" placeholder="Buscar nome, e-mail ou matrícula"
-           value="{{ search }}" aria-label="Buscar">
-    <select name="optant" class="form-select w-auto" onchange="this.form.submit()" aria-label="Filtrar por deseja VT">
-        <option value="">Deseja VT: Todos</option>
-        <option value="Sim" {{ 'selected' if optant_filter == 'Sim' }}>Sim</option>
-        <option value="Não" {{ 'selected' if optant_filter == 'Não' }}>Não</option>
-    </select>
-    <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Filtrar</button></noscript>
-    {% if search or optant_filter %}
-    <a href="{{ url_for('vt.requests') }}" class="btn btn-outline-secondary btn-sm">Limpar</a>
-    {% endif %}
+{% if pedidos %}
+<div class="card mb-4 border-success-subtle">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small fw-bold mb-3">
+            <i class="bi bi-file-earmark-excel me-1"></i> Exportar planilha de pagamento
+        </h6>
+        <form method="GET" action="{{ url_for('vt.payment_export') }}" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Grupo de colaboradores</label>
+                <select name="group" class="form-select">
+                    <option value="">Todos os grupos</option>
+                    {% for key, label in group_labels.items() %}
+                    <option value="{{ key }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6 d-flex gap-2">
+                <button type="submit" class="btn btn-success flex-grow-1" {% if not can_export %}disabled{% endif %}>
+                    <i class="bi bi-file-excel me-1"></i> Exportar
+                </button>
+            </div>
+        </form>
+        <div class="small text-muted mt-2">
+            <i class="bi bi-info-circle me-1"></i>
+            Exportáveis (Optante "Sim" e passes &gt; 0; valor = tarifa × vales):
+            {% for key, label in group_labels.items() %}
+            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle me-1">
+                {{ label }}: {{ group_counts[key] }}
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<form method="GET" action="{{ url_for('vt.requests') }}" class="card mb-3">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Nome</label>
+                <input type="text" name="q" class="form-control" placeholder="Buscar por nome, e-mail ou matrícula…" value="{{ search }}">
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Vínculo</label>
+                <select name="link" class="form-select">
+                    <option value="">Todos</option>
+                    {% for value in links %}
+                    <option value="{{ value }}" {{ 'selected' if link_filter == value }}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Deseja VT</label>
+                <select name="optant" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="Sim" {{ 'selected' if optant_filter == 'Sim' }}>Sim</option>
+                    <option value="Não" {{ 'selected' if optant_filter == 'Não' }}>Não</option>
+                </select>
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Organizar por</label>
+                <select name="sort" class="form-select">
+                    <option value="" {{ 'selected' if not sort }}>Mais recentes</option>
+                    <option value="nome" {{ 'selected' if sort == 'nome' }}>Nome (A–Z)</option>
+                    <option value="matricula" {{ 'selected' if sort == 'matricula' }}>Matrícula</option>
+                    <option value="valor" {{ 'selected' if sort == 'valor' }}>Valor total (maior primeiro)</option>
+                </select>
+            </div>
+            <div class="col-lg-8">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="ocultar_sem_vt" name="ocultar_sem_vt" value="1" {{ 'checked' if hide_without_vt }}>
+                    <label class="form-check-label" for="ocultar_sem_vt">
+                        Esconder não optantes / valor R$ 0,00
+                    </label>
+                </div>
+            </div>
+            <div class="col-lg-4 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary flex-grow-1">
+                    <i class="bi bi-funnel me-1"></i> Aplicar filtros
+                </button>
+                <a href="{{ url_for('vt.requests') }}"
+                   class="btn btn-outline-secondary {{ '' if filters_active else 'disabled' }}"
+                   {{ '' if filters_active else 'aria-disabled="true" tabindex="-1"' }}
+                   title="Limpar os filtros aplicados e voltar à listagem completa">
+                    <i class="bi bi-x-circle me-1"></i> Limpar
+                </a>
+            </div>
+        </div>
+    </div>
 </form>
 
 <div class="card">
@@ -45,10 +123,12 @@
                         <th class="ps-4">Data</th>
                         <th>Colaborador</th>
                         <th>E-mail</th>
-                        <th>Deseja VT</th>
-                        <th>Unidade</th>
+                        <th>Optante</th>
                         <th>Vínculo</th>
-                        <th class="pe-4">Empresas e vales</th>
+                        <th>Empresas</th>
+                        <th>Passes</th>
+                        <th>Valor Total</th>
+                        <th class="text-end pe-4">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -57,9 +137,9 @@
                         <td class="ps-4 text-nowrap">
                             {% if p.created_at %}<span class="text-muted small">{{ p.created_at.strftime('%d/%m/%Y %H:%M') }}</span>{% else %}-{% endif %}
                         </td>
-                        <td>
-                            <span class="fw-bold">{{ p.full_name }}</span>
-                            <div class="text-muted small">Matrícula {{ p.registration }}</div>
+                        <td class="fw-bold">
+                            {{ p.full_name }}
+                            <div class="text-muted small fw-normal">Matrícula {{ p.registration }}</div>
                         </td>
                         <td class="small">{{ p.email }}</td>
                         <td>
@@ -69,29 +149,47 @@
                             <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Não</span>
                             {% endif %}
                         </td>
-                        <td class="small">{{ p.unity or '-' }}</td>
-                        <td class="small">{{ p.link or '-' }}</td>
-                        <td class="pe-4 small">
-                            {% if p.optant != 'Sim' %}
-                                -
-                            {% else %}
-                                <div><span class="fw-semibold">{{ p.company_a_name or '-' }}</span>
-                                    {% if p.company_a_value %}(R$ {{ '%.2f'|format(p.company_a_value)|replace('.', ',') }}){% endif %}
-                                    — {{ p.company_a_passes or 0 }} vale(s), {{ p.company_a_route or '-' }}</div>
-                                {% if p.company_b_name %}
-                                <div><span class="fw-semibold">{{ p.company_b_name }}</span>
-                                    {% if p.company_b_value %}(R$ {{ '%.2f'|format(p.company_b_value)|replace('.', ',') }}){% endif %}
-                                    — {{ p.company_b_passes or 0 }} vale(s), {{ p.company_b_route or '-' }}</div>
+                        <td><small>{{ p.link or '—' }}</small></td>
+                        <td>
+                            {% if p.optant == 'Sim' %}
+                                {% if p.company_a_name %}
+                                <span class="badge text-bg-light border" title="R$ {{ '%.2f'|format(p.company_a_value or 0) }} × {{ p.company_a_passes or 0 }} vale(s) — {{ p.company_a_route or 'trajeto não informado' }}">{{ p.company_a_name }}</span>
                                 {% endif %}
+                                {% if p.company_b_name %}
+                                <span class="badge text-bg-light border" title="R$ {{ '%.2f'|format(p.company_b_value or 0) }} × {{ p.company_b_passes or 0 }} vale(s) — {{ p.company_b_route or 'trajeto não informado' }}">{{ p.company_b_name }}</span>
+                                {% endif %}
+                                {% if not p.company_a_name and not p.company_b_name %}—{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>{{ p.total_passes if p.optant == 'Sim' else '—' }}</td>
+                        <td>{{ 'R$ %.2f'|format(p.total_value) if p.optant == 'Sim' else '—' }}</td>
+                        <td class="text-end pe-4 text-nowrap">
+                            {% if can_edit %}
+                            <a href="{{ url_for('vt.edit_request', request_id=p.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% endif %}
+                            {% if can_delete %}
+                            <form method="POST" action="{{ url_for('vt.delete_request', request_id=p.id) }}" class="d-inline" onsubmit="return confirm('Excluir o pedido de {{ p.full_name }}?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
                             {% endif %}
                         </td>
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted p-5">
+                        <td colspan="9" class="text-center text-muted p-5">
                             <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                            {% if filters_active %}
+                            <h5 class="mb-1">Nenhum pedido para os filtros aplicados</h5>
+                            <p class="small mb-0">Ajuste ou limpe os filtros para ver os pedidos.</p>
+                            {% else %}
                             <h5 class="mb-1">Nenhum pedido recebido</h5>
                             <p class="small mb-0">Envie o link público do formulário aos colaboradores para começar a receber respostas.</p>
+                            {% endif %}
                         </td>
                     </tr>
                 {% endfor %}

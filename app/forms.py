@@ -1,6 +1,5 @@
 from decimal import Decimal, InvalidOperation
 from flask_wtf import FlaskForm
-from flask_wtf.file import FileAllowed, FileField, FileRequired
 from wtforms import (StringField, PasswordField, SubmitField, IntegerField, FloatField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField, RadioField)
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, date
@@ -623,70 +622,6 @@ class RoomCategoryForm(BaseForm):
 
 
 # =============================================================================
-# VALE TRANSPORTE (FINANCEIRO)
-# =============================================================================
-
-class FormVtUpload(BaseForm):
-    """Upload do "Pedido de Compra" (.xlsx) com a aba "Vale Transporte"."""
-    file = FileField('Arquivo do Pedido de Compra', validators=[
-        FileRequired(message='Selecione o arquivo do Pedido de Compra.'),
-        FileAllowed(['xlsx'], 'Formato inválido. Envie um arquivo .xlsx.')
-    ])
-    submit = SubmitField('Importar')
-
-
-class FormVtRecord(BaseForm):
-    """Edição de um colaborador do Vale Transporte — espelha todas as colunas
-    da aba "Vale Transporte" do Pedido de Compra (A–P)."""
-    registration = StringField('Matrícula', validators=[DataRequired(), Length(max=20)])
-    full_name = StringField('Nome', validators=[DataRequired(), Length(max=255)])
-    optant = SelectField('Optante VT', choices=[('Sim', 'Sim'), ('Não', 'Não')],
-                         validators=[DataRequired()])
-    link = SelectField('Vínculo', choices=[
-        ('', '—'),
-        ('Técnico - Administrativo', 'Técnico - Administrativo'),
-        ('Professor(a)', 'Professor(a)'),
-    ], validators=[Optional()])
-    unity = StringField('Unidade (Pedido de Compra)', validators=[Optional(), Length(max=100)])
-    company_count = IntegerField('Nº de Empresas', validators=[Optional(), NumberRange(min=0, max=2)])
-    company_a_name = StringField('Empresa A', validators=[Optional(), Length(max=100)])
-    company_a_value = StringField('Valor VT A', validators=[Optional(), Length(max=20)])
-    company_a_passes = IntegerField('Passes A', validators=[Optional(), NumberRange(min=0)])
-    company_a_total = StringField('Total Empresa A', validators=[Optional(), Length(max=20)])
-    company_b_name = StringField('Empresa B', validators=[Optional(), Length(max=100)])
-    company_b_value = StringField('Valor VT B', validators=[Optional(), Length(max=20)])
-    company_b_passes = IntegerField('Passes B', validators=[Optional(), NumberRange(min=0)])
-    company_b_total = StringField('Total Empresa B', validators=[Optional(), Length(max=20)])
-    total_passes = IntegerField('Total de Passes', validators=[Optional(), NumberRange(min=0)])
-    total_value = StringField('Valor Total dos Passes', validators=[Optional(), Length(max=20)])
-    submit = SubmitField('Salvar')
-
-    def _validate_money_format(self, field):
-        if not field.data:
-            return
-        raw = field.data.strip()
-        # Aceita 15,50 | 15.50 | 1.234,56 | 1550 (mesma semântica do parser
-        # de moeda usado na gravação).
-        if not re.match(r'^\d{1,3}(\.\d{3})*(,\d{1,2})?$|^\d+([.,]\d{1,2})?$', raw):
-            raise ValidationError('Formato inválido. Use vírgula decimal (ex: 15,50).')
-
-    def validate_company_a_value(self, field):
-        self._validate_money_format(field)
-
-    def validate_company_a_total(self, field):
-        self._validate_money_format(field)
-
-    def validate_company_b_value(self, field):
-        self._validate_money_format(field)
-
-    def validate_company_b_total(self, field):
-        self._validate_money_format(field)
-
-    def validate_total_value(self, field):
-        self._validate_money_format(field)
-
-
-# =============================================================================# 
 # PEDIDO PÚBLICO DE VALE-TRANSPORTE (/vt/pedido, sem login)
 # =============================================================================
 

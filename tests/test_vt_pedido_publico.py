@@ -477,7 +477,7 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertIn('Colaborador Teste', page)
         self.assertIn('colaborador@senac.sc.br', page)
         self.assertIn('Jotur', page)
-        self.assertIn('(R$ 7,24)', page)
+        self.assertIn('R$ 7.24 × 22 vale(s)', page)
         self.assertIn('Outro Colaborador', page)
         self.assertIn('2 pedido(s)', page)
 
@@ -507,6 +507,248 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertEqual(rows[1][2], 'Colaborador Teste')
         self.assertEqual(rows[1][8], 'Jotur')
         self.assertEqual(rows[1][9], 7.24)
+
+
+class TestPedidosVT(unittest.TestCase):
+    """Página unificada Pedidos VT (/vt/pedidos): layout e funções da antiga
+    listagem de Colaboradores — filtros, ordenação, correção individual
+    (editar/excluir) e planilha de pagamento por grupo gerada dos pedidos.
+    A importação do Pedido de Compra saiu do ar (/vt/ e /vt/colaboradores
+    viraram redirecionamentos)."""
+
+    EMAIL_GESTOR = 'gestor-vt@escola.edu'
+    EMAIL_EDITOR = 'editor-vt@escola.edu'
+    PASSWORD = 'SenhaForte123'
+
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        TestConfig.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + self.db_path.replace('\\', '/')
+
+        self.app = create_app(TestConfig)
+        self.app.config['SESSION_COOKIE_SECURE'] = False
+        self.client = self.app.test_client()
+
+        with self.app.app_context():
+            db.create_all()
+            # Unidade "Faculdade": com vínculo Técnico - Administrativo o
+            # pedido cai no grupo "faculdade" da planilha de pagamento.
+            self.unity = Unity(name='Faculdade', code='FAC')
+            db.session.add(self.unity)
+            db.session.commit()
+            self.unity_id = self.unity.id
+            _seed_permissions()
+            db.session.commit()
+
+            def _role(nome, codigos):
+                perms = [Permission.query.filter_by(code=c).first()
+                         for c in codigos]
+                role = Role(name=nome, label=nome, permissions=perms)
+                db.session.add(role)
+                db.session.flush()
+                return role
+
+            gestor_role = _role('gestor-vt', ('vt:read', 'vt:export'))
+            editor_role = _role('editor-vt', ('vt:read', 'vt:edit',
+                                              'vt:delete', 'vt:export'))
+            for email, role in ((self.EMAIL_GESTOR, gestor_role),
+                                (self.EMAIL_EDITOR, editor_role)):
+                usuario = User(email=email, full_name=email.split('@')[0],
+                               registration=email.split('@')[0],
+                               role='room', profile_type='employee',
+                               unity_id=self.unity.id, role_id=role.id,
+                               force_password_change=False,
+                               is_active_user=True)
+                usuario.set_password(self.PASSWORD)
+                db.session.add(usuario)
+
+            empresa = VtEmpresa(nome='Jotur', is_active=True,
+                                unity_id=self.unity.id)
+            empresa.valores = [VtEmpresaValor(identificacao='Patamar 2',
+                                              valor=Decimal('7.24'))]
+            db.session.add(empresa)
+            db.session.commit()
+
+    def tearDown(self):
+        with self.app.app_context():
+            db.session.remove()
+            db.engine.dispose()
+        for suffix in ('', '-wal', '-shm'):
+            path = self.db_path + suffix
+            if os.path.exists(path):
+                os.remove(path)
+
+    def _login(self, email=EMAIL_EDITOR):
+        response = self.client.post('/login', data={'email': email,
+                                                    'password': self.PASSWORD},
+                                    follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+
+    def _linha_id(self):
+        with self.app.app_context():
+            empresa = VtEmpresa.query.filter_by(nome='Jotur').first()
+            return empresa.valores[0].id
+
+    def _payload_sim(self, **overrides):
+        payload = {
+            'email': 'colaborador@senac.sc.br',
+            'full_name': 'Colaborador Teste',
+            'registration': '123456',
+            'optant': 'Sim',
+            'link': 'Técnico - Administrativo',
+            'company_count': '1',
+            'company_a_name': 'Jotur',
+            'company_a_value': str(self._linha_id()),
+            'company_a_passes': '22',
+            'company_a_route': 'Ida e Volta',
+        }
+        payload.update(overrides)
+        return payload
+
+    def _criar_pedido(self, **overrides):
+        response = self.client.post('/vt/pedido', data=self._payload_sim(**overrides),
+                                    follow_redirects=True)
+        self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
+
+    # ---------- Redirecionamentos da importação removida ----------
+
+    def test_importacao_e_colaboradores_redirecionam(self):
+        for url in ('/vt/', '/vt/colaboradores'):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue(response.location.endswith('/vt/pedidos'))
+
+    # ---------- Listagem no layout de Colaboradores ----------
+
+    def test_listagem_mostra_totais_e_grupos(self):
+        self._criar_pedido()
+        self._criar_pedido(email='prof@senac.sc.br', full_name='Ana Professora',
+                           registration='654321', link='Professor(a)')
+        self._criar_pedido(email='nao@senac.sc.br', full_name='Bruno Não Optante',
+                           registration='111222', optant='Não')
+
+        self._login(self.EMAIL_GESTOR)
+        page = self.client.get('/vt/pedidos').get_data(as_text=True)
+        self.assertIn('Pedidos VT', page)
+        self.assertIn('Exportar planilha de pagamento', page)
+        # Total do pedido Sim: 7,24 × 22 vales.
+        self.assertIn('R$ 159.28', page)
+        # Badge de empresas com a tarifa no tooltip.
+        self.assertIn('R$ 7.24 × 22 vale(s)', page)
+        # Contagem de exportáveis por grupo.
+        self.assertIn('Técnico-Administrativo (Faculdade): 1', page)
+        self.assertIn('Professores: 1', page)
+        self.assertIn('2</strong> desejando VT', page)
+
+    def test_listagem_filtros(self):
+        self._criar_pedido()
+        self._criar_pedido(email='prof@senac.sc.br', full_name='Ana Professora',
+                           registration='654321', link='Professor(a)')
+        self._criar_pedido(email='nao@senac.sc.br', full_name='Bruno Não Optante',
+                           registration='111222', optant='Não')
+
+        self._login(self.EMAIL_GESTOR)
+
+        # Busca por nome/e-mail/matrícula.
+        page = self.client.get('/vt/pedidos?q=654321').get_data(as_text=True)
+        self.assertIn('Ana Professora', page)
+        self.assertNotIn('Colaborador Teste', page)
+
+        # Filtro por vínculo.
+        page = self.client.get('/vt/pedidos?link=Professor(a)').get_data(as_text=True)
+        self.assertIn('Ana Professora', page)
+        self.assertNotIn('Colaborador Teste', page)
+
+        # Esconder não optantes / valor R$ 0,00.
+        page = self.client.get('/vt/pedidos?ocultar_sem_vt=1').get_data(as_text=True)
+        self.assertNotIn('Bruno Não Optante', page)
+        self.assertIn('Colaborador Teste', page)
+
+        # Ordenação por valor total (maior primeiro): 22 vales antes de 2.
+        self._criar_pedido(email='pequeno@senac.sc.br', full_name='Zeca Poucos Vales',
+                           registration='333444', company_a_passes='2')
+        page = self.client.get('/vt/pedidos?sort=valor').get_data(as_text=True)
+        self.assertLess(page.index('Colaborador Teste'),
+                        page.index('Zeca Poucos Vales'))
+
+    # ---------- Correção individual ----------
+
+    def test_editar_pedido_prefill_e_gravacao(self):
+        self._criar_pedido()
+        with self.app.app_context():
+            pedido_id = VtRequest.query.first().id
+
+        self._login()
+        page = self.client.get(f'/vt/pedidos/{pedido_id}/editar').get_data(as_text=True)
+        # A linha de tarifa gravada (valor 7,24) vem pré-selecionada.
+        self.assertIn(f'<option selected value="{self._linha_id()}">', page)
+
+        response = self.client.post(f'/vt/pedidos/{pedido_id}/editar',
+                                    data=self._payload_sim(company_a_passes='30'),
+                                    follow_redirects=True)
+        self.assertIn('Pedido de Colaborador Teste atualizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            pedido = db.session.get(VtRequest, pedido_id)
+            self.assertEqual(pedido.company_a_passes, 30)
+            self.assertEqual(pedido.total_value, 217.2)
+
+        page = self.client.get('/vt/pedidos').get_data(as_text=True)
+        self.assertIn('R$ 217.20', page)
+
+    def test_excluir_pedido(self):
+        self._criar_pedido()
+        with self.app.app_context():
+            pedido_id = VtRequest.query.first().id
+
+        self._login()
+        response = self.client.post(f'/vt/pedidos/{pedido_id}/excluir',
+                                    follow_redirects=True)
+        self.assertIn('Pedido de Colaborador Teste excluído', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(VtRequest.query.count(), 0)
+
+    def test_gestor_sem_permissao_nao_edita_nem_exclui(self):
+        """vt:edit/vt:delete são exigidas na correção — o gestor só leitor
+        (vt:read + vt:export) recebe 403."""
+        self._criar_pedido()
+        with self.app.app_context():
+            pedido_id = VtRequest.query.first().id
+
+        self._login(self.EMAIL_GESTOR)
+        self.assertEqual(
+            self.client.get(f'/vt/pedidos/{pedido_id}/editar').status_code, 403)
+        self.assertEqual(
+            self.client.post(f'/vt/pedidos/{pedido_id}/excluir').status_code, 403)
+
+    # ---------- Planilha de pagamento gerada dos pedidos ----------
+
+    def test_exportar_pagamento_por_grupo(self):
+        self._criar_pedido()
+        self._criar_pedido(email='prof@senac.sc.br', full_name='Ana Professora',
+                           registration='654321', link='Professor(a)')
+        self._criar_pedido(email='nao@senac.sc.br', full_name='Bruno Não Optante',
+                           registration='111222', optant='Não')
+
+        self._login(self.EMAIL_GESTOR)
+        response = self.client.get('/vt/pedidos/exportar-pagamento?group=faculdade')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('spreadsheetml', response.headers['Content-Type'])
+
+        workbook = load_workbook(io.BytesIO(response.data))
+        worksheet = workbook['Vale Transporte']
+        # Linha 5 é a primeira do modelo; apenas o pedido Sim do grupo.
+        self.assertEqual(worksheet['A5'].value, 123456)
+        self.assertEqual(worksheet['B5'].value, 'Colaborador Teste')
+        self.assertAlmostEqual(worksheet['C5'].value, 159.28)
+        self.assertIsNone(worksheet['A6'].value)
+
+    def test_exportar_pagamento_sem_elegiveis_avisa(self):
+        self._criar_pedido(optant='Não', link='')
+        self._login(self.EMAIL_GESTOR)
+        response = self.client.get('/vt/pedidos/exportar-pagamento',
+                                   follow_redirects=True)
+        page = response.get_data(as_text=True)
+        self.assertIn('Nenhum pedido elegível para o grupo selecionado', page)
 
 
 if __name__ == '__main__':
