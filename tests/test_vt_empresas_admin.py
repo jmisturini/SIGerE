@@ -248,6 +248,22 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
 
     # ---------- Edição ----------
 
+    def test_editar_empresa_tarifa_legada_sem_identificacao(self):
+        """Tarifa legada sem identificação (as semeadas pela migração
+        inicial, criadas antes da coluna existir) abre no formulário com o
+        campo vazio — nunca com o texto 'None'."""
+        with self.app.app_context():
+            db.session.add(VtEmpresaValor(empresa_id=self.jotur_id,
+                                          identificacao=None,
+                                          valor=Decimal('7.20')))
+            db.session.commit()
+
+        page = self.client.get(f'/admin/vt-empresas/{self.jotur_id}/edit')\
+            .get_data(as_text=True)
+        self.assertNotIn('value="None"', page)
+        # A tarifa legada continua listada (valor em formato de formulário).
+        self.assertIn('value="7,20"', page)
+
     def test_editar_empresa(self):
         response = self.client.post(f'/admin/vt-empresas/{self.jotur_id}/edit', data={
             'nome': 'Jotur Transportes',

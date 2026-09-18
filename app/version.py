@@ -10,12 +10,22 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.13.2'
+APP_VERSION = '1.13.3'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.13.3',
+        'data': '2026-09-18',
+        'titulo': 'Tarifas fantasmas no cadastro de empresas eliminadas',
+        'grupos': [
+            ('Corrigido', [
+                'O cadastro de empresas de ônibus não mostra mais tarifas "fantasma": linhas deixadas no banco por exclusões feitas fora do aplicativo (o SQLite não valida a chave estrangeira por padrão) reapareciam numa empresa nova quando o id dela era reutilizado, como uma tarifa extra sem identificação — a atualização remove as órfãs e as duplicatas sem identificação, e o formulário de edição deixa de exibir o texto "None" no lugar da identificação.',
+            ]),
+        ],
+    },
     {
         'versao': '1.13.2',
         'data': '2026-09-18',

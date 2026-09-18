@@ -38,9 +38,11 @@
                             <div id="linhas-tarifas">
                                 {% for identificacao, valor_texto in linhas_tarifas %}
                                 <div class="input-group mb-2 linha-tarifa">
+                                    {# or '': tarifas legadas sem identificação (semeadas
+                                       pela migração inicial) chegavam como None aqui #}
                                     <input type="text" name="identificacao" class="form-control" autocomplete="off"
                                            placeholder="Identificação (ex.: Patamar 3)" aria-label="Identificação da tarifa"
-                                           value="{{ identificacao }}">
+                                           value="{{ identificacao or '' }}">
                                     <input type="text" name="valor" class="form-control" style="max-width: 12rem" autocomplete="off"
                                            placeholder="Valor (ex.: 7,24)" aria-label="Valor da tarifa"
                                            value="{{ valor_texto }}">
