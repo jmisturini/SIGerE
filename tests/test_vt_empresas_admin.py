@@ -175,6 +175,17 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
 
     # ---------- Criação ----------
 
+    def test_formulario_criacao_sem_autofill(self):
+        """O formulário de empresa desabilita o autocomplete: os campos de
+        tarifa têm nomes genéricos (identificacao/valor) e o navegador
+        repetia neles valores armazenados de envios anteriores ao abrir o
+        cadastro de uma empresa nova."""
+        page = self.client.get('/admin/vt-empresas/create').get_data(as_text=True)
+        self.assertIn('<form method="POST" novalidate id="form-empresa" autocomplete="off">',
+                      page)
+        # Formulário + 2 campos da linha inicial + 2 do modelo clonável.
+        self.assertGreaterEqual(page.count('autocomplete="off"'), 5)
+
     def test_criar_empresa(self):
         response = self.client.post('/admin/vt-empresas/create', data={
             'nome': 'Consórcio Fênix',

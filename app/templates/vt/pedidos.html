@@ -15,11 +15,6 @@
                 title="Copiar o link público do formulário desta unidade para enviar aos colaboradores">
             <i class="bi bi-link-45deg me-1"></i> Copiar link do formulário
         </button>
-        {% if can_export %}
-        <a href="{{ url_for('vt.requests_export', q=search, optant=optant_filter, link=link_filter) }}" class="btn btn-primary">
-            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Exportar respostas (.xlsx)
-        </a>
-        {% endif %}
     </div>
 </div>
 

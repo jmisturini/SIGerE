@@ -12,7 +12,7 @@
                 </a>
             </div>
             <div class="card-body p-4">
-                <form method="POST" novalidate id="form-empresa">
+                <form method="POST" novalidate id="form-empresa" autocomplete="off">
                     {{ form.hidden_tag() }}
 
                     <div class="row g-3">
@@ -38,10 +38,10 @@
                             <div id="linhas-tarifas">
                                 {% for identificacao, valor_texto in linhas_tarifas %}
                                 <div class="input-group mb-2 linha-tarifa">
-                                    <input type="text" name="identificacao" class="form-control"
+                                    <input type="text" name="identificacao" class="form-control" autocomplete="off"
                                            placeholder="Identificação (ex.: Patamar 3)" aria-label="Identificação da tarifa"
                                            value="{{ identificacao }}">
-                                    <input type="text" name="valor" class="form-control" style="max-width: 12rem"
+                                    <input type="text" name="valor" class="form-control" style="max-width: 12rem" autocomplete="off"
                                            placeholder="Valor (ex.: 7,24)" aria-label="Valor da tarifa"
                                            value="{{ valor_texto }}">
                                     <button type="button" class="btn btn-outline-danger remover-linha"
@@ -69,9 +69,9 @@
 {% block scripts %}
 <template id="modelo-linha">
     <div class="input-group mb-2 linha-tarifa">
-        <input type="text" name="identificacao" class="form-control"
+        <input type="text" name="identificacao" class="form-control" autocomplete="off"
                placeholder="Identificação (ex.: Patamar 3)" aria-label="Identificação da tarifa">
-        <input type="text" name="valor" class="form-control" style="max-width: 12rem"
+        <input type="text" name="valor" class="form-control" style="max-width: 12rem" autocomplete="off"
                placeholder="Valor (ex.: 7,24)" aria-label="Valor da tarifa">
         <button type="button" class="btn btn-outline-danger remover-linha" title="Remover tarifa">
             <i class="bi bi-x-lg"></i>
@@ -79,8 +79,8 @@
     </div>
 </template>
 <script>
-    // Linhas dinâmicas de tarifa (trajeto + valor): o botão clona o modelo
-    // e o "×" remove a linha — o servidor revalida tudo no POST.
+    // Linhas dinâmicas de tarifa (identificação + valor): o botão clona o
+    // modelo e o "×" remove a linha — o servidor revalida tudo no POST.
     (function () {
         const container = document.getElementById('linhas-tarifas');
         const modelo = document.getElementById('modelo-linha');
@@ -92,6 +92,15 @@
         container.addEventListener('click', (evento) => {
             const botao = evento.target.closest('.remover-linha');
             if (botao) botao.closest('.linha-tarifa').remove();
+        });
+
+        // Reexibição pelo cache do navegador (botão voltar) restaura os
+        // campos com os valores da visita anterior — recarregar traz o
+        // estado real do servidor (linhas vazias na criação, vigentes na
+        // edição; a re-renderização com erro de validação não passa pelo
+        // cache e não é afetada).
+        window.addEventListener('pageshow', (evento) => {
+            if (evento.persisted) window.location.reload();
         });
     })();
 </script>

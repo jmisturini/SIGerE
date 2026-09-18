@@ -492,22 +492,6 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertIn('Colaborador Teste', page)
         self.assertNotIn('Outro Colaborador', page)
 
-    def test_exportacao_xlsx(self):
-        self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa())
-        self._login()
-        response = self.client.get('/vt/pedidos/exportar')
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('spreadsheetml', response.headers['Content-Type'])
-
-        workbook = load_workbook(io.BytesIO(response.data))
-        rows = list(workbook.active.iter_rows(values_only=True))
-        self.assertEqual(rows[0][:4], ('Data', 'E-mail', 'Nome', 'Matrícula'))
-        self.assertEqual(rows[0][8:12], ('Empresa A', 'Valor A', 'Vales A', 'Trajeto A'))
-        self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[1][2], 'Colaborador Teste')
-        self.assertEqual(rows[1][8], 'Jotur')
-        self.assertEqual(rows[1][9], 7.24)
-
 
 class TestPedidosVT(unittest.TestCase):
     """Página unificada Pedidos VT (/vt/pedidos): layout e funções da antiga
@@ -670,6 +654,23 @@ class TestPedidosVT(unittest.TestCase):
         page = self.client.get('/vt/pedidos?sort=valor').get_data(as_text=True)
         self.assertLess(page.index('Colaborador Teste'),
                         page.index('Zeca Poucos Vales'))
+
+    def test_filtro_vinculo_so_oferece_vinculos_atuais(self):
+        """O select de vínculo lista apenas os vínculos do formulário atual —
+        valores antigos gravados na base (ex.: importações) não viram opção."""
+        self._criar_pedido()
+        with self.app.app_context():
+            db.session.add(VtRequest(email='antigo@senac.sc.br',
+                                     full_name='Registro Antigo',
+                                     registration='999999', optant='Não',
+                                     link='Estagiário'))
+            db.session.commit()
+
+        self._login()
+        page = self.client.get('/vt/pedidos').get_data(as_text=True)
+        self.assertIn('<option value="Técnico - Administrativo"', page)
+        self.assertIn('<option value="Professor(a)"', page)
+        self.assertNotIn('<option value="Estagiário"', page)
 
     # ---------- Correção individual ----------
 

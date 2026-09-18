@@ -10,12 +10,35 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.13.0'
+APP_VERSION = '1.13.2'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.13.2',
+        'data': '2026-09-18',
+        'titulo': 'Cadastro de empresas sem valores repetidos pelo navegador',
+        'grupos': [
+            ('Corrigido', [
+                'No cadastro de empresas de ônibus, os campos de tarifa voltaram a abrir vazios: o navegador estava repetindo neles valores armazenados de envios anteriores (autocomplete e retorno pelo cache ao botão Voltar) quando uma empresa nova era cadastrada.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.1',
+        'data': '2026-09-18',
+        'titulo': 'Filtro de vínculo atual e exportação única em Pedidos VT',
+        'grupos': [
+            ('Corrigido', [
+                'O filtro de Vínculo da listagem Pedidos VT voltou a oferecer apenas os vínculos do formulário atual (Técnico - Administrativo e Professor(a)) — o select listava também valores antigos gravados na base, que não filtravam nada.',
+            ]),
+            ('Removido', [
+                'O botão "Exportar respostas (.xlsx)" saiu da página Pedidos VT — a exportação da listagem fica apenas com a planilha de pagamento por grupo.',
+            ]),
+        ],
+    },
     {
         'versao': '1.13.0',
         'data': '2026-09-17',

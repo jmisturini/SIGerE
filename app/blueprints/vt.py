@@ -7,12 +7,12 @@ organizado em duas páginas:
    "Pedido de Vale-Transporte" (Microsoft Forms) com identificação apenas
    pelo e-mail; as respostas ficam em VtRequest;
 2. Pedidos VT (/vt/pedidos): as respostas do formulário DA UNIDADE ATIVA,
-   com filtros, correção individual (editar/excluir, vt:edit / vt:delete),
-   exportação .xlsx das respostas (vt:export) e a planilha de pagamento
-   (planilha_base_vt.xlsx, Matrícula/Nome/Total a partir da linha 5)
-   filtrável pelos grupos do gerador: Técnico-Administrativo (Faculdade),
-   Professores e Técnico-Administrativo (Restaurante/Lanchonete) — apenas
-   Optante VT "Sim" com passes > 0, critérios do script original.
+   com filtros, correção individual (editar/excluir, vt:edit / vt:delete)
+   e a planilha de pagamento (planilha_base_vt.xlsx, Matrícula/Nome/Total
+   a partir da linha 5) filtrável pelos grupos do gerador:
+   Técnico-Administrativo (Faculdade), Professores e
+   Técnico-Administrativo (Restaurante/Lanchonete) — apenas Optante VT
+   "Sim" com passes > 0, critérios do script original.
 
 A importação do "Pedido de Compra" (.xlsx) e a listagem de colaboradores
 importados (VtRecord) saíram do ar: o formulário público alimenta a
@@ -24,12 +24,12 @@ from datetime import date, datetime
 
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, send_file, url_for)
-from openpyxl import load_workbook, Workbook
+from openpyxl import load_workbook
 from sqlalchemy import func
 
 from app.extensions import db, limiter
 from flask_login import current_user, login_required
-from app.forms import FormVtPedido
+from app.forms import FormVtPedido, VT_VINCULOS_PEDIDO
 from app.models import Unity, User, VtConfig, VtEmpresa, VtRecord, VtRequest
 from app.permissions import require_module, require_permission
 from app.unity_context import current_unity_id
@@ -95,7 +95,7 @@ def requests():
     """Pedidos VT: respostas recebidas pelo formulário público DA UNIDADE
     ATIVA, da mais recente para a mais antiga (cada pedido fica vinculado à
     unidade do link usado pelo colaborador), com filtros, correção
-    individual e as exportações da listagem."""
+    individual e a exportação da planilha de pagamento."""
     search = (request.args.get('q') or '').strip()
     optant_filter = request.args.get('optant') or ''
     link_filter = (request.args.get('link') or '').strip()
@@ -103,9 +103,6 @@ def requests():
     hide_without_vt = request.args.get('ocultar_sem_vt') == '1'
 
     base = VtRequest.query.filter_by(unity_id=current_unity_id())
-    # Vínculos distintos presentes na base para o select de filtro.
-    links = sorted({v for v, in base.with_entities(VtRequest.link).distinct()
-                    if v})
 
     query = base
     if search:
@@ -137,9 +134,11 @@ def requests():
             group_counts[pedido.group] += 1
 
     com_vt = sum(1 for p in pedidos if p.optant == 'Sim')
+    # O select de vínculo oferece apenas os vínculos do formulário atual —
+    # valores antigos que existam na base não viram opção de filtro.
     return render_template('vt/pedidos.html', pedidos=pedidos,
                            search=search, optant_filter=optant_filter,
-                           link_filter=link_filter, links=links,
+                           link_filter=link_filter, links=VT_VINCULOS_PEDIDO,
                            sort=sort, hide_without_vt=hide_without_vt,
                            group_counts=group_counts, group_labels=GROUP_LABELS,
                            total_com_vt=com_vt,
@@ -197,60 +196,6 @@ def delete_request(request_id):
     db.session.commit()
     flash(f'Pedido de {name} excluído.', 'info')
     return redirect_back('vt.requests')
-
-
-@bp.route('/pedidos/exportar')
-@login_required
-@require_permission('vt:export')
-@require_module('finance')
-def requests_export():
-    """Exporta os pedidos do formulário DA UNIDADE ATIVA para .xlsx (uma
-    linha por resposta, mesmos filtros da listagem) — base de conferência
-    do RH."""
-    search = (request.args.get('q') or '').strip()
-    optant_filter = request.args.get('optant') or ''
-    link_filter = (request.args.get('link') or '').strip()
-
-    query = VtRequest.query.filter_by(unity_id=current_unity_id())
-    if search:
-        like = f'%{search}%'
-        query = query.filter(db.or_(VtRequest.full_name.ilike(like),
-                                    VtRequest.email.ilike(like),
-                                    VtRequest.registration.ilike(like)))
-    if optant_filter in ('Sim', 'Não'):
-        query = query.filter(VtRequest.optant == optant_filter)
-    if link_filter:
-        query = query.filter(VtRequest.link == link_filter)
-    pedidos = query.order_by(VtRequest.created_at.desc(), VtRequest.id.desc()).all()
-
-    workbook = Workbook()
-    worksheet = workbook.active
-    worksheet.title = 'Pedidos VT'
-    worksheet.append(['Data', 'E-mail', 'Nome', 'Matrícula', 'Deseja VT',
-                      'Unidade', 'Vínculo', 'Nº Empresas',
-                      'Empresa A', 'Valor A', 'Vales A', 'Trajeto A',
-                      'Empresa B', 'Valor B', 'Vales B', 'Trajeto B'])
-    for pedido in pedidos:
-        worksheet.append([
-            pedido.created_at.strftime('%d/%m/%Y %H:%M') if pedido.created_at else '',
-            pedido.email, pedido.full_name, pedido.registration, pedido.optant,
-            pedido.unity, pedido.link, pedido.company_count or 0,
-            pedido.company_a_name, pedido.company_a_value,
-            pedido.company_a_passes, pedido.company_a_route,
-            pedido.company_b_name, pedido.company_b_value,
-            pedido.company_b_passes, pedido.company_b_route,
-        ])
-
-    output = io.BytesIO()
-    workbook.save(output)
-    workbook.close()
-    output.seek(0)
-
-    stamp = datetime.now().strftime('%d-%m-%Y %H-%M-%S')
-    return send_file(output, as_attachment=True,
-                     download_name=f'Pedidos Vale Transporte ({stamp}).xlsx',
-                     mimetype='application/vnd.openxmlformats-officedocument'
-                              '.spreadsheetml.sheet')
 
 
 @bp.route('/pedidos/exportar-pagamento')
