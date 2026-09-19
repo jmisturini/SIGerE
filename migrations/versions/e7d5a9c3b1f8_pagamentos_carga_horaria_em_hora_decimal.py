@@ -34,5 +34,8 @@ def downgrade():
     if 'teacher_overtime_pay' not in inspector.get_table_names():
         return
     with op.batch_alter_table('teacher_overtime_pay', schema=None) as batch_op:
+        # PostgreSQL não converte numeric→integer implicitamente: exige USING.
+        # O SQLite (batch) ignora o parâmetro do dialeto.
         batch_op.alter_column('weekly_workload', existing_type=sa.Numeric(5, 2),
-                              type_=sa.Integer(), existing_nullable=False)
+                              type_=sa.Integer(), existing_nullable=False,
+                              postgresql_using='weekly_workload::integer')

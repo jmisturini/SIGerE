@@ -29,7 +29,7 @@ def upgrade():
     # pertencer à primeira unidade ativa; sem unidades no banco, não têm
     # dono e são removidas com as tarifas.
     primeira = connection.execute(
-        sa.text('SELECT id FROM unities WHERE is_active = 1 '
+        sa.text('SELECT id FROM unities WHERE is_active '
                 'ORDER BY name LIMIT 1')).scalar()
     if primeira is not None:
         connection.execute(

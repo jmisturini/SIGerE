@@ -37,7 +37,7 @@ def upgrade():
         # ativa (instalações novas não têm linhas para migrar).
         if connection.execute(sa.text('SELECT COUNT(*) FROM vt_requests')).scalar() > 0:
             primeira = connection.execute(
-                sa.text('SELECT id FROM unities WHERE is_active = 1 '
+                sa.text('SELECT id FROM unities WHERE is_active '
                         'ORDER BY name LIMIT 1')).scalar()
             if primeira is not None:
                 connection.execute(
