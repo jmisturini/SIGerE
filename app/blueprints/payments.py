@@ -73,6 +73,16 @@ def decimal_hours_filter(value):
     return f'{float(value):.2f}'.rstrip('0').rstrip('.').replace('.', ',')
 
 
+@bp.app_template_filter('hours_minutes')
+def hours_minutes_filter(value):
+    """Hora decimal como hora/minuto: 4.5 → '4h30', 4.33 → '4h20',
+    4 → '4h'. Complemento legível do decimal nos detalhes do lançamento."""
+    if value is None:
+        return '—'
+    horas, minutos = divmod(decimal_to_minutes(value), 60)
+    return f'{horas}h' + (f'{minutos:02d}' if minutos else '')
+
+
 def _month_options():
     """Meses para a caixa de seleção da consulta: os que já possuem lançamentos
     na unidade + o mês atual, do mais recente para o mais antigo."""
@@ -113,6 +123,12 @@ def parse_currency(value_str):
         return Decimal(cleaned)
     except InvalidOperation:
         return None
+
+
+def decimal_to_minutes(value):
+    """Hora decimal em minutos inteiros com arredondamento comercial
+    (4.33 → 260 = 4h20). Usado ao reabrir o formulário e na exibição."""
+    return int((Decimal(str(value)) * 60).to_integral_value(rounding=ROUND_HALF_UP))
 
 # ================= OVERTIME ROUTES =================
 
@@ -230,8 +246,7 @@ def edit_overtime(overtime_id):
         form.teacher.data = overtime.teacher_id
         form.hourly_value.data = f"{overtime.hourly_value:.2f}".replace('.', ',')
         # A carga em hora decimal volta para os dois campos (ex: 4.33 → 4h20)
-        total_minutes = int((Decimal(overtime.weekly_workload) * 60)
-                            .to_integral_value(rounding=ROUND_HALF_UP))
+        total_minutes = decimal_to_minutes(overtime.weekly_workload)
         form.weekly_workload_hours.data = total_minutes // 60
         form.weekly_workload_minutes.data = total_minutes % 60
 

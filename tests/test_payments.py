@@ -153,6 +153,13 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertEqual(format_budget_code('12345'), '12345')
         self.assertIsNone(format_budget_code(None))
 
+    def test_hours_minutes_filter(self):
+        from app.blueprints.payments import hours_minutes_filter
+        self.assertEqual(hours_minutes_filter(Decimal('4.50')), '4h30')
+        self.assertEqual(hours_minutes_filter(Decimal('4.33')), '4h20')
+        self.assertEqual(hours_minutes_filter(4), '4h')
+        self.assertEqual(hours_minutes_filter(None), '—')
+
     # ---------- Cadastro: bloqueio de mês anterior ----------
 
     def test_create_past_month_is_blocked_with_error(self):
@@ -206,6 +213,12 @@ class PaymentsTestCase(unittest.TestCase):
 
         page = self.client.get('/payments/overtime/list').get_data(as_text=True)
         self.assertIn('<td>4,5</td>', page)
+
+    def test_list_modal_shows_decimal_and_hours_minutes(self):
+        # Nos detalhes do lançamento os dois formatos aparecem: decimal e hora:minuto
+        self._add_overtime(datetime.now().strftime('%Y-%m'), weekly_workload=Decimal('4.50'))
+        page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        self.assertIn('4,5 h (4h30)', page)
 
     def test_create_rejects_minutes_out_of_range(self):
         with patch('app.blueprints.payments.datetime', FixedDatetime):
