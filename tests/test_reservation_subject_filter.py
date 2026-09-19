@@ -98,9 +98,13 @@ class SubjectFilterTestCase(unittest.TestCase):
         self.assertIn('selected', html)
 
     def test_create_reservation_still_saves(self):
-        # Amanhã: horários fixos não podem esbarrar na validação de
+        # Amanhã, pulando domingos (bloqueados pela regra de agendamento);
+        # horários fixos não podem esbarrar na validação de
         # "horário de início no passado" quando o teste roda depois das 14h.
-        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        tomorrow = date.today() + timedelta(days=1)
+        while tomorrow.weekday() == 6:  # 6 = domingo
+            tomorrow += timedelta(days=1)
+        tomorrow = tomorrow.isoformat()
         resp = self.client.post('/reservations/create', data={
             'classroom': self.room_id, 'course': self.curso_id,
             'subject': self.bd_id, 'teacher': 0, 'title': 'Aula de BD',
