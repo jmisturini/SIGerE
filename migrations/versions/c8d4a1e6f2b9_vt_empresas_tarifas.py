@@ -50,10 +50,19 @@ def upgrade():
 
     connection = op.get_bind()
     if connection.execute(sa.text('SELECT COUNT(*) FROM vt_empresas')).scalar() == 0:
+        # Insert via construct do SQLAlchemy: o booleano é compilado por
+        # dialeto e o id da PK volta portável (lastrowid não existe no
+        # PostgreSQL/psycopg2). A PK precisa estar declarada para o
+        # inserted_primary_key funcionar.
+        vt_empresas = sa.Table(
+            'vt_empresas', sa.MetaData(),
+            sa.Column('id', sa.Integer(), primary_key=True),
+            sa.Column('nome', sa.String(100)),
+            sa.Column('is_active', sa.Boolean()))
         for nome, tarifas in EMPRESAS_INICIAIS.items():
             empresa_id = connection.execute(
-                sa.text('INSERT INTO vt_empresas (nome, is_active) '
-                        'VALUES (:nome, 1)'), {'nome': nome}).lastrowid
+                vt_empresas.insert().values(nome=nome, is_active=True)
+            ).inserted_primary_key[0]
             for tarifa in tarifas:
                 valor = float(tarifa.replace(',', '.'))
                 connection.execute(

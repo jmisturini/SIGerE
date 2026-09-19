@@ -27,9 +27,12 @@ def upgrade():
         batch_op.add_column(sa.Column('controla_computadores', sa.Boolean(),
                                       nullable=False, server_default='0'))
     # Backfill: a categoria que sempre controlou computadores é a de código
-    # fixo 'computer_lab' — o comportamento existente é preservado.
-    op.execute("UPDATE room_categories SET controla_computadores = 1 "
-               "WHERE code = 'computer_lab'")
+    # fixo 'computer_lab' — o comportamento existente é preservado. O booleano
+    # vai parametrizado: literal 1 inteiro o PostgreSQL rejeita.
+    op.get_bind().execute(
+        sa.text('UPDATE room_categories SET controla_computadores = :v '
+                'WHERE code = :code'),
+        {'v': True, 'code': 'computer_lab'})
 
 
 def downgrade():
