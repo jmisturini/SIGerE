@@ -240,6 +240,17 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertRegex(page, r'id="weekly_workload_hours"[^>]*value="4"')
         self.assertRegex(page, r'id="weekly_workload_minutes"[^>]*value="20"')
 
+    def test_edit_selects_the_record_teacher(self):
+        # O relationship TeacherOvertimePay.teacher (objeto User) tem o mesmo
+        # nome do campo teacher: o WTForms tenta int(User), falha em silêncio
+        # e a seleção cai no primeiro professor da lista. "Professora Teste"
+        # não é a primeira da lista ("Outro Professor" vem antes).
+        record_id = self._add_overtime(datetime.now().strftime('%Y-%m'))
+        page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
+        opcao = re.search(rf'<option[^>]*value="{self.teacher_id}"[^>]*>', page)
+        self.assertIsNotNone(opcao, 'option do professor do lançamento não encontrada')
+        self.assertIn('selected', opcao.group(0))
+
     def test_edit_stores_converted_decimal(self):
         record_id = self._add_overtime(datetime.now().strftime('%Y-%m'))
         with patch('app.blueprints.payments.datetime', FixedDatetime):

@@ -224,6 +224,10 @@ def edit_overtime(overtime_id):
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
 
     if request.method == 'GET':
+        # O relationship TeacherOvertimePay.teacher (objeto User) tem o mesmo
+        # nome do campo: o WTForms tenta int(User), falha em silêncio e a
+        # seleção volta para o primeiro professor da lista — restaura pelo id.
+        form.teacher.data = overtime.teacher_id
         form.hourly_value.data = f"{overtime.hourly_value:.2f}".replace('.', ',')
         # A carga em hora decimal volta para os dois campos (ex: 4.33 → 4h20)
         total_minutes = int((Decimal(overtime.weekly_workload) * 60)
