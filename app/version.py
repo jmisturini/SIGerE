@@ -10,12 +10,28 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.16.0'
+APP_VERSION = '1.17.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.17.0',
+        'data': '2026-09-19',
+        'titulo': 'Menu lateral reorganizado e carga horária em hora e minuto',
+        'grupos': [
+            ('Alterado', [
+                'Menu lateral reorganizado: itens em pílulas arredondadas com respiro das bordas, item ativo em pílula clara que acompanha todos os temas de cor e o modo escuro, fios divisórios entre as seções, linha-guia ligando os itens de cada submenu e marca fixa no topo com o menu rolando de forma independente, com barra de rolagem discreta.',
+                'A carga horária semanal do formulário de hora extra passa a ser informada em dois campos (hora e minuto), com dica mostrando o valor já convertido para hora decimal (ex.: 4h30 = 4,5) — o decimal é o que fica gravado, é exportado na coluna Horas da planilha e exibido na consulta e no modal. A coluna vira Numeric(5,2) em migração; lançamentos antigos (inteiros) continuam válidos.',
+                'Detalhes do lançamento de hora extra exibem a carga horária nos dois formatos — "4,5 h (4h30)" — com a conversão de decimal para minutos centralizada em um helper reaproveitado pela edição.',
+            ]),
+            ('Corrigido', [
+                'Editar uma hora extra não zera mais o professor do lançamento: o select voltava para o primeiro professor da lista porque o campo do formulário colidia com o relationship do modelo no repovoamento do WTForms.',
+                'Implantação: cliente Python do Redis incluído no requirements (apontar o rate limit para Redis sem o pacote quebrava o startup), Redis com teste de conectividade no instalador interativo e criação da pasta instance/uploads; a documentação de atualização sai do sudo -u www-data, que descartava as variáveis de ambiente e tornava o .env ilegível.',
+            ]),
+        ],
+    },
     {
         'versao': '1.16.0',
         'data': '2026-09-18',
