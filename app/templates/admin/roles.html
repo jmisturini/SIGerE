@@ -57,10 +57,15 @@
                             </span>
                         </td>
                         <td class="text-end pe-4">
-                            {% if current_user.has_permission('role:edit') %}
+                            {% if current_user.has_permission('role:edit') and (current_user.has_permission('*') or r.id not in ids_papel_super_admin) %}
                             <a href="{{ url_for('admin.edit_role', role_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
+                            {% elif r.id in ids_papel_super_admin %}
+                            <span class="btn btn-sm btn-outline-secondary disabled" tabindex="-1" aria-disabled="true"
+                                  title="Apenas o super-admin pode editar este papel.">
+                                <i class="bi bi-lock-fill"></i>
+                            </span>
                             {% endif %}
                             {% if current_user.has_permission('role:delete') and not r.is_system %}
                             <form method="POST" action="{{ url_for('admin.delete_role', role_id=r.id) }}" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este papel?');">

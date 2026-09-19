@@ -10,7 +10,7 @@ from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.styles import Border, Side, Font, Alignment
 from io import BytesIO
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from app.permissions import require_module, require_permission
 from app.utils import redirect_back, redirect_preserving_args
 
@@ -64,6 +64,25 @@ def budget_code_filter(value):
     return format_budget_code(value)
 
 
+@bp.app_template_filter('decimal_hours')
+def decimal_hours_filter(value):
+    """Hora decimal no padrão pt-BR, sem zeros à direita: 4.5 → '4,5',
+    4.33 → '4,33', 4 → '4'. Usado na listagem e no modal de visualização."""
+    if value is None:
+        return '—'
+    return f'{float(value):.2f}'.rstrip('0').rstrip('.').replace('.', ',')
+
+
+@bp.app_template_filter('hours_minutes')
+def hours_minutes_filter(value):
+    """Hora decimal como hora/minuto: 4.5 → '4h30', 4.33 → '4h20',
+    4 → '4h'. Complemento legível do decimal nos detalhes do lançamento."""
+    if value is None:
+        return '—'
+    horas, minutos = divmod(decimal_to_minutes(value), 60)
+    return f'{horas}h' + (f'{minutos:02d}' if minutos else '')
+
+
 def _month_options():
     """Meses para a caixa de seleção da consulta: os que já possuem lançamentos
     na unidade + o mês atual, do mais recente para o mais antigo."""
@@ -104,6 +123,12 @@ def parse_currency(value_str):
         return Decimal(cleaned)
     except InvalidOperation:
         return None
+
+
+def decimal_to_minutes(value):
+    """Hora decimal em minutos inteiros com arredondamento comercial
+    (4.33 → 260 = 4h20). Usado ao reabrir o formulário e na exibição."""
+    return int((Decimal(str(value)) * 60).to_integral_value(rounding=ROUND_HALF_UP))
 
 # ================= OVERTIME ROUTES =================
 
@@ -177,10 +202,16 @@ def create_overtime():
             flash('Erro: O Valor H/a deve ser maior que 0.', 'danger')
             return redirect(url_for('payments.create_overtime'))
 
+        # Hora + minuto já convertidos para hora decimal pelo formulário
+        weekly_workload = form.workload_decimal()
+        if weekly_workload is None or weekly_workload <= 0:
+            flash('Erro: A Carga Horária Semanal deve ser maior que 0.', 'danger')
+            return redirect(url_for('payments.create_overtime'))
+
         overtime = TeacherOvertimePay(
             teacher_id=form.teacher.data, teaching_level=form.teaching_level.data,
             unity_id=current_unity_id(),
-            weekly_workload=form.weekly_workload.data, hourly_value=hourly_value,
+            weekly_workload=weekly_workload, hourly_value=hourly_value,
             budget_code=format_budget_code(form.budget_code.data), shift=form.shift.data,
             multiple_dates=form.multiple_dates.data, justification=form.justification.data,
             month_base=form.month_base.data, accountable_id=current_user.id
@@ -209,7 +240,15 @@ def edit_overtime(overtime_id):
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
 
     if request.method == 'GET':
+        # O relationship TeacherOvertimePay.teacher (objeto User) tem o mesmo
+        # nome do campo: o WTForms tenta int(User), falha em silêncio e a
+        # seleção volta para o primeiro professor da lista — restaura pelo id.
+        form.teacher.data = overtime.teacher_id
         form.hourly_value.data = f"{overtime.hourly_value:.2f}".replace('.', ',')
+        # A carga em hora decimal volta para os dois campos (ex: 4.33 → 4h20)
+        total_minutes = decimal_to_minutes(overtime.weekly_workload)
+        form.weekly_workload_hours.data = total_minutes // 60
+        form.weekly_workload_minutes.data = total_minutes % 60
 
     if form.validate_on_submit():
         month_base_str = form.month_base.data
@@ -234,9 +273,14 @@ def edit_overtime(overtime_id):
             flash('Erro: O Valor H/a deve ser maior que 0.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
+        weekly_workload = form.workload_decimal()
+        if weekly_workload is None or weekly_workload <= 0:
+            flash('Erro: A Carga Horária Semanal deve ser maior que 0.', 'danger')
+            return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
+
         overtime.teacher_id = form.teacher.data
         overtime.teaching_level = form.teaching_level.data
-        overtime.weekly_workload = form.weekly_workload.data
+        overtime.weekly_workload = weekly_workload
         overtime.hourly_value = hourly_value
         overtime.budget_code = format_budget_code(form.budget_code.data)
         overtime.shift = form.shift.data
@@ -328,7 +372,7 @@ def export_excel_overtime():
         cell_data = [
             (1, data.teacher.full_name),
             (2, data.teaching_level),
-            (3, data.weekly_workload),
+            (3, float(data.weekly_workload) if data.weekly_workload else 0),
             (4, float(data.hourly_value) if data.hourly_value else 0),
             (5, data.multiple_dates or ''),
             (6, data.shift),

@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0"><i class="bi bi-bus-front text-primary me-2"></i> {{ title }}</h5>
+                <a href="{{ url_for('admin.list_vt_empresas') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" novalidate id="form-empresa" autocomplete="off">
+                    {{ form.hidden_tag() }}
+
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            {{ form.nome.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.nome(class="form-control") }}
+                            {% for err in form.nome.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+
+                        <div class="col-md-5 d-flex align-items-end">
+                            <div class="form-check">
+                                {{ form.is_active(class="form-check-input") }}
+                                {{ form.is_active.label(class="form-check-label fw-medium") }}
+                                <div class="form-text small">Inativa some do formulário público sem apagar o histórico.</div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-uppercase text-muted mb-1">Tarifas vigentes</label>
+                            <div class="form-text small mb-2">Cada linha é uma opção de "Valor do vale" no pedido
+                                público: a identificação da tarifa aplicada (ex.: Patamar 3, da tabela da empresa)
+                                e o valor correspondente.</div>
+                            <div id="linhas-tarifas">
+                                {% for identificacao, valor_texto in linhas_tarifas %}
+                                <div class="input-group mb-2 linha-tarifa">
+                                    {# or '': tarifas legadas sem identificação (semeadas
+                                       pela migração inicial) chegavam como None aqui #}
+                                    <input type="text" name="identificacao" class="form-control" autocomplete="off"
+                                           placeholder="Identificação (ex.: Patamar 3)" aria-label="Identificação da tarifa"
+                                           value="{{ identificacao or '' }}">
+                                    <input type="text" name="valor" class="form-control" style="max-width: 12rem" autocomplete="off"
+                                           placeholder="Valor (ex.: 7,24)" aria-label="Valor da tarifa"
+                                           value="{{ valor_texto }}">
+                                    <button type="button" class="btn btn-outline-danger remover-linha"
+                                            title="Remover tarifa"><i class="bi bi-x-lg"></i></button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="adicionar-linha">
+                                <i class="bi bi-plus-lg me-1"></i> Adicionar tarifa
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('admin.list_vt_empresas') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<template id="modelo-linha">
+    <div class="input-group mb-2 linha-tarifa">
+        <input type="text" name="identificacao" class="form-control" autocomplete="off"
+               placeholder="Identificação (ex.: Patamar 3)" aria-label="Identificação da tarifa">
+        <input type="text" name="valor" class="form-control" style="max-width: 12rem" autocomplete="off"
+               placeholder="Valor (ex.: 7,24)" aria-label="Valor da tarifa">
+        <button type="button" class="btn btn-outline-danger remover-linha" title="Remover tarifa">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+</template>
+<script>
+    // Linhas dinâmicas de tarifa (identificação + valor): o botão clona o
+    // modelo e o "×" remove a linha — o servidor revalida tudo no POST.
+    (function () {
+        const container = document.getElementById('linhas-tarifas');
+        const modelo = document.getElementById('modelo-linha');
+
+        document.getElementById('adicionar-linha').addEventListener('click', () => {
+            container.appendChild(modelo.content.cloneNode(true));
+        });
+
+        container.addEventListener('click', (evento) => {
+            const botao = evento.target.closest('.remover-linha');
+            if (botao) botao.closest('.linha-tarifa').remove();
+        });
+
+        // Reexibição pelo cache do navegador (botão voltar) restaura os
+        // campos com os valores da visita anterior — recarregar traz o
+        // estado real do servidor (linhas vazias na criação, vigentes na
+        // edição; a re-renderização com erro de validação não passa pelo
+        // cache e não é afetada).
+        window.addEventListener('pageshow', (evento) => {
+            if (evento.persisted) window.location.reload();
+        });
+    })();
+</script>
+{% endblock %}

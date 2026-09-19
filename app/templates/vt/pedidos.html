@@ -1,26 +1,33 @@
 {% extends 'base.html' %}
-{% block title %}Vale Transporte — Colaboradores{% endblock %}
+{% block title %}Vale Transporte — Pedidos VT{% endblock %}
 
 {% block content %}
-{% set filters_active = search or link_filter or unity_filter or hide_without_vt or sort %}
+{% set filters_active = search or optant_filter or link_filter or hide_without_vt or sort %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
-        <h3 class="fw-bold mb-1"><i class="bi bi-people text-primary me-2"></i>Colaboradores</h3>
-        <p class="text-muted mb-0">Revise os dados importados, corrija inconsistências e exporte a
-            planilha de pagamento por grupo.</p>
+        <h3 class="fw-bold mb-1"><i class="bi bi-inbox text-primary me-2"></i>Pedidos VT</h3>
+        <p class="text-muted mb-0">Respostas do pedido público de Vale-Transporte — {{ pedidos|length }} pedido(s),
+            <strong>{{ total_com_vt }}</strong> desejando VT. Revise, corrija e exporte.</p>
     </div>
-    <a href="{{ url_for('vt.index') }}" class="btn btn-outline-primary">
-        <i class="bi bi-cloud-arrow-up me-1"></i> Importar outro arquivo
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('vt.relatorio') }}" class="btn btn-outline-secondary" title="Relatório visual dos pedidos desta unidade">
+            <i class="bi bi-graph-up me-1"></i> Relatório
+        </a>
+        <button type="button" class="btn btn-outline-primary"
+                data-copy-link="{{ url_for('vt.request_form', unity=current_unity.id, _external=True) if current_unity else url_for('vt.request_form', _external=True) }}"
+                title="Copiar o link público do formulário desta unidade para enviar aos colaboradores">
+            <i class="bi bi-link-45deg me-1"></i> Copiar link do formulário
+        </button>
+    </div>
 </div>
 
-{% if records %}
+{% if pedidos %}
 <div class="card mb-4 border-success-subtle">
     <div class="card-body">
         <h6 class="text-muted text-uppercase small fw-bold mb-3">
             <i class="bi bi-file-earmark-excel me-1"></i> Exportar planilha de pagamento
         </h6>
-        <form method="GET" action="{{ url_for('vt.export') }}" class="row g-3 align-items-end">
+        <form method="GET" action="{{ url_for('vt.payment_export') }}" class="row g-3 align-items-end">
             <div class="col-md-6">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1">Grupo de colaboradores</label>
                 <select name="group" class="form-select">
@@ -38,7 +45,7 @@
         </form>
         <div class="small text-muted mt-2">
             <i class="bi bi-info-circle me-1"></i>
-            Exportáveis (Optante "Sim" e passes &gt; 0):
+            Exportáveis (Optante "Sim" e passes &gt; 0; valor = tarifa × vales):
             {% for key, label in group_labels.items() %}
             <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle me-1">
                 {{ label }}: {{ group_counts[key] }}
@@ -49,12 +56,12 @@
 </div>
 {% endif %}
 
-<form method="GET" action="{{ url_for('vt.records') }}" class="card mb-3">
+<form method="GET" action="{{ url_for('vt.requests') }}" class="card mb-3">
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-lg-3">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1">Nome</label>
-                <input type="text" name="q" class="form-control" placeholder="Buscar por nome…" value="{{ search }}">
+                <input type="text" name="q" class="form-control" placeholder="Buscar por nome, e-mail ou matrícula…" value="{{ search }}">
             </div>
             <div class="col-lg-3">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1">Vínculo</label>
@@ -66,18 +73,17 @@
                 </select>
             </div>
             <div class="col-lg-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Unidade</label>
-                <select name="unity" class="form-select">
-                    <option value="">Todas</option>
-                    {% for value in unities %}
-                    <option value="{{ value }}" {{ 'selected' if unity_filter == value }}>{{ value }}</option>
-                    {% endfor %}
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Deseja VT</label>
+                <select name="optant" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="Sim" {{ 'selected' if optant_filter == 'Sim' }}>Sim</option>
+                    <option value="Não" {{ 'selected' if optant_filter == 'Não' }}>Não</option>
                 </select>
             </div>
             <div class="col-lg-3">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1">Organizar por</label>
                 <select name="sort" class="form-select">
-                    <option value="" {{ 'selected' if not sort }}>Ordem de importação</option>
+                    <option value="" {{ 'selected' if not sort }}>Mais recentes</option>
                     <option value="nome" {{ 'selected' if sort == 'nome' }}>Nome (A–Z)</option>
                     <option value="matricula" {{ 'selected' if sort == 'matricula' }}>Matrícula</option>
                     <option value="valor" {{ 'selected' if sort == 'valor' }}>Valor total (maior primeiro)</option>
@@ -95,7 +101,7 @@
                 <button type="submit" class="btn btn-outline-primary flex-grow-1">
                     <i class="bi bi-funnel me-1"></i> Aplicar filtros
                 </button>
-                <a href="{{ url_for('vt.records') }}"
+                <a href="{{ url_for('vt.requests') }}"
                    class="btn btn-outline-secondary {{ '' if filters_active else 'disabled' }}"
                    {{ '' if filters_active else 'aria-disabled="true" tabindex="-1"' }}
                    title="Limpar os filtros aplicados e voltar à listagem completa">
@@ -106,35 +112,17 @@
     </div>
 </form>
 
-{% if can_delete and records %}
-<div class="d-flex justify-content-end mb-2">
-    <form method="POST" action="{{ url_for('vt.clear_all') }}" onsubmit="return confirm('Remover TODOS os registros importados da unidade ativa?');">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-outline-danger btn-sm" title="Apagar todos os registros importados">
-            <i class="bi bi-eraser me-1"></i> Limpar tudo
-        </button>
-    </form>
-</div>
-{% endif %}
-
 <div class="card">
     <div class="card-body p-0">
-        {% if flagged %}
-        <p class="small text-muted mb-0 px-4 pt-3">
-            <i class="bi bi-exclamation-triangle text-warning me-1"></i>
-            Linhas destacadas: nome padronizado automaticamente (passe o mouse sobre o selo para ver o original),
-            <strong>nome repetido</strong> ou <strong>matrícula repetida</strong>.
-        </p>
-        {% endif %}
         <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th class="ps-4">Matrícula</th>
-                        <th>Nome</th>
+                        <th class="ps-4">Data</th>
+                        <th>Colaborador</th>
+                        <th>E-mail</th>
                         <th>Optante</th>
                         <th>Vínculo</th>
-                        <th>Unidade</th>
                         <th>Empresas</th>
                         <th>Passes</th>
                         <th>Valor Total</th>
@@ -142,49 +130,45 @@
                     </tr>
                 </thead>
                 <tbody>
-                {% for r in records %}
-                {% set flagged_row = r.original_name or r.duplicate_name or r.duplicate_registration %}
-                    <tr id="vt-{{ r.id }}" class="{{ 'table-warning' if flagged_row }}">
-                        <td class="ps-4">
-                            {{ r.registration }}
-                            {% if r.duplicate_registration %}
-                            <i class="bi bi-exclamation-triangle text-danger ms-1" title="Matrícula repetida"></i>
-                            {% endif %}
+                {% for p in pedidos %}
+                    <tr>
+                        <td class="ps-4 text-nowrap">
+                            {% if p.created_at %}<span class="text-muted small">{{ p.created_at.strftime('%d/%m/%Y %H:%M') }}</span>{% else %}-{% endif %}
                         </td>
                         <td class="fw-bold">
-                            {{ r.full_name }}
-                            {% if r.original_name %}
-                            <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1"
-                                  title="Nome padronizado automaticamente. Original: {{ r.original_name }}">nome ajustado</span>
-                            {% endif %}
-                            {% if r.duplicate_name %}
-                            <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">nome repetido</span>
-                            {% endif %}
+                            {{ p.full_name }}
+                            <div class="text-muted small fw-normal">Matrícula {{ p.registration }}</div>
                         </td>
+                        <td class="small">{{ p.email }}</td>
                         <td>
-                            {% if r.optant == 'Sim' %}
+                            {% if p.optant == 'Sim' %}
                             <span class="badge text-bg-success-subtle text-success border border-success-subtle">Sim</span>
                             {% else %}
                             <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Não</span>
                             {% endif %}
                         </td>
-                        <td><small>{{ r.link or '—' }}</small></td>
-                        <td><small>{{ r.unity or '—' }}</small></td>
+                        <td><small>{{ p.link or '—' }}</small></td>
                         <td>
-                            {% if r.company_a_name %}<span class="badge text-bg-light border" title="R$ {{ '%.2f'|format(r.company_a_value or 0) }} × {{ r.company_a_passes }}">{{ r.company_a_name }}</span>{% endif %}
-                            {% if r.company_b_name %}<span class="badge text-bg-light border" title="R$ {{ '%.2f'|format(r.company_b_value or 0) }} × {{ r.company_b_passes }}">{{ r.company_b_name }}</span>{% endif %}
-                            {% if not r.company_a_name and not r.company_b_name %}—{% endif %}
+                            {% if p.optant == 'Sim' %}
+                                {% if p.company_a_name %}
+                                <span class="badge text-bg-light border" title="R$ {{ '%.2f'|format(p.company_a_value or 0) }} × {{ p.company_a_passes or 0 }} vale(s) — {{ p.company_a_route or 'trajeto não informado' }}">{{ p.company_a_name }}</span>
+                                {% endif %}
+                                {% if p.company_b_name %}
+                                <span class="badge text-bg-light border" title="R$ {{ '%.2f'|format(p.company_b_value or 0) }} × {{ p.company_b_passes or 0 }} vale(s) — {{ p.company_b_route or 'trajeto não informado' }}">{{ p.company_b_name }}</span>
+                                {% endif %}
+                                {% if not p.company_a_name and not p.company_b_name %}—{% endif %}
+                            {% else %}—{% endif %}
                         </td>
-                        <td>{{ r.total_passes or 0 }}</td>
-                        <td>R$ {{ '%.2f'|format(r.total_value or 0) }}</td>
+                        <td>{{ p.total_passes if p.optant == 'Sim' else '—' }}</td>
+                        <td>{{ 'R$ %.2f'|format(p.total_value) if p.optant == 'Sim' else '—' }}</td>
                         <td class="text-end pe-4 text-nowrap">
                             {% if can_edit %}
-                            <a href="{{ url_for('vt.edit_record', record_id=r.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                            <a href="{{ url_for('vt.edit_request', request_id=p.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
                             {% endif %}
                             {% if can_delete %}
-                            <form method="POST" action="{{ url_for('vt.delete_record', record_id=r.id) }}" class="d-inline" onsubmit="return confirm('Excluir o registro de {{ r.full_name }}?');">
+                            <form method="POST" action="{{ url_for('vt.delete_request', request_id=p.id) }}" class="d-inline" onsubmit="return confirm('Excluir o pedido de {{ p.full_name }}?');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button class="btn btn-sm btn-outline-danger" title="Excluir">
                                     <i class="bi bi-trash"></i>
@@ -194,18 +178,15 @@
                         </td>
                     </tr>
                 {% else %}
-                {% set filtered = search or link_filter or unity_filter or hide_without_vt %}
                     <tr>
                         <td colspan="9" class="text-center text-muted p-5">
-                            <i class="bi bi-people fs-2 d-block mb-2"></i>
-                            {% if filtered %}
-                            <h5 class="mb-1">Nenhum registro para os filtros aplicados</h5>
-                            <p class="small mb-0">Ajuste ou limpe os filtros para ver os colaboradores.</p>
+                            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                            {% if filters_active %}
+                            <h5 class="mb-1">Nenhum pedido para os filtros aplicados</h5>
+                            <p class="small mb-0">Ajuste ou limpe os filtros para ver os pedidos.</p>
                             {% else %}
-                            <h5 class="mb-1">Nenhum colaborador importado</h5>
-                            <p class="small mb-0">
-                                <a href="{{ url_for('vt.index') }}">Envie o arquivo .xlsx do Pedido de Compra</a> para começar.
-                            </p>
+                            <h5 class="mb-1">Nenhum pedido recebido</h5>
+                            <p class="small mb-0">Envie o link público do formulário aos colaboradores para começar a receber respostas.</p>
                             {% endif %}
                         </td>
                     </tr>
@@ -215,4 +196,24 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Copia o link público do formulário (fallback: prompt para copiar à mão,
+    // em navegadores sem clipboard API ou fora de HTTPS).
+    document.querySelectorAll('[data-copy-link]').forEach(botao => {
+        botao.addEventListener('click', async () => {
+            const link = botao.dataset.copyLink;
+            try {
+                await navigator.clipboard.writeText(link);
+                const anterior = botao.innerHTML;
+                botao.innerHTML = '<i class="bi bi-check-lg me-1"></i> Link copiado!';
+                setTimeout(() => { botao.innerHTML = anterior; }, 2500);
+            } catch (e) {
+                window.prompt('Copie o link do formulário:', link);
+            }
+        });
+    });
+</script>
 {% endblock %}

@@ -1,12 +1,14 @@
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from flask_wtf import FlaskForm
-from flask_wtf.file import FileAllowed, FileField, FileRequired
-from wtforms import (StringField, PasswordField, SubmitField, IntegerField, FloatField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField)
+from wtforms import (StringField, PasswordField, SubmitField, IntegerField, FloatField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField, RadioField)
 from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, date
 import re
+from sqlalchemy import func
 # CORREÇÃO: Holiday e Role não estavam importados — os validadores de
 # HolidayForm.validate_date e RoleForm.validate_name geravam NameError (erro 500).
-from app.models import (User, Course, Subject, RoomCategory, Holiday, Role, Unity)
+from app.models import (User, Course, Subject, RoomCategory, Holiday, Role, Unity,
+                        VtEmpresa, VtConfig)
 from app.unity_context import current_unity_id
 
 # =============================================================================
@@ -478,7 +480,14 @@ class FormTeacherOvertimePay(BaseForm):
         ('FIC II', 'FIC II'),
         ('FIC III', 'FIC III')
     ], validators=[DataRequired()])
-    weekly_workload = IntegerField('Carga Horária Semanal', validators=[DataRequired(), NumberRange(min=1, message="A carga horária deve ser maior que 0.")])
+    # Carga Horária Semanal em dois campos (hora e minuto): a conversão para
+    # hora decimal fica em workload_decimal() — é esse valor que é gravado,
+    # exportado na planilha e exibido na consulta. A validação do total (> 0)
+    # fica na rota, junto das demais checagens de negócio.
+    weekly_workload_hours = IntegerField('Carga Horária Semanal (hora)',
+                                         validators=[Optional(), NumberRange(min=0, message='As horas não podem ser negativas.')])
+    weekly_workload_minutes = IntegerField('Carga Horária Semanal (minuto)',
+                                           validators=[Optional(), NumberRange(min=0, max=59, message='Os minutos devem estar entre 0 e 59.')])
     hourly_value = StringField('Valor H/a (ex: 15,50)', validators=[DataRequired()])
     budget_code = StringField('Código Orçamentário', validators=[DataRequired()])
     shift = SelectField('Turno', choices=[('Matutino', 'Matutino'), ('Vespertino', 'Vespertino'), ('Noturno', 'Noturno')], validators=[DataRequired()])
@@ -488,6 +497,16 @@ class FormTeacherOvertimePay(BaseForm):
     # porque o Firefox não tem seletor nativo para <input type="month">.
     month_base = StringField('Mês Base', validators=[DataRequired()], render_kw={'type': 'hidden'})
     submit = SubmitField('Lançar Hora Extra')
+
+    def workload_decimal(self):
+        """Hora + minuto informados convertidos para hora decimal com 2 casas
+        (arredondamento comercial: 4h20 → 4.33). None quando algum campo não
+        é um número válido — a rota decide o que fazer com isso."""
+        if self.weekly_workload_hours.data is None or self.weekly_workload_minutes.data is None:
+            return None
+        total = (Decimal(self.weekly_workload_hours.data)
+                 + Decimal(self.weekly_workload_minutes.data) / Decimal(60))
+        return total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def _validate_alpha_only(self, field, field_name):
         if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
@@ -620,64 +639,222 @@ class RoomCategoryForm(BaseForm):
 
 
 # =============================================================================
-# VALE TRANSPORTE (FINANCEIRO)
+# PEDIDO PÚBLICO DE VALE-TRANSPORTE (/vt/pedido, sem login)
 # =============================================================================
 
-class FormVtUpload(BaseForm):
-    """Upload do "Pedido de Compra" (.xlsx) com a aba "Vale Transporte"."""
-    file = FileField('Arquivo do Pedido de Compra', validators=[
-        FileRequired(message='Selecione o arquivo do Pedido de Compra.'),
-        FileAllowed(['xlsx'], 'Formato inválido. Envie um arquivo .xlsx.')
-    ])
-    submit = SubmitField('Importar')
+# Opções fiéis ao formulário "Pedido de Vale-Transporte" (Microsoft Forms)
+# que este sistema substitui, com empresa e tarifa separadas: cada empresa
+# tem sua lista de tarifas vigentes — o formulário mostra só os nomes e o
+# campo de valor (logo abaixo) oferece as tarifas da empresa escolhida. Os
+# textos de vínculo coincidem com VtRecord.link, e a resposta chega pronta
+# para conferência do RH.
+VT_VINCULOS_PEDIDO = ['Técnico - Administrativo', 'Professor(a)']
+VT_TRAJETOS_PEDIDO = ['Somente Volta', 'Ida e Volta']
 
 
-class FormVtRecord(BaseForm):
-    """Edição de um colaborador do Vale Transporte — espelha todas as colunas
-    da aba "Vale Transporte" do Pedido de Compra (A–P)."""
-    registration = StringField('Matrícula', validators=[DataRequired(), Length(max=20)])
+def parse_tarifa_linhas(identificacoes, valores):
+    """Combina as linhas do formulário dinâmico de tarifas (uma
+    identificação e um valor por linha) em [(identificacao, Decimal), ...]
+    ordenada. A identificação é texto livre que rotula a tarifa aplicada
+    (ex.: "Patamar 3", da tabela da empresa). Linhas totalmente vazias são
+    ignoradas; ValueError com mensagem amigável para linha incompleta,
+    valor inválido ou identificação repetida."""
+    linhas, vistos = [], set()
+    for identificacao, bruto in zip(identificacoes, valores):
+        identificacao = (identificacao or '').strip()
+        bruto = (bruto or '').strip().upper().replace('R$', '').strip()
+        if not identificacao and not bruto:
+            continue  # linha vazia acrescentada e não preenchida
+        if not identificacao:
+            raise ValueError('Informe a identificação de cada tarifa '
+                             '(ex.: Patamar 3).')
+        if len(identificacao) > 100:
+            raise ValueError(f'A identificação "{identificacao[:30]}…" é muito '
+                             'longa (máximo de 100 caracteres).')
+        if identificacao.casefold() in vistos:
+            raise ValueError(f'A identificação "{identificacao}" tem mais de '
+                             'uma tarifa — cada identificação deve aparecer '
+                             'uma única vez.')
+        vistos.add(identificacao.casefold())
+        if not bruto:
+            raise ValueError(f'Informe o valor da tarifa "{identificacao}".')
+        if ',' in bruto:
+            bruto = bruto.replace('.', '').replace(',', '.')
+        try:
+            valor = Decimal(bruto).quantize(Decimal('0.01'))
+        except InvalidOperation:
+            raise ValueError(f'Valor de tarifa inválido: "{bruto}". '
+                             'Use reais com vírgula decimal (ex.: 7,24).')
+        linhas.append((identificacao, valor))
+    if not linhas:
+        raise ValueError('Adicione pelo menos uma tarifa (identificação + valor).')
+    return sorted(linhas, key=lambda l: l[0].casefold())
+
+
+class FormVtEmpresa(BaseForm):
+    """Empresa de ônibus do pedido de VT (formulário público) e suas tarifas
+    vigentes — gerenciada na área de administração (/admin/vt-empresas). As
+    tarifas são linhas dinâmicas (identificação + valor) tratadas pela rota,
+    que valida com parse_tarifa_linhas()."""
+    nome = StringField('Nome da empresa', validators=[DataRequired(), Length(max=100)])
+    is_active = BooleanField('Disponível no formulário público', default=True)
+    submit = SubmitField('Salvar empresa')
+
+
+class FormVtConfig(BaseForm):
+    """Configurações do pedido público de VT da unidade: números base de
+    vales por trajeto (quando definidos, o pedido os usa automaticamente em
+    vez de pedir que o colaborador digite) e data de fechamento do
+    formulário (último dia para preencher)."""
+    vales_somente_ida = IntegerField(
+        'Nº base de vales — Somente Volta',
+        validators=[Optional(), NumberRange(min=1, max=999,
+                                            message='Informe um número entre 1 e 999.')])
+    vales_ida_e_volta = IntegerField(
+        'Nº base de vales — Ida e Volta',
+        validators=[Optional(), NumberRange(min=1, max=999,
+                                            message='Informe um número entre 1 e 999.')])
+    fecha_em = DateField('Fechamento do formulário', validators=[Optional()])
+    submit = SubmitField('Salvar configurações')
+
+    def validate(self, extra_validators=None):
+        if not super().validate(extra_validators):
+            return False
+        # Os números base valem em par: informar só um deles deixaria o
+        # pedido sem valor para o outro trajeto.
+        if ((self.vales_somente_ida.data is None)
+                != (self.vales_ida_e_volta.data is None)):
+            self.vales_somente_ida.errors.append(
+                'Informe os dois números base de vales (ou deixe ambos vazios '
+                'para o colaborador digitar).')
+            return False
+        return True
+
+
+class FormVtPedido(BaseForm):
+    """Pedido público de Vale-Transporte: replica as perguntas do formulário
+    do Microsoft Forms, com a identificação por e-mail exigido pelo acesso
+    anônimo. A ramificação (deseja VT → vínculo → nº de empresas) é guiada
+    pelo JavaScript da página e espelhada aqui no servidor — o POST forjado
+    sem os campos obrigatórios do ramo escolhido é rejeitado. As empresas e
+    tarifas são as cadastradas em /admin/vt-empresas: os choices são
+    preenchidos pela rota antes da validação."""
+
+    email = StringField('E-mail', validators=[
+        DataRequired(), Email(), Length(max=255)])
     full_name = StringField('Nome', validators=[DataRequired(), Length(max=255)])
-    optant = SelectField('Optante VT', choices=[('Sim', 'Sim'), ('Não', 'Não')],
-                         validators=[DataRequired()])
-    link = SelectField('Vínculo', choices=[
-        ('', '—'),
-        ('Técnico - Administrativo', 'Técnico - Administrativo'),
-        ('Professor(a)', 'Professor(a)'),
-    ], validators=[Optional()])
-    unity = StringField('Unidade (Pedido de Compra)', validators=[Optional(), Length(max=100)])
-    company_count = IntegerField('Nº de Empresas', validators=[Optional(), NumberRange(min=0, max=2)])
-    company_a_name = StringField('Empresa A', validators=[Optional(), Length(max=100)])
-    company_a_value = StringField('Valor VT A', validators=[Optional(), Length(max=20)])
-    company_a_passes = IntegerField('Passes A', validators=[Optional(), NumberRange(min=0)])
-    company_a_total = StringField('Total Empresa A', validators=[Optional(), Length(max=20)])
-    company_b_name = StringField('Empresa B', validators=[Optional(), Length(max=100)])
-    company_b_value = StringField('Valor VT B', validators=[Optional(), Length(max=20)])
-    company_b_passes = IntegerField('Passes B', validators=[Optional(), NumberRange(min=0)])
-    company_b_total = StringField('Total Empresa B', validators=[Optional(), Length(max=20)])
-    total_passes = IntegerField('Total de Passes', validators=[Optional(), NumberRange(min=0)])
-    total_value = StringField('Valor Total dos Passes', validators=[Optional(), Length(max=20)])
-    submit = SubmitField('Salvar')
+    registration = StringField('Matrícula', validators=[DataRequired(), Length(max=20)])
+    optant = RadioField('Deseja Vale-Transporte para o mês',
+                        choices=[('Sim', 'Sim'), ('Não', 'Não')],
+                        validators=[DataRequired()])
+    # Campos do ramo "Sim": obrigatórios via validate(), não por validador.
+    # Sem pergunta de unidade: o pedido já fica registrado na unidade do link
+    # usado pelo colaborador.
+    link = RadioField('Vínculo',
+                      choices=[(v, v) for v in VT_VINCULOS_PEDIDO],
+                      validators=[Optional()])
+    company_count = RadioField(
+        'Selecione o número de empresas de ônibus você usa para se deslocar',
+        choices=[('1', '1'), ('2', '2')], validators=[Optional()])
+    # O valor é uma LINHA de tarifa do cadastro (id de VtEmpresaValor): a
+    # opção mostra "Trajeto — R$ valor" e já define o trajeto do pedido.
+    # Choices preenchidos pela rota antes da validação.
+    company_a_name = SelectField('Selecione uma empresa de ônibus',
+                                 choices=[('', 'Selecione…')], validators=[Optional()])
+    company_a_value = SelectField('Valor do vale (tarifa)',
+                                  choices=[('', 'Selecione…')], validators=[Optional()])
+    company_a_passes = IntegerField(
+        'Digite o número de vales necessários',
+        validators=[Optional(), NumberRange(min=1, max=49,
+                                            message='Informe um número de vales menor que 50.')])
+    company_b_name = SelectField('Selecione uma empresa de ônibus',
+                                 choices=[('', 'Selecione…')], validators=[Optional()])
+    company_b_value = SelectField('Valor do vale (tarifa)',
+                                  choices=[('', 'Selecione…')], validators=[Optional()])
+    company_b_passes = IntegerField(
+        'Digite o número de vales necessários',
+        validators=[Optional(), NumberRange(min=1, max=49,
+                                            message='Informe um número de vales menor que 50.')])
+    # Trajeto: pergunta separada do formulário original (Somente Volta /
+    # Ida e Volta) — independente da tarifa (linha) escolhida.
+    company_a_route = RadioField('Selecione o número de trajetos',
+                                 choices=[(v, v) for v in VT_TRAJETOS_PEDIDO],
+                                 validators=[Optional()])
+    company_b_route = RadioField('Selecione o número de trajetos',
+                                 choices=[(v, v) for v in VT_TRAJETOS_PEDIDO],
+                                 validators=[Optional()])
+    submit = SubmitField('Enviar pedido')
 
-    def _validate_money_format(self, field):
-        if not field.data:
-            return
-        raw = field.data.strip()
-        # Aceita 15,50 | 15.50 | 1.234,56 | 1550 (mesma semântica do parser
-        # de moeda usado na gravação).
-        if not re.match(r'^\d{1,3}(\.\d{3})*(,\d{1,2})?$|^\d+([.,]\d{1,2})?$', raw):
-            raise ValidationError('Formato inválido. Use vírgula decimal (ex: 15,50).')
+    def _identificar_por_email(self):
+        """Quando o e-mail informado é de uma conta ATIVA, nome, matrícula e
+        vínculo vêm do cadastro e sobrescrevem o POST (no navegador os campos
+        ficam travados; aqui é a trava de verdade)."""
+        if not self.email.data:
+            return None
+        usuario = (User.query
+                   .filter(func.lower(User.email) == self.email.data.strip().lower(),
+                           User.is_active_user == True)
+                   .first())
+        if usuario is None:
+            return None
+        self.full_name.data = usuario.full_name
+        self.registration.data = usuario.registration or self.registration.data
+        self.link.data = ('Professor(a)' if usuario.profile_type == 'teacher'
+                          else 'Técnico - Administrativo')
+        return usuario
 
-    def validate_company_a_value(self, field):
-        self._validate_money_format(field)
+    def validate(self, extra_validators=None):
+        if not super().validate(extra_validators):
+            return False
+        self._identificar_por_email()
+        if self.optant.data != 'Sim':
+            return True
 
-    def validate_company_a_total(self, field):
-        self._validate_money_format(field)
+        # Ramo "Sim": as perguntas seguintes do formulário viram obrigatórias
+        # (no Microsoft Forms o desvio "Não" simplesmente pula o restante).
+        # Sem pergunta de unidade: o pedido pertence à unidade do link.
+        obrigatorio = [
+            (self.link, 'Selecione o vínculo.'),
+            (self.company_count, 'Selecione o número de empresas de ônibus.'),
+            (self.company_a_name, 'Selecione a empresa de ônibus.'),
+            (self.company_a_value, 'Selecione o valor do vale.'),
+            (self.company_a_passes, 'Digite o número de vales necessários.'),
+            (self.company_a_route, 'Selecione o trajeto.'),
+        ]
+        valido = True
+        for campo, mensagem in obrigatorio:
+            if campo.data in (None, ''):
+                campo.errors.append(mensagem)
+                valido = False
+        if self.company_count.data == '2':
+            for campo, mensagem in [
+                (self.company_b_name, 'Selecione a segunda empresa de ônibus.'),
+                (self.company_b_value, 'Selecione o valor do vale da segunda empresa.'),
+                (self.company_b_passes, 'Digite o número de vales da segunda empresa.'),
+                (self.company_b_route, 'Selecione o trajeto da segunda empresa.'),
+            ]:
+                if campo.data in (None, ''):
+                    campo.errors.append(mensagem)
+                    valido = False
 
-    def validate_company_b_value(self, field):
-        self._validate_money_format(field)
-
-    def validate_company_b_total(self, field):
-        self._validate_money_format(field)
-
-    def validate_total_value(self, field):
-        self._validate_money_format(field)
+        # Empresa x tarifa: a linha selecionada (id) precisa pertencer à
+        # empresa escolhida no cadastro da unidade (o select da página já
+        # filtra; aqui cobre POST forjado com combinação inválida). A linha
+        # resolvida fornece o valor gravado no pedido (o trajeto é a resposta
+        # própria do formulário).
+        mapa = VtEmpresa.mapa_tarifas(self._unity_id)
+        self._linha_a = self._linha_b = None
+        for nome_campo, valor_campo, atributo in (
+                (self.company_a_name, self.company_a_value, '_linha_a'),
+                (self.company_b_name, self.company_b_value, '_linha_b')):
+            if not (nome_campo.data and valor_campo.data):
+                continue
+            linha = next((v for v in mapa.get(nome_campo.data, [])
+                          if str(v.id) == str(valor_campo.data)), None)
+            if linha is None:
+                valor_campo.errors.append(
+                    'A tarifa selecionada não pertence à empresa escolhida.')
+                valido = False
+            else:
+                setattr(self, atributo, linha)
+        return valido

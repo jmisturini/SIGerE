@@ -1,0 +1,415 @@
+{% extends 'base.html' %}
+{% block title %}Pedido de Vale-Transporte{% endblock %}
+
+{% macro erro(field) %}
+{% for err in field.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+{% endmacro %}
+
+{% macro radios_lista(field, nome) %}
+{% for valor, rotulo in field.choices %}
+<div class="form-check">
+    <input class="form-check-input" type="radio" name="{{ nome }}" id="{{ nome }}-{{ loop.index }}"
+           value="{{ valor }}" {{ 'checked' if field.data == valor }}>
+    <label class="form-check-label" for="{{ nome }}-{{ loop.index }}">{{ rotulo }}</label>
+</div>
+{% endfor %}
+{{ erro(field) }}
+{% endmacro %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="page-header text-center mb-4">
+            <h3 class="fw-bold mb-2"><i class="bi bi-bus-front text-primary me-2"></i> Pedido de Vale-Transporte</h3>
+            <p class="text-muted mb-0">Responda ao pedido do mês — o acesso é identificado apenas pelo seu e-mail.</p>
+            {% if pedido_unity %}
+            <p class="small text-muted mb-0 mt-1">
+                <i class="bi bi-geo-alt me-1"></i> Formulário da unidade
+                <strong>{{ pedido_unity.name }}</strong>
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <div class="card-body p-4">
+                {% if fechado %}
+                <div class="text-center py-4">
+                    <i class="bi bi-lock-fill fs-1 text-danger d-block mb-3"></i>
+                    <h5 class="fw-bold">Formulário encerrado</h5>
+                    <p class="text-muted mb-0">O período para preencher o pedido de Vale-Transporte
+                        desta unidade encerrou-se em
+                        <strong>{{ config.fecha_em.strftime('%d/%m/%Y') }}</strong>.</p>
+                </div>
+                {% else %}
+                {% if config and config.fecha_em %}
+                <div class="alert alert-info py-2 px-3 small d-flex align-items-center" role="alert">
+                    <i class="bi bi-calendar-event me-2"></i>
+                    Preenchimento até <strong class="ms-1">{{ config.fecha_em.strftime('%d/%m/%Y') }}</strong>.
+                </div>
+                {% endif %}
+                <form method="POST" novalidate id="form-pedido">
+                    {{ form.hidden_tag() }}
+
+                    {# ── Identificação (sempre visível) ── #}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
+                            <div class="form-text text-success" id="cadastro-aviso" hidden>
+                                <i class="bi bi-check-circle-fill me-1"></i> Identificado pelo cadastro —
+                                nome, matrícula e vínculo ficam travados.
+                            </div>
+                            {{ erro(form.email) }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.full_name(class="form-control") }}
+                            {{ erro(form.full_name) }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.registration(class="form-control", inputmode="numeric") }}
+                            <div class="form-text small">
+                                Para verificar sua matrícula, acesse o MyPlace —
+                                <a href="https://rh.sc.senac.br/myplace" target="_blank" rel="noopener">https://rh.sc.senac.br/myplace</a>
+                            </div>
+                            {{ erro(form.registration) }}
+                        </div>
+                    </div>
+
+                    {# ── Deseja VT para o mês? ── #}
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-3">{{ form.optant.label.text }}</h6>
+                    <div class="btn-group flex-wrap" role="group" aria-label="Deseja Vale-Transporte para o mês">
+                        {% for valor, rotulo in form.optant.choices %}
+                        <input type="radio" class="btn-check" name="optant" id="optant-{{ valor }}"
+                               value="{{ valor }}" autocomplete="off" {{ 'checked' if form.optant.data == valor }}>
+                        <label class="btn btn-outline-primary px-4" for="optant-{{ valor }}">{{ rotulo }}</label>
+                        {% endfor %}
+                    </div>
+                    {{ erro(form.optant) }}
+
+                    {# ── Ramo "Sim": vínculo e empresas ── #}
+                    <div id="bloco-vt">
+                        <hr class="my-4">
+                        <h6 class="fw-bold mb-3">{{ form.link.label.text }}</h6>
+                        {{ radios_lista(form.link, 'link') }}
+
+                        <h6 class="fw-bold mb-3 mt-4">{{ form.company_count.label.text }}</h6>
+                        <div class="btn-group" role="group" aria-label="Número de empresas de ônibus">
+                            {% for valor, rotulo in form.company_count.choices %}
+                            <input type="radio" class="btn-check" name="company_count" id="count-{{ valor }}"
+                                   value="{{ valor }}" autocomplete="off" {{ 'checked' if form.company_count.data == valor }}>
+                            <label class="btn btn-outline-primary px-4" for="count-{{ valor }}">{{ rotulo }}</label>
+                            {% endfor %}
+                        </div>
+                        {{ erro(form.company_count) }}
+
+                        {# ── Empresas: o restante só aparece depois do
+                             número de empresas escolhido ── #}
+                        <div id="bloco-empresas">
+                            {# ── Empresa A ── #}
+                            <div class="card bg-body-tertiary border-0 mt-4">
+                                <div class="card-body">
+                                    <h6 class="fw-bold mb-3"><i class="bi bi-1-circle me-1"></i> Primeira empresa de ônibus</h6>
+                                    <div class="mb-3">
+                                        {{ form.company_a_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_name(class="form-select") }}
+                                        {{ erro(form.company_a_name) }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ form.company_a_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_value(class="form-select", **{"data-nativo": "true"}) }}
+                                        <div class="form-text small">Cada opção identifica a tarifa aplicada com o valor vigente.</div>
+                                        {{ erro(form.company_a_value) }}
+                                    </div>
+                                    <div class="mb-3">
+                                        <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
+                                        {{ radios_lista(form.company_a_route, 'company_a_route') }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ form.company_a_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        <div class="input-group input-group-sm" style="max-width: 15rem">
+                                            {{ form.company_a_passes(class="form-control", min=1, max=49) }}
+                                            {% if vales_base %}
+                                            <button type="button" class="btn btn-outline-primary usar-valor-base"
+                                                    data-sufixo="a" title="Preencher com o número base de vales da unidade">
+                                                <i class="bi bi-magic me-1"></i> Usar valor base
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                        <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
+                                        {{ erro(form.company_a_passes) }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {# ── Empresa B (só quando 2 empresas) ── #}
+                            <div id="bloco-empresa-b" class="card bg-body-tertiary border-0 mt-3">
+                                <div class="card-body">
+                                    <h6 class="fw-bold mb-3"><i class="bi bi-2-circle me-1"></i> Segunda empresa de ônibus</h6>
+                                    <div class="mb-3">
+                                        {{ form.company_b_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_name(class="form-select") }}
+                                        {{ erro(form.company_b_name) }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ form.company_b_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_value(class="form-select", **{"data-nativo": "true"}) }}
+                                        {{ erro(form.company_b_value) }}
+                                    </div>
+                                    <div class="mb-3">
+                                        <h6 class="fw-bold mb-2 small text-uppercase rotulo-trajeto">Selecione o número de trajetos</h6>
+                                        {{ radios_lista(form.company_b_route, 'company_b_route') }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ form.company_b_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        <div class="input-group input-group-sm" style="max-width: 15rem">
+                                            {{ form.company_b_passes(class="form-control", min=1, max=49) }}
+                                            {% if vales_base %}
+                                            <button type="button" class="btn btn-outline-primary usar-valor-base"
+                                                    data-sufixo="b" title="Preencher com o número base de vales da unidade">
+                                                <i class="bi bi-magic me-1"></i> Usar valor base
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                        <div class="form-text small subtitulo-vales">Consulte o e-mail enviado pelo RH.</div>
+                                        {{ erro(form.company_b_passes) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        {{ form.submit(class="btn btn-primary px-4", disabled=True) }}
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Ramificação do formulário original (Microsoft Forms) + ajustes de UX:
+    // 1. "Não" para o mês encerra o pedido — o bloco de perguntas seguinte
+    //    some e seus campos são desabilitados (não seguem no POST);
+    // 2. O botão de envio fica desabilitado até os campos obrigatórios do
+    //    ramo visível estarem preenchidos;
+    // 3. O e-mail preenche automaticamente nome e matrícula quando a conta
+    //    ativa é encontrada;
+    // 4. O select de valor lista as linhas de tarifa da empresa escolhida
+    //    (cada opção traz a identificação da tarifa e o valor).
+    (function () {
+        const form = document.getElementById('form-pedido');
+        const submitBtn = form.querySelector('input[type="submit"]');
+        const emailInput = document.getElementById('email');
+        const blocoVt = document.getElementById('bloco-vt');
+        const blocoEmpresas = document.getElementById('bloco-empresas');
+        const blocoB = document.getElementById('bloco-empresa-b');
+        const TEXTO_RH = 'Consulte o e-mail enviado pelo RH.';
+        const TEXTO_NEB = 'Consulte com o NEB o número de passes necessários.';
+        // Empresa → linhas de tarifa [{id, rotulo}] (do cadastro da unidade).
+        const EMPRESAS_VALORES = {{ empresas_valores | tojson }};
+        // Números base de vales configurados pela unidade (null quando não
+        // há): trajeto → nº de vales. Alimentam o botão "Usar valor base",
+        // oferecido apenas para Técnico-Administrativo.
+        {% if vales_base %}
+        const VALES_BASE = {'Somente Volta': {{ vales_base['Somente Volta'] }}, 'Ida e Volta': {{ vales_base['Ida e Volta'] }}};
+        {% else %}
+        const VALES_BASE = null;
+        {% endif %}
+
+        // Funciona para campos de texto e grupos de rádio (RadioNodeList
+        // devolve o valor do marcado, ou '' quando nenhum).
+        const valor = nome => {
+            const campo = form.elements[nome];
+            return campo ? (campo.value || '') : '';
+        };
+        const preenchido = nome => valor(nome).trim() !== '';
+
+        function setarBloco(bloco, visivel) {
+            bloco.classList.toggle('d-none', !visivel);
+            bloco.querySelectorAll('input, select').forEach(campo => {
+                campo.disabled = !visivel;
+            });
+        }
+
+        // Obrigatórios do ramo visível — espelho da validação do servidor.
+        // O trajeto é pergunta própria (Somente Volta / Ida e Volta),
+        // independente da tarifa (linha) escolhida.
+        function pedidoPronto() {
+            if (!preenchido('email') || !preenchido('full_name') ||
+                !preenchido('registration') || !preenchido('optant')) return false;
+            if (valor('optant') !== 'Sim') return true;
+            if (!preenchido('link')) return false;
+            if (!preenchido('company_count')) return false;
+            for (const sufixo of ['a', 'b']) {
+                if (sufixo === 'b' && valor('company_count') !== '2') break;
+                if (!preenchido(`company_${sufixo}_name`) ||
+                    !preenchido(`company_${sufixo}_value`) ||
+                    !preenchido(`company_${sufixo}_passes`) ||
+                    !preenchido(`company_${sufixo}_route`)) return false;
+            }
+            return true;
+        }
+
+        // Linhas de tarifa da empresa escolhida: cada opção carrega o id da
+        // linha (gravação) e o rótulo "Trajeto — R$ valor". A tarifa antes
+        // selecionada é mantida se ainda existir na nova empresa.
+        function preencherValores(empresaSelect, valorSelect) {
+            const linhas = EMPRESAS_VALORES[empresaSelect.value] || [];
+            const anterior = valorSelect.value;
+            valorSelect.innerHTML = '<option value="">Selecione…</option>' + linhas.map(l =>
+                `<option value="${l.id}" ${String(l.id) === anterior ? 'selected' : ''}>${l.rotulo}</option>`).join('');
+            valorSelect.disabled = linhas.length === 0;
+        }
+
+        function atualizar() {
+            const mostrarVt = valor('optant') === 'Sim';
+            setarBloco(blocoVt, mostrarVt);
+            // setarBloco reabilita todos os campos do bloco — o vínculo
+            // identificado pelo cadastro precisa continuar travado.
+            if (mostrarVt && identificado) {
+                document.querySelectorAll('input[name="link"]').forEach(radio => {
+                    radio.disabled = true;
+                });
+            }
+            if (mostrarVt) {
+                const professor = valor('link') === 'Professor(a)';
+                document.querySelectorAll('.subtitulo-vales').forEach(el => {
+                    el.textContent = professor ? TEXTO_NEB : TEXTO_RH;
+                });
+                document.querySelectorAll('.rotulo-trajeto').forEach(el => {
+                    el.textContent = professor ? 'Selecione o trajeto' : 'Selecione o número de trajetos';
+                });
+
+                // As perguntas das empresas só aparecem depois do número
+                // de empresas escolhido.
+                const empresasVisiveis = valor('company_count') !== '';
+                const duasEmpresas = valor('company_count') === '2';
+                setarBloco(blocoEmpresas, empresasVisiveis);
+                setarBloco(blocoB, duasEmpresas);
+                // O valor só é selecionável depois da empresa (setarBloco
+                // reabilita tudo do bloco; aqui restringe de novo).
+                ajustarValor('a', empresasVisiveis);
+                ajustarValor('b', duasEmpresas);
+                atualizarBotoesVales(duasEmpresas);
+            }
+            submitBtn.disabled = !pedidoPronto();
+        }
+
+        // Habilita o select de tarifa apenas com empresa escolhida.
+        function ajustarValor(sufixo, visivel) {
+            const tarifas = EMPRESAS_VALORES[valor(`company_${sufixo}_name`)] || [];
+            form.elements[`company_${sufixo}_value`].disabled = !visivel || tarifas.length === 0;
+        }
+
+        // O botão "Usar valor base" só aparece para Técnico-Administrativo
+        // (professor digita) e habilita com um trajeto selecionado.
+        function atualizarBotoesVales(duasEmpresas) {
+            if (!VALES_BASE) return;
+            const tecnico = valor('link') === 'Técnico - Administrativo';
+            document.querySelectorAll('.usar-valor-base').forEach(btn => {
+                const sufixo = btn.dataset.sufixo;
+                const visivel = tecnico && (sufixo !== 'b' || duasEmpresas);
+                btn.classList.toggle('d-none', !visivel);
+                btn.disabled = !visivel || !valor(`company_${sufixo}_route`);
+            });
+        }
+
+        document.querySelectorAll('.usar-valor-base').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!VALES_BASE) return;
+                const sufixo = btn.dataset.sufixo;
+                const base = VALES_BASE[valor(`company_${sufixo}_route`)];
+                if (base) {
+                    form.elements[`company_${sufixo}_passes`].value = base;
+                    atualizar();
+                }
+            });
+        });
+
+        // ── Auto-preenchimento pelo e-mail (conta ativa) ──
+        let timer = null;
+        // Identificação pelo cadastro: nome, matrícula e vínculo vêm do
+        // sistema e ficam travados (readonly/disabled). E-mail sem cadastro
+        // devolve os campos para a digitação manual.
+        let identificado = false;
+        function identificar(dados) {
+            const nome = document.getElementById('full_name');
+            const matricula = document.getElementById('registration');
+            if (dados.full_name) nome.value = dados.full_name;
+            if (dados.registration) matricula.value = dados.registration;
+            nome.readOnly = true;
+            matricula.readOnly = true;
+            document.querySelectorAll('input[name="link"]').forEach(radio => {
+                radio.checked = radio.value === dados.vinculo;
+                radio.disabled = true;
+            });
+            document.getElementById('cadastro-aviso').hidden = false;
+            identificado = true;
+        }
+
+        function liberarCampos() {
+            if (!identificado) return;
+            ['full_name', 'registration'].forEach(id => {
+                document.getElementById(id).readOnly = false;
+            });
+            document.querySelectorAll('input[name="link"]').forEach(radio => {
+                radio.disabled = false;
+            });
+            document.getElementById('cadastro-aviso').hidden = true;
+            identificado = false;
+        }
+
+        async function buscarColaborador() {
+            const email = emailInput.value.trim();
+            if (!email || !email.includes('@')) { liberarCampos(); return; }
+            try {
+                const resp = await fetch(`{{ url_for('vt.request_form_colaborador') }}?email=${encodeURIComponent(email)}`);
+                if (!resp.ok) return;
+                const dados = await resp.json();
+                if (!dados.found) { liberarCampos(); return; }
+                identificar(dados);
+                atualizar();
+            } catch (e) { /* falha na busca: preenchimento manual segue */ }
+        }
+        emailInput.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(buscarColaborador, 500);
+        });
+        emailInput.addEventListener('change', buscarColaborador);
+
+        // Select de tarifa dependente da empresa escolhida.
+        preencherValores(form.elements['company_a_name'], form.elements['company_a_value']);
+        preencherValores(form.elements['company_b_name'], form.elements['company_b_value']);
+        form.elements['company_a_name'].addEventListener('change', () => {
+            preencherValores(form.elements['company_a_name'], form.elements['company_a_value']);
+        });
+        form.elements['company_b_name'].addEventListener('change', () => {
+            preencherValores(form.elements['company_b_name'], form.elements['company_b_value']);
+        });
+
+        form.querySelectorAll('input, select').forEach(campo => {
+            campo.addEventListener('change', atualizar);
+            campo.addEventListener('input', atualizar);
+        });
+        // Estado inicial (mantém a ramificação e o botão corretos quando o
+        // servidor devolve a página com erros de validação).
+        atualizar();
+
+        // Recarregamento com o e-mail restaurado/autocompletado pelo
+        // navegador: o autofill não dispara "input"/"change", então a
+        // identificação pelo cadastro é refeita aqui (e no load, para cobrir
+        // preenchimento tardio do navegador) e os campos voltam a travar.
+        if (emailInput.value) buscarColaborador();
+        window.addEventListener('load', () => {
+            if (emailInput.value) buscarColaborador();
+        });
+    })();
+</script>
+{% endblock %}

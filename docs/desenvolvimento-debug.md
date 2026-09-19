@@ -5,7 +5,7 @@ da máquina, modo debug, banco de dados local, migrações, testes automatizados
 depuração no dia a dia e os erros mais comuns (com as causas e as soluções).
 
 > **Público-alvo:** quem vai alterar o código, rodar os testes ou depurar o sistema na própria máquina.
-> **Arquitetura de referência:** Python 3.8+ · Flask 3.x · SQLAlchemy · Alembic · SQLite (local)
+> **Arquitetura de referência:** Python 3.10+ · Flask 3.x · SQLAlchemy · Alembic · SQLite (local)
 > 🚢 **Para instalar o sistema em servidor real, leia:** [implantacao-producao.md](implantacao-producao.md)
 
 ---
@@ -57,7 +57,7 @@ sozinhas a partir dela:
 
 ### Pré-requisitos
 
-- **Python 3.8 ou superior** (`python --version`)
+- **Python 3.10 ou superior** (`python --version`) — exigido pelas dependências do `requirements.txt`
 - **pip** e **git**
 - **Internet** — algumas telas dependem de serviços externos (clima do totem,
   importação de feriados, busca de endereço); o restante do sistema funciona

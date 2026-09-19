@@ -10,12 +10,271 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.7.0'
+APP_VERSION = '1.16.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.16.0',
+        'data': '2026-09-18',
+        'titulo': 'Permissões do Vale-Transporte revisadas',
+        'grupos': [
+            ('Adicionado', [
+                'Nova permissão "vt:config" (Configurar o pedido público de VT: vales base e data de fechamento) — as configurações deixam de emprestar a permissão de empresas de ônibus, permitindo separar quem gerencia tarifas de quem define prazos. O papel Administrador recebe a permissão nova automaticamente na sincronização.',
+            ]),
+            ('Alterado', [
+                'Descrições das permissões do Vale-Transporte atualizadas para o produto atual (Pedidos VT, relatório e correção individual) — a sincronização de permissões (flask sync-permissions, executada também no startup) passou a atualizar descrições de permissões já existentes, não só criar as novas.',
+            ]),
+            ('Removido', [
+                'A permissão "vt:create" (importação do Pedido de Compra) saiu do catálogo junto com a funcionalidade que foi desativada; a sincronização a aposenta dos bancos existentes, removendo os vínculos com papéis.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.15.0',
+        'data': '2026-09-18',
+        'titulo': 'Temas de cor personalizáveis',
+        'grupos': [
+            ('Adicionado', [
+                'Nova paleta de temas na topbar (botão de paleta, ao lado do claro/escuro): Azul Senac (padrão), Verde, Roxo, Laranja e Grafite — a cor escolhida tinge botões, links, foco de campos, paginação, sidebar e os gráficos do relatório, nos modos claro e escuro.',
+                'A escolha do tema e do modo fica salva no navegador (localStorage) e é aplicada antes da página renderizar, sem piscar a paleta padrão.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.14.1',
+        'data': '2026-09-18',
+        'titulo': 'Grupos da planilha de pagamento simplificados',
+        'grupos': [
+            ('Alterado', [
+                'Os grupos de colaboradores da planilha de pagamento do Vale-Transporte passam a ser apenas "Técnico-Administrativo" e "Professores", definidos pelo vínculo do pedido — técnicos de todas as unidades entram no grupo único de Técnico-Administrativo.',
+            ]),
+            ('Removido', [
+                'O grupo "Técnico-Administrativo (Restaurante/Lanchonete)" da exportação — a divisão por unidade (Faculdade / Restaurante/Lanchonete) herdada do gerador original saiu da planilha.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.14.0',
+        'data': '2026-09-18',
+        'titulo': 'Relatório visual do Vale-Transporte',
+        'grupos': [
+            ('Adicionado', [
+                'Nova página "Relatório" no módulo Vale Transporte: panorama dos pedidos da unidade com indicadores de pedidos recebidos, adesão ao benefício, vales necessários e investimento estimado; gráficos de optantes (deseja VT, vínculo, trajetos, empresas por pedido) e investimento por empresa de ônibus; resumo por empresa e por grupo da planilha de pagamento; conferências do RH (maior pedido, e-mails e matrículas repetidas).',
+                'O relatório tem versão para impressão/PDF pronta para apresentação — botão "Imprimir / PDF" que removes o painel de navegação e preserva as cores — e atalho no menu Vale Transporte e na página Pedidos VT.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.4',
+        'data': '2026-09-18',
+        'titulo': 'Planilha de pagamento reconhece as unidades reais',
+        'grupos': [
+            ('Corrigido', [
+                'A exportação da planilha de pagamento voltou a encontrar pedidos elegíveis: a classificação por grupo comparava o nome da unidade a textos exatos do sistema antigo ("Faculdade", "Restaurante - ALESC/…") e unidades com o nome real, como "Faculdade Senac Florianópolis", ficavam fora de todos os grupos — o reconhecimento agora é pelo trecho do nome da unidade do pedido.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.3',
+        'data': '2026-09-18',
+        'titulo': 'Tarifas fantasmas no cadastro de empresas eliminadas',
+        'grupos': [
+            ('Corrigido', [
+                'O cadastro de empresas de ônibus não mostra mais tarifas "fantasma": linhas deixadas no banco por exclusões feitas fora do aplicativo (o SQLite não valida a chave estrangeira por padrão) reapareciam numa empresa nova quando o id dela era reutilizado, como uma tarifa extra sem identificação — a atualização remove as órfãs e as duplicatas sem identificação, e o formulário de edição deixa de exibir o texto "None" no lugar da identificação.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.2',
+        'data': '2026-09-18',
+        'titulo': 'Cadastro de empresas sem valores repetidos pelo navegador',
+        'grupos': [
+            ('Corrigido', [
+                'No cadastro de empresas de ônibus, os campos de tarifa voltaram a abrir vazios: o navegador estava repetindo neles valores armazenados de envios anteriores (autocomplete e retorno pelo cache ao botão Voltar) quando uma empresa nova era cadastrada.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.1',
+        'data': '2026-09-18',
+        'titulo': 'Filtro de vínculo atual e exportação única em Pedidos VT',
+        'grupos': [
+            ('Corrigido', [
+                'O filtro de Vínculo da listagem Pedidos VT voltou a oferecer apenas os vínculos do formulário atual (Técnico - Administrativo e Professor(a)) — o select listava também valores antigos gravados na base, que não filtravam nada.',
+            ]),
+            ('Removido', [
+                'O botão "Exportar respostas (.xlsx)" saiu da página Pedidos VT — a exportação da listagem fica apenas com a planilha de pagamento por grupo.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.0',
+        'data': '2026-09-17',
+        'titulo': 'Página única Pedidos VT',
+        'grupos': [
+            ('Adicionado', [
+                'A listagem "Pedidos VT" (respostas do formulário público) ganhou o layout completo da antiga página de Colaboradores: card de exportação da planilha de pagamento por grupo — agora calculada dos pedidos, com valor = tarifa × vales —, filtros de nome/vínculo/deseja VT, ordenação (mais recentes, nome, matrícula, valor) e opção de esconder não optantes.',
+                'Correção individual dos pedidos: editar (mesmo formulário do colaborador, com as tarifas do cadastro da unidade) e excluir, conforme as permissões vt:edit e vt:delete.',
+            ]),
+            ('Removido', [
+                'A importação do "Pedido de Compra" (.xlsx) e a listagem de colaboradores importados saíram do ar — o formulário público alimenta a listagem diretamente; /vt/ e /vt/colaboradores viraram redirecionamentos para Pedidos VT.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.12.2',
+        'data': '2026-09-18',
+        'titulo': 'Nº de vales livre com botão de valor base',
+        'grupos': [
+            ('Alterado', [
+                'O nº de vales do pedido público voltou a ser um campo livre (somente número, menor que 50); quando a unidade configura os números base, o botão "Usar valor base" preenche o campo com um clique conforme o trajeto escolhido.',
+                'O botão "Usar valor base" é oferecido apenas para o vínculo Técnico-Administrativo — professores digitam o número.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.12.1',
+        'data': '2026-09-18',
+        'titulo': 'Identificação do colaborador travada pelo cadastro',
+        'grupos': [
+            ('Alterado', [
+                'No pedido público de VT, ao informar um e-mail de conta ativa do sistema, nome, matrícula e vínculo passam a vir direto do cadastro e ficam travados (o vínculo é derivado do perfil: funcionário é Técnico-Administrativo e professor é Professor(a)); e-mail sem cadastro mantém a digitação manual.',
+            ]),
+            ('Corrigido', [
+                'Valores enviados por POST para nome, matrícula ou vínculo diferentes do cadastro são ignorados quando o e-mail corresponde a uma conta ativa.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.12.0',
+        'data': '2026-09-18',
+        'titulo': 'Painel Administrativo como central de gestão e configurações do pedido de VT',
+        'grupos': [
+            ('Adicionado', [
+                'Nova página "Configurações do Pedido de VT" na administração (por unidade): números base de vales para Somente Volta e Ida e Volta — quando definidos, o pedido público aplica o número automaticamente conforme o trajeto, sem o colaborador digitar — e data de fechamento do formulário, que passa a ser bloqueado após o prazo, com aviso do último dia durante o período aberto.',
+                'O Painel Administrativo virou a central de gestão: cards de acesso a Unidades, Tokens da API, Empresas de Ônibus e Configurações do Pedido de VT, cada um exibido conforme a permissão.',
+            ]),
+            ('Alterado', [
+                'As páginas de Unidades e Tokens da API saíram da barra lateral e passam a ser acessadas pelo Painel Administrativo; quem tem qualquer uma das permissões de administração acessa o painel, mesmo sem a permissão de painel do sistema.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.4',
+        'data': '2026-09-17',
+        'titulo': 'Pergunta de unidade removida do pedido de VT',
+        'grupos': [
+            ('Removido', [
+                'A pergunta "Unidade" (Faculdade / Restaurante / Lanchonete) saiu do pedido público — o pedido já fica registrado na unidade do link usado pelo colaborador, e a coluna Unidade da listagem passa a mostrar essa unidade.',
+            ]),
+            ('Alterado', [
+                'Com a pergunta de unidade removida, o vínculo (Técnico-Administrativo ou Professor) passou a ser perguntado para todos os colaboradores, sem exceção por unidade.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.3',
+        'data': '2026-09-17',
+        'titulo': 'Empresas de ônibus exclusivas de cada unidade',
+        'grupos': [
+            ('Alterado', [
+                'As empresas de ônibus do pedido de VT deixaram de ser compartilhadas entre unidades: cada empresa pertence exclusivamente à unidade que a cadastrou, aparece apenas no formulário e na administração dela, e as de outras unidades ficam invisíveis.',
+            ]),
+            ('Removido', [
+                'O conceito de empresa compartilhada (visível/editável por todas as unidades) — as empresas cadastradas antes da atualização foram atribuídas à primeira unidade ativa.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.2',
+        'data': '2026-09-17',
+        'titulo': 'Identificação da tarifa no lugar do trajeto',
+        'grupos': [
+            ('Alterado', [
+                'No cadastro de empresas, o primeiro campo da linha de tarifa passou a ser a identificação da tarifa aplicada, em texto livre (ex.: "Patamar 3", da tabela Metropolis) — no pedido público, a opção aparece como "Patamar 3 — R$ 7,38".',
+                'A pergunta de trajeto (Somente Volta / Ida e Volta) voltou ao pedido público, agora independente da tarifa escolhida.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.1',
+        'data': '2026-09-17',
+        'titulo': 'Tarifa por trajeto e ajuste no pedido de VT',
+        'grupos': [
+            ('Alterado', [
+                'No cadastro de empresas de ônibus, as tarifas passaram a ser linhas dinâmicas com trajeto e valor (botão "Adicionar tarifa") — cada empresa informa a tarifa de cada trajeto.',
+                'No pedido público, a opção de "Valor do vale" mostra o trajeto junto ("Ida e Volta — R$ 7,24") e já define o trajeto do pedido; a pergunta separada de trajeto foi incorporada a essa escolha.',
+            ]),
+            ('Corrigido', [
+                'No pedido público, ao selecionar uma empresa o select de tarifa continuava exibindo as tarifas de todas as empresas (o autocomplete Tom Select guardava as opções do carregamento inicial).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.0',
+        'data': '2026-09-17',
+        'titulo': 'Vale-Transporte gerenciável por unidade',
+        'grupos': [
+            ('Adicionado', [
+                'O pedido público de Vale-Transporte passou a pertencer a uma unidade: o link enviado aos colaboradores leva a unidade (/vt/pedido?unity=N, exibida no topo do formulário) e as respostas ficam na listagem e na exportação da unidade ativa.',
+                'O cadastro de empresas de ônibus ficou por unidade — cada uma mantém as próprias empresas e tarifas. As cadastradas antes da atualização viraram "compartilhadas", valendo para todas as unidades e editáveis apenas por contas globais ou super-admin.',
+                'Nomes de empresa podem se repetir entre unidades diferentes; a checagem de duplicidade é dentro da unidade.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.10.0',
+        'data': '2026-09-17',
+        'titulo': 'Empresas de ônibus gerenciáveis na administração',
+        'grupos': [
+            ('Adicionado', [
+                'Nova área Administração → Empresas de Ônibus (permissão "vt:empresas", concedida ao papel Administrador): cadastro de empresas e tarifas vigentes usadas pelo pedido público de Vale-Transporte, com criação, edição, exclusão e ativação/desativação — excluí-las não afeta pedidos antigos.',
+            ]),
+            ('Alterado', [
+                'As empresas e tarifas do pedido público de VT deixaram de ser fixas no código e passaram a vir desse cadastro; papel "Administrador" padrão recebe a permissão de gerenciá-las.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.9.1',
+        'data': '2026-09-17',
+        'titulo': 'Empresa e tarifa separadas no pedido de VT',
+        'grupos': [
+            ('Alterado', [
+                'No pedido público de Vale-Transporte, a empresa de ônibus passou a mostrar apenas o nome; logo abaixo, um campo de valor oferece as tarifas vigentes da empresa escolhida (7,20 a 12,08, conforme a empresa).',
+                'A tarifa escolhida agora é gravada e exportada separadamente nas respostas (colunas Valor A e Valor B da exportação .xlsx).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.9.0',
+        'data': '2026-09-17',
+        'titulo': 'Ajustes no pedido público de Vale-Transporte',
+        'grupos': [
+            ('Adicionado', [
+                'O formulário público de VT em tela cheia, sem a barra lateral do painel.',
+                'Ao informar o e-mail, nome e matrícula são preenchidos automaticamente quando existe conta ativa com aquele e-mail.',
+                'O botão de envio só é habilitado quando os campos obrigatórios da ramificação visível estão preenchidos.',
+            ]),
+            ('Alterado', [
+                'A pergunta de vínculo agora aparece apenas quando a unidade é a Faculdade; Restaurante e Lanchonete assumem Técnico-Administrativo no pedido.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.8.0',
+        'data': '2026-09-17',
+        'titulo': 'Pedido público de Vale-Transporte dentro do sistema',
+        'grupos': [
+            ('Adicionado', [
+                'O "Pedido de Vale-Transporte" (antes no Microsoft Forms) virou página do sistema: /vt/pedido é pública, com acesso identificado apenas pelo e-mail, e replica as perguntas originais — deseja VT no mês, unidade, vínculo, empresas de ônibus (com tarifas), número de vales e trajetos, com a mesma ramificação do formulário original.',
+                'As respostas recebidas aparecem em Vale Transporte → "Pedidos do Formulário", com busca e filtro por quem deseja VT, e exportação para .xlsx para a conferência do RH.',
+            ]),
+        ],
+    },
     {
         'versao': '1.7.0',
         'data': '2026-09-16',

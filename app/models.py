@@ -281,7 +281,9 @@ class TeacherOvertimePay(db.Model):
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
     teaching_level = db.Column(db.String(50), nullable=False) # E.g., 'Técnico', 'Superior'
-    weekly_workload = db.Column(db.Integer, nullable=False)
+    # Hora decimal com 2 casas (ex: 4.5 = 4h30) — o formulário recebe hora e
+    # minuto separados e grava o valor já convertido.
+    weekly_workload = db.Column(db.Numeric(5, 2), nullable=False)
     hourly_value = db.Column(db.Numeric(10, 2), nullable=False) # 10 dígitos no total, 2 decimais
     budget_code = db.Column(db.String(18), nullable=False)
     shift = db.Column(db.String(50), nullable=False) # E.g., 'Matutino', 'Vespertino', 'Noturno'
@@ -336,31 +338,163 @@ class VtRecord(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # Grupos de exportação do gerador unificado: a planilha final separa os
-    # colaboradores por vínculo/unidade (opções 1, 2 e 3 do script original).
-    GROUP_FACULDADE = 'faculdade'
+    # Grupos de exportação da planilha de pagamento: definidos pelo VÍNCULO
+    # do colaborador (Técnico-Administrativo e Professores).
+    GROUP_TECNICO = 'tecnico'
     GROUP_PROFESSORES = 'professores'
-    GROUP_RESTAURANTE = 'restaurante'
-    RESTAURANTE_UNITIES = ('Lanchonete - ALESC/Unidade Administrativa',
-                           'Restaurante - ALESC/Palácio Barriga Verde')
 
     @property
     def group(self):
         """Classificação do colaborador para a exportação (ou None se fora
-        dos grupos do gerador)."""
+        dos grupos)."""
         if self.link == 'Professor(a)':
             return self.GROUP_PROFESSORES
         if self.link == 'Técnico - Administrativo':
-            if self.unity == 'Faculdade':
-                return self.GROUP_FACULDADE
-            if self.unity in self.RESTAURANTE_UNITIES:
-                return self.GROUP_RESTAURANTE
+            return self.GROUP_TECNICO
         return None
 
     # Exportável = os mesmos critérios do script: optante "Sim" e passes > 0.
     @property
     def is_exportable(self):
         return self.optant == 'Sim' and bool(self.total_passes)
+
+
+# Pedido de Vale-Transporte enviado pelo formulário público (/vt/pedido) —
+# adaptação do "Pedido de Vale-Transporte" (Microsoft Forms) que o RH usava
+# fora do sistema. Acesso anônimo: a identificação é apenas o e-mail
+# informado. Os textos de vínculo/empresa são exatamente as opções do
+# formulário, compatíveis com VtRecord.link — a listagem Pedidos VT
+# (/vt/pedidos) e a planilha de pagamento usam os mesmos grupos.
+class VtRequest(db.Model):
+    __tablename__ = 'vt_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    # Unidade dona do pedido (resolvida pela URL do formulário público:
+    # /vt/pedido?unity=N); as listagens são escopadas à unidade ativa.
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
+    email = db.Column(db.String(255), nullable=False, index=True)    # identificação (acesso público)
+    full_name = db.Column(db.String(255), nullable=False)            # Nome
+    registration = db.Column(db.String(20), nullable=False)          # Matrícula
+    optant = db.Column(db.String(3), nullable=False, default='Não')  # "Deseja VT para o mês" (Sim/Não)
+    unity = db.Column(db.String(100))                                # Unidade do formulário
+    link = db.Column(db.String(50))                                  # Vínculo
+    company_count = db.Column(db.Integer, default=0)                 # nº de empresas de ônibus (1/2)
+    company_a_name = db.Column(db.String(100))                       # Empresa A (nome)
+    company_a_value = db.Column(db.Numeric(10, 2))                   # tarifa do vale A
+    company_a_passes = db.Column(db.Integer)                         # nº de vales A
+    company_a_route = db.Column(db.String(20))                       # trajeto A (Somente Volta / Ida e Volta)
+    company_b_name = db.Column(db.String(100))                       # Empresa B
+    company_b_value = db.Column(db.Numeric(10, 2))                   # tarifa do vale B
+    company_b_passes = db.Column(db.Integer)                         # nº de vales B
+    company_b_route = db.Column(db.String(20))                       # trajeto B
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Total de vales do pedido (empresas A + B).
+    @property
+    def total_passes(self):
+        return (self.company_a_passes or 0) + (self.company_b_passes or 0)
+
+    # Valor total do pedido: Σ tarifa × vales das empresas informadas.
+    @property
+    def total_value(self):
+        total = ((self.company_a_value or 0) * (self.company_a_passes or 0)
+                 + (self.company_b_value or 0) * (self.company_b_passes or 0))
+        return float(total)
+
+    # Grupo de exportação da planilha de pagamento — mesmos grupos do
+    # VtRecord: definidos pelo vínculo informado no pedido.
+    @property
+    def group(self):
+        return {'Professor(a)': VtRecord.GROUP_PROFESSORES,
+                'Técnico - Administrativo': VtRecord.GROUP_TECNICO}.get(self.link)
+
+    # Exportável = os mesmos critérios do script: optante "Sim" e passes > 0.
+    @property
+    def is_exportable(self):
+        return self.optant == 'Sim' and bool(self.total_passes)
+
+
+# Empresas de ônibus e tarifas vigentes do pedido público de Vale-Transporte
+# (/vt/pedido), gerenciadas na área de administração (/admin/vt-empresas) e
+# PERTENCENTES A UMA UNIDADE: cada unidade mantém o próprio cadastro, e o
+# formulário público mostra apenas as empresas da unidade do link.
+# Substituíram as opções fixas que eram cópia do formulário original do
+# Microsoft Forms. Pedidos antigos guardam nome/tarifa como texto — apagar a
+# empresa não afeta o histórico.
+class VtEmpresa(db.Model):
+    __tablename__ = 'vt_empresas'
+    id = db.Column(db.Integer, primary_key=True)
+    # Sem unique no banco: o mesmo nome pode existir em unidades diferentes —
+    # a unicidade é por escopo visível, validada na rota.
+    nome = db.Column(db.String(100), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    # Unidade dona do cadastro (toda empresa pertence a uma unidade).
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    valores = db.relationship('VtEmpresaValor', backref='empresa',
+                              cascade='all, delete-orphan',
+                              order_by='VtEmpresaValor.valor')
+
+    @classmethod
+    def empresas_ativas(cls, unity_id):
+        """Empresas disponíveis no formulário público da unidade, em ordem
+        alfabética."""
+        return (cls.query
+                .filter_by(unity_id=unity_id, is_active=True)
+                .order_by(cls.nome).all())
+
+    @classmethod
+    def mapa_tarifas(cls, unity_id):
+        """Mapa {nome_da_empresa: [VtEmpresaValor...]} da unidade — alimenta
+        as opções e a validação empresa↔tarifa do formulário; cada linha
+        carrega id, identificação e valor."""
+        return {e.nome: list(e.valores) for e in cls.empresas_ativas(unity_id)}
+
+
+# Configurações do pedido público de VT por unidade: números base de vales
+# por trajeto (quando definidos, o pedido usa esses valores em vez de pedir
+# que o colaborador digite) e data de fechamento do formulário (último dia
+# em que ele pode ser preenchido). Gerenciadas em /admin/vt-configuracao.
+class VtConfig(db.Model):
+    __tablename__ = 'vt_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=False,
+                         unique=True, index=True)
+    vales_somente_ida = db.Column(db.Integer)                        # nº base de vales — Somente Volta
+    vales_ida_e_volta = db.Column(db.Integer)                        # nº base de vales — Ida e Volta
+    fecha_em = db.Column(db.Date)                                    # último dia para preencher o pedido
+
+    def esta_fechado(self, hoje):
+        """True quando a data de fechamento já passou (o dia de fecha_em
+        ainda permite preencher). Aceita date ou datetime."""
+        if isinstance(hoje, datetime):
+            hoje = hoje.date()
+        return self.fecha_em is not None and hoje > self.fecha_em
+
+
+class VtEmpresaValor(db.Model):
+    __tablename__ = 'vt_empresas_valores'
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('vt_empresas.id', ondelete='CASCADE'),
+                           nullable=False, index=True)
+    # Texto livre que identifica a tarifa aplicada (ex.: "Patamar 3", da
+    # tabela Metropolis) — não é o trajeto (Somente Volta / Ida e Volta),
+    # que o colaborador escolhe no pedido.
+    identificacao = db.Column(db.String(100))
+    valor = db.Column(db.Numeric(10, 2), nullable=False)             # tarifa em reais
+
+    @property
+    def valor_texto(self):
+        """Tarifa no formato do formulário: '7,24'."""
+        return f'{float(self.valor):.2f}'.replace('.', ',')
+
+    @property
+    def rotulo(self):
+        """Rótulo da opção no formulário público: 'Patamar 3 — R$ 7,38'
+        (linhas antigas sem identificação mostram só o valor)."""
+        if self.identificacao:
+            return f'{self.identificacao} — R$ {self.valor_texto}'
+        return f'R$ {self.valor_texto}'
 
 # Tabela de junção entre Roles e Permissions
 role_permissions = db.Table('role_permissions',

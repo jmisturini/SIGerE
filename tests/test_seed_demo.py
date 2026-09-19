@@ -138,8 +138,7 @@ class SeedDemoCommandTestCase(unittest.TestCase):
             self.assertGreaterEqual(VtRecord.query.count(), 11)
             grupos = {r.group for r in VtRecord.query.all()}
             self.assertIn('professores', grupos)
-            self.assertIn('faculdade', grupos)
-            self.assertIn('restaurante', grupos)
+            self.assertIn('tecnico', grupos)
             self.assertTrue(any(r.original_name
                                 for r in VtRecord.query.all()))
             self.assertEqual(VtRecord.query.filter_by(

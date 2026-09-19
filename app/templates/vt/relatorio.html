@@ -1,0 +1,395 @@
+{% extends 'base.html' %}
+{% block title %}Vale Transporte — Relatório{% endblock %}
+
+{% block content %}
+<style>
+    .rel-kpi .rel-icone {
+        width: 3rem; height: 3rem; border-radius: .75rem;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.4rem; flex-shrink: 0;
+    }
+    .rel-kpi .rel-valor { font-size: 1.7rem; line-height: 1.15; }
+    .rel-grafico { position: relative; height: 260px; }
+    @media print {
+        .sidebar, .topbar, .footer, .no-print { display: none !important; }
+        .app-container { display: block !important; }
+        .main-content, .page-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+        body { background: #fff !important; }
+        .card { border: 1px solid #dee2e6 !important; break-inside: avoid; box-shadow: none !important; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+</style>
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-start mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-graph-up-arrow text-primary me-2"></i>Relatório de Vale-Transporte</h3>
+        <p class="text-muted mb-0">
+            Panorama dos pedidos da unidade <strong>{{ current_unity.name if current_unity else '—' }}</strong>
+            {% if periodo %} · recebidos de {{ periodo }}{% endif %}
+            · gerado em {{ gerado_em }}
+        </p>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a href="{{ url_for('vt.requests') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-inbox me-1"></i> Pedidos
+        </a>
+        <a href="{{ url_for('vt.payment_export') }}" class="btn btn-success">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Planilha de pagamento
+        </a>
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+            <i class="bi bi-printer me-1"></i> Imprimir / PDF
+        </button>
+    </div>
+</div>
+
+{% if not total %}
+<div class="card">
+    <div class="card-body text-center p-5">
+        <i class="bi bi-clipboard-x fs-1 text-muted d-block mb-3"></i>
+        <h5 class="mb-1">Nenhum pedido recebido ainda</h5>
+        <p class="text-muted mb-4">O relatório é montado a partir das respostas do formulário público.
+            Envie o link abaixo aos colaboradores para começar.</p>
+        <button type="button" class="btn btn-outline-primary" data-copy-link="{{ url_for('vt.request_form', unity=current_unity.id, _external=True) if current_unity else url_for('vt.request_form', _external=True) }}">
+            <i class="bi bi-link-45deg me-1"></i> Copiar link do formulário
+        </button>
+    </div>
+</div>
+{% else %}
+
+{# ── Indicadores principais ── #}
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-primary-subtle text-primary"><i class="bi bi-inbox"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Pedidos recebidos</div>
+                    <div class="rel-valor fw-bold">{{ inteiro(total) }}</div>
+                    <div class="text-muted small">{{ nao_optantes }} sem interesse no mês</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rel-icone bg-success-subtle text-success"><i class="bi bi-person-check"></i></div>
+                    <div>
+                        <div class="text-muted small text-uppercase fw-bold">Optantes VT</div>
+                        <div class="rel-valor fw-bold">{{ inteiro(qtde_optantes) }}</div>
+                        <div class="text-muted small">{{ ('%.1f'|format(adesao)).replace('.', ',') }}% de adesão</div>
+                    </div>
+                </div>
+                <div class="progress mt-2" style="height: .4rem">
+                    <div class="progress-bar bg-success" style="width: {{ '%.1f'|format(adesao) }}%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-info-subtle text-info"><i class="bi bi-bus-front"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Vales necessários</div>
+                    <div class="rel-valor fw-bold">{{ inteiro(total_passes) }}</div>
+                    <div class="text-muted small">{{ ('%.1f'|format(media_passes)).replace('.', ',') }} vales por optante</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-warning-subtle text-warning"><i class="bi bi-cash-coin"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Investimento estimado</div>
+                    <div class="rel-valor fw-bold">{{ brl(valor_total) }}</div>
+                    <div class="text-muted small">{{ brl(ticket_medio) }} por optante</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Gráficos: adesão, vínculo e trajetos ── #}
+<div class="row g-3 mb-3">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-pie-chart me-1"></i> Deseja VT no mês</h6>
+                <div class="rel-grafico"><canvas id="grafico-adesao"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-people me-1"></i> Optantes por vínculo</h6>
+                <div class="rel-grafico"><canvas id="grafico-vinculos"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-arrow-repeat me-1"></i> Trajetos informados</h6>
+                <div class="rel-grafico"><canvas id="grafico-trajetos"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Gráficos: empresas ── #}
+<div class="row g-3 mb-3">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-bus-front me-1"></i> Investimento por empresa de ônibus</h6>
+                <div class="rel-grafico"><canvas id="grafico-empresas"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-diagram-2 me-1"></i> Empresas por pedido</h6>
+                <div class="rel-grafico"><canvas id="grafico-quantidade"></canvas></div>
+                <div class="text-center text-muted small mt-3">
+                    Valor médio do vale: <strong>{{ brl(valor_por_passe) }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Tabela: empresas ── #}
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-table me-1"></i> Resumo por empresa de ônibus</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Empresa</th>
+                        <th class="text-end">Colaboradores</th>
+                        <th class="text-end">Vales</th>
+                        <th class="text-end">Investimento</th>
+                        <th class="text-end" style="width: 30%">Participação no investimento</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for e in empresas %}
+                    <tr>
+                        <td class="fw-semibold">{{ e.nome }}</td>
+                        <td class="text-end">{{ inteiro(e.colaboradores) }}</td>
+                        <td class="text-end">{{ inteiro(e.passes) }}</td>
+                        <td class="text-end">{{ e.valor_brl }}</td>
+                        <td>
+                            <div class="progress" style="height: .5rem">
+                                <div class="progress-bar" style="width: {{ '%.1f'|format(e.valor * 100 / valor_total if valor_total else 0) }}%"></div>
+                            </div>
+                            <div class="small text-muted mt-1">{{ ('%.1f'|format(e.valor * 100 / valor_total if valor_total else 0)).replace('.', ',') }}%</div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# ── Grupos da planilha + conferência ── #}
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-file-earmark-spreadsheet me-1"></i> Planilha de pagamento por grupo</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Grupo</th>
+                                <th class="text-end">Colaboradores</th>
+                                <th class="text-end">Investimento</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for g in grupos %}
+                            <tr>
+                                <td>{{ g.rotulo }}</td>
+                                <td class="text-end">{{ inteiro(g.pedidos) }}</td>
+                                <td class="text-end">{{ brl(g.valor) }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td class="fw-bold">Total elegível</td>
+                                <td class="text-end fw-bold">{{ inteiro(grupos | sum(attribute='pedidos')) }}</td>
+                                <td class="text-end fw-bold">{{ brl(total_grupo_valor) }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-shield-check me-1"></i> Conferência do RH</h6>
+                <ul class="list-unstyled mb-0">
+                    <li class="d-flex justify-content-between border-bottom py-2">
+                        <span>Colaboradores identificados</span>
+                        <strong>{{ inteiro(qtde_optantes + nao_optantes) }}</strong>
+                    </li>
+                    <li class="d-flex justify-content-between border-bottom py-2">
+                        <span>Maior pedido individual</span>
+                        <strong>{% if maior_pedido %}{{ brl(maior_pedido.total_value) }}{% else %}—{% endif %}</strong>
+                    </li>
+                    <li class="d-flex justify-content-between border-bottom py-2">
+                        <span>Pedidos com e-mail repetido</span>
+                        <strong class="{{ 'text-warning' if emails_repetidos }}">{{ inteiro(emails_repetidos) }}</strong>
+                    </li>
+                    <li class="d-flex justify-content-between py-2">
+                        <span>Pedidos com matrícula repetida</span>
+                        <strong class="{{ 'text-warning' if matriculas_repetidas }}">{{ inteiro(matriculas_repetidas) }}</strong>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+    // Copia o link público do formulário (estado vazio do relatório).
+    document.querySelectorAll('[data-copy-link]').forEach(botao => {
+        botao.addEventListener('click', async () => {
+            const link = botao.dataset.copyLink;
+            try {
+                await navigator.clipboard.writeText(link);
+                const anterior = botao.innerHTML;
+                botao.innerHTML = '<i class="bi bi-check-lg me-1"></i> Link copiado!';
+                setTimeout(() => { botao.innerHTML = anterior; }, 2500);
+            } catch (e) {
+                window.prompt('Copie o link do formulário:', link);
+            }
+        });
+    });
+
+    // Gráficos do relatório (Chart.js): cores do tema claro/escuro e
+    // valores prontos do servidor.
+    (function () {
+        if (typeof Chart === 'undefined') return;
+        const escuro = document.documentElement.getAttribute('data-theme') === 'dark';
+        Chart.defaults.color = escuro ? '#adb5bd' : '#495057';
+        Chart.defaults.borderColor = escuro ? 'rgba(173,181,189,.15)' : 'rgba(0,0,0,.08)';
+        Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+        // Cor do tema escolhido (data-accent): gráficos primários acompanham.
+        const accent = (getComputedStyle(document.documentElement)
+            .getPropertyValue('--primary-color') || '').trim() || '#0d6efd';
+
+        const opcoesRosca = {
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: { legend: { position: 'bottom' } }
+        };
+
+        new Chart(document.getElementById('grafico-adesao'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Optante VT', 'Não optante'],
+                datasets: [{
+                    data: {{ [qtde_optantes, nao_optantes] | tojson }},
+                    backgroundColor: ['#198754', '#6c757d'],
+                    borderWidth: 0
+                }]
+            },
+            options: opcoesRosca
+        });
+
+        new Chart(document.getElementById('grafico-vinculos'), {
+            type: 'bar',
+            data: {
+                labels: {{ vinculos | map(attribute='nome') | list | tojson }},
+                datasets: [{
+                    label: 'Optantes',
+                    data: {{ vinculos | map(attribute='pedidos') | list | tojson }},
+                    backgroundColor: accent,
+                    borderRadius: 6,
+                    maxBarThickness: 70
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        });
+
+        new Chart(document.getElementById('grafico-trajetos'), {
+            type: 'doughnut',
+            data: {
+                labels: {{ trajetos.keys() | list | tojson }},
+                datasets: [{
+                    data: {{ trajetos.values() | list | tojson }},
+                    backgroundColor: ['#0dcaf0', accent],
+                    borderWidth: 0
+                }]
+            },
+            options: opcoesRosca
+        });
+
+        const brl = valor => 'R$ ' + valor.toLocaleString('pt-BR',
+            { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const rotulosEmpresas = {{ top_empresas | map(attribute='nome') | list | tojson }};
+        const valoresEmpresas = {{ top_empresas | map(attribute='valor') | list | tojson }};
+        {% if outras_valor %}
+        rotulosEmpresas.push('Outras');
+        valoresEmpresas.push({{ outras_valor }});
+        {% endif %}
+
+        new Chart(document.getElementById('grafico-empresas'), {
+            type: 'bar',
+            data: {
+                labels: rotulosEmpresas,
+                datasets: [{
+                    label: 'Investimento',
+                    data: valoresEmpresas,
+                    backgroundColor: '#198754',
+                    borderRadius: 6,
+                    maxBarThickness: 40
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => brl(ctx.parsed.x) } }
+                },
+                scales: { x: { ticks: { callback: v => 'R$ ' + v } } }
+            }
+        });
+
+        new Chart(document.getElementById('grafico-quantidade'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Usam 1 empresa', 'Usam 2 empresas'],
+                datasets: [{
+                    data: {{ [uma_empresa, duas_empresas] | tojson }},
+                    backgroundColor: ['#ffc107', '#6f42c1'],
+                    borderWidth: 0
+                }]
+            },
+            options: opcoesRosca
+        });
+    })();
+</script>
+{% endblock %}

@@ -7,6 +7,12 @@
         if (localStorage.getItem('theme') === 'dark') {
             document.documentElement.setAttribute('data-theme', 'dark');
         }
+        // Tema de cor personalizado (accent): aplica antes da renderização
+        // para não piscar a paleta padrão.
+        const accentSalvo = localStorage.getItem('accent');
+        if (accentSalvo) {
+            document.documentElement.setAttribute('data-accent', accentSalvo);
+        }
         // Modo contraído da sidebar (só tem efeito no desktop; ver CSS)
         if (localStorage.getItem('sidebar-collapsed') === '1') {
             document.documentElement.classList.add('sidebar-collapsed');
@@ -22,7 +28,8 @@
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
 <body>
-<div class="app-container">
+<div class="app-container {{ 'sem-sidebar' if ocultar_sidebar else '' }}">
+    {% if not ocultar_sidebar %}
     <!-- Sidebar -->
     <nav class="sidebar">
         <div class="sidebar-header">
@@ -74,21 +81,21 @@
                         <ul class="nav flex-column nav-submenu">
                             {% if current_user.has_permission('reservation:create') %}
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.create') }}" href="{{ url_for('reservations.create') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.create') }}" title="Nova Reserva" href="{{ url_for('reservations.create') }}">
                                     <i class="bi bi-plus-circle"></i> <span>Nova Reserva</span>
                                 </a>
                             </li>
                             {% endif %}
                             {% if current_user.has_permission('reservation:read_own') %}
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.my') }}" href="{{ url_for('reservations.my_reservations') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.my') }}" title="Minhas Reservas" href="{{ url_for('reservations.my_reservations') }}">
                                     <i class="bi bi-calendar-check"></i> <span>Minhas Reservas</span>
                                 </a>
                             </li>
                             {% endif %}
                             {% if current_user.has_permission('reservation:read_all') %}
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.all') }}" href="{{ url_for('reservations.all_reservations') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.all') }}" title="Todas as Reservas" href="{{ url_for('reservations.all_reservations') }}">
                                     <i class="bi bi-people"></i> <span>Todas as Reservas</span>
                                 </a>
                             </li>
@@ -113,13 +120,13 @@
                     <div class="collapse {{ 'show' if in_overtime else '' }}" id="menu-hora-extra">
                         <ul class="nav flex-column nav-submenu">
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('payments.list') }}" href="{{ url_for('payments.list_overtime') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.list') }}" title="Consultar H. Extras" href="{{ url_for('payments.list_overtime') }}">
                                     <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
                                 </a>
                             </li>
                             {% if current_user.has_permission('payment:create') %}
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('payments.create') or ep.startswith('payments.edit') }}" href="{{ url_for('payments.create_overtime') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.create') or ep.startswith('payments.edit') }}" title="Nova Hora Extra" href="{{ url_for('payments.create_overtime') }}">
                                     <i class="bi bi-plus-circle"></i> <span>Nova Hora Extra</span>
                                 </a>
                             </li>
@@ -137,13 +144,13 @@
                     <div class="collapse {{ 'show' if in_vt else '' }}" id="menu-vt">
                         <ul class="nav flex-column nav-submenu">
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep == 'vt.index' }}" href="{{ url_for('vt.index') }}">
-                                    <i class="bi bi-cloud-arrow-up"></i> <span>Importar Pedido</span>
+                                <a class="nav-link {{ 'active' if ep.startswith('vt.requests') }}" title="Pedidos VT" href="{{ url_for('vt.requests') }}">
+                                    <i class="bi bi-inbox"></i> <span>Pedidos VT</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('vt.records') }}" href="{{ url_for('vt.records') }}">
-                                    <i class="bi bi-people"></i> <span>Colaboradores</span>
+                                <a class="nav-link {{ 'active' if ep == 'vt.relatorio' }}" title="Relatório VT" href="{{ url_for('vt.relatorio') }}">
+                                    <i class="bi bi-graph-up"></i> <span>Relatório</span>
                                 </a>
                             </li>
                         </ul>
@@ -174,38 +181,7 @@
                 {% endif %}
                 {% endif %}
 
-                {% if current_user.has_permission('system:dashboard') or current_user.has_permission('unity:read') %}
-                <li class="nav-section">Administração</li>
-                {% endif %}
-                {% set in_unidades = ep.startswith('admin.') and 'unit' in ep %}
-                {% set in_tokens = ep.startswith('admin.') and 'api_token' in ep %}
-                {# Painel Admin fica ativo nas páginas de gestão sem item próprio
-                   no menu (usuários, cursos, disciplinas, feriados, papéis) #}
-                {# Painel Admin é o fallback das demais páginas administrativas sem item
-   próprio no menu (usuários, cursos, disciplinas, feriados, papéis...) #}
-                {% set in_painel_admin = ep.startswith('admin.') and not in_unidades and not in_tokens and not in_salas_admin %}
-                {% if current_user.has_permission('system:dashboard') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_painel_admin }}" title="Painel Admin" href="{{ url_for('admin.dashboard') }}">
-                        <i class="bi bi-gear"></i> <span>Painel Admin</span>
-                    </a>
-                </li>
-                {% endif %}
-                {% if current_user.has_permission('unity:read') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_unidades }}" title="Unidades" href="{{ url_for('admin.list_unities') }}">
-                        <i class="bi bi-buildings"></i> <span>Unidades</span>
-                    </a>
-                </li>
-                {% endif %}
-                {% if current_user.has_permission('api:manage') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_tokens }}" title="Tokens da API" href="{{ url_for('admin.list_api_tokens') }}">
-                        <i class="bi bi-key"></i> <span>Tokens da API</span>
-                    </a>
-                </li>
-                {% endif %}
-                                {% else %}
+                {% else %}
                 {# Calendário removido do menu de visitantes: o schedule exige login #}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('public.home') }}">
@@ -226,14 +202,17 @@
             </ul>
         </div>
     </nav>
+    {% endif %}
 
     <!-- Main Content -->
     <div class="main-content">
         <!-- Topbar -->
         <nav class="topbar">
+            {% if not ocultar_sidebar %}
             <button class="btn btn-link d-lg-none" id="sidebar-toggle" type="button">
                 <i class="bi bi-list"></i>
             </button>
+            {% endif %}
 
             {% if current_user.is_authenticated and current_unity %}
             {# Unidade ativa à esquerda do topbar, ao lado da barra lateral #}
@@ -265,9 +244,52 @@
             {% endif %}
 
             <div class="ms-auto d-flex align-items-center">
-                <button id="theme-toggle" class="btn btn-sm btn-icon" title="Alternar tema">
+                {# O Painel Admin é o hub das áreas administrativas: Unidades,
+                   Tokens da API, Empresas de Ônibus e Configurações do Pedido
+                   de VT vivem dentro dele (cards na página), então o link é
+                   visível para quem tem qualquer uma dessas permissões e fica
+                   ativo em todas as páginas /admin/*. #}
+                {% if current_user.is_authenticated %}
+                {% set ep_top = request.endpoint or '' %}
+                {% set painel_visivel = current_user.has_permission('system:dashboard')
+                    or current_user.has_permission('unity:read')
+                    or current_user.has_permission('api:manage')
+                    or current_user.has_permission('vt:empresas')
+                    or current_user.has_permission('vt:config') %}
+                {% set in_painel_admin = ep_top.startswith('admin.') and not ('room' in ep_top or 'categor' in ep_top) %}
+                {% if painel_visivel %}
+                <a class="topbar-painel {{ 'active' if in_painel_admin }}" title="Painel Admin"
+                   href="{{ url_for('admin.dashboard') }}">
+                    <i class="bi bi-gear"></i> <span class="d-none d-md-inline">Painel Admin</span>
+                </a>
+                {% endif %}
+                {% endif %}
+
+                <button id="theme-toggle" class="btn btn-sm btn-icon" title="Alternar tema claro/escuro">
                     <i class="bi bi-sun-fill" id="theme-icon"></i>
                 </button>
+
+                <div class="dropdown">
+                    <button id="accent-toggle" class="btn btn-sm btn-icon" title="Cor da interface"
+                            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                        <i class="bi bi-palette"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end p-3" aria-labelledby="accent-toggle">
+                        <div class="small text-muted text-uppercase fw-bold mb-2">Cor da interface</div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="accent-swatch" data-accent-opcao="" title="Azul Senac (padrão)"
+                                    style="--sw: #004b8d"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="verde" title="Verde"
+                                    style="--sw: #157347"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="roxo" title="Roxo"
+                                    style="--sw: #6f42c1"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="laranja" title="Laranja"
+                                    style="--sw: #b45309"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="grafite" title="Grafite"
+                                    style="--sw: #37474f"><i class="bi bi-check-lg"></i></button>
+                        </div>
+                    </div>
+                </div>
 
                 {% if current_user.is_authenticated %}
                 <div class="dropdown">
@@ -364,6 +386,10 @@
             var LIMIAR_OPCOES = 6;
             document.querySelectorAll('select.form-select').forEach(function (sel) {
                 if (sel.disabled || sel.tomselect || sel.options.length < LIMIAR_OPCOES) return;
+                // Selects repovoados por JavaScript (ex.: tarifas do pedido
+                // de VT dependendo da empresa): o Tom Select cacheia as
+                // opções no load e ficaria desatualizado após o repovoamento.
+                if (sel.hasAttribute('data-nativo')) return;
                 // .input-group: o Tom Select quebra o layout com botões anexos
                 // (ex.: seletor de ícone da categoria com o preview ao lado)
                 if (sel.closest('.input-group')) return;
@@ -396,6 +422,28 @@
         }
         updateIcon();
     });
+
+    // Tema de cor (accent): a paleta vive no CSS ([data-accent=...]) e a
+    // escolha no localStorage. Ao trocar, recarrega a página para tudo
+    // (gráficos inclusive) nascer na nova cor.
+    const accentToggle = document.getElementById('accent-toggle');
+    if (accentToggle) {
+        document.querySelectorAll('.accent-swatch').forEach(botao => {
+            botao.addEventListener('click', () => {
+                const accent = botao.dataset.accentOpcao || '';
+                if (accent) localStorage.setItem('accent', accent);
+                else localStorage.removeItem('accent');
+                document.documentElement.setAttribute('data-accent', accent);
+                location.reload();
+            });
+        });
+        accentToggle.closest('.dropdown').addEventListener('show.bs.dropdown', () => {
+            const atual = document.documentElement.getAttribute('data-accent') || '';
+            document.querySelectorAll('.accent-swatch').forEach(b => {
+                b.classList.toggle('selected', (b.dataset.accentOpcao || '') === atual);
+            });
+        });
+    }
 
     // Sidebar toggle for mobile
     const sidebarToggle = document.getElementById('sidebar-toggle');
