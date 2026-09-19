@@ -76,7 +76,7 @@ O papel de cada componente — e por que ele é recomendado:
 ## 📋 Requisitos
 
 - Servidor **Debian/Ubuntu** (ou derivado) com acesso root (`sudo`)
-- **Python 3.8+** (`python3 --version`)
+- **Python 3.10+** (`python3 --version`) — exigido pelas dependências fixadas no `requirements.txt`
 - Um **domínio** apontando para o servidor (ex.: `sigere.sua-instituicao.edu.br`) — necessário para o certificado HTTPS
 - **Internet de saída** para os serviços externos usados pelo sistema:
 
@@ -113,13 +113,17 @@ pip install -r requirements.txt gunicorn
 Permissões — o Gunicorn roda como `www-data` e precisa escrever nos dados da instância:
 
 ```bash
+# A pasta instance/ NÃO existe no clone (ignorada pelo .gitignore) — crie-a primeiro
+sudo mkdir -p /var/www/sigere/instance/uploads
 sudo chown -R www-data:www-data /var/www/sigere/instance
 sudo mkdir -p /var/log/sigere && sudo chown www-data:www-data /var/log/sigere
 ```
 
-> A pasta `instance/` guarda os uploads (fichas técnicas `.docx` da Cozinha).
-> O `.gitignore` a ignora — ela nasce vazia no clone, e o `chown` acima garante
-> que o serviço consiga criá-la/preenchê-la.
+> A pasta `instance/uploads/` guarda os uploads (fichas técnicas `.docx` da
+> Cozinha) fora do git. Sem ela, o `chown` acima falha ("No such file or
+> directory") e o primeiro upload de ficha técnica responde 500 — o serviço
+> (`www-data`) não tem permissão para criá-la dentro do projeto, que pertence
+> ao seu usuário.
 
 ---
 
@@ -158,7 +162,8 @@ redis-cli ping    # resposta esperada: PONG
 O padrão da distribuição já escuta apenas em `127.0.0.1:6379`, sem senha —
 suficiente, pois só a aplicação local o acessa. Ele será usado pelo
 `RATELIMIT_STORAGE_URI` (passo 4); enquanto não configurado, os contadores
-ficam em memória, separados por worker.
+ficam em memória, separados por worker. O **cliente** Python (`redis`) já vem
+no `requirements.txt` — o `apt` acima instala apenas o servidor.
 
 ---
 
@@ -207,16 +212,24 @@ chmod 600 /var/www/sigere/.env
 
 ## 5. Inicializar o banco
 
-Com o `.env` criado (o `systemd` ainda não roda; exporte manualmente para os
-comandos ou rode a partir de uma sessão com as variáveis carregadas):
+Com o `.env` criado, carregue as variáveis no shell e rode os comandos como o
+**seu usuário** (dono do repositório e do `venv`):
 
 ```bash
 cd /var/www/sigere
 set -a; source .env; set +a    # carrega o .env no shell atual
 
-sudo -u www-data venv/bin/flask --app run db upgrade     # cria o schema (Alembic)
-sudo -u www-data venv/bin/flask --app run seed-admin     # cria SÓ o admin, senha definida interativamente (mín. 8 caracteres, oculta)
+venv/bin/flask --app run db upgrade     # cria o schema (Alembic)
+venv/bin/flask --app run seed-admin     # cria SÓ o admin, senha definida interativamente (mín. 8 caracteres, oculta)
 ```
+
+> ⚠️ **Não use `sudo -u www-data` nestes comandos.** O `sudo` descarta as
+> variáveis exportadas no shell (`env_reset`) e o `www-data` não consegue ler o
+> `.env` restrito a `600` (ele pertence ao seu usuário) — o comando falha sem
+> enxergar a configuração. O schema é criado no PostgreSQL com o usuário do
+> `DATABASE_URL`, então quem executa o comando não importa. O serviço do
+> Gunicorn (que roda como `www-data`) só precisa de leitura no código e escrita
+> em `instance/` e nos logs — garantidos pelos `chown` dos passos 1 e 6.
 
 > ⚠️ **Não use `flask seed` em produção**: além do admin, ele oferece dados de
 > demonstração (contas com senhas conhecidas, 29 salas fictícias etc.).
@@ -225,14 +238,14 @@ sudo -u www-data venv/bin/flask --app run seed-admin     # cria SÓ o admin, sen
 Opcional — unidades do Senac SC (idempotente, pode rodar de novo sem duplicar):
 
 ```bash
-sudo -u www-data venv/bin/flask --app run seed-unidades
+venv/bin/flask --app run seed-unidades
 ```
 
 Caso especial — banco que já existia de versões anteriores ao Alembic
 (schema atual, sem `alembic_version`):
 
 ```bash
-sudo -u www-data venv/bin/flask --app run db stamp head
+venv/bin/flask --app run db stamp head
 ```
 
 > O boot da aplicação **não** cria nem altera schema — quem aplica é o Alembic,
@@ -395,12 +408,14 @@ Rotina padrão a cada nova versão:
 
 ```bash
 cd /var/www/sigere
-sudo -u www-data git pull
-sudo -u www-data venv/bin/pip install -r requirements.txt gunicorn   # cobre dependências novas
-sudo -u www-data venv/bin/flask --app run db upgrade                 # aplica migrações de schema
+set -a; source .env; set +a    # variáveis para os comandos flask abaixo
+
+git pull
+venv/bin/pip install -r requirements.txt gunicorn   # cobre dependências novas
+venv/bin/flask --app run db upgrade                 # aplica migrações de schema
 sudo systemctl restart sigere
 # Se algum módulo novo trouxer permissões/papéis:
-sudo -u www-data venv/bin/flask --app run sync-permissions
+venv/bin/flask --app run sync-permissions
 ```
 
 Notas:
@@ -460,12 +475,14 @@ O essencial para restaurar uma instalação completa:
 | Sintoma | Causa provável | Solução |
 |---------|----------------|---------|
 | `502 Bad Gateway` | Gunicorn parado ou socket sem permissão | `sudo systemctl status sigere`; confira `/run/sigere` (`chown www-data`); veja `journalctl -u sigere` |
+| `PermissionError` no `.env` ao rodar `flask db upgrade`/`seed-admin` | Comando executado como `www-data` (o `.env` é `600`, do seu usuário) ou variáveis não exportadas | Rode como o seu usuário: `set -a; source .env; set +a` antes do comando (passo 5) |
+| `limits...ConfigurationError: 'redis' prerequisite not available` no boot | `RATELIMIT_STORAGE_URI` aponta para Redis sem o pacote Python `redis` instalado (requirements antigo) | `venv/bin/pip install -r requirements.txt` — o cliente `redis` entrou no arquivo |
 | A aplicação não inicia: `RuntimeError: SECRET_KEY não configurada` | `.env` sem a chave ou `EnvironmentFile` apontando errado | Gere a chave (passo 4), confirme o caminho do `.env` na unit e `daemon-reload` |
 | Login não mantém sessão / "recarrega a página" | Acesso por **HTTP puro** (cookie `Secure` rejeitado) ou relógio do servidor errado | Garanta HTTPS (passo 8); sincronize o relógio (`timedatectl`) |
 | `429` em massa para todos os usuários | `X-Forwarded-For` não enviado — todos dividem o contador do IP do Nginx | Confirme os `proxy_set_header` do passo 7 |
 | Rate limit "mais frouxo" que o configurado | Redis não configurado → contador em memória, por worker | Defina `RATELIMIT_STORAGE_URI="redis://localhost:6379/0"` e reinicie |
 | Upload falha com `413` | `client_max_body_size` do Nginx menor que o arquivo | Aumente no Nginx (mantendo ≥ 16 MB da aplicação) |
-| Upload falha com `500` / ficha não aparece | Permissão de escrita em `instance/uploads/` | `sudo chown -R www-data:www-data /var/www/sigere/instance` |
+| Upload falha com `500` / ficha não aparece | `instance/uploads/` inexistente ou sem permissão de escrita para `www-data` | Recrie com o dono certo: `sudo mkdir -p /var/www/sigere/instance/uploads && sudo chown -R www-data:www-data /var/www/sigere/instance` |
 | Clima do totem "N/A" | Unidade sem coordenadas e/ou sem internet para Open-Meteo | Configure o clima por unidade no painel; teste a saída para `api.open-meteo.com` |
 | API responde `401` para um token que funcionava | Token revogado/expirado ou conta do criador desativada | Reemita o token em Painel Admin → Tokens da API ([detalhes](api-reservas.md)) |
 | `⚠️ Banco de dados vazio` no log após atualizar | Migração não aplicada | `sudo -u www-data venv/bin/flask --app run db upgrade` |

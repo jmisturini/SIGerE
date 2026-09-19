@@ -6,14 +6,16 @@ e executando cada etapa documentada no README (seção "Instalação"):
     python setup_interativo.py
 
 Etapas:
-  1. Confere o Python (3.8+) e cria/reaproveita o ambiente virtual .venv;
+  1. Confere o Python (3.10+) e cria/reaproveita o ambiente virtual .venv;
   2. Instala as dependências (requirements.txt);
-  3. Gera o arquivo .env (SECRET_KEY, banco de dados, clima do totem);
-  4. Cria/atualiza o schema do banco (flask --app run db upgrade);
-  5. Popula os dados iniciais — implantação real (seed-admin), demonstração
+  3. Gera o arquivo .env (SECRET_KEY, banco de dados, Redis do rate limit, clima
+     do totem);
+  4. Cria a pasta de dados da instância (instance/uploads — fora do git);
+  5. Cria/atualiza o schema do banco (flask --app run db upgrade);
+  6. Popula os dados iniciais — implantação real (seed-admin), demonstração
      (seed / seed-demo) ou migração do sistema legado (import-legacy);
-  6. Opcional: cadastra as unidades do Senac SC (seed-unidades);
-  7. Opcional: inicia o servidor de desenvolvimento.
+  7. Opcional: cadastra as unidades do Senac SC (seed-unidades);
+  8. Opcional: inicia o servidor de desenvolvimento.
 
 Seguro de rodar mais de uma vez: etapas já concluídas são reaproveitadas e
 cada comando de seed tem guarda própria contra duplicação de dados.
@@ -101,8 +103,9 @@ def python_da_venv():
 def preparar_venv():
     titulo('1. Ambiente virtual (Python)')
 
-    if sys.version_info < (3, 8):
-        erro(f"Python 3.8 ou superior é necessário (encontrado {sys.version.split()[0]}).")
+    if sys.version_info < (3, 10):
+        erro(f"Python 3.10 ou superior é necessário (encontrado {sys.version.split()[0]}).\n"
+             "   As dependências fixadas no requirements.txt (limits, redis) exigem 3.10+.")
         raise SystemExit(1)
     print(f"   Python {sys.version.split()[0]} — ok.")
 
@@ -124,8 +127,12 @@ def preparar_venv():
 def instalar_dependencias(venv_python):
     titulo('2. Dependências (requirements.txt)')
 
+    # `redis` na checagem: entrou depois no requirements.txt — quem já tinha a
+    # venv pronta não seria perguntado sobre reinstalar e o pacote faltaria
+    # (rate limit com RATELIMIT_STORAGE_URI apontando para o Redis quebra no
+    # boot com ConfigurationError).
     instalado = subprocess.run(
-        [venv_python, '-c', 'import flask, flask_migrate, dotenv'],
+        [venv_python, '-c', 'import flask, flask_migrate, dotenv, redis'],
         capture_output=True,
     ).returncode == 0
     if instalado and not sim_nao('As dependências principais já estão instaladas. Reinstalar?',
@@ -155,6 +162,14 @@ def ler_env(caminho):
         chave, _, valor = linha.partition('=')
         valores[chave.strip()] = valor.strip().strip('"').strip("'")
     return valores
+
+
+def host_porta_da_url_redis(url):
+    """Host e porta de uma URI redis:// (ignora credenciais e banco) — para o
+    teste de conexão antes de gravar o .env."""
+    autoridade = url.split('//', 1)[-1].split('/', 1)[0].split('@')[-1]
+    host, _, porta = autoridade.partition(':')
+    return host or 'localhost', int(porta) if porta.isdigit() else 6379
 
 
 def configurar_env():
@@ -217,6 +232,27 @@ def configurar_env():
     elif ARQUIVO_DB.exists():
         print(f'   O arquivo {ARQUIVO_DB.name} já existe e será reaproveitado.')
 
+    # Redis do rate limit: com múltiplos workers do Gunicorn, contador em
+    # memória seria um por processo (limite N vezes mais frouxo). Guia:
+    # docs/implantacao-producao.md, seção "Redis".
+    if not desenvolvimento and sim_nao(
+            'Rate limit no Redis (recomendado com múltiplos workers do Gunicorn)?',
+            padrao=True):
+        while True:
+            url_redis = entrada('RATELIMIT_STORAGE_URI', 'redis://localhost:6379/0')
+            if url_redis.startswith('redis://'):
+                break
+            aviso("A URL deve começar com 'redis://'.")
+        host_redis, porta_redis = host_porta_da_url_redis(url_redis)
+        try:
+            with socket.create_connection((host_redis, porta_redis), timeout=2):
+                print(f'   Redis acessível em {host_redis}:{porta_redis}.')
+        except OSError:
+            aviso(f'Redis não respondeu em {host_redis}:{porta_redis} — instale/inicie o '
+                  'serviço (ex.: sudo apt install redis-server) antes de servir a '
+                  'aplicação, ou as rotas com rate limit responderão erro.')
+        linhas.append(f'RATELIMIT_STORAGE_URI="{url_redis}"')
+
     lat = entrada('Latitude do totem (clima, fallback global; vazio usa -23.5505)', '-23.5505')
     linhas.append(f'TOTEM_LATITUDE="{lat}"')
     lon = entrada('Longitude do totem (vazio usa -46.6333)', '-46.6333')
@@ -228,6 +264,28 @@ def configurar_env():
         aviso('Proteja o arquivo .env — contém a SECRET_KEY e nunca deve ser versionado.')
 
     return ler_env(ARQUIVO_ENV)
+
+
+# ───────────────────────── pasta de dados da instância ───────────────────────
+
+def preparar_instance(env):
+    """Cria instance/uploads (uploads de usuários, ex.: fichas técnicas .docx).
+
+    A pasta é ignorada pelo .gitignore e o Flask não a cria no boot — sem ela,
+    o chown para o usuário do serviço falha no servidor e o primeiro upload
+    responde 500 (o www-data não pode criá-la dentro do projeto).
+    """
+    titulo('4. Pasta de dados da instância (instance/uploads)')
+    pasta = RAIZ / 'instance' / 'uploads'
+    if pasta.is_dir():
+        print('   Pasta existente reaproveitada: instance/uploads')
+        return
+    pasta.mkdir(parents=True, exist_ok=True)
+    ok('Pasta instance/uploads criada (uploads ficam fora do git).')
+    if env.get('FLASK_DEBUG', '').lower() not in ('1', 'true', 'yes', 'on'):
+        aviso('Em produção o Gunicorn roda como www-data — ajuste o dono da pasta: '
+              'sudo chown -R www-data:www-data instance '
+              '(docs/implantacao-producao.md, passo 1).')
 
 
 # ───────────────────────────── schema do banco ────────────────────────────────
@@ -242,7 +300,7 @@ def executar_flask(venv_python, env, argumentos):
 
 
 def aplicar_schema(venv_python, env):
-    titulo('4. Schema do banco (Flask-Migrate/Alembic)')
+    titulo('5. Schema do banco (Flask-Migrate/Alembic)')
     print('   Executando: flask --app run db upgrade')
     executar_flask(venv_python, env, ['db', 'upgrade'])
     ok('Schema do banco criado/atualizado (alembic head).')
@@ -251,7 +309,7 @@ def aplicar_schema(venv_python, env):
 # ──────────────────────────── dados iniciais ──────────────────────────────────
 
 def popular_dados(venv_python, env):
-    titulo('5. Dados iniciais')
+    titulo('6. Dados iniciais')
 
     if ARQUIVO_DB.exists() and ARQUIVO_DB.stat().st_size > 4096:
         aviso(f'O banco {ARQUIVO_DB.name} já existe. Os comandos de seed pulam a população '
@@ -306,7 +364,7 @@ def popular_dados(venv_python, env):
 
 
 def unidades_senac(venv_python, env):
-    titulo('6. Unidades do Senac SC (opcional)')
+    titulo('7. Unidades do Senac SC (opcional)')
     if not JSON_UNIDADES.exists():
         aviso(f'Arquivo {JSON_UNIDADES.name} não encontrado — etapa indisponível.')
         return
@@ -361,7 +419,7 @@ def ip_da_rede_local():
 
 
 def iniciar_servidor(venv_python, env):
-    titulo('7. Servidor de desenvolvimento')
+    titulo('8. Servidor de desenvolvimento')
     if not sim_nao('Iniciar o servidor agora (Ctrl+C para parar)?', padrao=True):
         print('   Para iniciar depois: flask --app run run --debug')
         return
@@ -416,6 +474,7 @@ def main():
         venv_python = preparar_venv()
         instalar_dependencias(venv_python)
         env_arquivo = configurar_env()
+        preparar_instance(env_arquivo)
 
         # Repassa o .env também no ambiente do processo: garante que os comandos
         # enxerguem a configuração mesmo sem depender da leitura do arquivo.

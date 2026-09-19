@@ -2,7 +2,7 @@
 
 # 🏫 SIGerE — Sistema Integrado de Gerenciamento Educacional
 
-[![Python](https://img.shields.io/badge/Python-3.8+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com)
 [![Bootstrap](https://img.shields.io/badge/Bootstrap-5-7952B3?logo=bootstrap&logoColor=white)](https://getbootstrap.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -207,7 +207,7 @@ Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora
 
 | Camada | Tecnologia |
 |--------|-----------|
-| **Backend** | Python 3.8+, Flask 3.x, Flask-SQLAlchemy, Flask-Login, Flask-WTF |
+| **Backend** | Python 3.10+, Flask 3.x, Flask-SQLAlchemy, Flask-Login, Flask-WTF |
 | **Banco de Dados** | SQLite (padrão), compatível com PostgreSQL (driver incluído) |
 | **Migrações** | Flask-Migrate (Alembic) |
 | **Frontend** | Bootstrap 5, Bootstrap Icons, Jinja2 |
@@ -235,7 +235,7 @@ Guias detalhados disponíveis no diretório [`docs/`](docs/):
 > 🛠️ **Guia completo de desenvolvimento** (modo debug, banco local, migrações, testes e depuração): [docs/desenvolvimento-debug.md](docs/desenvolvimento-debug.md)
 
 ### Pré-requisitos
-- Python 3.8 ou superior
+- Python 3.10 ou superior (exigido pelas dependências do `requirements.txt`)
 - pip
 
 ### Setup interativo (atalho)
@@ -406,7 +406,9 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt gunicorn
 
-# Permissões: o Gunicorn precisa escrever o banco (se SQLite) e os uploads
+# Permissões: o Gunicorn (www-data) precisa escrever os uploads (fichas da Cozinha).
+# A pasta instance/ NÃO existe no clone (ignorada pelo .gitignore) — crie antes do chown.
+sudo mkdir -p /var/www/sigere/instance/uploads
 sudo chown -R www-data:www-data /var/www/sigere/instance
 ```
 
@@ -523,12 +525,13 @@ Após emitir o certificado, descomente o redirecionamento 80→443 no bloco Ngin
 
 ```bash
 cd /var/www/sigere
-sudo -u www-data git pull
-sudo -u www-data venv/bin/pip install -r requirements.txt gunicorn
-sudo -u www-data venv/bin/flask --app run db upgrade    # aplica migrações de schema
+set -a; source .env; set +a                              # variáveis para os comandos flask
+git pull
+venv/bin/pip install -r requirements.txt gunicorn
+venv/bin/flask --app run db upgrade    # aplica migrações de schema
 sudo systemctl restart sigere
 # Se algum módulo novo trouxer permissões:
-sudo -u www-data venv/bin/flask --app run sync-permissions
+venv/bin/flask --app run sync-permissions
 ```
 
 > Na **primeira** implantação, a rotina é: `db upgrade` → `seed` (opcional, dados de demonstração) → `db stamp head` se o banco já existia de versões anteriores ao Alembic → iniciar o serviço.
