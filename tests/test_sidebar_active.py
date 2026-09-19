@@ -69,9 +69,13 @@ class SidebarActiveTestCase(unittest.TestCase):
                 os.remove(path)
 
     def _navlink(self, page, titulo):
-        """Classe do nav-link do menu cujo title seja `titulo`."""
+        """Classe do link de navegação cujo title seja `titulo`.
+
+        O Painel Admin vive na topbar (classe topbar-painel); os demais
+        itens, na sidebar (classe nav-link).
+        """
         import re
-        m = re.search(r'<a class="nav-link ([^"]*)" title="' + titulo + '"', page)
+        m = re.search(r'<a class="(?:nav-link|topbar-painel) ([^"]*)" title="' + titulo + '"', page)
         return m.group(1) if m else None
 
     def test_unidades_vive_dentro_do_painel_admin(self):

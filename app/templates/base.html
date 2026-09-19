@@ -81,21 +81,21 @@
                         <ul class="nav flex-column nav-submenu">
                             {% if current_user.has_permission('reservation:create') %}
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.create') }}" href="{{ url_for('reservations.create') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.create') }}" title="Nova Reserva" href="{{ url_for('reservations.create') }}">
                                     <i class="bi bi-plus-circle"></i> <span>Nova Reserva</span>
                                 </a>
                             </li>
                             {% endif %}
                             {% if current_user.has_permission('reservation:read_own') %}
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.my') }}" href="{{ url_for('reservations.my_reservations') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.my') }}" title="Minhas Reservas" href="{{ url_for('reservations.my_reservations') }}">
                                     <i class="bi bi-calendar-check"></i> <span>Minhas Reservas</span>
                                 </a>
                             </li>
                             {% endif %}
                             {% if current_user.has_permission('reservation:read_all') %}
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.all') }}" href="{{ url_for('reservations.all_reservations') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.all') }}" title="Todas as Reservas" href="{{ url_for('reservations.all_reservations') }}">
                                     <i class="bi bi-people"></i> <span>Todas as Reservas</span>
                                 </a>
                             </li>
@@ -120,13 +120,13 @@
                     <div class="collapse {{ 'show' if in_overtime else '' }}" id="menu-hora-extra">
                         <ul class="nav flex-column nav-submenu">
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('payments.list') }}" href="{{ url_for('payments.list_overtime') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.list') }}" title="Consultar H. Extras" href="{{ url_for('payments.list_overtime') }}">
                                     <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
                                 </a>
                             </li>
                             {% if current_user.has_permission('payment:create') %}
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('payments.create') or ep.startswith('payments.edit') }}" href="{{ url_for('payments.create_overtime') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.create') or ep.startswith('payments.edit') }}" title="Nova Hora Extra" href="{{ url_for('payments.create_overtime') }}">
                                     <i class="bi bi-plus-circle"></i> <span>Nova Hora Extra</span>
                                 </a>
                             </li>
@@ -144,12 +144,12 @@
                     <div class="collapse {{ 'show' if in_vt else '' }}" id="menu-vt">
                         <ul class="nav flex-column nav-submenu">
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('vt.requests') }}" href="{{ url_for('vt.requests') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('vt.requests') }}" title="Pedidos VT" href="{{ url_for('vt.requests') }}">
                                     <i class="bi bi-inbox"></i> <span>Pedidos VT</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep == 'vt.relatorio' }}" href="{{ url_for('vt.relatorio') }}">
+                                <a class="nav-link {{ 'active' if ep == 'vt.relatorio' }}" title="Relatório VT" href="{{ url_for('vt.relatorio') }}">
                                     <i class="bi bi-graph-up"></i> <span>Relatório</span>
                                 </a>
                             </li>
@@ -181,7 +181,7 @@
                 {% endif %}
                 {% endif %}
 
-                                {% else %}
+                {% else %}
                 {# Calendário removido do menu de visitantes: o schedule exige login #}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('public.home') }}">

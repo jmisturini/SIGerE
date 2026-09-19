@@ -110,21 +110,24 @@ body {
     min-height: 100vh;
 }
 
-/* Sidebar */
+/* Sidebar: coluna flexível — a marca fica fixa no topo e o menu rola sob ela */
 .sidebar {
     width: 260px;
     background-color: var(--sidebar-bg);
     color: var(--sidebar-color);
     position: fixed;
     height: 100vh;
-    overflow-y: auto;
     z-index: 1000;
     transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .sidebar-header {
-    padding: 1.25rem 1.5rem;
+    padding: 1rem 1rem 1rem 1.25rem;
     border-bottom: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
 }
 
 .sidebar-brand {
@@ -141,33 +144,72 @@ body {
     font-size: 1.5rem;
 }
 
+/* Quem rola é o menu: com todos os módulos ligados a lista passa da altura
+   da tela e a marca permanece visível. Barra de rolagem fina e discreta. */
 .sidebar-menu {
-    padding: 1rem 0;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.5rem 0 1.25rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.25) transparent;
+}
+
+.sidebar-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-menu::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.2);
+    border-radius: 999px;
+}
+
+.sidebar-menu::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 .sidebar-menu .nav-item {
     width: 100%;
 }
 
+/* Títulos de seção: um fio discreto separa cada grupo de módulos */
 .sidebar-menu .nav-section {
-    color: rgba(255,255,255,0.4);
-    font-size: 0.7rem;
+    color: rgba(255,255,255,0.45);
+    font-size: 0.68rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 1rem 1.5rem 0.4rem 1.5rem;
+    letter-spacing: 0.08em;
+    padding: 1rem 1.5rem 0.4rem;
     font-weight: 600;
 }
 
+.sidebar-menu .nav-section:not(:first-child) {
+    margin: 0.9rem 1.5rem 0;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Itens: pílulas com respiro das bordas (em vez de barras coladas nelas);
+   ícone de largura fixa mantém todos os rótulos na mesma coluna. */
 .sidebar-menu .nav-link {
     color: var(--sidebar-color);
-    padding: 0.6rem 1.5rem;
+    margin: 0.1rem 0.75rem;
+    padding: 0.55rem 0.7rem;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.7rem;
     font-weight: 500;
-    transition: all 0.2s;
-    border-radius: 0;
-    font-size: 0.95rem;
+    transition: background-color 0.15s, color 0.15s;
+    border-radius: 8px;
+    font-size: 0.925rem;
+    white-space: nowrap;
+}
+
+.sidebar-menu .nav-link > i {
+    font-size: 1.05rem;
+    width: 1.25rem;
+    flex-shrink: 0;
+    text-align: center;
 }
 
 .sidebar-menu .nav-link:hover {
@@ -175,10 +217,14 @@ body {
     color: var(--sidebar-active-color);
 }
 
-.sidebar-menu .nav-link.active {
-    background-color: var(--sidebar-active-bg);
-    color: var(--sidebar-active-color);
-    border-left: 3px solid #fff;
+/* Item ativo: pílula clara que se destaca do fundo escuro. O rótulo usa o
+   próprio fundo da sidebar, então a inversão funciona em qualquer tema
+   de cor (azul, verde, roxo...) e no tema escuro. */
+.sidebar-menu .nav-link.active,
+.sidebar-menu .nav-link.active:hover {
+    background-color: #fff;
+    color: var(--sidebar-bg);
+    font-weight: 600;
 }
 
 /* Grupos expansíveis da sidebar (menus dropdown) */
@@ -191,11 +237,32 @@ body {
     transform: rotate(180deg);
 }
 
+/* Submenu: linha-guia liga visualmente os itens ao ícone do grupo pai */
+.sidebar-menu .nav-submenu {
+    position: relative;
+    padding-bottom: 0.35rem;
+}
+
+.sidebar-menu .nav-submenu::before {
+    content: '';
+    position: absolute;
+    left: 2.1rem;
+    top: 0;
+    bottom: 0.45rem;
+    width: 1px;
+    background: rgba(255,255,255,0.18);
+}
+
 .sidebar-menu .nav-submenu .nav-link {
-    padding: 0.45rem 1.5rem 0.45rem 3.1rem;
-    font-size: 0.875rem;
+    padding: 0.45rem 0.7rem 0.45rem 1.55rem;
+    font-size: 0.85rem;
     font-weight: 400;
     gap: 0.65rem;
+}
+
+.sidebar-menu .nav-submenu .nav-link > i {
+    font-size: 0.9rem;
+    width: 1rem;
 }
 
 /* Main Content */
@@ -243,12 +310,12 @@ body {
 @media (min-width: 992px) {
     html.sidebar-collapsed .sidebar { width: 72px; }
     html.sidebar-collapsed .main-content { margin-left: 72px; width: calc(100% - 72px); }
-    html.sidebar-collapsed .sidebar-header { padding: 1.25rem 0.75rem; }
+    html.sidebar-collapsed .sidebar-header { padding: 1rem 0.5rem; }
     html.sidebar-collapsed .sidebar-brand { justify-content: center; gap: 0; }
     html.sidebar-collapsed .brand-text { display: none; }
     html.sidebar-collapsed .sidebar-collapse-btn i { transform: rotate(180deg); }
     html.sidebar-collapsed .sidebar-menu .nav-section { display: none; }
-    html.sidebar-collapsed .sidebar-menu .nav-link { justify-content: center; padding: 0.65rem 0; }
+    html.sidebar-collapsed .sidebar-menu .nav-link { justify-content: center; padding: 0.6rem 0; gap: 0; }
     html.sidebar-collapsed .sidebar-menu .nav-link > span:not(.nav-chevron) { display: none; }
     html.sidebar-collapsed .sidebar-menu .nav-link .nav-chevron { display: none; }
     /* Submenus ficam para o modo expandido: clicar no grupo reexpande o menu */
