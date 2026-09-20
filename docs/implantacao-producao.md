@@ -149,6 +149,31 @@ Guarde as credenciais para o `DATABASE_URL` do passo 4. Boas práticas:
   roda na mesma máquina.
 - Acesso futuro para manutenção: `sudo -u postgres psql sigere`.
 
+### Remoção (desfazer o passo)
+
+Para remover o banco e o usuário — por exemplo, para recomeçar a instalação
+do zero ou desativar o sistema:
+
+```bash
+sudo systemctl stop sigere    # pare a aplicação antes, se estiver rodando
+sudo -u postgres psql
+```
+
+```sql
+DROP DATABASE sigere;
+DROP USER sigere;
+\q
+```
+
+- Se algo ainda estiver conectado, o `DROP DATABASE` falha com
+  *"database is being accessed by other users"*. Em PostgreSQL 13+ é possível
+  encerrar as conexões e remover de uma vez: `DROP DATABASE sigere WITH (FORCE);`.
+- Comandos equivalentes em uma linha: `sudo -u postgres dropdb sigere` e
+  `sudo -u postgres dropuser sigere`.
+- Depois de remover, ajuste o `.env`: apague a linha `DATABASE_URL` para
+  voltar ao SQLite padrão ou atualize a URL — do contrário a aplicação
+  responde erro ao tentar conectar em um banco inexistente.
+
 ---
 
 ## 3. Redis
