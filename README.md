@@ -41,7 +41,7 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 
 - 🏛️ **Reservas de espaços físicos** — salas de aula, auditórios, laboratórios de informática/saúde, cozinhas
 - 👨‍🏫 **Cronogramas de professores** com detecção automática de conflitos de horário
-- 💰 **Financeiro** — horas extras docentes e Vale Transporte (importação do Pedido de Compra, revisão/editação dos dados e exportação da planilha de pagamento)
+- 💰 **Financeiro** — horas extras docentes e Vale Transporte (formulário público do pedido, conferência e correção pelo RH em "Pedidos VT", relatório do período e exportação das planilhas de pagamento)
 - 🍳 **Cozinha** — fichas técnicas (.docx), preparações e requisição de compra
 - 📺 **Totens digitais** para corredores com exibição em tempo real de ocupação de salas
 - 📆 **Calendário interativo** com filtros avançados e visualização mensal
@@ -165,14 +165,12 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - **Exportação Excel:** planilha formatada com modelo pré-definido (`base_pagamento_extra.xlsx`), filtrável por mês e/ou professor
 
 ### 🚌 Vale Transporte (`/vt`)
-Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora Extra e Vale Transporte):
-- **Importação (`/vt/`):** upload do arquivo `.xlsx` do Pedido de Compra; o sistema lê a aba "Vale Transporte" inteira (todas as 16 colunas: matrícula, nome, optante, vínculo, unidade, empresas A/B com valores e passes, totais) e grava tudo para revisão — mesmo fluxo das fichas técnicas da Cozinha (importar → revisar/editar → exportar). Ao concluir, leva direto para a listagem
-- **Colaboradores (`/vt/colaboradores`):** listagem com filtros e exportação:
-- **Padronização de nomes:** nomes fora do padrão "iniciais maiúsculas" (ex.: `JOÃO ALFREDO MISTURINI` → `João Alfredo Misturini`) são formatados automaticamente na importação/edição, com o original preservado no selo "nome ajustado" da listagem
-- **Marcação de inconsistências:** linhas com **nome repetido** ou **matrícula repetida** ficam destacadas com selos de aviso (a verificação cobre toda a base da unidade, mesmo com filtros ativos)
-- **Filtros e organização:** busca por nome, filtros por vínculo e unidade, ordenação por nome/matrícula/valor total e opção de esconder não optantes com valor R$ 0,00
-- **Edição individual:** cada colaborador pode ter todos os campos corrigidos pela tela (valores monetários aceitam vírgula decimal); um novo upload substitui os dados vigentes e há botão "Limpar tudo"
-- **Exportação por grupo:** gera a planilha de pagamento preenchendo o modelo `planilha_base_vt.xlsx` (Matrícula, Nome e Valor Total a partir da linha 5), filtrável pelos grupos do gerador original — Técnico-Administrativo (Faculdade), Professores e Técnico-Administrativo (Restaurante/Lanchonete) — incluindo apenas Optante "Sim" com passes maior que zero; a coluna UO e a tabela de códigos de unidades do modelo são preservadas intactas
+Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora Extra e Vale Transporte). O ciclo do mês tem duas pontas: o **colaborador responde o formulário público** e o **RH confere, corrige e exporta** em Pedidos VT:
+- **Formulário público (`/vt/pedido`):** sem login, o colaborador informa e-mail, nome e matrícula (e-mail de conta ativa autocompleta e trava os dados), se deseja VT no mês e, para cada empresa de ônibus usada (1 ou 2), a tarifa vigente, o trajeto (Somente Volta ou Ida e Volta) e o número de vales necessários; link por unidade (`/vt/pedido?unity=<id>`), com data de fechamento opcional que encerra o preenchimento
+- **Pedidos VT (`/vt/pedidos`):** listagem das respostas da unidade com botão **"Copiar link do formulário"**, filtros (busca por nome/e-mail/matrícula, vínculo, deseja VT, ordenação, esconder não optantes com valor R$ 0,00), correção individual de qualquer campo e exclusão de pedidos inválidos
+- **Planilha de pagamento:** exportação Excel por grupo — Todos os grupos, Técnico-Administrativo ou Professores — preenchendo o modelo `planilha_base_vt.xlsx` (Matrícula, Nome e Valor Total a partir da linha 5, máximo de 72 linhas por arquivo); inclui apenas Optante "Sim" com passes maior que zero; a coluna UO e a tabela de códigos de unidades do modelo são preservadas intactas
+- **Relatório (`/vt/relatorio`):** indicadores do período (pedidos recebidos, adesão dos optantes, vales necessários, investimento estimado), gráficos (deseja VT, optantes por vínculo, trajetos, investimento por empresa), resumo por empresa de ônibus e conferência do RH (e-mails e matrículas repetidas), com versão para imprimir/PDF
+- **Administração:** cadastro de **Empresas de Ônibus** com tarifas (pares identificação + valor, ex.: "Patamar 3" + `7,24`) e **Configurações do Pedido VT** (números base de vales por trajeto e data de fechamento) — ambos no Painel Admin e usados pelo formulário público
 
 ### 🍳 Cozinha (`/kitchen`)
 - **Ficha Técnica:** envio de múltiplos arquivos `.docx` de fichas técnicas operacionais de uma vez; o sistema lê o conteúdo do modelo em tabelas (nome da preparação, equipamentos, utensílios, tempo de preparo, rendimento, tabela única de insumos com especificações/quantidade/unidade, modo de preparo e notas técnicas — observações, alergênicos e referências) e um botão **Salvar Ficha Técnica** gera a preparação; também é possível **criar a ficha manualmente** pelo botão "Criar Ficha Técnica", no mesmo modelo
@@ -224,6 +222,7 @@ Guias detalhados disponíveis no diretório [`docs/`](docs/):
 
 | Guia | Conteúdo |
 |------|----------|
+| 📘 [Manual do Usuário](docs/manual-do-usuario.pdf) | Operação do sistema para todos os perfis: acesso, reservas, salas, calendário, portal público, totem, financeiro (hora extra e VT), cozinha, administração e API |
 | 🛠️ [Desenvolvimento e Debug](docs/desenvolvimento-debug.md) | Ambiente na sua máquina: modo debug (`FLASK_DEBUG`), banco local, migrações, testes, depuração e erros comuns |
 | 🚢 [Implantação em Produção](docs/implantacao-producao.md) | Servidor real: PostgreSQL, Redis, Gunicorn + systemd, Nginx, HTTPS, atualização, backup e solução de problemas |
 | 📡 [API de Reservas](docs/api-reservas.md) | Uso da API REST de leitura para apps externos: autenticação, parâmetros, exemplos e FAQ |
@@ -579,7 +578,7 @@ Administradores com permissão `unity:switch` (ou `*`) veem o **seletor de unida
 - **Salas:** `/classrooms/export_pdf` (PDF)
 - **Disponibilidade mensal:** `/classrooms/<id>/export_availability` (PDF)
 - **Horas extras:** `/payments/export/overtime` (Excel)
-- **Vale Transporte:** `/vt/exportar?group=faculdade|professores|restaurante` (Excel, modelo `planilha_base_vt.xlsx`)
+- **Vale Transporte:** `/vt/pedidos/exportar-pagamento?group=tecnico|professores` (Excel, modelo `planilha_base_vt.xlsx`; sem `group`, exporta todos os grupos)
 - **Requisição de compra:** `/kitchen/compras/export` (Excel, via seleção de preparações)
 
 ---
@@ -836,6 +835,9 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `payment:read` / `payment:read_own` | Ver todos / próprios pagamentos |
 | `payment:create` / `payment:edit` / `payment:delete` | Criar / editar / excluir lançamentos |
 | `payment:export` | Exportar pagamentos |
+| `vt:read` | Acessar o Vale-Transporte (pedidos e relatório) |
+| `vt:edit` / `vt:delete` / `vt:export` | Corrigir / excluir pedidos de VT / exportar a planilha de pagamento |
+| `vt:empresas` / `vt:config` | Gerenciar empresas de ônibus e tarifas / configurar o pedido público (vales base e data de fechamento) |
 | `kitchen:read` | Acessar o módulo de Cozinha |
 | `kitchen:sheet_create` | Enviar e salvar fichas técnicas (DOCX) |
 | `kitchen:sheet_delete` | Excluir fichas técnicas e preparações |
