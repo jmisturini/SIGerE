@@ -10,12 +10,25 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.17.0'
+APP_VERSION = '1.17.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.17.1',
+        'data': '2026-09-19',
+        'titulo': 'Manual do usuário e documentação',
+        'grupos': [
+            ('Adicionado', [
+                'Manual do Usuário em PDF (docs/manual-do-usuario.pdf, 23 páginas): guia de operação de todos os módulos — acesso, reservas, salas, calendário, portal público, totem, financeiro (hora extra e vale-transporte), cozinha, administração e API — com passo a passo, campos dos formulários, regras de negócio, mensagens comuns e solução de problemas.',
+            ]),
+            ('Alterado', [
+                'README: manual do usuário incluído na tabela de Documentação; seção Vale-Transporte reescrita com o fluxo atual (formulário público, Pedidos VT, relatório e administração), URL correta da exportação da planilha de pagamento e permissões vt:* incluídas no catálogo de permissões.',
+            ]),
+        ],
+    },
     {
         'versao': '1.17.0',
         'data': '2026-09-19',
