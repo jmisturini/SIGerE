@@ -2,14 +2,24 @@
 {% block title %}Gerenciar Cursos{% endblock %}
 
 {% block content %}
+{% set args_alternar = request.args.to_dict() %}
+{% set _ = args_alternar.update({'inativos': '0' if mostrar_inativos else '1'}) %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
         <h3 class="fw-bold mb-1">Gerenciar Cursos</h3>
         <p class="text-muted mb-0">Visualize, edite e cadastre os cursos disponíveis no sistema.</p>
     </div>
-    <a href="{{ url_for('admin.create_course') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> Cadastrar Curso
-    </a>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn {{ 'btn-outline-secondary' if mostrar_inativos else 'btn-outline-secondary border-dashed' }}"
+           href="{{ url_for('admin.list_courses', **args_alternar) }}"
+           title="{{ 'Ocultar os cursos desativados da listagem' if mostrar_inativos else 'Exibir também os cursos desativados' }}">
+            <i class="bi {{ 'bi-eye-slash' if mostrar_inativos else 'bi-eye' }} me-1"></i>
+            {{ 'Esconder inativos' if mostrar_inativos else 'Mostrar inativos' }}
+        </a>
+        <a href="{{ url_for('admin.create_course') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Cadastrar Curso
+        </a>
+    </div>
 </div>
 
 <form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
@@ -21,6 +31,7 @@
         <option value="disciplinas" {{ 'selected' if ordem == 'disciplinas' }}>Quantidade de disciplinas</option>
     </select>
     <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Ordenar</button></noscript>
+    <input type="hidden" name="inativos" value="{{ '1' if mostrar_inativos else '0' }}">
 </form>
 
 <div class="card">

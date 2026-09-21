@@ -34,11 +34,17 @@
 {% elif schedule_count %}
 <div class="row g-4">
     {% for p in schedule_periods %}
+    {% set periodo_corrente = p.key == periodo_atual %}
     <div class="col-md-4 d-flex align-items-stretch">
-        <div class="card w-100">
-            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-                <span class="fw-bold"><i class="bi {{ p.icon }} text-primary me-2"></i>{{ p.label }}</span>
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ p.reservations|length }}</span>
+        <div class="card w-100 {{ 'border-primary shadow' if periodo_corrente }}">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center gap-2">
+                <span class="fw-bold text-truncate">
+                    <i class="bi {{ p.icon }} me-2 {{ 'text-primary' if periodo_corrente else 'text-muted' }}"></i>{{ p.label }}
+                    {% if periodo_corrente %}
+                    <span class="badge text-bg-primary ms-1" title="Período em curso agora"><i class="bi bi-broadcast me-1"></i>Agora</span>
+                    {% endif %}
+                </span>
+                <span class="badge {{ 'text-bg-primary' if periodo_corrente else 'bg-primary-subtle text-primary border border-primary-subtle' }}">{{ p.reservations|length }}</span>
             </div>
             {% if p.reservations %}
             <div class="list-group list-group-flush">
