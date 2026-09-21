@@ -91,6 +91,20 @@ class BaseForm(FlaskForm):
     Meta = MetaPTBR
 
 
+# Textos de formulário (títulos de reserva, nomes, rótulos) carregam números,
+# ordinais e pontuação real ("2º Concurso", "Senac T.I.", "Coord. Geral",
+# "D'Ávila"): o filtro "apenas alfabético" herdado dos forms antigos recusava
+# esses valores legítimos — um único padrão permissivo serve a todos os campos.
+_PADRAO_TEXTO = re.compile(r"^[A-Za-zÀ-ÿºª0-9\s\-.,()/&']+$")
+
+
+def _validar_texto(field, field_name):
+    if field.data and not _PADRAO_TEXTO.match(field.data):
+        raise ValidationError(
+            f'{field_name} contém caracteres não permitidos. '
+            f"Use letras, números, espaços ou . , - ( ) / & ' º ª")
+
+
 # =============================================================================
 # LOGIN & PASSWORD FORMS
 # =============================================================================
@@ -123,21 +137,11 @@ class ProfileForm(BaseForm):
     confirm_password = PasswordField('Confirmar Nova Senha', validators=[Optional(), EqualTo('password', message='As senhas não coincidem.')])
     submit = SubmitField('Salvar Alterações')
 
-    # Nomes e departamentos importados do sistema antigo trazem números e
-    # pontuação (T.I, D'Ávila): o filtro permissivo evita bloquear o
-    # autoatendimento de quem já possui esses valores gravados.
-    _PADRAO_TEXTO_PERFIL = re.compile(r'^[A-Za-zÀ-ÿ0-9\s\-.,()/&\']+$')
-
-    def _validar_texto(self, field, campo):
-        if field.data and not self._PADRAO_TEXTO_PERFIL.match(field.data):
-            raise ValidationError(f'{campo} contém caracteres não permitidos. '
-                                  f'Use letras, números, espaços ou . , - ( ) / & \'')
-
     def validate_full_name(self, field):
-        self._validar_texto(field, 'Nome Completo')
+        _validar_texto(field, 'Nome Completo')
 
     def validate_department(self, field):
-        self._validar_texto(field, 'Departamento')
+        _validar_texto(field, 'Departamento')
 
     def validate_current_password(self, field):
         # A senha atual só é exigida quando o usuário está trocando a senha
@@ -208,20 +212,6 @@ class UserForm(BaseForm):
             self.password.flags.required = True
             self.registration.flags.required = True
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
-    # Departamento/Setor/Função carregam siglas e abreviações reais (T.I,
-    # Assist. Suporte em TI, Recursos Humanos): o filtro "apenas alfabético"
-    # recusava valores legítimos — mesmo padrão permissivo do nome de salas.
-    _PADRAO_TEXTO_PERFIL = re.compile(r'^[A-Za-zÀ-ÿ0-9\s\-.,()/&]+$')
-
-    def _validate_texto_perfil(self, field, field_name):
-        if field.data and not self._PADRAO_TEXTO_PERFIL.match(field.data):
-            raise ValidationError(
-                f'{field_name} contém caracteres não permitidos. Use letras, números, espaços ou . , - ( ) / &')
-
     def _perfil(self):
         return self.profile_type.data or 'employee'
 
@@ -231,16 +221,16 @@ class UserForm(BaseForm):
             raise ValidationError('Este e-mail já está cadastrado.')
 
     def validate_full_name(self, field):
-        self._validate_alpha_only(field, 'Nome Completo')
+        _validar_texto(field, 'Nome Completo')
 
     def validate_department(self, field):
-        self._validate_texto_perfil(field, 'Departamento')
+        _validar_texto(field, 'Departamento')
 
     def validate_sector(self, field):
-        self._validate_texto_perfil(field, 'Setor')
+        _validar_texto(field, 'Setor')
 
     def validate_function(self, field):
-        self._validate_texto_perfil(field, 'Função')
+        _validar_texto(field, 'Função')
 
     def validate_registration(self, field):
         # A matrícula é obrigatória para ambos os perfis; a mensagem cita o
@@ -271,21 +261,11 @@ class ClassroomForm(BaseForm):
     is_active = BooleanField('Ativo', default=True)
     submit = SubmitField('Salvar Sala')
 
-    # Nome e prédio carregam números e pontuação (SA212, Sala 101, Prédio 2,
-    # Bloco B-2): o filtro "apenas alfabético" bloqueava até a edição de salas
-    # cujo nome é o próprio código gerado (abbr da categoria + número).
-    _PADRAO_TEXTO_SALA = re.compile(r'^[A-Za-zÀ-ÿ0-9\s\-.,()/&]+$')
-
-    def _validate_texto_sala(self, field, field_name):
-        if field.data and not self._PADRAO_TEXTO_SALA.match(field.data):
-            raise ValidationError(
-                f'{field_name} contém caracteres não permitidos. Use letras, números, espaços ou . , - ( ) / &')
-
     def validate_name(self, field):
-        self._validate_texto_sala(field, 'Nome da Sala')
+        _validar_texto(field, 'Nome da Sala')
 
     def validate_building(self, field):
-        self._validate_texto_sala(field, 'Prédio')
+        _validar_texto(field, 'Prédio')
 
 
 # =============================================================================
@@ -304,12 +284,8 @@ class ReservationForm(BaseForm):
     end_time = TimeField('Horário de Término', validators=[DataRequired()])
     submit = SubmitField('Solicitar Reserva')
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
     def validate_title(self, field):
-        self._validate_alpha_only(field, 'Título / Assunto')
+        _validar_texto(field, 'Título / Assunto')
 
     def validate_date(self, field):
         if field.data < date.today():
@@ -342,12 +318,8 @@ class CourseForm(BaseForm):
         super(CourseForm, self).__init__(*args, **kwargs)
         self._obj_id = kwargs.get('obj_id', None)
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
     def validate_name(self, field):
-        self._validate_alpha_only(field, 'Nome do Curso')
+        _validar_texto(field, 'Nome do Curso')
 
     def validate_code(self, field):
         # Unicidade por unidade: o mesmo código pode existir em unidades diferentes
@@ -372,12 +344,8 @@ class SubjectForm(BaseForm):
         super(SubjectForm, self).__init__(*args, **kwargs)
         self._obj_id = kwargs.get('obj_id', None)
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
     def validate_name(self, field):
-        self._validate_alpha_only(field, 'Nome da Disciplina')
+        _validar_texto(field, 'Nome da Disciplina')
 
     def validate_code(self, field):
         # Unicidade por unidade: o mesmo código pode existir em unidades diferentes
@@ -403,12 +371,10 @@ class HolidayForm(BaseForm):
         obj = kwargs.get('obj', None)
         self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
     def validate_name(self, field):
-        self._validate_alpha_only(field, 'Nome do Feriado')
+        # "7 de Setembro", "Aniversário da unidade 2": nomes com números são
+        # legítimos — mesmo padrão permissivo dos demais textos.
+        _validar_texto(field, 'Nome do Feriado')
 
     def validate_date(self, field):
         # Só bloqueia data passada na criação — na edição (obj_id definido)
@@ -444,12 +410,8 @@ class UnityForm(BaseForm):
         super(UnityForm, self).__init__(*args, **kwargs)
         self._obj_id = kwargs.get('obj_id', None)
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
     def validate_name(self, field):
-        self._validate_alpha_only(field, 'Nome da Unidade')
+        _validar_texto(field, 'Nome da Unidade')
         existing = Unity.query.filter_by(name=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
             raise ValidationError('Já existe uma unidade com este nome.')
@@ -508,12 +470,8 @@ class FormTeacherOvertimePay(BaseForm):
                  + Decimal(self.weekly_workload_minutes.data) / Decimal(60))
         return total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
     def validate_justification(self, field):
-        self._validate_alpha_only(field, 'Justificativa')
+        _validar_texto(field, 'Justificativa')
 
     def validate_hourly_value(self, field):
         # Aceita formatos: 15,50 | 15.50 | 1550 | 15
@@ -553,12 +511,9 @@ class RoleForm(BaseForm):
         obj = kwargs.get('obj', None)
         self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
     def validate_label(self, field):
-        self._validate_alpha_only(field, 'Rótulo de Exibição')
+        # Rótulos reais têm abreviações ("Coord. Geral", "Módulo TI 2").
+        _validar_texto(field, 'Rótulo de Exibição')
         existing = Role.query.filter_by(label=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
             raise ValidationError('Já existe um papel com este nome.')
@@ -617,18 +572,14 @@ class RoomCategoryForm(BaseForm):
         obj = kwargs.get('obj', None)
         self._obj_id = kwargs.get('obj_id', None) or (obj.id if obj and hasattr(obj, 'id') else None)
 
-    def _validate_alpha_only(self, field, field_name):
-        if field.data and not re.match(r'^[A-Za-zÀ-ÿ\s]+$', field.data):
-            raise ValidationError(f'{field_name} deve conter apenas caracteres alfabéticos.')
-
     def validate_name(self, field):
-        self._validate_alpha_only(field, 'Nome da Categoria')
+        _validar_texto(field, 'Nome da Categoria')
         existing = RoomCategory.query.filter_by(name=field.data).first()
         if existing and existing.id != getattr(self, '_obj_id', None):
             raise ValidationError('Já existe uma categoria com este nome.')
 
     def validate_abbr(self, field):
-        self._validate_alpha_only(field, 'Abreviação')
+        _validar_texto(field, 'Abreviação')
 
     def validate_color(self, field):
         if field.data and not re.match(r'^#[0-9a-fA-F]{6}$', field.data):
