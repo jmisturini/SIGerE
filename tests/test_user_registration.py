@@ -326,6 +326,31 @@ class UserRegistrationTestCase(unittest.TestCase):
             user = db.session.get(User, user_id)
             self.assertEqual((user.sector, user.function), ('T.I', 'Assist. Suporte em TI'))
 
+    def test_nome_completo_aceita_pontuacao_e_numeros(self):
+        # Nomes reais trazem ponto, número e abreviação ("Senac T.I.",
+        # "2º Sargento João") — o antigo filtro "apenas alfabético" os
+        # recusava na criação e na edição.
+        self.client.post('/admin/users/create-employee',
+                         data=self._payload(profile_type='employee',
+                                            full_name='Senac T.I.',
+                                            email='senac.ti@escola.edu',
+                                            registration='FUN011'),
+                         follow_redirects=True)
+        with self.app.app_context():
+            user = db.session.query(User).filter_by(email='senac.ti@escola.edu').first()
+            user_id = user.id
+            self.assertEqual(user.full_name, 'Senac T.I.')
+        payload = self._payload(profile_type='employee',
+                                full_name='Senac T.I. 2',
+                                email='senac.ti@escola.edu',
+                                registration='FUN011', password='')
+        response = self.client.post(f'/admin/users/{user_id}/edit',
+                                    data=payload, follow_redirects=True)
+        self.assertIn('Usuário atualizado com sucesso', response.get_data(as_text=True))
+        with self.app.app_context():
+            user = db.session.get(User, user_id)
+            self.assertEqual(user.full_name, 'Senac T.I. 2')
+
     def test_edicao_nao_altera_perfil_mesmo_com_post_forjado(self):
         # O seletor de perfil vem desabilitado na edição: um POST tentando
         # trocar profile_type não pode mudar o perfil persistido.
