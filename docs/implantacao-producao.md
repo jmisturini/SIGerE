@@ -392,6 +392,13 @@ sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d sigere.sua-instituicao.edu.br
 ```
 
+> **Antes de emitir o certificado**, as portas 80 e 443 precisam estar
+> acessíveis da internet — o Let's Encrypt valida o domínio pela porta 80.
+> Teste de fora do servidor: `curl -I http://SEU-DOMINIO`. Timeout aponta
+> firewall (comum em VMs da Oracle Cloud, que têm duas camadas — veja
+> [Portas 80/443 inacessíveis](#portas-80443-inacessíveis-oracle-cloud) na
+> solução de problemas); *connection refused* aponta Nginx parado.
+
 O certbot edita o bloco Nginx automaticamente: adiciona `listen 443 ssl` com o
 certificado e o redirecionamento 80 → 443. A renovação é automática (timer do
 systemd); para conferir:
@@ -504,6 +511,7 @@ O essencial para restaurar uma instalação completa:
 | `limits...ConfigurationError: 'redis' prerequisite not available` no boot | `RATELIMIT_STORAGE_URI` aponta para Redis sem o pacote Python `redis` instalado (requirements antigo) | `venv/bin/pip install -r requirements.txt` — o cliente `redis` entrou no arquivo |
 | A aplicação não inicia: `RuntimeError: SECRET_KEY não configurada` | `.env` sem a chave ou `EnvironmentFile` apontando errado | Gere a chave (passo 4), confirme o caminho do `.env` na unit e `daemon-reload` |
 | Login não mantém sessão / "recarrega a página" | Acesso por **HTTP puro** (cookie `Secure` rejeitado) ou relógio do servidor errado | Garanta HTTPS (passo 8); sincronize o relógio (`timedatectl`) |
+| `certbot` falha com `Error getting validation data` | Porta 80 inacessível de fora — na Oracle Cloud são **duas** camadas de firewall (Security List + iptables) | Libere 80/443 nas duas camadas (ver seção abaixo) e rode o `certbot` de novo |
 | `429` em massa para todos os usuários | `X-Forwarded-For` não enviado — todos dividem o contador do IP do Nginx | Confirme os `proxy_set_header` do passo 7 |
 | Rate limit "mais frouxo" que o configurado | Redis não configurado → contador em memória, por worker | Defina `RATELIMIT_STORAGE_URI="redis://localhost:6379/0"` e reinicie |
 | Upload falha com `413` | `client_max_body_size` do Nginx menor que o arquivo | Aumente no Nginx (mantendo ≥ 16 MB da aplicação) |
@@ -516,6 +524,47 @@ O essencial para restaurar uma instalação completa:
 Para investigar a fundo, o par mais útil é
 `sudo journalctl -u sigere -e` (arranque/ambiente) +
 `tail -100 /var/log/sigere/error.log` (traceback da aplicação).
+
+### Portas 80/443 inacessíveis (Oracle Cloud)
+
+Sintoma clássico: o `certbot` falha com *"Error getting validation data"* e,
+de fora do servidor, a conexão às portas 80/443 **expira** (timeout) enquanto
+a 22 (SSH) responde. Em instâncias Oracle Cloud o tráfego passa por **duas**
+camadas de firewall, e as duas precisam liberar as portas.
+
+**1. Security List no console OCI** — *Networking → Virtual Cloud Networks →
+sua VCN → Security Lists → Default Security List → Add Ingress Rules*, duas
+regras de origem `0.0.0.0/0`, protocolo TCP:
+
+- Destination Port Range `80`
+- Destination Port Range `443`
+
+**2. iptables na instância** — as imagens Ubuntu da Oracle só liberam a porta
+22 de fábrica e persistem as regras em `/etc/iptables/rules.v4`; a Security
+List sozinha não basta:
+
+```bash
+sudo iptables -L INPUT --line-numbers     # localize a linha do REJECT
+sudo iptables -I INPUT 5 -p tcp --dport 80  -m state --state NEW -j ACCEPT
+sudo iptables -I INPUT 5 -p tcp --dport 443 -m state --state NEW -j ACCEPT
+sudo netfilter-persistent save            # persiste após reboot
+```
+
+Ajuste o `5` para a posição imediatamente anterior à regra de `REJECT`.
+
+Diagnóstico rápido:
+
+```bash
+# de FORA do servidor (sua máquina):
+curl -I http://SEU-DOMINIO      # timeout = firewall; connection refused = serviço parado
+
+# no servidor:
+sudo ss -tlnp | grep -E ':80|:443'   # o Nginx está escutando?
+```
+
+Com as duas camadas abertas e o Nginx escutando na 80, rode o `certbot`
+novamente (passo 8). A 443 precisa ficar aberta de qualquer forma, ou o
+HTTPS não funcionará depois de emitido o certificado.
 
 ---
 
