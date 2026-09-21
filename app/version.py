@@ -10,12 +10,24 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.17.1'
+APP_VERSION = '1.17.2'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.17.2',
+        'data': '2026-09-21',
+        'titulo': 'Textos de formulário aceitam números, ordinais e pontuação',
+        'grupos': [
+            ('Corrigido', [
+                'O título/assunto da reserva volta a aceitar números, ordinais e pontuação comuns ("2º Concurso de Integração", "Reunião de pais 1º semestre"): o filtro "apenas alfabético" herdado dos formulários antigos recusava qualquer dígito ou ponto e bloqueava o envio do formulário.',
+                'O nome completo de Professor/Funcionário aceita pontuação e números ("Senac T.I.", "2º Sargento João"), no cadastro e na edição — o mesmo filtro recusava nomes legítimos já gravados no sistema.',
+                'O mesmo filtro permissivo passa a valer para todos os campos de texto que ainda usavam o validador antigo: nomes de curso, disciplina, feriado, unidade, categoria de sala e papel, além da justificativa da hora extra — valores como "7 de Setembro" e "Coord. Geral" não são mais rejeitados.',
+            ]),
+        ],
+    },
     {
         'versao': '1.17.1',
         'data': '2026-09-19',
