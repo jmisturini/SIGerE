@@ -10,12 +10,24 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.18.0'
+APP_VERSION = '1.18.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.18.1',
+        'data': '2026-09-21',
+        'titulo': 'Manual do usuário e README atualizados',
+        'grupos': [
+            ('Alterado', [
+                'Manual do usuário em PDF atualizado para a v1.18.0: a seção do cronograma público descreve o destaque do período atual com o selo "Agora" e a seção de cursos e disciplinas documenta o botão Mostrar/Esconder inativos; referências de versão revisadas na capa, nos rodapés e na introdução.',
+                'Manual do usuário: descrição do campo Título / Assunto da reserva corrigida na Tabela 2 — o campo aceita letras, números e pontuação comum, não "apenas letras" — e o passo de cadastro de usuário documenta que o Nome Completo aceita letras, números e pontuação (regras da v1.17.2 que o manual ainda não refletia).',
+                'README: as seções de Estrutura Acadêmica e Portal Público passam a descrever o filtro de inativos das listagens de cursos e disciplinas e o destaque do período atual no cronograma; captura de tela do cronograma público refeita com o novo destaque.',
+            ]),
+        ],
+    },
     {
         'versao': '1.18.0',
         'data': '2026-09-21',
