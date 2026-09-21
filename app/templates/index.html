@@ -59,7 +59,7 @@
                         <tr>
                             <td class="fw-bold text-nowrap ps-4">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
                             <td>
-                                <span class="badge me-2" style="background-color: {{ cat.display_color }};">{{ r.classroom.code }}</span>
+                                <span class="badge me-2 badge-codigo-sala" style="background-color: {{ cat.display_color }};">{{ r.classroom.code }}</span>
                                 {{ r.classroom.name }}
                             </td>
                             <td>{{ r.course.name if r.course else 'N/A' }}</td>
