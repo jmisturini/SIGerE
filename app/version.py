@@ -10,12 +10,22 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.18.1'
+APP_VERSION = '1.18.2'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.18.2',
+        'data': '2026-09-21',
+        'titulo': 'Caixas dos códigos de sala uniformes',
+        'grupos': [
+            ('Corrigido', [
+                'Nas listagens (painel, cronograma público, busca de aula e Todas as Reservas), as caixas com o código da sala ganharam largura mínima uniforme com o número centralizado e dígitos de largura fixa — na fonte proporcional, códigos com "1" (ex.: 103) ficavam mais estreitos que os demais (302).',
+            ]),
+        ],
+    },
     {
         'versao': '1.18.1',
         'data': '2026-09-21',
