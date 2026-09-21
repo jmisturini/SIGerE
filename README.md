@@ -134,6 +134,7 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - CRUD completo de **Cursos** e **Disciplinas** (Painel → Cursos / Disciplinas)
 - Vinculação de reservas a curso, disciplina e professor específicos
 - Ativação/desativação de registros sem exclusão
+- **Mostrar/Esconder inativos:** botão nas duas listagens (como em usuários) — por padrão só os registros ativos aparecem, com o estado preservado ao reordenar
 
 ### 🎓 Dashboard Interno (`/dashboard`)
 - Cronograma do dia separado em **uma seção por categoria cadastrada** (nome, ícone e cor vindos do cadastro)
@@ -182,7 +183,7 @@ Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora
 
 ### 🌐 Portal Público
 - **Página inicial** com links para login, calendário, cronograma e buscas
-- **Cronograma do dia** (`/cronograma`): aulas aprovadas do dia agrupadas por período (manhã/tarde/noite)
+- **Cronograma do dia** (`/cronograma`): aulas aprovadas do dia agrupadas por período (manhã/tarde/noite); no dia de hoje, o cartão do período em curso fica em destaque com o selo **"Agora"**
 - **Busca de aula do aluno** (`/buscar-aula`): pesquisa por título da aula, curso/turma, disciplina, professor ou sala
 - **Busca de salas e professores** (`/search`): salas por nome/código e professores por nome
 - Seletor de unidade nas páginas públicas (`?unity=<id>`)
