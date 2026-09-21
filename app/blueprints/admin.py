@@ -459,7 +459,14 @@ def toggle_room(room_id):
 @login_required
 @require_permission('course:read')
 def list_courses():
-    courses = Course.query.filter_by(unity_id=current_unity_id()).all()
+    # Botão mostrar/esconder inativos (como na listagem de usuários): por
+    # padrão a página exibe apenas os cursos ativos (?inativos=1 revela
+    # também os desativados).
+    mostrar_inativos = request.args.get('inativos') == '1'
+    query = Course.query.filter_by(unity_id=current_unity_id())
+    if not mostrar_inativos:
+        query = query.filter_by(is_active=True)
+    courses = query.all()
     # Ordenação escolhida no filtro da página (padrão: nome A–Z). Feita em
     # Python para ser case-insensitive e contar disciplinas sem subconsulta.
     ordem = request.args.get('ordem', 'nome')
@@ -472,7 +479,8 @@ def list_courses():
     else:
         ordem = 'nome'
         courses.sort(key=lambda c: c.name.lower())
-    return render_template('admin/courses.html', courses=courses, ordem=ordem)
+    return render_template('admin/courses.html', courses=courses, ordem=ordem,
+                           mostrar_inativos=mostrar_inativos)
 
 @bp.route('/courses/create', methods=['GET', 'POST'])
 @login_required
@@ -516,7 +524,14 @@ def toggle_course(course_id):
 @login_required
 @require_permission('course:read')
 def list_subjects():
-    subjects = Subject.query.filter_by(unity_id=current_unity_id()).all()
+    # Botão mostrar/esconder inativos (como na listagem de usuários): por
+    # padrão a página exibe apenas as disciplinas ativas (?inativos=1 revela
+    # também as desativadas).
+    mostrar_inativos = request.args.get('inativos') == '1'
+    query = Subject.query.filter_by(unity_id=current_unity_id())
+    if not mostrar_inativos:
+        query = query.filter_by(is_active=True)
+    subjects = query.all()
     # Ordenação escolhida no filtro da página (padrão: nome A–Z). Feita em
     # Python para ordenar case-insensitive e agrupar por curso com as
     # disciplinas sem curso ao final.
@@ -531,7 +546,8 @@ def list_subjects():
     else:
         ordem = 'nome'
         subjects.sort(key=lambda s: s.name.lower())
-    return render_template('admin/subjects.html', subjects=subjects, ordem=ordem)
+    return render_template('admin/subjects.html', subjects=subjects, ordem=ordem,
+                           mostrar_inativos=mostrar_inativos)
 
 @bp.route('/subjects/create', methods=['GET', 'POST'])
 @login_required
