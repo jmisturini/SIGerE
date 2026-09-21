@@ -3,7 +3,7 @@ from flask_login import current_user
 from sqlalchemy import or_
 from app.models import User, Classroom, Reservation, Course, Subject, Unity
 from app.unity_context import current_unity_id
-from datetime import date, time
+from datetime import date, time, datetime
 
 bp = Blueprint('public', __name__)
 
@@ -22,6 +22,13 @@ def _periodo_da_aula(start_time):
         if limite is None or start_time < limite:
             return key
     return 'noite'
+
+
+def _periodo_atual():
+    """Chave do período em que o relógio está agora (mesmos cortes da
+    divisão por período e do totem)."""
+    agora = datetime.now().time()
+    return _periodo_da_aula(agora)
 
 
 def _public_unity():
@@ -127,12 +134,16 @@ def class_search():
 def daily_schedule():
     schedule_date = _parse_data_arg()
     periods, _, unity, unities = _aulas_do_dia(schedule_date)
+    # Destaque do período atual: só faz sentido no dia de hoje — consultando
+    # outro dia, nenhum cartão é destacado.
+    periodo_atual = _periodo_atual() if schedule_date == date.today() else None
     return render_template(
         'cronograma.html',
         schedule_date=schedule_date,
         today=date.today(),
         schedule_periods=periods,
         schedule_count=sum(len(p['reservations']) for p in periods),
+        periodo_atual=periodo_atual,
         public_unity=unity,
         public_unities=unities,
     )
