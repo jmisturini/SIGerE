@@ -173,8 +173,10 @@ document.addEventListener('DOMContentLoaded', function() {
         element.addEventListener('change', updateFilterBtn);
     });
 
+    // Disponível agora: filtra ao marcar e também ao desmarcar — sem o
+    // checkbox, o GET sai sem o parâmetro e a listagem volta sem esse filtro.
     nowCheckbox.addEventListener('change', function() {
-        if (this.checked) filterForm.submit();
+        filterForm.submit();
     });
 });
 </script>
