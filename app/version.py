@@ -10,12 +10,23 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.17.2'
+APP_VERSION = '1.18.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.18.0',
+        'data': '2026-09-21',
+        'titulo': 'Filtro de inativos e período atual em destaque',
+        'grupos': [
+            ('Adicionado', [
+                'Botão "Mostrar/Esconder inativos" nas páginas de Cursos e Disciplinas, como já existia na listagem de usuários: por padrão as páginas exibem apenas os registros ativos e o botão revela também os desativados. A escolha é preservada ao reordenar a listagem e a ordenação continua funcionando com os inativos visíveis.',
+                'No cronograma público de aulas (/cronograma), o cartão do período em curso (Manhã/Tarde/Noite, mesmos cortes do totem) recebe destaque visual — borda e ícone em destaque, selo "Agora" e contador sólido — quando a consulta é do dia de hoje; em outros dias nenhum período é destacado.',
+            ]),
+        ],
+    },
     {
         'versao': '1.17.2',
         'data': '2026-09-21',
