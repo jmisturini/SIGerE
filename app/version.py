@@ -10,12 +10,25 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.18.2'
+APP_VERSION = '1.19.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.19.0',
+        'data': '2026-09-21',
+        'titulo': 'Favicon do site e filtro instantâneo de salas disponíveis',
+        'grupos': [
+            ('Adicionado', [
+                'Favicon do site: o prédio da marca (o mesmo do menu lateral) sobre o Azul Senac nas abas do navegador e nos atalhos de tela inicial — SVG vetorial para navegadores modernos, .ico para os mais antigos, PNGs de 16 e 32 px e ícone apple-touch.',
+            ]),
+            ('Alterado', [
+                'Na listagem de salas, o checkbox "Mostrar apenas salas disponíveis AGORA" aplica o filtro na hora em que é marcado e também quando é desmarcado, sem depender do botão Filtrar — ao desmarcar, a listagem volta a mostrar todas as salas mantendo os demais filtros ativos.',
+            ]),
+        ],
+    },
     {
         'versao': '1.18.2',
         'data': '2026-09-21',
