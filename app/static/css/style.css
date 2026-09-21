@@ -408,6 +408,17 @@ body {
     background-color: var(--body-bg);
 }
 
+/* Código da sala nas listagens (painel, cronograma, reservas): caixa de
+   largura mínima uniforme com o número centralizado — a fonte proporcional
+   deixava códigos com "1" (ex.: 103) mais estreitos que os demais (302). */
+.badge-codigo-sala {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3em;
+    font-variant-numeric: tabular-nums;
+}
+
 /* Senac Style overrides */
 .card {
     border: none;

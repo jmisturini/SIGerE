@@ -129,7 +129,7 @@
                 <tr {{ 'class="text-muted"' if periodo == 'passadas' }}>
                     <td class="ps-4 text-nowrap fw-bold">{{ r.date.strftime('%d/%m/%Y') }}</td>
                     <td class="text-nowrap">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
-                    <td><span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">{{ r.classroom.code }}</span></td>
+                    <td><span class="badge text-bg-primary-subtle text-primary border border-primary-subtle badge-codigo-sala">{{ r.classroom.code }}</span></td>
                     <td>{{ r.title }}</td>
                     <td>{{ r.teacher.full_name if r.teacher else '-' }}</td>
                     <td>{{ r.user.full_name }}</td>
