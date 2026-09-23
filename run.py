@@ -7,6 +7,7 @@ Uso:
     flask --app run seed              # popula o banco com dados iniciais (admin/admin123)
     flask --app run sync-permissions  # sincroniza permissões de módulos novos
     flask --app run seed-unidades     # cadastra as unidades do Senac SC (docs/unidades-senac-sc.json)
+    flask --app run backup            # backup do banco (gzip + retenção + upload para nuvem)
 """
 from app import create_app, debug_enabled
 

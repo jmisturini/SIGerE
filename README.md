@@ -213,6 +213,7 @@ Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora
 | **Relatórios** | FPDF2 (PDF), OpenPyXL (Excel) |
 | **Rate limiting** | Flask-Limiter |
 | **Produção** | Gunicorn (WSGI) + Nginx (proxy/TLS) |
+| **Backup** | Comando `flask backup` (SQLite/PostgreSQL, gzip + retenção) com upload para nuvem S3-compatível e agendamento por systemd timer/cron |
 | **APIs Externas** | [Open-Meteo](https://open-meteo.com/) (clima), [BrasilAPI](https://brasilapi.com.br/) (feriados), [Nominatim/OpenStreetMap](https://nominatim.org/) (geocodificação) |
 
 ---
@@ -342,9 +343,12 @@ class Config:
 export SECRET_KEY="sua-chave-secreta-forte-aqui"
 export DATABASE_URL="postgresql://user:pass@localhost/sigere"
 export RATELIMIT_STORAGE_URI="redis://localhost:6379/0"   # com múltiplos workers
+export BACKUP_S3_BUCKET=""                                # opcional: bucket S3-compatível para o `flask backup`
 ```
 
 > **Obrigatório em produção:** sem `SECRET_KEY` definida (fora do modo debug), a aplicação se recusa a iniciar. Além disso, os cookies de sessão recebem o atributo `Secure` automaticamente quando `FLASK_DEBUG != true` — sirva a aplicação atrás de HTTPS.
+>
+> **Backup:** `flask --app run backup` gera o snapshot comprimido do banco com retenção automática e, com `BACKUP_S3_BUCKET` definido, envia para a nuvem e limpa os vencidos — guia completo (agendamento, restauração, provedores) em [docs/implantacao-producao.md](docs/implantacao-producao.md).
 
 ### Configurar localização do clima (Totem e portal)
 
