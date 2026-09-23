@@ -10,12 +10,25 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.20.0'
+APP_VERSION = '1.21.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.21.0',
+        'data': '2026-09-23',
+        'titulo': 'Backup automático do banco de dados com upload para a nuvem',
+        'grupos': [
+            ('Adicionado', [
+                'Comando `flask --app run backup`: gera o snapshot do banco configurado em DATABASE_URL comprimido em gzip (pasta backups/), com retenção automática dos arquivos antigos — no PostgreSQL (produção) é um dump SQL do pg_dump com as credenciais passadas por variáveis de ambiente, nunca na linha de comando; no SQLite (desenvolvimento) é um snapshot consistente pela API de backup, que funciona com a aplicação no ar e sai verificado por integridade.',
+                'Upload do backup para qualquer armazenamento compatível com a API S3 — AWS S3, Backblaze B2, Cloudflare R2, Wasabi, MinIO e Google Cloud Storage (chaves HMAC) — ao definir BACKUP_S3_BUCKET no .env: a nuvem também recebe a mesma política de retenção, apagando os objetos vencidos. Sem bucket configurado, o backup continua funcionando e fica apenas na pasta local.',
+                'Opções `--no-upload` (só o arquivo local), `--dir` (outra pasta) e `--keep-days` (outra retenção) para executar o backup pontualmente em testes e operações manuais.',
+                'Documentação de implantação com a configuração do bucket, o agendamento diário pelo systemd (sigere-backup.service + timer, com alternativa em cron) e o passo a passo de restauração para PostgreSQL e SQLite.',
+            ]),
+        ],
+    },
     {
         'versao': '1.20.0',
         'data': '2026-09-23',

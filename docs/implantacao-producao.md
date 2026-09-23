@@ -203,6 +203,13 @@ DATABASE_URL="postgresql://sigere:senha-forte@localhost:5432/sigere"
 TOTEM_LATITUDE="-23.5505"
 TOTEM_LONGITUDE="-46.6333"
 RATELIMIT_STORAGE_URI="redis://localhost:6379/0"
+
+# Backup na nuvem (opcional — detalhes na seção "Operação: monitoramento e backup")
+BACKUP_S3_BUCKET=""
+BACKUP_S3_ENDPOINT=""
+BACKUP_S3_REGION=""
+AWS_ACCESS_KEY_ID=""
+AWS_SECRET_ACCESS_KEY=""
 ```
 
 Gerar a `SECRET_KEY`:
@@ -217,6 +224,9 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
 | `DATABASE_URL` | ✅ Sim | URI PostgreSQL do passo 2 |
 | `RATELIMIT_STORAGE_URI` | Recomendada | `redis://localhost:6379/0` — contador de rate limit compartilhado entre os workers |
 | `TOTEM_LATITUDE` / `TOTEM_LONGITUDE` | Opcional | **Fallback** global do clima (totem/portal) para unidades sem coordenadas próprias. A localização de cada unidade é configurada no painel, com prioridade sobre estas variáveis |
+| `BACKUP_S3_BUCKET` | Opcional | Bucket compatível com a API S3 para o `flask --app run backup` enviar os snapshots; ausente/vazio = backup apenas local |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Com o bucket | Credenciais do bucket (AWS S3, Backblaze B2, Cloudflare R2, Wasabi, MinIO, Google Cloud Storage via chaves HMAC) |
+| `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` | Opcional | Pasta local dos backups (padrão `backups/`) e dias de retenção (padrão `14`) — valem para a pasta e para o bucket |
 
 Restrinja a leitura do arquivo:
 
@@ -479,18 +489,125 @@ Saúde dos dependentes: `sudo systemctl status postgresql redis-server nginx` e
 
 ### Backup
 
+O comando `flask --app run backup` automatiza o backup do banco de dados:
+gera o snapshot comprimido, aplica a retenção e — quando configurado — envia
+para a nuvem e apaga de lá os backups vencidos.
+
+```bash
+cd /var/www/sigere
+set -a; source .env; set +a
+venv/bin/flask --app run backup              # backup + upload (se bucket configurado)
+venv/bin/flask --app run backup --no-upload  # só o arquivo local (teste)
+```
+
+- **Arquivo gerado:** `backups/sigere-<data-hora>-postgres.sql.gz` — dump SQL do
+  `pg_dump` (`--no-owner --no-privileges`), comprimido. O binário `pg_dump`
+  precisa estar no servidor (`sudo apt install postgresql-client`); as
+  credenciais do `DATABASE_URL` são passadas a ele por variáveis de ambiente —
+  nunca na linha de comando, onde apareceriam no `ps`.
+- **SQLite (desenvolvimento):** o arquivo gerado (`.sqlite.gz`) é um snapshot
+  consistente pela API de backup do SQLite — pode rodar com a aplicação no ar —
+  seguido de `PRAGMA integrity_check` no arquivo criado.
+- **Retenção:** `BACKUP_RETENTION_DAYS` (padrão 14; `0` mantém tudo) apaga os
+  `sigere-*.gz` antigos da pasta local (`BACKUP_DIR`, padrão `backups/`) e os
+  objetos vencidos do bucket.
+
+#### Backup na nuvem (opcional)
+
+Qualquer armazenamento compatível com a API S3 serve — AWS S3, Backblaze B2,
+Cloudflare R2, Wasabi, MinIO e o Google Cloud Storage (com chaves HMAC).
+Defina no `.env`:
+
+```bash
+BACKUP_S3_BUCKET="meu-bucket-sigere"
+BACKUP_S3_ENDPOINT="https://s3.us-east-005.backblazeb2.com"  # só fora da AWS
+BACKUP_S3_REGION="us-east-005"
+BACKUP_S3_PATH_STYLE="true"  # só para provedores que exigem path-style (MinIO)
+AWS_ACCESS_KEY_ID="..."
+AWS_SECRET_ACCESS_KEY="..."
+```
+
+Sem `BACKUP_S3_BUCKET` o comando segue funcionando e o arquivo fica só na
+pasta local. O upload usa o `boto3` (já no `requirements.txt`). O banco contém
+apenas **hashes** de senha e os tokens da API também são armazenados como hash
+SHA-256 — um vazamento do backup não revela senhas nem tokens válidos. Ainda
+assim, trate o backup como confidencial: bucket com criptografia no repouso e
+acesso restrito às chaves.
+
+#### Agendar diariamente (systemd timer)
+
+Crie `/etc/systemd/system/sigere-backup.service` — troque `SEU_USUARIO` pelo
+dono do repositório (o mesmo que roda `db upgrade`, com leitura do `.env`):
+
+```ini
+[Unit]
+Description=Backup do banco de dados do SIGerE
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=SEU_USUARIO
+WorkingDirectory=/var/www/sigere
+EnvironmentFile=/var/www/sigere/.env
+ExecStart=/var/www/sigere/venv/bin/flask --app run backup
+```
+
+E `/etc/systemd/system/sigere-backup.timer`:
+
+```ini
+[Unit]
+Description=Agenda diária do backup do SIGerE
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now sigere-backup.timer
+systemctl list-timers sigere-backup*         # próximo disparo
+sudo systemctl start sigere-backup.service   # rodar agora (teste)
+journalctl -u sigere-backup.service -n 50    # saída da última execução
+```
+
+> Confira o primeiro disparo real (`journalctl -u sigere-backup.service`): os
+> motivos mais comuns de falha são `pg_dump` ausente e credenciais erradas —
+> o motivo aparece inteiro no journal. `Persistent=true` recupera um disparo
+> perdido com o servidor desligado no horário.
+
+Alternativa com cron (no `crontab -e` do seu usuário):
+
+```cron
+20 3 * * * cd /var/www/sigere && set -a && . ./.env && set +a && venv/bin/flask --app run backup >> /var/log/sigere/backup.log 2>&1
+```
+
+#### Restaurar
+
+- **PostgreSQL:** `gunzip -c sigere-....sql.gz | psql "postgresql://sigere:senha@localhost:5432/sigere"` —
+  o dump recria schema e dados. Para partir de um banco limpo, recrie antes:
+  `sudo -u postgres dropdb --if-exists sigere && sudo -u postgres createdb -O sigere sigere`.
+- **SQLite:** pare o serviço (`sudo systemctl stop sigere`), descompacte sobre
+  o arquivo (`gunzip -c sigere-....sqlite.gz > /var/www/sigere/reservation.db`)
+  e suba de novo.
+- Depois de restaurar, rode `venv/bin/flask --app run db upgrade` (aplica
+  migrações feitas após o backup) e teste o login.
+
+> **Ensaiou o restore?** Backup só é backup depois de restaurado uma vez —
+> faça o ensaio em outra máquina/container antes de precisar de verdade.
+
 O essencial para restaurar uma instalação completa:
 
 | Item | Como |
 |------|------|
-| **Banco de dados** | `sudo -u postgres pg_dump sigere > backup-sigere-$(date +%F).sql` (agende via cron; restaure com `psql sigere < arquivo`) |
+| **Banco de dados** | `flask --app run backup` agendado pelo timer acima (restaure conforme a subseção **Restaurar**) |
 | **Uploads (fichas `.docx`)** | `/var/www/sigere/instance/uploads/` — copie a pasta inteira |
 | **Configuração** | `/var/www/sigere/.env` (sem versionar; guarde em cofre de senhas) e `/etc/nginx/sites-available/sigere` + `/etc/systemd/system/sigere.service` |
 | **Código** | O repositório git — a versão implantada é recuperável pelo commit/tag |
-
-> O banco contém **hashes** de senha e os tokens da API **também são
-> armazenados apenas como hash SHA-256** — um vazamento do backup não revela
-> senhas nem tokens válidos. Ainda assim, trate o backup como confidencial.
 
 ### Dimensionamento
 
@@ -592,7 +709,7 @@ O que **você** precisa garantir no servidor:
 - [ ] PostgreSQL e Redis escutando apenas em `localhost`
 - [ ] Firewall mínimo: apenas 22, 80 e 443 abertos (`sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw enable`)
 - [ ] Servidor atualizado (`sudo apt update && sudo apt upgrade` periódicos ou `unattended-upgrades`)
-- [ ] Backups agendados do banco e de `instance/uploads/` (seção de operação)
+- [ ] Backup do banco agendado (`sigere-backup.timer`) com bucket na nuvem configurado e um ensaio de restore feito (seção de operação); `instance/uploads/` copiada também
 - [ ] Conta `admin` com senha forte — **nunca** rodar `flask seed` (dados de demonstração) no servidor
 
 ---
