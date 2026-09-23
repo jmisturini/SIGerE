@@ -10,12 +10,26 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.19.0'
+APP_VERSION = '1.20.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.20.0',
+        'data': '2026-09-23',
+        'titulo': 'Atalhos de período no cronograma mobile, salas em ordem no painel e unidade memorizada',
+        'grupos': [
+            ('Adicionado', [
+                'No cronograma público acessado pelo celular, barra fixa de atalhos Manhã/Tarde/Noite (com a contagem de aulas de cada período) presa abaixo do topo enquanto a página rola — não é mais preciso deslizar pelos períodos anteriores para chegar à Tarde ou à Noite. Abrindo o cronograma do dia, a página rola sozinha até o cartão do período em curso (o do selo "Agora"); o atalho do período que está na tela fica marcado durante a rolagem e o do período em curso leva um ponto pulsante; tocar num atalho desliza suavemente até o cartão do período. No desktop nada muda: os três períodos continuam lado a lado, sem a barra.',
+            ]),
+            ('Alterado', [
+                'No painel, as salas do dia agora aparecem em ordem crescente de numeração (LI104, LI202, LI205...), comparando os números do código como inteiros — LI9 viria antes de LI10 — e usando o horário da aula apenas como desempate; antes, salas com o mesmo horário saíam em ordem imprevisível, que dependia da ordem de cadastro das reservas.',
+                'No portal público (cronograma e busca de aula), a unidade escolhida — pela lista ou pela detecção de unidade próxima — fica memorizada na sessão do visitante: navegar entre as páginas pelo menu não reseta mais a seleção para a primeira unidade. Unidade desativada depois da escolha ou endereço com unidade inexistente caem na primeira unidade ativa, sem erro.',
+            ]),
+        ],
+    },
     {
         'versao': '1.19.0',
         'data': '2026-09-21',

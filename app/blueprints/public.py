@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, session
 from flask_login import current_user
 from sqlalchemy import or_
 from app.models import User, Classroom, Reservation, Course, Subject, Unity
@@ -32,13 +32,29 @@ def _periodo_atual():
 
 
 def _public_unity():
-    """Unidade exibida no portal público: ?unity=<id> ou a primeira ativa
-    (fallback), mesmo comportamento do totem."""
+    """Unidade exibida no portal público (cronograma e busca de aula).
+
+    Precedência: ?unity=<id> na URL — a escolha (manual na lista ou pela
+    detecção de unidade próxima) fica memorizada na sessão do visitante; sem
+    o parâmetro, vale a última escolha — os links do menu entre as páginas
+    públicas não carregam ?unity=, e sem isso a seleção resetava a cada
+    troca de página; por fim, a primeira ativa, como fallback original.
+    Uma unidade desativada depois da escolha cai para o fallback, sem erro.
+    """
     unity_id = request.args.get('unity', type=int)
     if unity_id:
         unity = Unity.query.filter_by(id=unity_id, is_active=True).first()
         if unity:
+            session['public_unity_id'] = unity.id
             return unity
+    lembrada = session.get('public_unity_id')
+    if lembrada:
+        unity = Unity.query.filter_by(id=lembrada, is_active=True).first()
+        if unity:
+            return unity
+        # A escolha não existe mais (unidade removida/desativada): sai da
+        # sessão para não carregar um id morto.
+        session.pop('public_unity_id', None)
     return Unity.query.filter_by(is_active=True).order_by(Unity.name).first()
 
 

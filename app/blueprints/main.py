@@ -4,8 +4,18 @@ from app.models import Reservation, Unity
 from app.extensions import db
 from app.unity_context import current_unity_id, can_switch_unity, reset_unity_cache
 from datetime import datetime, date, time
+import re
 
 bp = Blueprint('main', __name__)
+
+
+def _sala_order_key(r):
+    # Ordem natural do código da sala ("LI9" antes de "LI10"): compara os
+    # trechos numéricos como inteiros e os textuais sem diferenciar maiúsculas.
+    code = r.classroom.code or ''
+    trechos = [(0, int(p)) if p.isdigit() else (1, p.lower())
+               for p in re.split(r'(\d+)', code)]
+    return (trechos, r.start_time, r.end_time)
 
 # Dashboard route: Shows today's schedule split by Auditoriums and Classrooms
 @bp.route('/dashboard')
@@ -49,6 +59,9 @@ def index():
         if cat is None:  # defensivo: o schema exige category_id na sala
             continue
         sections_by_cat.setdefault(cat, []).append(r)
+
+    for res in sections_by_cat.values():
+        res.sort(key=_sala_order_key)
 
     category_sections = [
         {'category': cat, 'reservations': res}
