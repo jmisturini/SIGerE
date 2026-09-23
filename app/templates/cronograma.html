@@ -32,10 +32,27 @@
     </div>
 </div>
 {% elif schedule_count %}
+{# Celular: atalhos fixos no topo para pular direto ao período — sem rolar
+   pelos cartões anteriores para chegar à Tarde/Noite. some no desktop, onde
+   os três períodos já aparecem lado a lado. #}
+<nav class="periodo-nav d-md-none" aria-label="Ir para o período do dia"
+     {% if periodo_atual %}data-periodo-atual="{{ periodo_atual }}"{% endif %}>
+    {% for p in schedule_periods %}
+    <a class="periodo-nav-item{{ ' ativo' if p.key == periodo_atual }}" href="#periodo-{{ p.key }}" data-periodo="{{ p.key }}">
+        <i class="bi {{ p.icon }}" aria-hidden="true"></i>
+        <span>{{ p.label }}</span>
+        {% if p.key == periodo_atual %}
+        <span class="periodo-nav-pulso" title="Período em curso agora" aria-hidden="true"></span>
+        {% endif %}
+        <span class="badge {{ 'text-bg-primary' if p.key == periodo_atual else ('bg-primary-subtle text-primary border border-primary-subtle' if p.reservations else 'bg-secondary-subtle text-secondary border border-secondary-subtle') }}">{{ p.reservations|length }}</span>
+    </a>
+    {% endfor %}
+</nav>
+
 <div class="row g-4">
     {% for p in schedule_periods %}
     {% set periodo_corrente = p.key == periodo_atual %}
-    <div class="col-md-4 d-flex align-items-stretch">
+    <div class="col-md-4 d-flex align-items-stretch" id="periodo-{{ p.key }}">
         <div class="card w-100 {{ 'border-primary shadow' if periodo_corrente }}">
             <div class="card-header bg-transparent d-flex justify-content-between align-items-center gap-2">
                 <span class="fw-bold text-truncate">
@@ -68,4 +85,8 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/cronograma-periodos.js') }}" defer></script>
 {% endblock %}

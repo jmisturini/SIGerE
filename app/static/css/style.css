@@ -560,6 +560,86 @@ body {
     .topbar {
         padding: 0 1rem;
     }
+    /* Sangria da barra de períodos: cobre a calha do .page-content para o
+       conteúdo não aparecer deslizando nas laterais dela. */
+    .periodo-nav {
+        margin-inline: -1rem;
+        padding-inline: 1rem;
+    }
+}
+
+/* Cronograma público — atalhos de período (celular): barra fixa logo abaixo
+   da topbar (também sticky, 64px) para pular direto a Manhã/Tarde/Noite sem
+   rolar pelos cartões anteriores. No desktop (d-md-none) ela não existe e os
+   três períodos já ficam lado a lado. */
+.periodo-nav {
+    position: sticky;
+    top: 64px;
+    z-index: 1020;
+    display: flex;
+    gap: 0.5rem;
+    background-color: var(--body-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding-block: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Entre o celular e o desktop o .page-content ainda tem 2rem de padding */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .periodo-nav {
+        margin-inline: -2rem;
+        padding-inline: 2rem;
+    }
+}
+
+.periodo-nav-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 2rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-color);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.periodo-nav-item .badge {
+    font-size: 0.7rem;
+}
+
+.periodo-nav-item.ativo {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background-color: var(--bs-primary-bg-subtle);
+}
+
+/* Pulso do período em curso: pontinho animado no atalho (o cartão usa o
+   selo "Agora"). */
+.periodo-nav-pulso {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    animation: periodo-pulso 1.6s ease-out infinite;
+}
+
+@keyframes periodo-pulso {
+    0% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0.45); }
+    70% { box-shadow: 0 0 0 7px rgba(var(--primary-color-rgb), 0); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0); }
+}
+
+/* Âncoras dos cartões de período: recua o bastante para o cartão não ficar
+   escondido sob topbar (64px) + barra de atalhos ao navegar. */
+#periodo-manha,
+#periodo-tarde,
+#periodo-noite {
+    scroll-margin-top: 7.5rem;
 }
 
 /* Styles to match screenshots */
