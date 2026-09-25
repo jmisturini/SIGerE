@@ -1,7 +1,8 @@
-"""Testes do botão "Editar Reserva" na página de detalhes da sala.
+"""Testes do botão "Ver Detalhes" na página de detalhes da sala.
 
 O botão aparece nas próximas reservas da sala para quem tem
-reservation:edit_all ou para o dono da reserva — e leva à rota de edição.
+reservation:read_all ou para o dono da reserva com reservation:read_own —
+e leva à rota de detalhes da reserva.
 """
 import os
 import tempfile
@@ -27,7 +28,7 @@ class TestConfig(Config):
     RATELIMIT_ENABLED = False
 
 
-class ClassroomDetailEditButtonTestCase(unittest.TestCase):
+class ClassroomDetailReservationButtonTestCase(unittest.TestCase):
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix='.db')
         os.close(fd)
@@ -43,10 +44,11 @@ class ClassroomDetailEditButtonTestCase(unittest.TestCase):
             db.session.add(self.unity)
             db.session.flush()
 
-            perm_edit = Permission(code='reservation:edit_all', module='reservation', action='edit_all')
-            db.session.add(perm_edit)
-            role_admin = Role(name='gestor-teste', label='Gestor Teste', permissions=[perm_edit])
-            role_comum = Role(name='professor-teste', label='Professor Teste')
+            perm_read_all = Permission(code='reservation:read_all', module='reservation', action='read_all')
+            perm_read_own = Permission(code='reservation:read_own', module='reservation', action='read_own')
+            db.session.add_all([perm_read_all, perm_read_own])
+            role_admin = Role(name='gestor-teste', label='Gestor Teste', permissions=[perm_read_all])
+            role_comum = Role(name='professor-teste', label='Professor Teste', permissions=[perm_read_own])
             db.session.add_all([role_admin, role_comum])
             db.session.flush()
 
@@ -107,21 +109,23 @@ class ClassroomDetailEditButtonTestCase(unittest.TestCase):
     def _pagina_da_sala(self):
         return self.client.get(f'/classrooms/{self.room_id}').get_data(as_text=True)
 
-    def test_admin_vem_botao_editar(self):
+    def test_admin_vem_botao_detalhes(self):
         page = self._pagina_da_sala()
-        self.assertIn(f'/reservations/{self.reserva_id}/edit', page)
-        self.assertIn('Editar Reserva', page)
+        self.assertIn(f'/reservations/{self.reserva_id}', page)
+        self.assertIn('Ver Detalhes', page)
+        # o botão de editar não existe mais na listagem da sala
+        self.assertNotIn(f'/reservations/{self.reserva_id}/edit', page)
 
-    def test_dono_vem_botao_editar(self):
+    def test_dono_vem_botao_detalhes(self):
         self._login_as(DONO_EMAIL)
         page = self._pagina_da_sala()
-        self.assertIn(f'/reservations/{self.reserva_id}/edit', page)
+        self.assertIn(f'/reservations/{self.reserva_id}', page)
 
     def test_usuario_sem_vinculo_nao_ve_botao(self):
         self._login_as(OUTRO_EMAIL)
         page = self._pagina_da_sala()
-        self.assertNotIn(f'/reservations/{self.reserva_id}/edit', page)
-        # a reserva continua listada — só o botão de editar não aparece
+        self.assertNotIn(f'/reservations/{self.reserva_id}', page)
+        # a reserva continua listada — só o botão de detalhes não aparece
         self.assertIn('Reserva do Dono', page)
 
 

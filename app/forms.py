@@ -282,7 +282,7 @@ class ReservationForm(BaseForm):
     date = DateField('Data', validators=[DataRequired()])
     start_time = TimeField('Horário de Início', validators=[DataRequired()])
     end_time = TimeField('Horário de Término', validators=[DataRequired()])
-    submit = SubmitField('Solicitar Reserva')
+    submit = SubmitField('Cadastrar Reserva')
 
     def validate_title(self, field):
         _validar_texto(field, 'Título / Assunto')
