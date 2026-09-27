@@ -48,7 +48,7 @@ class ReservationsAllFiltersTestCase(unittest.TestCase):
 
             self.gestor = User(
                 email=EMAIL, full_name='Gestor Teste', role='room',
-                profile_type='employee', unity_id=self.unity.id,
+                profile_type='employee', unities=[self.unity],
                 role_id=role.id, force_password_change=False, is_active_user=True,
             )
             self.gestor.set_password(PASSWORD)
@@ -69,10 +69,10 @@ class ReservationsAllFiltersTestCase(unittest.TestCase):
             # Professores com nomes em ordem oposta às datas das reservas
             self.prof_ana = User(email='ana@escola.edu', full_name='Ana Souza',
                                  role='room', profile_type='teacher',
-                                 unity_id=self.unity.id, is_active_user=True)
+                                 unities=[self.unity], is_active_user=True)
             self.prof_bruno = User(email='bruno@escola.edu', full_name='Bruno Lima',
                                    role='room', profile_type='teacher',
-                                   unity_id=self.unity.id, is_active_user=True)
+                                   unities=[self.unity], is_active_user=True)
             for prof in (self.prof_ana, self.prof_bruno):
                 prof.set_password(PASSWORD)
             db.session.add_all([self.prof_ana, self.prof_bruno])

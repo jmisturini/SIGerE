@@ -105,29 +105,39 @@ def _first_active_unity():
 def _scoped_unity_id():
     """Unidade das reservas retornadas.
 
-    ?unity_id=<id> vale para anônimos e para quem pode alternar unidade;
-    usuário comum fica preso à própria unidade; anônimo sem parâmetro cai na
-    primeira unidade ativa (mesma regra do totem).
+    Escopo do usuário autenticado: todas as unidades ativas para quem tem '*'
+    e os próprios vínculos (User.unities) para os demais. ?unity_id=<id> vale
+    para anônimos e para qualquer usuário DENTRO do próprio escopo — pedido
+    fora dele é 404; anônimo/escopo vazio sem parâmetro cai na primeira
+    unidade ativa (mesma regra do totem).
     """
     user = g.api_user
     param = request.args.get('unity_id', type=int)
-    can_switch = user is not None and any(user.has_permission(c)
-                                          for c in SWITCHABLE_PERMISSIONS)
-
-    if param is not None and (user is None or can_switch):
-        unity = db.session.get(Unity, param)
-        if unity is None or not unity.is_active:
-            abort(404, description=f'Unidade {param} não encontrada ou inativa.')
-        return unity.id
 
     if user is None:
+        if param is not None:
+            unity = db.session.get(Unity, param)
+            if unity is None or not unity.is_active:
+                abort(404, description=f'Unidade {param} não encontrada ou inativa.')
+            return unity.id
         unity = _first_active_unity()
         if unity is None:
             abort(404, description='Nenhuma unidade ativa cadastrada.')
         return unity.id
 
-    if user.unity_id:
-        return user.unity_id
+    if any(user.has_permission(c) for c in SWITCHABLE_PERMISSIONS):
+        allowed = [u.id for u in Unity.query.filter_by(is_active=True)
+                   .order_by(Unity.name).all()]
+    else:
+        allowed = [u.id for u in user.unities if u.is_active]
+
+    if param is not None:
+        if param not in allowed:
+            abort(404, description=f'Unidade {param} fora do escopo do token '
+                                   f'ou inexistente/inativa.')
+        return param
+    if len(allowed) == 1:
+        return allowed[0]
     unity = _first_active_unity()
     if unity is None:
         abort(404, description='Nenhuma unidade ativa cadastrada.')
@@ -280,7 +290,7 @@ def list_reservations():
     page = max(page, 1)
     per_page = min(max(per_page, 1), PER_PAGE_MAX)
 
-    pagination = db.paginate(query, page=page, per_page=per_page, error_out=False)
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     serialize = _serializer()
     return jsonify({
         'unity_id': unity_id,

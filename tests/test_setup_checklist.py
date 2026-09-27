@@ -113,10 +113,10 @@ class SetupChecklistTestCase(unittest.TestCase):
             db.session.add(Classroom(name='Sala 1', code='S1', capacity=30,
                                      unity_id=unity.id, category_id=category.id))
             teacher = User(email='p@x.edu', full_name='Prof X',
-                           role='viewer', profile_type='teacher', unity_id=unity.id)
+                           role='viewer', profile_type='teacher', unities=[unity])
             teacher.set_password('SenhaForte123')
             employee = User(email='f@x.edu', full_name='Func X',
-                            role='viewer', profile_type='employee', unity_id=unity.id)
+                            role='viewer', profile_type='employee', unities=[unity])
             employee.set_password('SenhaForte123')
             db.session.add_all([teacher, employee])
             db.session.add(Course(name='Curso X', code='CX', unity_id=unity.id))

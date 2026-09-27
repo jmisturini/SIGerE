@@ -65,7 +65,7 @@ class DynamicCategoriesTestCase(unittest.TestCase):
             db.session.flush()
 
             user = User(email='prof.teste@escola.edu',
-                        full_name='Professor Teste', unity_id=unity.id,
+                        full_name='Professor Teste', unities=[unity],
                         force_password_change=False, is_active_user=True)
             user.set_password('SenhaForte123')
             db.session.add(user)

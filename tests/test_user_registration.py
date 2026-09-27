@@ -55,7 +55,7 @@ class UserRegistrationTestCase(unittest.TestCase):
 
             user = User(
                 email=EMAIL, full_name='Gestor Teste',
-                role='room', profile_type='employee', unity_id=self.unity.id,
+                role='room', profile_type='employee', unities=[self.unity],
                 role_id=gestor_role.id, force_password_change=False,
                 is_active_user=True,
             )
@@ -87,7 +87,7 @@ class UserRegistrationTestCase(unittest.TestCase):
             'email': 'maria.souza@escola.edu',
             'registration': 'MAT001',
             'department': 'Informática',
-            'unity_id': str(self.unity_id),
+            'unities': str(self.unity_id),
             'role_id': str(role_id),
             'password': 'SenhaForte123',
             'is_active_user': 'y',
@@ -393,16 +393,16 @@ class UsersListVisibilityTestCase(unittest.TestCase):
             db.session.flush()
 
             gestor = User(email=EMAIL, full_name='Gestor Teste', role='room',
-                          profile_type='employee', unity_id=self.unity.id,
+                          profile_type='employee', unities=[self.unity],
                           role_id=role.id, force_password_change=False,
                           is_active_user=True)
             gestor.set_password(PASSWORD)
             ativo = User(email='ativo@escola.edu', full_name='Ativo Silva', role='room',
-                         profile_type='employee', unity_id=self.unity.id,
+                         profile_type='employee', unities=[self.unity],
                          force_password_change=False, is_active_user=True)
             ativo.set_password(PASSWORD)
             inativo = User(email='inativo@escola.edu', full_name='Inativo Costa', role='room',
-                           profile_type='employee', unity_id=self.unity.id,
+                           profile_type='employee', unities=[self.unity],
                            force_password_change=False, is_active_user=False)
             inativo.set_password(PASSWORD)
             db.session.add_all([gestor, ativo, inativo])

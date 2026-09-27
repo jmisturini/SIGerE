@@ -187,7 +187,11 @@ class UserForm(BaseForm):
     sector = StringField('Setor', validators=[Optional(), Length(max=120)])
     function = StringField('Função', validators=[Optional(), Length(max=120)])
     is_teacher = BooleanField('Também cadastrar como Professor (pode ser designado para reservas)')
-    unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
+    # Vínculos com unidades (N:N): o usuário atua em todas as selecionadas —
+    # com mais de uma, alterna a unidade ativa pelo seletor do topo.
+    unities = SelectMultipleField('Unidades', coerce=int,
+                                  validators=[DataRequired(message='Selecione pelo menos uma unidade.')],
+                                  description='O usuário pode atuar em todas as unidades selecionadas.')
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     extra_roles = SelectMultipleField('Módulos Adicionais', coerce=int, validators=[Optional()],
                                       description='Somados ao papel principal (ex.: Módulo Cozinha).')

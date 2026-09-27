@@ -194,7 +194,7 @@ def search():
                 User.full_name.ilike(f'%{query}%')
             ]
             if uid is not None:
-                teacher_filter.append((User.unity_id == uid) | (User.unity_id.is_(None)))
+                teacher_filter.append(User.escopo_unidade(uid))
             results_teachers = User.query.filter(*teacher_filter).order_by(User.full_name).all()
 
     return render_template(

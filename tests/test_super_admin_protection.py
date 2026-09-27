@@ -111,7 +111,7 @@ class SuperAdminProtectionTestCase(unittest.TestCase):
     def _dados_usuario(self, email='novo@escola.edu', nome='Novo Usuário',
                        role_id=None, unity_id=None, **extras):
         dados = {'profile_type': 'employee', 'email': email, 'full_name': nome,
-                 'registration': email, 'unity_id': unity_id or self.unity_ids[0],
+                 'registration': email, 'unities': str(unity_id or self.unity_ids[0]),
                  'role_id': role_id or self.role_ids['basico'],
                  'password': 'SenhaForte999', 'is_active_user': True}
         dados.update(extras)
@@ -181,7 +181,7 @@ class SuperAdminProtectionTestCase(unittest.TestCase):
         comum_id = self.ids['comum@escola.edu']
         base = {'profile_type': 'employee', 'email': 'comum@escola.edu',
                 'full_name': 'Usuário Comum', 'registration': 'comum@escola.edu',
-                'unity_id': self.unity_ids[0], 'password': ''}
+                'unities': str(self.unity_ids[0]), 'password': ''}
 
         # papel principal → super
         response = self.client.post(f'/admin/users/{comum_id}/edit',

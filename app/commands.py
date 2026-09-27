@@ -557,7 +557,7 @@ def _seed_demo_data():
             function=random.choice(["Coordinator", "Secretary", "Technician", "Director"]),
             profile_type='employee',
             is_teacher=is_teacher_flag,
-            unity_id=random.choice(unity_ids),
+            unities=[random.choice(unities)],
             force_password_change=False,
             role_id=employee_role.id
         )
@@ -578,7 +578,7 @@ def _seed_demo_data():
             role='room',
             department=random.choice(["Science", "Math", "History", "Arts", "Languages", "Physical Ed"]),
             profile_type='teacher',
-            unity_id=random.choice(unity_ids),
+            unities=[random.choice(unities)],
             registration=f"REG-{i:04d}",
             force_password_change=False,
             role_id=teacher_role.id
@@ -735,7 +735,7 @@ def _seed_demo_data():
     for i, teacher in enumerate(sample_teachers):
         overtime = TeacherOvertimePay(
             teacher_id=teacher.id,
-            unity_id=teacher.unity_id,
+            unity_id=teacher.primary_unity_id,
             teaching_level=random.choice(['Técnico', 'Superior']),
             weekly_workload=random.choice([2, 4, 6]),
             hourly_value=random.choice([15.50, 22.30, 30.00]),

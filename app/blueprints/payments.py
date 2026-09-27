@@ -35,7 +35,7 @@ def _teachers_for_current_unity():
     return User.query.filter(
         User.profile_type == 'teacher',
         User.is_active_user == True,
-        (User.unity_id == uid) | (User.unity_id.is_(None))
+        User.escopo_unidade(uid)
     ).order_by(User.full_name).all()
 
 def format_budget_code(value):
@@ -153,9 +153,9 @@ def list_overtime():
     if filter_teacher:
         query = query.filter_by(teacher_id=filter_teacher)
 
-    pagination = db.paginate(query.order_by(TeacherOvertimePay.created_at.desc()),
-                             page=request.args.get('page', 1, type=int),
-                             per_page=PAYS_PER_PAGE, error_out=False)
+    pagination = query.order_by(TeacherOvertimePay.created_at.desc()) \
+        .paginate(page=request.args.get('page', 1, type=int),
+                  per_page=PAYS_PER_PAGE, error_out=False)
     list_teachers = _teachers_for_current_unity()
 
     return render_template('payments/list_overtime.html', infos=pagination.items, pagination=pagination,

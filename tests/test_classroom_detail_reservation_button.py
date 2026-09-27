@@ -53,15 +53,15 @@ class ClassroomDetailReservationButtonTestCase(unittest.TestCase):
             db.session.flush()
 
             self.admin = User(email=ADMIN_EMAIL, full_name='Gestor Teste', role='room',
-                              profile_type='employee', unity_id=self.unity.id,
+                              profile_type='employee', unities=[self.unity],
                               role_id=role_admin.id, force_password_change=False,
                               is_active_user=True)
             self.dono = User(email=DONO_EMAIL, full_name='Dono da Reserva', role='room',
-                             profile_type='teacher', unity_id=self.unity.id,
+                             profile_type='teacher', unities=[self.unity],
                              role_id=role_comum.id, force_password_change=False,
                              is_active_user=True)
             self.outro = User(email=OUTRO_EMAIL, full_name='Outro Usuário', role='room',
-                              profile_type='employee', unity_id=self.unity.id,
+                              profile_type='employee', unities=[self.unity],
                               role_id=role_comum.id, force_password_change=False,
                               is_active_user=True)
             for u in (self.admin, self.dono, self.outro):
