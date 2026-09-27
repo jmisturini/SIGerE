@@ -82,12 +82,16 @@ class User(UserMixin, db.Model):
     profile_type = db.Column(db.String(20), default='employee') # 'teacher' or 'employee'
     is_teacher = db.Column(db.Boolean, default=False) # Allows an employee to also act as a teacher
     force_password_change = db.Column(db.Boolean, default=True)
-    # Unidade educacional do usuário. NULL = conta global (ex: super admin,
-    # que pode operar em qualquer unidade via seletor).
-    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_active_user = db.Column(db.Boolean, default=True)
+
+    # Unidades às quais o usuário está vinculado — professor ou funcionário
+    # pode atuar em mais de uma. Sem vínculos = conta global (ex: super admin,
+    # que pode operar em qualquer unidade via seletor). A unidade ativa de
+    # operação é resolvida por requisição em app.unity_context.
+    unities = db.relationship('Unity', secondary='user_unities', lazy='select',
+                              order_by='Unity.name')
 
     # Papéis adicionais (add-on) concedidos além do papel principal — a
     # permissão efetiva é a união (ex.: Professor + Módulo Cozinha para
@@ -128,6 +132,26 @@ class User(UserMixin, db.Model):
         if '*' in self.permissions:
             return True
         return perm_code in self.permissions
+
+    # ── Vínculos com unidades (N:N) ──────────────────────────────────────
+    @property
+    def unity_ids(self):
+        """IDs das unidades do usuário (sem consulta extra além do relacionamento)."""
+        return [u.id for u in self.unities]
+
+    @property
+    def primary_unity_id(self):
+        """Primeira unidade do usuário (ordem alfabética) — unidade
+        representativa para lançamentos legados (ex.: hora extra importada).
+        None em contas globais."""
+        return self.unities[0].id if self.unities else None
+
+    @classmethod
+    def escopo_unidade(cls, unity_id):
+        """Filtro SQLAlchemy: usuários vinculados à unidade informada + contas
+        globais (sem vínculos) — mesmo critério antes expresso por
+        (unity_id == X) | (unity_id IS NULL) na coluna única."""
+        return cls.unities.any(Unity.id == unity_id) | ~cls.unities.any()
 
     # Propriedades legado atualizadas para compatibilidade
     @property
@@ -507,6 +531,14 @@ role_permissions = db.Table('role_permissions',
 user_roles = db.Table('user_roles',
     db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
     db.Column('role_id', db.Integer, db.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
+)
+
+# Tabela de junção dos vínculos do usuário com unidades (N:N): o mesmo
+# professor ou funcionário pode atuar em várias unidades. Usuário sem linha
+# aqui é conta global (ex: super admin).
+user_unities = db.Table('user_unities',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('unity_id', db.Integer, db.ForeignKey('unities.id', ondelete='CASCADE'), primary_key=True)
 )
 
 # Modelo de Permissões Granulares

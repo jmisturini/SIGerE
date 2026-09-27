@@ -54,7 +54,7 @@ class SuperAdminRoleGuardTestCase(unittest.TestCase):
 
             gestor = User(
                 email=EMAIL, full_name='Gestor Teste', role='room',
-                profile_type='employee', unity_id=self.unity.id,
+                profile_type='employee', unities=[self.unity],
                 role_id=gestor_role.id, force_password_change=False,
                 is_active_user=True,
             )
@@ -63,7 +63,7 @@ class SuperAdminRoleGuardTestCase(unittest.TestCase):
 
             super_user = User(
                 email='super@escola.edu', full_name='Super Teste', role='admin',
-                profile_type='employee', unity_id=self.unity.id,
+                profile_type='employee', unities=[self.unity],
                 role_id=Role.query.filter_by(name='super_admin').first().id,
                 force_password_change=False, is_active_user=True,
             )

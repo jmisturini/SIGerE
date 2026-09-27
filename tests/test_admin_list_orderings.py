@@ -48,22 +48,22 @@ class AdminListOrderingsTestCase(unittest.TestCase):
             db.session.flush()
 
             gestor = User(email=EMAIL, full_name='Gestor Teste', role='room',
-                          profile_type='employee', unity_id=self.unity.id,
+                          profile_type='employee', unities=[self.unity],
                           role_id=role_gestor.id, registration='500',
                           force_password_change=False, is_active_user=True)
             gestor.set_password(PASSWORD)
             usuario_zulu = User(email='zulu@escola.edu', full_name='Zulu', role='admin',
-                                profile_type='employee', unity_id=self.unity.id,
+                                profile_type='employee', unities=[self.unity],
                                 role_id=role_alfa.id, registration='700',
                                 force_password_change=False, is_active_user=True)
             usuario_zulu.set_password(PASSWORD)
             ativo = User(email='ativo@escola.edu', full_name='Ativo Silva', role='room',
-                         profile_type='employee', unity_id=self.unity.id,
+                         profile_type='employee', unities=[self.unity],
                          role_id=role_zulu.id, registration='600',
                          force_password_change=False, is_active_user=True)
             ativo.set_password(PASSWORD)
             inativo = User(email='inativo@escola.edu', full_name='Inativo Costa', role='room',
-                           profile_type='employee', unity_id=self.unity.id,
+                           profile_type='employee', unities=[self.unity],
                            role_id=role_zulu.id, force_password_change=False,
                            is_active_user=False)
             inativo.set_password(PASSWORD)

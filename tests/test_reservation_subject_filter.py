@@ -33,7 +33,7 @@ class SubjectFilterTestCase(unittest.TestCase):
             unity = Unity(name='Unidade SF', code='SF')
             db.session.add(unity); db.session.flush()
             user = User(email='sf@escola.edu', full_name='Super SF', role='admin',
-                        profile_type='employee', role_id=role.id, unity_id=unity.id,
+                        profile_type='employee', role_id=role.id, unities=[unity],
                         force_password_change=False, is_active_user=True)
             user.set_password('SenhaForte123')
             db.session.add(user)

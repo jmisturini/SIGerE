@@ -54,7 +54,7 @@ class UnityAreaTopbarTestCase(unittest.TestCase):
                               profile_type='employee', role_id=role_admin.id,
                               force_password_change=False, is_active_user=True)
             self.comum = User(email=COMUM_EMAIL, full_name='Comum Teste', role='room',
-                              profile_type='employee', unity_id=self.unity_alfa.id,
+                              profile_type='employee', unities=[self.unity_alfa],
                               role_id=role_comum.id, force_password_change=False,
                               is_active_user=True)
             for u in (self.admin, self.comum):

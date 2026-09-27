@@ -2,7 +2,8 @@ from flask import Blueprint, render_template, redirect, url_for, request, sessio
 from flask_login import login_required
 from app.models import Reservation, Unity
 from app.extensions import db
-from app.unity_context import current_unity_id, can_switch_unity, reset_unity_cache
+from app.unity_context import (current_unity_id, can_switch_unity,
+                               switchable_unities, reset_unity_cache)
 from datetime import datetime, date, time
 import re
 
@@ -95,6 +96,11 @@ def switch_unity():
     unity = db.session.get(Unity, unity_id) if unity_id else None
     if not unity or not unity.is_active:
         flash('Unidade inválida ou desativada.', 'danger')
+        return redirect(request.referrer or url_for('main.index'))
+    # O seletor só oferece unidades do escopo do usuário (próprias vínculos ou
+    # todas para o super-admin) — um POST forjado com unidade estranha é recusado.
+    if unity.id not in {u.id for u in switchable_unities()}:
+        flash('Você não tem acesso a essa unidade.', 'danger')
         return redirect(request.referrer or url_for('main.index'))
 
     session['unity_id'] = unity.id

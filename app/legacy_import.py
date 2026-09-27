@@ -331,7 +331,7 @@ def import_legacy(dump_path, force=False):
             registration=str(registration) if registration and registration not in seen_regs else None,
             profile_type="teacher" if (is_teacher and not tem_lotacao) else "employee",
             is_teacher=is_teacher,
-            unity_id=unity.id if unity else None,
+            unities=[unity] if unity else [],
             is_active_user=bool(is_active),
             force_password_change=True,
             created_at=date_joined or datetime.now(timezone.utc),
@@ -582,7 +582,7 @@ def import_legacy(dump_path, force=False):
         account = users_by_old.get(("cu", r["accountable_id"]))
         db.session.add(TeacherOvertimePay(
             teacher_id=teacher.id,
-            unity_id=teacher.unity_id,
+            unity_id=teacher.primary_unity_id,
             teaching_level=teaching_levels.get(r["teaching_level_id"], "?"),
             weekly_workload=int(r["weekly_workload"] or 0),
             hourly_value=r["hourly_value"] or "0",

@@ -72,7 +72,7 @@ class CategoryEditTestCase(unittest.TestCase):
 
             user = User(
                 email='gestor@escola.edu', full_name='Gestor Teste',
-                role='room', profile_type='employee', unity_id=unity.id,
+                role='room', profile_type='employee', unities=[unity],
                 role_id=gestor_role.id, force_password_change=False,
                 is_active_user=True,
             )

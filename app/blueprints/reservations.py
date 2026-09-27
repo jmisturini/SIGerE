@@ -24,7 +24,7 @@ def _teachers_for_current_unity():
     return User.query.filter(
         User.is_active_user == True,
         ((User.profile_type == 'teacher') | (User.is_teacher == True)),
-        (User.unity_id == uid) | (User.unity_id.is_(None))
+        User.escopo_unidade(uid)
     ).order_by(User.full_name).all()
 
 def _load_range_occupancy(classroom_id, teacher_id, start_date, end_date,
@@ -212,9 +212,9 @@ def my_reservations():
     if status != 'all':
         query = query.filter_by(status=status)
 
-    pagination = db.paginate(query.order_by(Reservation.date.desc(), Reservation.start_time),
-                             page=request.args.get('page', 1, type=int),
-                             per_page=RESERVATIONS_PER_PAGE, error_out=False)
+    pagination = query.order_by(Reservation.date.desc(), Reservation.start_time) \
+        .paginate(page=request.args.get('page', 1, type=int),
+                  per_page=RESERVATIONS_PER_PAGE, error_out=False)
 
     today = date.today()
     upcoming_reservations = [r for r in pagination.items if r.date >= today]
@@ -310,8 +310,8 @@ def all_reservations():
     else:
         query = query.order_by(Reservation.date, Reservation.start_time)
 
-    pagination = db.paginate(query, page=request.args.get('page', 1, type=int),
-                             per_page=RESERVATIONS_PER_PAGE, error_out=False)
+    pagination = query.paginate(page=request.args.get('page', 1, type=int),
+                                per_page=RESERVATIONS_PER_PAGE, error_out=False)
 
     uid = current_unity_id()
     # Abas preservam os filtros ativos ao trocar (menos a página e o próprio

@@ -75,13 +75,13 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             # automática pelo e-mail): funcionário e professor.
             maria = User(email='maria@escola.edu', full_name='Maria Identificada',
                          registration='555777', role='room',
-                         profile_type='employee', unity_id=self.unity.id,
+                         profile_type='employee', unities=[self.unity],
                          force_password_change=False, is_active_user=True)
             maria.set_password(PASSWORD)
             db.session.add(maria)
             professor = User(email='prof@escola.edu', full_name='Prof Identificado',
                              registration='888999', role='teacher',
-                             profile_type='teacher', unity_id=self.unity.id,
+                             profile_type='teacher', unities=[self.unity],
                              force_password_change=False, is_active_user=True)
             professor.set_password(PASSWORD)
             db.session.add(professor)
@@ -99,7 +99,7 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
 
             gestor = User(
                 email=EMAIL, full_name='Gestor VT', role='room',
-                profile_type='employee', unity_id=self.unity.id,
+                profile_type='employee', unities=[self.unity],
                 role_id=gestor_role.id, force_password_change=False,
                 is_active_user=True,
             )
@@ -540,7 +540,7 @@ class TestPedidosVT(unittest.TestCase):
                 usuario = User(email=email, full_name=email.split('@')[0],
                                registration=email.split('@')[0],
                                role='room', profile_type='employee',
-                               unity_id=self.unity.id, role_id=role.id,
+                               unities=[self.unity], role_id=role.id,
                                force_password_change=False,
                                is_active_user=True)
                 usuario.set_password(self.PASSWORD)
@@ -806,8 +806,8 @@ class TestPedidosVT(unittest.TestCase):
             linha_id = empresa.valores[0].id
             # O gestor passa a operar na unidade nova (usuário comum fica
             # fixado na própria unidade).
-            User.query.filter_by(email=self.EMAIL_GESTOR)\
-                .update({'unity_id': unity_id})
+            gestor = User.query.filter_by(email=self.EMAIL_GESTOR).first()
+            gestor.unities = [unity]
             db.session.commit()
 
         self.client.post(f'/vt/pedido?unity={unity_id}',

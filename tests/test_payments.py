@@ -71,19 +71,19 @@ class PaymentsTestCase(unittest.TestCase):
 
             manager = User(
                 email='financeiro@escola.edu', full_name='Financeiro Teste',
-                role='room', profile_type='employee', unity_id=self.unity.id,
+                role='room', profile_type='employee', unities=[self.unity],
                 role_id=role.id, force_password_change=False, is_active_user=True,
             )
             manager.set_password(PASSWORD)
             teacher = User(
                 email='prof@escola.edu', full_name='Professora Teste',
-                role='viewer', profile_type='teacher', unity_id=self.unity.id,
+                role='viewer', profile_type='teacher', unities=[self.unity],
                 force_password_change=False, is_active_user=True,
             )
             teacher.set_password(PASSWORD)
             other_teacher = User(
                 email='prof2@escola.edu', full_name='Outro Professor',
-                role='viewer', profile_type='teacher', unity_id=self.unity.id,
+                role='viewer', profile_type='teacher', unities=[self.unity],
                 force_password_change=False, is_active_user=True,
             )
             other_teacher.set_password(PASSWORD)
