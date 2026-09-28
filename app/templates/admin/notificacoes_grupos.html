@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Grupos de Notificação{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-9 col-md-11">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0"><i class="bi bi-collection text-primary me-2"></i> Grupos de Notificação</h5>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('admin.notificacoes_config') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-sliders"></i> Configuração
+                    </a>
+                    <a href="{{ url_for('admin.create_notificacao_grupo') }}" class="btn btn-sm btn-primary">
+                        <i class="bi bi-plus-lg"></i> Novo grupo
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                {% if current_unity %}
+                <p class="text-muted small mb-4">
+                    <i class="bi bi-geo-alt me-1"></i> Grupos da unidade
+                    <strong>{{ current_unity.name }}</strong> — cada grupo reúne as pessoas que
+                    recebem juntas os avisos de reserva próxima. Selecione quais grupos recebem
+                    na <a href="{{ url_for('admin.notificacoes_config') }}">configuração de notificações</a>.
+                </p>
+                {% endif %}
+
+                {% if grupos %}
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Grupo</th>
+                                <th>Membros</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for grupo in grupos %}
+                            <tr>
+                                <td class="fw-semibold">{{ grupo.name }}</td>
+                                <td>
+                                    {% if grupo.members %}
+                                    {{ grupo.members | map(attribute='full_name') | join(', ') }}
+                                    {% else %}
+                                    <span class="text-muted">Nenhum membro</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <a href="{{ url_for('admin.edit_notificacao_grupo', group_id=grupo.id) }}"
+                                       class="btn btn-sm btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form method="POST" class="d-inline"
+                                          action="{{ url_for('admin.delete_notificacao_grupo', group_id=grupo.id) }}"
+                                          onsubmit="return confirm('Excluir o grupo {{ grupo.name }}? As configurações que o selecionam deixam de avisá-lo.');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-collection display-5 d-block mb-3"></i>
+                    Nenhum grupo cadastrado nesta unidade.
+                    <div class="mt-3">
+                        <a href="{{ url_for('admin.create_notificacao_grupo') }}" class="btn btn-primary">
+                            <i class="bi bi-plus-lg me-1"></i> Criar grupo
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

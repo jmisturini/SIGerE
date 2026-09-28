@@ -9,9 +9,11 @@ from flask import (Blueprint, render_template, redirect, url_for, flash, abort,
 from flask_login import login_required, current_user
 from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permission,
                         RoomCategory, Unity, ApiToken, VtConfig, VtEmpresa,
-                        VtEmpresaValor, ROLE_POR_PERFIL)
+                        VtEmpresaValor, ROLE_POR_PERFIL, NotificationGroup,
+                        UnityNotificationConfig)
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
-                   RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig)
+                   RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
+                   FormNotificacaoConfig, FormNotificacaoGrupo)
 from app.extensions import db
 from sqlalchemy import func
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
@@ -1312,3 +1314,124 @@ def delete_api_token(token_id):
     db.session.commit()
     flash(f'Token "{token.name}" excluído permanentemente.', 'success')
     return redirect_back('admin.list_api_tokens')
+
+
+# ================= NOTIFICAÇÕES: CONFIG E GRUPOS (por unidade) ==============
+#
+# Avisos de reserva próxima: a configuração da unidade define antecedências
+# (marcos em dias) e destinatários fixos; os grupos personalizados reúnem as
+# equipes que devem ser avisadas juntas. Quem cria as notificações de fato é
+# a varredura `flask notify-scan` (systemd timer) — aqui só se configura.
+
+def _usuarios_escopo_choices():
+    """Usuários do escopo da unidade ativa (vinculados + contas globais),
+    na ordem usada nos selects do sistema."""
+    return User.query.filter(
+        User.is_active_user == True,  # noqa: E712 — comparação de coluna
+        User.escopo_unidade(current_unity_id()),
+    ).order_by(User.full_name).all()
+
+
+@bp.route('/notificacoes/configuracao', methods=['GET', 'POST'])
+@login_required
+@require_permission('notification:manage')
+def notificacoes_config():
+    """Configuração da unidade ativa: antecedências e destinatários dos
+    avisos de reserva próxima."""
+    config = UnityNotificationConfig.query.filter_by(unity_id=current_unity_id()).first()
+    form = FormNotificacaoConfig(obj=config)
+    grupos_unidade = NotificationGroup.query.filter_by(
+        unity_id=current_unity_id()).order_by(NotificationGroup.name).all()
+    form.groups.choices = [(g.id, g.name) for g in grupos_unidade]
+    if request.method == 'GET':
+        # obj=config entrega objetos User/NotificationGroup; o SelectMultiple
+        # precisa dos ids crus para pré-selecionar.
+        form.groups.data = [g.id for g in config.groups] if config else []
+    if form.validate_on_submit():
+        if config is None:
+            config = UnityNotificationConfig(unity_id=current_unity_id())
+            db.session.add(config)
+        config.is_enabled = form.is_enabled.data
+        config.lead_days = form.lead_days.data
+        config.notify_teacher = form.notify_teacher.data
+        config.notify_creator = form.notify_creator.data
+        config.notify_approvers = form.notify_approvers.data
+        config.groups = NotificationGroup.query.filter(
+            NotificationGroup.id.in_(form.groups.data),
+            NotificationGroup.unity_id == current_unity_id()).all()
+        db.session.commit()
+        flash('Configurações de notificação salvas.', 'success')
+        return redirect(url_for('admin.notificacoes_config'))
+    return render_template('admin/notificacoes_config.html', form=form,
+                           config=config, grupos=grupos_unidade)
+
+
+@bp.route('/notificacoes/grupos')
+@login_required
+@require_permission('notification:groups')
+def notificacoes_grupos():
+    """Grupos personalizados de destinatários da unidade ativa."""
+    grupos = NotificationGroup.query.filter_by(
+        unity_id=current_unity_id()).order_by(NotificationGroup.name).all()
+    return render_template('admin/notificacoes_grupos.html', grupos=grupos)
+
+
+@bp.route('/notificacoes/grupos/nova', methods=['GET', 'POST'])
+@login_required
+@require_permission('notification:groups')
+def create_notificacao_grupo():
+    grupo = NotificationGroup(unity_id=current_unity_id())
+    form = FormNotificacaoGrupo()
+    form.members.choices = [(u.id, u.full_name) for u in _usuarios_escopo_choices()]
+    if form.validate_on_submit():
+        duplicado = NotificationGroup.query.filter_by(
+            unity_id=current_unity_id(), name=form.name.data.strip()).first()
+        if duplicado:
+            form.name.errors.append('Já existe um grupo com este nome nesta unidade.')
+        else:
+            grupo.name = form.name.data.strip()
+            grupo.members = User.query.filter(
+                User.id.in_(form.members.data)).all()
+            db.session.add(grupo)
+            db.session.commit()
+            flash(f'Grupo {grupo.name} criado.', 'success')
+            return redirect(url_for('admin.notificacoes_grupos'))
+    return render_template('admin/notificacoes_grupo_form.html', form=form, grupo=None)
+
+
+@bp.route('/notificacoes/grupos/<int:group_id>/editar', methods=['GET', 'POST'])
+@login_required
+@require_permission('notification:groups')
+def edit_notificacao_grupo(group_id):
+    grupo = _unity_scoped_or_404(db.session.get(NotificationGroup, group_id))
+    form = FormNotificacaoGrupo(obj=grupo)
+    form.members.choices = [(u.id, u.full_name) for u in _usuarios_escopo_choices()]
+    if request.method == 'GET':
+        form.members.data = [u.id for u in grupo.members]
+    if form.validate_on_submit():
+        duplicado = NotificationGroup.query.filter(
+            NotificationGroup.unity_id == current_unity_id(),
+            NotificationGroup.name == form.name.data.strip(),
+            NotificationGroup.id != grupo.id).first()
+        if duplicado:
+            form.name.errors.append('Já existe um grupo com este nome nesta unidade.')
+        else:
+            grupo.name = form.name.data.strip()
+            grupo.members = User.query.filter(
+                User.id.in_(form.members.data)).all()
+            db.session.commit()
+            flash(f'Grupo {grupo.name} atualizado.', 'success')
+            return redirect(url_for('admin.notificacoes_grupos'))
+    return render_template('admin/notificacoes_grupo_form.html', form=form, grupo=grupo)
+
+
+@bp.route('/notificacoes/grupos/<int:group_id>/excluir', methods=['POST'])
+@login_required
+@require_permission('notification:groups')
+def delete_notificacao_grupo(group_id):
+    grupo = _unity_scoped_or_404(db.session.get(NotificationGroup, group_id))
+    nome = grupo.name
+    db.session.delete(grupo)
+    db.session.commit()
+    flash(f'Grupo {nome} excluído.', 'success')
+    return redirect(url_for('admin.notificacoes_grupos'))
