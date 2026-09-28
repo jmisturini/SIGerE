@@ -612,10 +612,13 @@ O essencial para restaurar uma instalação completa:
 ### Notificações de atividades próximas
 
 O módulo avisa professor, criador, aprovadores e grupos cadastrados quando uma
-reserva aprovada se aproxima da data. Quem cria as notificações é a varredura
-`flask --app run notify-scan` — **não há agendador dentro da aplicação**: sem o
-timer abaixo, os avisos não são gerados (o sino e a tela de notificações
-continuam funcionando, apenas ficam vazios).
+reserva aprovada se aproxima da data. As notificações são **opt-in por reserva**:
+vêm desativadas por padrão e são ativadas pelo botão “Ativar notificações” no
+detalhe da reserva (dono da reserva ou quem tem permissão de edição global) —
+sem ativação, a varredura ignora a reserva. Quem cria as notificações é a
+varredura `flask --app run notify-scan` — **não há agendador dentro da
+aplicação**: sem o timer abaixo, os avisos não são gerados (o sino e a tela de
+notificações continuam funcionando, apenas ficam vazios).
 
 O comando é idempotente — a unicidade por (destinatário, reserva, marco de
 antecedência) impede duplicatas — e atrasos não pulam avisos: marcos vencidos

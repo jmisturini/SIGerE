@@ -3,6 +3,8 @@
 Cobre:
 - o serviço de varredura: marcos de antecedência, idempotência, destinatários
   (professor, criador, aprovadores e grupos personalizados), status e unidade;
+- o opt-in por reserva: notificações desativadas por padrão, ativadas pelo
+  botão no detalhe (dono ou edit_all), e a varredura ignora as desativadas;
 - o comando `flask notify-scan` (inclusive --dry-run);
 - o painel admin: configuração por unidade e CRUD de grupos com escopo;
 - o centro de notificações do usuário: listagem, sino (badge), marcar lida.
@@ -16,7 +18,8 @@ from app import create_app
 from app.config import Config
 from app.extensions import db
 from app.models import (Classroom, Notification, NotificationGroup, Permission,
-                        Role, RoomCategory, Unity, UnityNotificationConfig, User)
+                        Reservation, Role, RoomCategory, Unity,
+                        UnityNotificationConfig, User)
 from app.services.notifications import parse_lead_days, varrer_reservas
 
 EMAIL = 'gestor@escola.edu'
@@ -51,7 +54,8 @@ class NotificationsTestCase(unittest.TestCase):
 
             perms = [Permission(code=c, module=c.split(':')[0], action=c.split(':')[1])
                      for c in ('notification:manage', 'notification:groups',
-                               'reservation:approve', 'reservation:create')]
+                               'reservation:approve', 'reservation:create',
+                               'reservation:read_own')]
             db.session.add_all(perms)
             role_gestor = Role(name='gestor', label='Gestor', permissions=perms)
             db.session.add(role_gestor)
@@ -114,13 +118,19 @@ class NotificationsTestCase(unittest.TestCase):
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 
-    def _criar_reserva(self, *, em_dias=5, status='approved', titulo='Aula de Teste'):
-        """Reserva aprovada padrão: criador = Carla, professor = Paulo."""
+    def _criar_reserva(self, *, em_dias=5, status='approved', titulo='Aula de Teste',
+                       notificar=True, dono_id=None):
+        """Reserva aprovada padrão: criador = Carla, professor = Paulo.
+
+        notificar=True já ativa as notificações da reserva (opt-in) — os
+        testes da varredura exercitam o caminho com avisos ligados; os testes
+        do opt-in criam com notificar=False para começar do padrão."""
+        dono_id = dono_id or self.ids['criador']
+
         def gravar():
-            from app.models import Reservation
             with self.app.app_context():
                 reservation = Reservation(
-                    user_id=self.ids['criador'],
+                    user_id=dono_id,
                     classroom_id=self.ids['sala'],
                     teacher_id=self.ids['professor'],
                     unity_id=self.ids['unity'],
@@ -128,6 +138,7 @@ class NotificationsTestCase(unittest.TestCase):
                     date=date.today() + timedelta(days=em_dias),
                     start_time=time(9, 0), end_time=time(11, 0),
                     status=status,
+                    notify_enabled=notificar,
                 )
                 db.session.add(reservation)
                 db.session.commit()
@@ -249,6 +260,75 @@ class TestVarredura(NotificationsTestCase):
             db.session.commit()
             varrer_reservas()
         self.assertEqual(self._destinatarios(), [self.ids['criador']])
+
+
+class TestNotificacoesPorReserva(NotificationsTestCase):
+    """Opt-in por reserva: padrão desativado; o botão no detalhe (dono ou
+    edit_all) ativa/desativa e a varredura só avisa as ativadas."""
+
+    def test_padrao_desativado_e_varredura_ignora(self):
+        reservation_id = self._criar_reserva(notificar=False)
+        with self.app.app_context():
+            reservation = db.session.get(Reservation, reservation_id)
+            self.assertFalse(reservation.notify_enabled)
+            stats = varrer_reservas()
+        self.assertEqual(stats['reservas'], 0)
+        self.assertEqual(self._contar(), 0)
+
+    def test_ativar_pelo_detalhe_habilita_os_avisos(self):
+        reservation_id = self._criar_reserva(notificar=False)
+        self._login('criador@escola.edu')
+        resposta = self.client.post(f'/reservations/{reservation_id}/notificacoes',
+                                    follow_redirects=False)
+        self.assertEqual(resposta.status_code, 302)
+        with self.app.app_context():
+            self.assertTrue(db.session.get(Reservation, reservation_id).notify_enabled)
+            varrer_reservas()
+        # professor + criador, no marco de 7 dias
+        self.assertEqual(self._contar(milestone='7d'), 2)
+
+    def test_desativar_para_de_avisar(self):
+        reservation_id = self._criar_reserva()  # criada já ativada
+        self._login('criador@escola.edu')
+        resposta = self.client.post(f'/reservations/{reservation_id}/notificacoes',
+                                    follow_redirects=True)
+        self.assertIn('desativadas', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertFalse(db.session.get(Reservation, reservation_id).notify_enabled)
+            self.assertEqual(varrer_reservas()['criadas'], 0)
+        self.assertEqual(self._contar(), 0)
+
+    def test_detalhe_mostra_botao_nos_dois_estados(self):
+        # gestor é o dono e tem read_own: enxerga o detalhe e o botão
+        reservation_id = self._criar_reserva(notificar=False,
+                                             dono_id=self.ids['gestor'])
+        self._login(EMAIL)
+        html = self.client.get(f'/reservations/{reservation_id}').get_data(as_text=True)
+        self.assertIn('Ativar notificações', html)
+        self.assertNotIn('Notificações ativadas', html)
+
+        self.client.post(f'/reservations/{reservation_id}/notificacoes')
+        html = self.client.get(f'/reservations/{reservation_id}').get_data(as_text=True)
+        self.assertIn('Notificações ativadas', html)
+        self.assertIn('aria-pressed="true"', html)
+
+    def test_usuario_sem_permissao_vira_403(self):
+        reservation_id = self._criar_reserva(notificar=False)
+        self._login('extra@escola.edu')
+        resposta = self.client.post(f'/reservations/{reservation_id}/notificacoes',
+                                    follow_redirects=False)
+        self.assertEqual(resposta.status_code, 403)
+        with self.app.app_context():
+            self.assertFalse(db.session.get(Reservation, reservation_id).notify_enabled)
+
+    def test_reserva_pendente_nao_permite(self):
+        reservation_id = self._criar_reserva(status='pending', notificar=False)
+        self._login('criador@escola.edu')
+        resposta = self.client.post(f'/reservations/{reservation_id}/notificacoes',
+                                    follow_redirects=True)
+        self.assertIn('aprovadas e futuras', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertFalse(db.session.get(Reservation, reservation_id).notify_enabled)
 
 
 class TestComandoNotifyScan(NotificationsTestCase):

@@ -15,9 +15,26 @@
             {% else %}{{ reservation.status }}{% endif %}
         </span>
     </div>
-    <a href="{{ url_for('reservations.my_reservations') if not current_user.has_permission('reservation:read_all') else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-1"></i> Voltar
-    </a>
+    <div class="d-flex gap-2 align-items-center">
+        {# Notificações de proximidade: opt-in por reserva (padrão desativado).
+           Dono ou edit_all, e apenas reservas aprovadas e futuras avisam. #}
+        {% set pode_notificar = (reservation.user_id == current_user.id or current_user.has_permission('reservation:edit_all'))
+                                and reservation.status == 'approved' and reservation.date >= now.date() %}
+        {% if pode_notificar %}
+        <form method="POST" action="{{ url_for('reservations.toggle_notificacoes', reservation_id=reservation.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn {{ 'btn-warning' if reservation.notify_enabled else 'btn-outline-secondary' }}"
+                    aria-pressed="{{ 'true' if reservation.notify_enabled else 'false' }}"
+                    title="{{ 'Clique para desativar os avisos desta reserva no sino' if reservation.notify_enabled else 'Receber avisos no sino quando esta reserva se aproximar' }}">
+                <i class="bi {{ 'bi-bell-fill' if reservation.notify_enabled else 'bi-bell-slash' }} me-1"></i>
+                {{ 'Notificações ativadas' if reservation.notify_enabled else 'Ativar notificações' }}
+            </button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('reservations.my_reservations') if not current_user.has_permission('reservation:read_all') else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Voltar
+        </a>
+    </div>
 </div>
 
 <div class="card">
