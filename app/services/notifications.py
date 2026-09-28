@@ -11,6 +11,8 @@ Regras do módulo:
   avisos: a varredura seguinte cria o que ficou faltando.
 - Só entram reservas approved com data de hoje em diante; pendentes e
   canceladas não avisam.
+- A reserva precisa ter as notificações ativadas (notify_enabled, botão no
+  detalhe) — o padrão é desativado e quem cria a reserva opta por avisar.
 """
 from datetime import date, timedelta
 
@@ -103,6 +105,7 @@ def varrer_reservas(hoje=None, dry_run=False):
         janela = max(leads)
         reservas = Reservation.query.filter(
             Reservation.status == 'approved',
+            Reservation.notify_enabled == True,  # noqa: E712 — comparação de coluna
             Reservation.unity_id == config.unity_id,
             Reservation.date >= hoje,
             Reservation.date <= hoje + timedelta(days=janela),

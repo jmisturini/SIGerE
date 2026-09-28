@@ -345,6 +345,28 @@ def detail(reservation_id):
                            series_count=series_count, can_share=can_share,
                            share_texts=build_reservation_share_texts(reservation))
 
+# Ativa/desativa as notificações de proximidade da reserva (padrão: desativadas).
+# Dono ou quem tem edit_all — os destinatários continuam sendo os configurados
+# na unidade (professor, criador, aprovadores e grupos).
+@bp.route('/<int:reservation_id>/notificacoes', methods=['POST'])
+@login_required
+@require_permission_or_owner('reservation:edit_all')
+def toggle_notificacoes(reservation_id):
+    reservation = _get_reservation_scoped(reservation_id)
+    # Mesmas condições da varredura: só reserva aprovada e futura avisa.
+    if reservation.status != 'approved' or reservation.date < date.today():
+        flash('Apenas reservas aprovadas e futuras podem ter notificações.', 'warning')
+        return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+    reservation.notify_enabled = not reservation.notify_enabled
+    db.session.commit()
+    if reservation.notify_enabled:
+        flash('Notificações ativadas para esta reserva: os avisos de proximidade '
+              'serão enviados conforme a configuração da unidade.', 'success')
+    else:
+        flash('Notificações desativadas para esta reserva. Avisos já criados '
+              'permanecem no sino.', 'info')
+    return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+
 # Route to edit a reservation (Admin or Owner)
 @bp.route('/<int:reservation_id>/edit', methods=['GET', 'POST'])
 @login_required

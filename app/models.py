@@ -227,6 +227,10 @@ class Reservation(db.Model):
     # compartilham o mesmo repeat_group_id — permite editar/excluir o lote.
     repeat_group_id = db.Column(db.Integer, db.ForeignKey('reservations.id'),
                                 nullable=True, index=True)
+    # Notificações de proximidade são opt-in por reserva: o botão no detalhe
+    # ativa/desativa; sem ativação a varredura notify-scan ignora a reserva.
+    notify_enabled = db.Column(db.Boolean, nullable=False, default=False,
+                               server_default='0')
 
     # Relationship for the teacher assigned to this reservation
     teacher = db.relationship('User', foreign_keys=[teacher_id], backref='teaching_reservations')
