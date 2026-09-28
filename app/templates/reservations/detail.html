@@ -15,7 +15,7 @@
             {% else %}{{ reservation.status }}{% endif %}
         </span>
     </div>
-    <a href="{{ url_for('reservations.my_reservations') if not current_user.has_permission('reservation:read_all') else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary" onclick="history.back(); return false;">
+    <a href="{{ url_for('reservations.my_reservations') if not current_user.has_permission('reservation:read_all') else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left me-1"></i> Voltar
     </a>
 </div>
