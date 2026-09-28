@@ -10,12 +10,25 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.21.0'
+APP_VERSION = '1.22.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.22.0',
+        'data': '2026-09-27',
+        'titulo': 'Notificações de atividades próximas com grupos e configuração por unidade',
+        'grupos': [
+            ('Adicionado', [
+                'Módulo de notificações de atividade próxima: quando uma reserva aprovada se aproxima da data, professor, criador, aprovadores da unidade e grupos cadastrados recebem um aviso no sino do sistema, com antecedências definidas pela própria unidade (ex.: 7 dias, 1 dia antes e no próprio dia).',
+                'Grupos de notificação por unidade no Painel Admin: reúna as pessoas que devem ser avisadas juntas (ex.: “Coordenação Gastronomia”) e selecione quais grupos recebem os avisos — junto com os destinatários fixos (professor, criador e aprovadores) na configuração de notificações da unidade.',
+                'Sino na barra superior com contador de não lidas (atualizado sozinho a cada minuto) e tela de notificações com marcar como lida, marcar todas e paginação; os avisos apontam para o detalhe da reserva ou para o calendário no dia da atividade — o calendário agora entende datas recebidas no endereço (deep link).',
+                'Comando `flask --app run notify-scan` para a varredura que gera os avisos (idempotente — rodar de novo não duplica; `--dry-run` mostra o que seria criado) e documentação de implantação com o agendamento de 15 minutos pelo systemd.',
+            ]),
+        ],
+    },
     {
         'versao': '1.21.0',
         'data': '2026-09-23',
