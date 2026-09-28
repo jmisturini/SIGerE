@@ -254,6 +254,18 @@
                    visível para quem tem qualquer uma dessas permissões e fica
                    ativo em todas as páginas /admin/*. #}
                 {% if current_user.is_authenticated %}
+                {# Sino de notificações: badge com não lidas (atualizado por poll leve) #}
+                <a class="btn btn-link position-relative text-decoration-none text-muted"
+                   title="Notificações" href="{{ url_for('notifications.lista') }}" id="notif-bell">
+                    <i class="bi bi-bell fs-5"></i>
+                    <span id="notif-badge"
+                          class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger {{ 'd-none' if not notificacoes_nao_lidas }}">
+                        {{ notificacoes_nao_lidas }}
+                    </span>
+                </a>
+                {% endif %}
+
+                {% if current_user.is_authenticated %}
                 {% set ep_top = request.endpoint or '' %}
                 {% set painel_visivel = current_user.has_permission('system:dashboard')
                     or current_user.has_permission('unity:read')
@@ -269,16 +281,25 @@
                 {% endif %}
                 {% endif %}
 
-                <button id="theme-toggle" class="btn btn-sm btn-icon" title="Alternar tema claro/escuro">
-                    <i class="bi bi-sun-fill" id="theme-icon"></i>
-                </button>
-
+                {# Aparência: um único seletor reúne o tema claro/escuro e a
+                   cor da interface — um ícone a menos na topbar e os dois
+                   ajustes sempre no mesmo lugar. #}
                 <div class="dropdown">
-                    <button id="accent-toggle" class="btn btn-sm btn-icon" title="Cor da interface"
+                    <button id="appearance-toggle" class="btn btn-sm btn-icon" title="Aparência: tema claro/escuro e cor da interface"
                             data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                         <i class="bi bi-palette"></i>
                     </button>
-                    <div class="dropdown-menu dropdown-menu-end p-3" aria-labelledby="accent-toggle">
+                    <div class="dropdown-menu dropdown-menu-end p-3" aria-labelledby="appearance-toggle">
+                        <div class="small text-muted text-uppercase fw-bold mb-2">Tema</div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="theme-option" data-theme-opcao="light" title="Tema claro">
+                                <i class="bi bi-sun-fill"></i>
+                            </button>
+                            <button type="button" class="theme-option" data-theme-opcao="dark" title="Tema escuro">
+                                <i class="bi bi-moon-stars-fill"></i>
+                            </button>
+                        </div>
+                        <hr class="dropdown-divider my-2">
                         <div class="small text-muted text-uppercase fw-bold mb-2">Cor da interface</div>
                         <div class="d-flex gap-2">
                             <button type="button" class="accent-swatch" data-accent-opcao="" title="Azul Senac (padrão)"
@@ -411,27 +432,34 @@
         })();
     </script>
 <script>
-    const themeToggle = document.getElementById('theme-toggle');
-    const themeIcon = document.getElementById('theme-icon');
-    function updateIcon() {
-        if (document.documentElement.getAttribute('data-theme') === 'dark') { themeIcon.className = 'bi bi-sun-fill'; } 
-        else { themeIcon.className = 'bi bi-moon-stars-fill'; }
+    // Aparência: dropdown único com tema claro/escuro e cor da interface.
+    // O tema troca ao vivo (sem recarregar); o accent recarrega a página para
+    // tudo (gráficos inclusive) nascer na nova cor.
+    const themeOptions = document.querySelectorAll('.theme-option');
+    function marcarTema() {
+        const escuro = document.documentElement.getAttribute('data-theme') === 'dark';
+        themeOptions.forEach(b =>
+            b.classList.toggle('selected', (b.dataset.themeOpcao === 'dark') === escuro));
     }
-    updateIcon();
-    themeToggle.addEventListener('click', () => {
-        if (document.documentElement.getAttribute('data-theme') === 'dark') {
-            document.documentElement.removeAttribute('data-theme'); localStorage.setItem('theme', 'light');
-        } else {
-            document.documentElement.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark');
-        }
-        updateIcon();
+    marcarTema();
+    themeOptions.forEach(botao => {
+        botao.addEventListener('click', () => {
+            if (botao.dataset.themeOpcao === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+            }
+            marcarTema();
+        });
     });
 
     // Tema de cor (accent): a paleta vive no CSS ([data-accent=...]) e a
     // escolha no localStorage. Ao trocar, recarrega a página para tudo
     // (gráficos inclusive) nascer na nova cor.
-    const accentToggle = document.getElementById('accent-toggle');
-    if (accentToggle) {
+    const appearanceToggle = document.getElementById('appearance-toggle');
+    if (appearanceToggle) {
         document.querySelectorAll('.accent-swatch').forEach(botao => {
             botao.addEventListener('click', () => {
                 const accent = botao.dataset.accentOpcao || '';
@@ -441,7 +469,8 @@
                 location.reload();
             });
         });
-        accentToggle.closest('.dropdown').addEventListener('show.bs.dropdown', () => {
+        appearanceToggle.closest('.dropdown').addEventListener('show.bs.dropdown', () => {
+            marcarTema();
             const atual = document.documentElement.getAttribute('data-accent') || '';
             document.querySelectorAll('.accent-swatch').forEach(b => {
                 b.classList.toggle('selected', (b.dataset.accentOpcao || '') === atual);
@@ -520,6 +549,27 @@
         });
     });
 </script>
+{% if current_user.is_authenticated %}
+<script>
+    // Sino de notificações: atualiza o badge com um poll leve (o valor inicial
+    // vem renderizado do servidor). Falhas silenciosas — o badge antigo vale
+    // até o próximo carregamento de página.
+    (function () {
+        const badge = document.getElementById('notif-badge');
+        if (!badge) return;
+        function atualizarBadge(qtde) {
+            badge.textContent = qtde;
+            badge.classList.toggle('d-none', !qtde);
+        }
+        setInterval(function () {
+            fetch('{{ url_for("notifications.api_nao_lidas") }}', { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (dados) { if (dados) atualizarBadge(dados.count); })
+                .catch(function () {});
+        }, 60000);
+    })();
+</script>
+{% endif %}
 <script>
     // Marcação visual de campos obrigatórios: asterisco no rótulo de todo
     // campo [required] e legenda "Campos com * são obrigatórios." no form.

@@ -793,3 +793,119 @@ class KitchenRecipeIngredient(db.Model):
 
     def __repr__(self):
         return f'<KitchenRecipeIngredient {self.name}>'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Notificações de atividades próximas. A varredura (comando `flask notify-scan`,
+# agendado por systemd timer na produção) cria uma Notification por destinatário
+# a cada marco de antecedência configurado na unidade (UnityNotificationConfig) —
+# a constraint de unicidade garante idempotência: rodar a varredura duas vezes,
+# ou o timer disparar em cima do outro, não duplica avisos.
+# ─────────────────────────────────────────────────────────────────────────────
+
+EVENT_RESERVATION_UPCOMING = 'reservation_upcoming'
+
+# Grupos personalizados de destinatários por unidade: a equipe que deve ser
+# avisada junta (ex.: "Coordenação Gastronomia"). A configuração da unidade
+# seleciona quais grupos recebem os avisos.
+notification_group_members = db.Table(
+    'notification_group_members',
+    db.Column('group_id', db.Integer,
+              db.ForeignKey('notification_groups.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('user_id', db.Integer,
+              db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+)
+
+# Grupos selecionados por cada configuração de unidade.
+notification_config_groups = db.Table(
+    'notification_config_groups',
+    db.Column('config_id', db.Integer,
+              db.ForeignKey('unity_notification_configs.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('group_id', db.Integer,
+              db.ForeignKey('notification_groups.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
+class NotificationGroup(db.Model):
+    __tablename__ = 'notification_groups'
+    __table_args__ = (
+        db.UniqueConstraint('unity_id', 'name', name='uq_notification_group_unity_name'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    members = db.relationship('User', secondary='notification_group_members',
+                              lazy='select', order_by='User.full_name')
+
+    def __repr__(self):
+        return f'<NotificationGroup {self.name}>'
+
+
+class UnityNotificationConfig(db.Model):
+    """Configuração por unidade dos avisos de reserva próxima: liga/desliga o
+    módulo, define os marcos de antecedência (dias antes da data da reserva) e
+    quem recebe — professor designado, criador, aprovadores da unidade e
+    grupos personalizados. Gerenciada em /admin/notificacoes/configuracao."""
+    __tablename__ = 'unity_notification_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=False,
+                         unique=True, index=True)
+    is_enabled = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
+    # Marcos de antecedência em dias antes da reserva, em CSV (ex.: '7,1,0' —
+    # 0 = no próprio dia). Ordem e duplicatas são normalizadas na leitura.
+    lead_days = db.Column(db.String(50), nullable=False, default='7,1', server_default='7,1')
+    notify_teacher = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
+    notify_creator = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
+    # "Aprovadores": quem pode aprovar reservas da unidade (reservation:approve)
+    # — a noção de equipe administrativa que precisa saber da agenda.
+    notify_approvers = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    groups = db.relationship('NotificationGroup', secondary='notification_config_groups',
+                             lazy='select', order_by='NotificationGroup.name')
+
+    def lead_days_list(self):
+        """Marcos normalizados: ints >= 0 sem duplicatas, maior primeiro."""
+        from app.services.notifications import parse_lead_days
+        return parse_lead_days(self.lead_days)
+
+    def __repr__(self):
+        return f'<UnityNotificationConfig unity={self.unity_id}>'
+
+
+class Notification(db.Model):
+    """Aviso individual por destinatário, gerado pela varredura de reservas
+    próximas. read_at nulo = não lida (contador do sino); sent_at fica
+    reservado para canais futuros (ex.: e-mail) consumirem como fila."""
+    __tablename__ = 'notifications'
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'event_type', 'reservation_id', 'milestone',
+                            name='uq_notification_destinatario_evento'),
+        db.Index('ix_notifications_user_read', 'user_id', 'read_at'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+    reservation_id = db.Column(db.Integer,
+                               db.ForeignKey('reservations.id', ondelete='CASCADE'),
+                               nullable=True, index=True)
+    event_type = db.Column(db.String(40), nullable=False, default=EVENT_RESERVATION_UPCOMING)
+    # Marco que gerou o aviso ('7d', '1d', '0d') — junto com user/reserva/evento
+    # forma a chave de unicidade.
+    milestone = db.Column(db.String(10), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text)
+    url = db.Column(db.String(300))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    read_at = db.Column(db.DateTime)
+    sent_at = db.Column(db.DateTime)
+
+    user = db.relationship('User', backref='notifications')
+    reservation = db.relationship('Reservation', backref='notifications')
+
+    @property
+    def is_read(self):
+        return self.read_at is not None
+
+    def __repr__(self):
+        return f'<Notification user={self.user_id} {self.event_type}/{self.milestone}>'

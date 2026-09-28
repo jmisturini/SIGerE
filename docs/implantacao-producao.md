@@ -609,6 +609,61 @@ O essencial para restaurar uma instalação completa:
 | **Configuração** | `/var/www/sigere/.env` (sem versionar; guarde em cofre de senhas) e `/etc/nginx/sites-available/sigere` + `/etc/systemd/system/sigere.service` |
 | **Código** | O repositório git — a versão implantada é recuperável pelo commit/tag |
 
+### Notificações de atividades próximas
+
+O módulo avisa professor, criador, aprovadores e grupos cadastrados quando uma
+reserva aprovada se aproxima da data. Quem cria as notificações é a varredura
+`flask --app run notify-scan` — **não há agendador dentro da aplicação**: sem o
+timer abaixo, os avisos não são gerados (o sino e a tela de notificações
+continuam funcionando, apenas ficam vazios).
+
+O comando é idempotente — a unicidade por (destinatário, reserva, marco de
+antecedência) impede duplicatas — e atrasos não pulam avisos: marcos vencidos
+disparam na primeira varredura seguinte. Cada unidade liga o módulo e configura
+antecedências/destinatários no Painel Admin → Notificações.
+
+Crie `/etc/systemd/system/sigere-notify.service` (mesmo usuário do backup):
+
+```ini
+[Unit]
+Description=Varredura de reservas próximas do SIGerE
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=SEU_USUARIO
+WorkingDirectory=/var/www/sigere
+EnvironmentFile=/var/www/sigere/.env
+ExecStart=/var/www/sigere/venv/bin/flask --app run notify-scan
+```
+
+E `/etc/systemd/system/sigere-notify.timer` (a cada 15 minutos — a precisão
+do aviso “no próprio dia” depende dessa frequência):
+
+```ini
+[Unit]
+Description=Agenda da varredura de notificações do SIGerE
+
+[Timer]
+OnCalendar=*:0/15
+RandomizedDelaySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now sigere-notify.timer
+systemctl list-timers sigere-notify*           # próximo disparo
+sudo systemctl start sigere-notify.service     # rodar agora (teste)
+journalctl -u sigere-notify.service -n 50      # saída da última execução
+```
+
+Para conferir o que a varredura criaria sem gravar nada:
+`flask --app run notify-scan --dry-run`.
+
 ### Dimensionamento
 
 - Comece com os `--workers (2 × CPUs) + 1 --threads 2` do passo 6.

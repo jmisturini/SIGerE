@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Notificações{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+            <div>
+                <h3 class="fw-bold mb-1"><i class="bi bi-bell me-2"></i>Notificações</h3>
+                <p class="text-muted mb-0">Atividades agendadas que se aproximam e avisos do sistema.</p>
+            </div>
+            {% if paginacao.items %}
+            <form method="POST" action="{{ url_for('notifications.marcar_todas') }}" class="m-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-check2-all me-1"></i> Marcar todas como lidas
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if paginacao.items %}
+        <div class="list-group shadow-sm">
+            {% for n in paginacao.items %}
+            <div class="list-group-item {% if not n.is_read %}bg-light{% endif %}">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                    <div class="me-2">
+                        <div class="fw-semibold">
+                            {% if not n.is_read %}<span class="badge bg-primary rounded-pill me-1">&nbsp;</span>{% endif %}
+                            {% if n.url %}
+                            <a href="{{ n.url }}" class="text-decoration-none">{{ n.title }}</a>
+                            {% else %}
+                            {{ n.title }}
+                            {% endif %}
+                        </div>
+                        {% if n.body %}<div class="text-muted small mt-1">{{ n.body }}</div>{% endif %}
+                        <div class="text-muted small mt-1">
+                            <i class="bi bi-clock me-1"></i>{{ n.created_at.strftime('%d/%m/%Y %H:%M') }}
+                        </div>
+                    </div>
+                    {% if not n.is_read %}
+                    <form method="POST" action="{{ url_for('notifications.marcar_lida', notification_id=n.id) }}" class="m-0">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Marcar como lida">
+                            <i class="bi bi-check2"></i><span class="d-none d-md-inline ms-1">Lida</span>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if paginacao.pages > 1 %}
+        <nav class="mt-4" aria-label="Páginas de notificações">
+            <ul class="pagination justify-content-center">
+                <li class="page-item {{ 'disabled' if not paginacao.has_prev }}">
+                    <a class="page-link" href="{{ url_for('notifications.lista', page=paginacao.prev_num) }}">Anterior</a>
+                </li>
+                {% for p in paginacao.iter_pages() %}
+                {% if p %}
+                <li class="page-item {{ 'active' if p == paginacao.page }}">
+                    <a class="page-link" href="{{ url_for('notifications.lista', page=p) }}">{{ p }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {{ 'disabled' if not paginacao.has_next }}">
+                    <a class="page-link" href="{{ url_for('notifications.lista', page=paginacao.next_num) }}">Próxima</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-bell-slash display-5 d-block mb-3"></i>
+            Nenhuma notificação por aqui.<br>
+            <span class="small">Você será avisado quando uma atividade da sua unidade estiver próxima.</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

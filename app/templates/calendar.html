@@ -232,10 +232,13 @@ document.addEventListener('DOMContentLoaded', function() {
         container.innerHTML = `<div class="card text-center text-muted p-5"><i class="bi bi-funnel fs-1 d-block mb-3"></i><h5 class="mb-1">Nenhum filtro aplicado.</h5><p class="small mb-0">Selecione um filtro acima e clique em "Aplicar Filtros".</p></div>`;
     });
 
-    // Initial Load Setup
+    // Initial Load Setup. Deep link: ?initialDate=&finalDate= pré-preenche o
+    // período — é o formato dos links das notificações de atividade próxima;
+    // sem finalDate, mostra só o dia do link.
+    const urlParams = new URLSearchParams(window.location.search);
     const todayStr = new Date().toISOString().split('T')[0];
-    initDateInput.value = todayStr;
-    finDateInput.value = todayStr;
+    initDateInput.value = urlParams.get('initialDate') || todayStr;
+    finDateInput.value = urlParams.get('finalDate') || urlParams.get('initialDate') || todayStr;
     periodSelect.value = getCurrentPeriod();
     updateFilterBtn();
     fetchData();
