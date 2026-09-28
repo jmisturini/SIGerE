@@ -69,6 +69,7 @@ class AvailabilityViewsTestCase(unittest.TestCase):
             db.session.add(self.reservation)
             db.session.commit()
             self.classroom_id = self.classroom.id
+            self.unity = unity
             self.unity_id = unity.id
             self.reservation_id = self.reservation.id
         self._login()
@@ -200,7 +201,7 @@ class AvailabilityViewsTestCase(unittest.TestCase):
             db.session.flush()
             user = User(email='leitor@escola.edu',
                         full_name='Leitor Teste', role='room',
-                        profile_type='employee', unity_id=self.unity_id,
+                        profile_type='employee', unities=[self.unity],
                         role_id=role.id, force_password_change=False,
                         is_active_user=True)
             user.set_password('SenhaForte123')

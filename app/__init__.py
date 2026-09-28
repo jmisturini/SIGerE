@@ -64,6 +64,7 @@ def create_app(config_class=Config):
     from app.blueprints.vt import bp as vt_bp
     from app.blueprints.kitchen import bp as kitchen_bp
     from app.blueprints.api import bp as api_bp
+    from app.blueprints.notifications import bp as notifications_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -77,11 +78,12 @@ def create_app(config_class=Config):
     app.register_blueprint(vt_bp)
     app.register_blueprint(kitchen_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(notifications_bp)
 
     # ── Register CLI commands ──
     from app.commands import (seed_command, seed_admin_command,
                               sync_permissions_command, seed_unidades_command,
-                              import_legacy_command)
+                              import_legacy_command, notify_scan_command)
     from app.seed_demo import seed_demo_command
     from app.backup import backup_command
     app.cli.add_command(seed_command)
@@ -91,6 +93,7 @@ def create_app(config_class=Config):
     app.cli.add_command(seed_demo_command)
     app.cli.add_command(import_legacy_command)
     app.cli.add_command(backup_command)
+    app.cli.add_command(notify_scan_command)
 
     # Custom Error Handlers
     @app.errorhandler(403)
@@ -159,6 +162,16 @@ def create_app(config_class=Config):
             'can_switch_unity': can_switch_unity(),
             'unity_module_enabled': unity_module_enabled,
         }
+
+    # Sino de notificações: contador de não lidas do usuário logado. Consulta
+    # apenas quando autenticado — páginas públicas não pagam a query.
+    @app.context_processor
+    def inject_notificacoes():
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return {'notificacoes_nao_lidas': 0}
+        from app.blueprints.notifications import contar_nao_lidas
+        return {'notificacoes_nao_lidas': contar_nao_lidas(current_user.id)}
 
     # Security Hook: Force password change on first login or admin reset
     @app.before_request

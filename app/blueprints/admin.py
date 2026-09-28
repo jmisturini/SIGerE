@@ -9,9 +9,11 @@ from flask import (Blueprint, render_template, redirect, url_for, flash, abort,
 from flask_login import login_required, current_user
 from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permission,
                         RoomCategory, Unity, ApiToken, VtConfig, VtEmpresa,
-                        VtEmpresaValor, ROLE_POR_PERFIL)
+                        VtEmpresaValor, ROLE_POR_PERFIL, NotificationGroup,
+                        UnityNotificationConfig)
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
-                   RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig)
+                   RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
+                   FormNotificacaoConfig, FormNotificacaoGrupo)
 from app.extensions import db
 from sqlalchemy import func
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
@@ -34,14 +36,21 @@ def _unity_scoped_or_404(obj):
         abort(404)
     return obj
 
+def _usuario_escopo_or_404(user):
+    """Escopo de usuários: visível quem é global (sem vínculos) ou está
+    vinculado à unidade ativa — o mesmo critério da listagem."""
+    if user.unity_ids and current_unity_id() not in user.unity_ids:
+        abort(404)
+    return user
+
 def _unity_visivel_or_404(unity):
     """Escopo de visibilidade da PRÓPRIA unidade: administrador vinculado a
-    uma unidade acessa apenas a sua — as demais ficam escondidas (404, sem
+    unidades acessa apenas as suas — as demais ficam escondidas (404, sem
     revelar que existem). Super-admin (*) e contas globais sem vínculo
     acessam todas."""
-    if current_user.has_permission('*') or not current_user.unity_id:
+    if current_user.has_permission('*') or not current_user.unity_ids:
         return unity
-    if unity.id != current_user.unity_id:
+    if unity.id not in current_user.unity_ids:
         abort(404)
     return unity
 
@@ -133,7 +142,7 @@ def dashboard():
     if not any(current_user.has_permission(p) for p in PERMS_PAINEL):
         abort(403)
     uid = current_unity_id()
-    users_count = User.query.filter((User.unity_id == uid) | (User.unity_id.is_(None))).count()
+    users_count = User.query.filter(User.escopo_unidade(uid)).count()
     rooms_count = Classroom.query.filter_by(unity_id=uid).count()
     active_rooms = Classroom.query.filter_by(unity_id=uid, is_active=True).count()
     courses_count = Course.query.filter_by(unity_id=uid).count()
@@ -165,7 +174,7 @@ def list_users():
     mostrar_inativos = request.args.get('inativos') == '1'
 
     # Multi-unidade: usuários da unidade ativa + contas globais (sem unidade)
-    query = User.query.filter((User.unity_id == current_unity_id()) | (User.unity_id.is_(None)))
+    query = User.query.filter(User.escopo_unidade(current_unity_id()))
     if not mostrar_inativos:
         query = query.filter(User.is_active_user == True)
     if search_name:
@@ -189,9 +198,9 @@ def list_users():
         ordem = 'padrao'
         query = query.order_by(User.role, func.lower(User.full_name))
 
-    users = db.paginate(query,
-                        page=request.args.get('page', 1, type=int),
-                        per_page=USERS_PER_PAGE, error_out=False)
+    # Query.paginate (Flask-SQLAlchemy 3.x): db.paginate não aceita mais Query legado.
+    users = query.paginate(page=request.args.get('page', 1, type=int),
+                           per_page=USERS_PER_PAGE, error_out=False)
     # users: Pagination (iterável) usado pela tabela; pagination: mesmo objeto
     # para os controles de página do template.
     return render_template('admin/users.html', users=users, pagination=users,
@@ -202,12 +211,15 @@ _PERFIL_LABEL = {'teacher': 'Professor', 'employee': 'Funcionário'}
 
 
 def _preparar_form_usuario(form):
-    """Choices dos selects (papel, módulos, unidade) comuns a criação e edição."""
+    """Choices dos selects (papel, módulos, unidades) comuns a criação e edição."""
     form.role_id.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
     form.extra_roles.choices = [(r.id, r.label) for r in Role.query.order_by(Role.label).all()]
-    form.unity_id.choices = _unity_choices()
-    if not form.unity_id.data:
-        form.unity_id.data = current_unity_id()
+    form.unities.choices = _unity_choices()
+    # Default (unidade ativa) apenas no GET: no POST o campo já processou o
+    # request.form — sobrescrever aqui faria um POST sem unidade passar na
+    # validação silenciosamente em vez de acusar o DataRequired.
+    if not form.unities.data and request.method == 'GET':
+        form.unities.data = [current_unity_id()]
     return form
 
 
@@ -265,8 +277,9 @@ def _criar_usuario(profile_type):
             email=form.email.data, full_name=form.full_name.data,
             registration=form.registration.data,
             is_active_user=form.is_active_user.data,
-            unity_id=form.unity_id.data or None, role_id=form.role_id.data,
+            role_id=form.role_id.data,
         )
+        user.unities = Unity.query.filter(Unity.id.in_(form.unities.data)).all()
         _aplicar_perfil(user, form, form.profile_type.data)
         user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
         user.set_password(form.password.data)
@@ -283,7 +296,7 @@ def _criar_usuario(profile_type):
 @login_required
 @require_permission('user:edit')
 def edit_user(user_id):
-    user = _unity_scoped_or_404(db.get_or_404(User, user_id))
+    user = _usuario_escopo_or_404(db.get_or_404(User, user_id))
     _proteger_super_admin(user)
 
     form = UserForm(obj=user)
@@ -294,7 +307,8 @@ def edit_user(user_id):
     _preparar_form_usuario(form)
     if request.method == 'GET':
         # SelectMultipleField(coerce=int) não consegue pré-selecionar a partir
-        # de obj=user (int(Role) falha silenciosamente) — setar os ids à mão.
+        # de obj=user (int(Unity) falha silenciosamente) — setar os ids à mão.
+        form.unities.data = user.unity_ids
         form.extra_roles.data = [r.id for r in user.extra_roles]
     if form.validate_on_submit():
         atuais = {user.role_id, *(r.id for r in user.extra_roles)}
@@ -308,7 +322,7 @@ def edit_user(user_id):
             user.full_name = form.full_name.data
             user.registration = form.registration.data
             user.is_active_user = form.is_active_user.data
-            user.unity_id = form.unity_id.data or None
+            user.unities = Unity.query.filter(Unity.id.in_(form.unities.data)).all()
             user.role_id = form.role_id.data
             user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
 
@@ -330,7 +344,7 @@ def edit_user(user_id):
 @login_required
 @require_permission('user:toggle')
 def toggle_user(user_id):
-    user = _unity_scoped_or_404(db.get_or_404(User, user_id))
+    user = _usuario_escopo_or_404(db.get_or_404(User, user_id))
     _proteger_super_admin(user)
     if user.id == current_user.id:
         flash('Você não pode desativar sua própria conta.', 'danger')
@@ -346,7 +360,7 @@ def toggle_user(user_id):
 def reset_user_password(user_id):
     """Gera uma senha temporária aleatória, exibe UMA vez ao administrador e
     força a troca no próximo login do usuário."""
-    user = _unity_scoped_or_404(db.get_or_404(User, user_id))
+    user = _usuario_escopo_or_404(db.get_or_404(User, user_id))
     _proteger_super_admin(user)
     temp_password = secrets.token_urlsafe(9)
     user.set_password(temp_password)
@@ -910,17 +924,17 @@ def toggle_category(cat_id):
 @login_required
 @require_permission('unity:read')
 def list_unities():
-    # Administrador vinculado a uma unidade vê apenas a sua — as demais
+    # Administrador vinculado a unidades vê apenas as suas — as demais
     # ficam escondidas. Super-admin (*) e contas globais veem todas.
-    if current_user.has_permission('*') or not current_user.unity_id:
+    if current_user.has_permission('*') or not current_user.unity_ids:
         unities = Unity.query.all()
     else:
-        unities = Unity.query.filter_by(id=current_user.unity_id).all()
+        unities = Unity.query.filter(Unity.id.in_(current_user.unity_ids)).all()
     # Contagem de recursos por unidade para exibição na listagem
     counts = {u.id: Classroom.query.filter_by(unity_id=u.id).count() for u in unities}
     users_count = {}
     for u in unities:
-        users_count[u.id] = User.query.filter(User.unity_id == u.id).count()
+        users_count[u.id] = User.query.filter(User.unities.any(Unity.id == u.id)).count()
 
     # Ordenação clicando nos cabeçalhos (?sort=<campo>&dir=asc|desc)
     sort = request.args.get('sort', 'name')
@@ -1070,7 +1084,7 @@ def toggle_unity_module(unity_id, module_code):
     Módulos fora da lista de alternáveis (ex: reservas, o core do sistema)
     não têm botão nem rota: o 404 abaixo barra a tentativa pela URL."""
     unity = db.get_or_404(Unity, unity_id)
-    if not (current_user.has_permission('*') or current_user.unity_id == unity.id):
+    if not (current_user.has_permission('*') or unity.id in current_user.unity_ids):
         abort(403)
     module = next((m for m in Unity.TOGGLEABLE_MODULES if m['code'] == module_code), None)
     if module is None:
@@ -1300,3 +1314,124 @@ def delete_api_token(token_id):
     db.session.commit()
     flash(f'Token "{token.name}" excluído permanentemente.', 'success')
     return redirect_back('admin.list_api_tokens')
+
+
+# ================= NOTIFICAÇÕES: CONFIG E GRUPOS (por unidade) ==============
+#
+# Avisos de reserva próxima: a configuração da unidade define antecedências
+# (marcos em dias) e destinatários fixos; os grupos personalizados reúnem as
+# equipes que devem ser avisadas juntas. Quem cria as notificações de fato é
+# a varredura `flask notify-scan` (systemd timer) — aqui só se configura.
+
+def _usuarios_escopo_choices():
+    """Usuários do escopo da unidade ativa (vinculados + contas globais),
+    na ordem usada nos selects do sistema."""
+    return User.query.filter(
+        User.is_active_user == True,  # noqa: E712 — comparação de coluna
+        User.escopo_unidade(current_unity_id()),
+    ).order_by(User.full_name).all()
+
+
+@bp.route('/notificacoes/configuracao', methods=['GET', 'POST'])
+@login_required
+@require_permission('notification:manage')
+def notificacoes_config():
+    """Configuração da unidade ativa: antecedências e destinatários dos
+    avisos de reserva próxima."""
+    config = UnityNotificationConfig.query.filter_by(unity_id=current_unity_id()).first()
+    form = FormNotificacaoConfig(obj=config)
+    grupos_unidade = NotificationGroup.query.filter_by(
+        unity_id=current_unity_id()).order_by(NotificationGroup.name).all()
+    form.groups.choices = [(g.id, g.name) for g in grupos_unidade]
+    if request.method == 'GET':
+        # obj=config entrega objetos User/NotificationGroup; o SelectMultiple
+        # precisa dos ids crus para pré-selecionar.
+        form.groups.data = [g.id for g in config.groups] if config else []
+    if form.validate_on_submit():
+        if config is None:
+            config = UnityNotificationConfig(unity_id=current_unity_id())
+            db.session.add(config)
+        config.is_enabled = form.is_enabled.data
+        config.lead_days = form.lead_days.data
+        config.notify_teacher = form.notify_teacher.data
+        config.notify_creator = form.notify_creator.data
+        config.notify_approvers = form.notify_approvers.data
+        config.groups = NotificationGroup.query.filter(
+            NotificationGroup.id.in_(form.groups.data),
+            NotificationGroup.unity_id == current_unity_id()).all()
+        db.session.commit()
+        flash('Configurações de notificação salvas.', 'success')
+        return redirect(url_for('admin.notificacoes_config'))
+    return render_template('admin/notificacoes_config.html', form=form,
+                           config=config, grupos=grupos_unidade)
+
+
+@bp.route('/notificacoes/grupos')
+@login_required
+@require_permission('notification:groups')
+def notificacoes_grupos():
+    """Grupos personalizados de destinatários da unidade ativa."""
+    grupos = NotificationGroup.query.filter_by(
+        unity_id=current_unity_id()).order_by(NotificationGroup.name).all()
+    return render_template('admin/notificacoes_grupos.html', grupos=grupos)
+
+
+@bp.route('/notificacoes/grupos/nova', methods=['GET', 'POST'])
+@login_required
+@require_permission('notification:groups')
+def create_notificacao_grupo():
+    grupo = NotificationGroup(unity_id=current_unity_id())
+    form = FormNotificacaoGrupo()
+    form.members.choices = [(u.id, u.full_name) for u in _usuarios_escopo_choices()]
+    if form.validate_on_submit():
+        duplicado = NotificationGroup.query.filter_by(
+            unity_id=current_unity_id(), name=form.name.data.strip()).first()
+        if duplicado:
+            form.name.errors.append('Já existe um grupo com este nome nesta unidade.')
+        else:
+            grupo.name = form.name.data.strip()
+            grupo.members = User.query.filter(
+                User.id.in_(form.members.data)).all()
+            db.session.add(grupo)
+            db.session.commit()
+            flash(f'Grupo {grupo.name} criado.', 'success')
+            return redirect(url_for('admin.notificacoes_grupos'))
+    return render_template('admin/notificacoes_grupo_form.html', form=form, grupo=None)
+
+
+@bp.route('/notificacoes/grupos/<int:group_id>/editar', methods=['GET', 'POST'])
+@login_required
+@require_permission('notification:groups')
+def edit_notificacao_grupo(group_id):
+    grupo = _unity_scoped_or_404(db.session.get(NotificationGroup, group_id))
+    form = FormNotificacaoGrupo(obj=grupo)
+    form.members.choices = [(u.id, u.full_name) for u in _usuarios_escopo_choices()]
+    if request.method == 'GET':
+        form.members.data = [u.id for u in grupo.members]
+    if form.validate_on_submit():
+        duplicado = NotificationGroup.query.filter(
+            NotificationGroup.unity_id == current_unity_id(),
+            NotificationGroup.name == form.name.data.strip(),
+            NotificationGroup.id != grupo.id).first()
+        if duplicado:
+            form.name.errors.append('Já existe um grupo com este nome nesta unidade.')
+        else:
+            grupo.name = form.name.data.strip()
+            grupo.members = User.query.filter(
+                User.id.in_(form.members.data)).all()
+            db.session.commit()
+            flash(f'Grupo {grupo.name} atualizado.', 'success')
+            return redirect(url_for('admin.notificacoes_grupos'))
+    return render_template('admin/notificacoes_grupo_form.html', form=form, grupo=grupo)
+
+
+@bp.route('/notificacoes/grupos/<int:group_id>/excluir', methods=['POST'])
+@login_required
+@require_permission('notification:groups')
+def delete_notificacao_grupo(group_id):
+    grupo = _unity_scoped_or_404(db.session.get(NotificationGroup, group_id))
+    nome = grupo.name
+    db.session.delete(grupo)
+    db.session.commit()
+    flash(f'Grupo {nome} excluído.', 'success')
+    return redirect(url_for('admin.notificacoes_grupos'))

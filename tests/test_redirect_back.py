@@ -54,7 +54,7 @@ class RedirectBackTestCase(unittest.TestCase):
 
             gestor = User(
                 email=EMAIL, full_name='Gestor Teste',
-                role='room', profile_type='employee', unity_id=self.unity.id,
+                role='room', profile_type='employee', unities=[self.unity],
                 role_id=role.id, force_password_change=False, is_active_user=True,
             )
             gestor.set_password(PASSWORD)
@@ -64,7 +64,7 @@ class RedirectBackTestCase(unittest.TestCase):
             for i in range(30):
                 u = User(
                     email=f'prof{i:02d}@escola.edu', full_name=f'Professor {i:02d}',
-                    role='viewer', profile_type='teacher', unity_id=self.unity.id,
+                    role='viewer', profile_type='teacher', unities=[self.unity],
                     force_password_change=False, is_active_user=True,
                 )
                 u.set_password(PASSWORD)
@@ -115,11 +115,11 @@ class RedirectBackTestCase(unittest.TestCase):
         payload = {
             'full_name': 'Maria Souza', 'email': 'maria.souza@escola.edu',
             'registration': 'MAT001', 'department': 'Gastronomia',
-            'unity_id': '', 'role_id': '', 'password': 'SenhaForte123',
+            'unities': '', 'role_id': '', 'password': 'SenhaForte123',
             'is_active_user': 'y', 'extra_roles': [],
         }
         with self.app.app_context():
-            payload['unity_id'] = str(self.unity_id)
+            payload['unities'] = str(self.unity_id)
             payload['role_id'] = str(Role.query.filter_by(name='teacher').first().id)
 
         # O form (sem action) posta para a própria URL com a query de origem

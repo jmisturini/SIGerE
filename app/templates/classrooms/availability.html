@@ -27,7 +27,7 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
             Verifique os horários ocupados e livres desta sala.
         </p>
     </div>
-    <a href="{{ request.referrer or url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary" onclick="history.back(); return false;">
+    <a href="{{ url_for('classrooms.detail', classroom_id=classroom.id) }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Voltar
     </a>
 </div>

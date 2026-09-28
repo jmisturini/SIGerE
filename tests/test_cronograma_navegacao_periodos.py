@@ -52,7 +52,7 @@ class CronogramaNavegacaoPeriodosTestCase(unittest.TestCase):
 
             user = User(email='prof@escola.edu', full_name='Professor Teste',
                         role='room', profile_type='teacher',
-                        unity_id=self.unity.id, force_password_change=False,
+                        unities=[self.unity], force_password_change=False,
                         is_active_user=True)
             user.set_password('SenhaForte123')
             db.session.add(user)

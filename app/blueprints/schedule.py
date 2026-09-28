@@ -16,7 +16,7 @@ def view():
     teachers = User.query.filter(
         User.is_active_user == True,
         ((User.profile_type == 'teacher') | (User.is_teacher == True)),
-        (User.unity_id == uid) | (User.unity_id.is_(None))
+        User.escopo_unidade(uid)
     ).order_by(User.full_name).all()
     courses = Course.query.filter_by(unity_id=uid, is_active=True).order_by(Course.name).all()
     subjects = Subject.query.filter_by(unity_id=uid, is_active=True).order_by(Subject.name).all()

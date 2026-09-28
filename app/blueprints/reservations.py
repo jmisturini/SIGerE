@@ -24,7 +24,7 @@ def _teachers_for_current_unity():
     return User.query.filter(
         User.is_active_user == True,
         ((User.profile_type == 'teacher') | (User.is_teacher == True)),
-        (User.unity_id == uid) | (User.unity_id.is_(None))
+        User.escopo_unidade(uid)
     ).order_by(User.full_name).all()
 
 def _load_range_occupancy(classroom_id, teacher_id, start_date, end_date,
@@ -212,9 +212,9 @@ def my_reservations():
     if status != 'all':
         query = query.filter_by(status=status)
 
-    pagination = db.paginate(query.order_by(Reservation.date.desc(), Reservation.start_time),
-                             page=request.args.get('page', 1, type=int),
-                             per_page=RESERVATIONS_PER_PAGE, error_out=False)
+    pagination = query.order_by(Reservation.date.desc(), Reservation.start_time) \
+        .paginate(page=request.args.get('page', 1, type=int),
+                  per_page=RESERVATIONS_PER_PAGE, error_out=False)
 
     today = date.today()
     upcoming_reservations = [r for r in pagination.items if r.date >= today]
@@ -310,8 +310,8 @@ def all_reservations():
     else:
         query = query.order_by(Reservation.date, Reservation.start_time)
 
-    pagination = db.paginate(query, page=request.args.get('page', 1, type=int),
-                             per_page=RESERVATIONS_PER_PAGE, error_out=False)
+    pagination = query.paginate(page=request.args.get('page', 1, type=int),
+                                per_page=RESERVATIONS_PER_PAGE, error_out=False)
 
     uid = current_unity_id()
     # Abas preservam os filtros ativos ao trocar (menos a página e o próprio
@@ -344,6 +344,28 @@ def detail(reservation_id):
     return render_template('reservations/detail.html', reservation=reservation,
                            series_count=series_count, can_share=can_share,
                            share_texts=build_reservation_share_texts(reservation))
+
+# Ativa/desativa as notificações de proximidade da reserva (padrão: desativadas).
+# Dono ou quem tem edit_all — os destinatários continuam sendo os configurados
+# na unidade (professor, criador, aprovadores e grupos).
+@bp.route('/<int:reservation_id>/notificacoes', methods=['POST'])
+@login_required
+@require_permission_or_owner('reservation:edit_all')
+def toggle_notificacoes(reservation_id):
+    reservation = _get_reservation_scoped(reservation_id)
+    # Mesmas condições da varredura: só reserva aprovada e futura avisa.
+    if reservation.status != 'approved' or reservation.date < date.today():
+        flash('Apenas reservas aprovadas e futuras podem ter notificações.', 'warning')
+        return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+    reservation.notify_enabled = not reservation.notify_enabled
+    db.session.commit()
+    if reservation.notify_enabled:
+        flash('Notificações ativadas para esta reserva: os avisos de proximidade '
+              'serão enviados conforme a configuração da unidade.', 'success')
+    else:
+        flash('Notificações desativadas para esta reserva. Avisos já criados '
+              'permanecem no sino.', 'info')
+    return redirect(url_for('reservations.detail', reservation_id=reservation.id))
 
 # Route to edit a reservation (Admin or Owner)
 @bp.route('/<int:reservation_id>/edit', methods=['GET', 'POST'])

@@ -187,7 +187,11 @@ class UserForm(BaseForm):
     sector = StringField('Setor', validators=[Optional(), Length(max=120)])
     function = StringField('Função', validators=[Optional(), Length(max=120)])
     is_teacher = BooleanField('Também cadastrar como Professor (pode ser designado para reservas)')
-    unity_id = SelectField('Unidade Educacional', coerce=int, validators=[DataRequired()])
+    # Vínculos com unidades (N:N): o usuário atua em todas as selecionadas —
+    # com mais de uma, alterna a unidade ativa pelo seletor do topo.
+    unities = SelectMultipleField('Unidades', coerce=int,
+                                  validators=[DataRequired(message='Selecione pelo menos uma unidade.')],
+                                  description='O usuário pode atuar em todas as unidades selecionadas.')
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     extra_roles = SelectMultipleField('Módulos Adicionais', coerce=int, validators=[Optional()],
                                       description='Somados ao papel principal (ex.: Módulo Cozinha).')
@@ -282,7 +286,7 @@ class ReservationForm(BaseForm):
     date = DateField('Data', validators=[DataRequired()])
     start_time = TimeField('Horário de Início', validators=[DataRequired()])
     end_time = TimeField('Horário de Término', validators=[DataRequired()])
-    submit = SubmitField('Solicitar Reserva')
+    submit = SubmitField('Cadastrar Reserva')
 
     def validate_title(self, field):
         _validar_texto(field, 'Título / Assunto')
@@ -809,3 +813,64 @@ class FormVtPedido(BaseForm):
             else:
                 setattr(self, atributo, linha)
         return valido
+
+
+# =============================================================================
+# NOTIFICAÇÕES DE ATIVIDADES PRÓXIMAS
+# =============================================================================
+
+class FormNotificacaoConfig(BaseForm):
+    """Configuração por unidade dos avisos de reserva próxima: liga/desliga o
+    módulo, marcos de antecedência (dias antes da reserva) e destinatários
+    fixos (professor, criador e aprovadores) — os grupos personalizados são
+    o campo groups, preenchido pela rota com os grupos da unidade."""
+    is_enabled = BooleanField('Notificar reservas próximas nesta unidade', default=True)
+    lead_days = StringField(
+        'Antecedências — dias antes da reserva',
+        validators=[DataRequired(message='Informe ao menos uma antecedência.'),
+                    Length(max=50)],
+        render_kw={'placeholder': 'ex.: 7, 1, 0'})
+    notify_teacher = BooleanField('Professor designado na reserva', default=True)
+    notify_creator = BooleanField('Criador da reserva', default=True)
+    notify_approvers = BooleanField(
+        'Aprovadores da unidade (quem pode aprovar reservas)', default=False)
+    groups = SelectMultipleField('Grupos personalizados', coerce=int, choices=[])
+    submit = SubmitField('Salvar configurações')
+
+    def validate_lead_days(self, field):
+        # Valores aceitos pela varredura: inteiros >= 0 (0 = no próprio dia),
+        # sem duplicatas — o limite superior protege a janela da query.
+        from app.services.notifications import parse_lead_days
+        valores = parse_lead_days(field.data)
+        if not valores:
+            raise ValidationError(
+                'Informe ao menos uma antecedência em dias, separada por '
+                'vírgula (ex.: 7,1,0 — 0 avisa no próprio dia).')
+        if any(n > 180 for n in valores):
+            raise ValidationError(
+                'As antecedências devem ser de no máximo 180 dias.')
+        if len(field.data.replace(' ', '').split(',')) != len(valores):
+            raise ValidationError(
+                'Há valores repetidos ou inválidos na lista de antecedências.')
+
+    def validate_groups(self, field):
+        # POST forjado com grupo de outra unidade: mesmo que os ids batam com
+        # grupos existentes, todos precisam pertencer à unidade ativa.
+        from app.models import NotificationGroup
+        if field.data:
+            pertencentes = NotificationGroup.query.filter(
+                NotificationGroup.id.in_(field.data),
+                NotificationGroup.unity_id == current_unity_id()).all()
+            if len(pertencentes) != len(set(field.data)):
+                raise ValidationError(
+                    'Grupo de notificação inválido para esta unidade.')
+
+
+class FormNotificacaoGrupo(BaseForm):
+    """Grupo personalizado de destinatários de notificação da unidade: nome e
+    membros (os choices são os usuários do escopo da unidade, definidos pela
+    rota antes da validação)."""
+    name = StringField('Nome do grupo', validators=[
+        DataRequired(), Length(max=120)])
+    members = SelectMultipleField('Membros do grupo', coerce=int, choices=[])
+    submit = SubmitField('Salvar grupo')

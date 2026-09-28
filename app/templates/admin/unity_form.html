@@ -128,7 +128,7 @@
                    FORA do form principal (forms não podem se aninhar). Só o
                    super-admin ou o administrador vinculado à unidade alterna. #}
                 {% set pode_gerenciar = current_user.has_permission('unity:modules')
-                    and (current_user.has_permission('*') or current_user.unity_id == unity.id) %}
+                    and (current_user.has_permission('*') or unity.id in current_user.unity_ids) %}
                 <div class="mt-4 pt-3 border-top">
                     <h6 class="text-uppercase text-muted small fw-bold mb-2">
                         <i class="bi bi-grid-3x3-gap me-1"></i> Módulos da Unidade

@@ -169,6 +169,30 @@
         </a>
     </div>
     {% endif %}
+    {% if current_user.has_permission('notification:manage') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.notificacoes_config') }}">
+            <span class="painel-card-icon"><i class="bi bi-bell"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Notificações</span>
+                <span class="painel-card-sub">Atividades próximas</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
+    {% if current_user.has_permission('notification:groups') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.notificacoes_grupos') }}">
+            <span class="painel-card-icon"><i class="bi bi-collection"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Grupos de Notificação</span>
+                <span class="painel-card-sub">Destinatários por unidade</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
 </div>
 
 <style>

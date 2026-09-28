@@ -91,7 +91,7 @@ class UnityModulesTestCase(unittest.TestCase):
                 u = User(email=f'{ident}@escola.edu',
                          full_name=ident.title(), role='viewer',
                          profile_type='employee', role_id=role.id,
-                         unity_id=unity_obj.id if unity_obj else None,
+                         unities=[unity_obj] if unity_obj else [],
                          force_password_change=False, is_active_user=True)
                 u.set_password(PASSWORD)
                 db.session.add(u)

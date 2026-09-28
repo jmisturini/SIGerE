@@ -57,7 +57,7 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
 
             gestor = User(
                 email=EMAIL, full_name='Gestor Empresas', role='room',
-                profile_type='employee', unity_id=self.unity.id,
+                profile_type='employee', unities=[self.unity],
                 role_id=gestor_role.id, force_password_change=False,
                 is_active_user=True,
             )

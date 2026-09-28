@@ -55,7 +55,7 @@ class KitchenScaleTestCase(unittest.TestCase):
 
             user = User(
                 email='cozinha@escola.edu', full_name='Cozinheiro Teste',
-                role='room', profile_type='employee', unity_id=self.unity.id,
+                role='room', profile_type='employee', unities=[self.unity],
                 role_id=role.id, force_password_change=False, is_active_user=True,
             )
             user.set_password(PASSWORD)

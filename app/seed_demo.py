@@ -39,6 +39,7 @@ from app.models import (
     ApiToken, Classroom, Course, Holiday, KitchenPreparation, KitchenRecipe,
     KitchenRecipeIngredient, Reservation, Role, RoomCategory, Subject,
     TeacherOvertimePay, TechnicalSheet, Unity, User, VtRecord, user_roles,
+    user_unities,
 )
 
 # Senha única de todas as contas de demonstração (documentada na saída/README).
@@ -196,7 +197,7 @@ def _seed_usuarios_demo(unidades):
             full_name=nome,
             role='room',  # coluna legada (usada apenas para ordenação)
             profile_type=profile_type,
-            unity_id=unity.id,
+            unities=[unity],
             role_id=roles[role_name].id,
             force_password_change=extras.get('force_password_change', False),
             is_active_user=extras.get('is_active_user', True),
@@ -916,10 +917,12 @@ def _reset_demo():
         .delete(synchronize_session=False)
 
     user_ids = [u.id for u in User.query.filter(
-        User.unity_id.in_(unity_ids)).all()]
+        User.unities.any(Unity.id.in_(unity_ids))).all()]
     if user_ids:
         db.session.execute(
             user_roles.delete().where(user_roles.c.user_id.in_(user_ids)))
+        db.session.execute(
+            user_unities.delete().where(user_unities.c.user_id.in_(user_ids)))
         User.query.filter(User.id.in_(user_ids)) \
             .delete(synchronize_session=False)
 

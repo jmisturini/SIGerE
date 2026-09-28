@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Notificações — Configuração{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0"><i class="bi bi-bell text-primary me-2"></i> Notificações de Atividades Próximas</h5>
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                {% if current_unity %}
+                <p class="text-muted small mb-4">
+                    <i class="bi bi-geo-alt me-1"></i> Configuração da unidade
+                    <strong>{{ current_unity.name }}</strong> — a varredura roda
+                    automaticamente (via comando agendado) e avisa quando uma reserva
+                    aprovada se aproxima da data.
+                </p>
+                {% endif %}
+
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="form-check form-switch mb-3">
+                        {{ form.is_enabled(class="form-check-input", role="switch") }}
+                        {{ form.is_enabled.label(class="form-check-label fw-medium") }}
+                        <div class="form-text">Com o módulo desligado, a varredura ignora as reservas desta unidade.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.lead_days.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.lead_days(class="form-control") }}
+                        {% for err in form.lead_days.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        <div class="form-text">Lista de dias antes da reserva em que cada grupo recebe o aviso,
+                            separada por vírgula. Ex.: <code>7,1,0</code> avisa 7 dias antes, 1 dia antes e no próprio dia.</div>
+                    </div>
+
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-people me-1"></i> Destinatários fixos</h6>
+                    <div class="form-check mb-2">
+                        {{ form.notify_teacher(class="form-check-input") }}
+                        {{ form.notify_teacher.label(class="form-check-label fw-medium") }}
+                    </div>
+                    <div class="form-check mb-2">
+                        {{ form.notify_creator(class="form-check-input") }}
+                        {{ form.notify_creator.label(class="form-check-label fw-medium") }}
+                    </div>
+                    <div class="form-check mb-2">
+                        {{ form.notify_approvers(class="form-check-input") }}
+                        {{ form.notify_approvers.label(class="form-check-label fw-medium") }}
+                        <div class="form-text small">Avisa toda a equipe com permissão de aprovar reservas na unidade.</div>
+                    </div>
+
+                    <hr class="my-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-collection me-1"></i> Grupos personalizados</h6>
+                        {% if current_user.has_permission('notification:groups') %}
+                        <a href="{{ url_for('admin.notificacoes_grupos') }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-pencil-square me-1"></i> Gerenciar grupos
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% if grupos %}
+                    <div class="mb-3">
+                        {{ form.groups(class="form-select", size=grupos|length if grupos|length <= 8 else 8, multiple=true) }}
+                        {% for err in form.groups.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        <div class="form-text">Segure Ctrl (ou toque e arraste no celular) para selecionar vários.
+                            Grupos criados em <em>Gerenciar grupos</em> aparecem aqui.</div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-light border small mb-3">
+                        Nenhum grupo cadastrado nesta unidade ainda.
+                        {% if current_user.has_permission('notification:groups') %}
+                        <a href="{{ url_for('admin.create_notificacao_grupo') }}">Criar o primeiro grupo</a>.
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

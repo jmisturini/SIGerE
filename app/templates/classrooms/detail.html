@@ -95,9 +95,9 @@
                                 {% elif r.status == 'cancelled' %}Cancelada
                                 {% else %}{{ r.status }}{% endif %}</span></td>
                             <td class="pe-4 text-end">
-                                {% if current_user.has_permission('reservation:edit_all') or r.user_id == current_user.id %}
-                                <a href="{{ url_for('reservations.edit', reservation_id=r.id) }}" class="btn btn-sm btn-outline-primary" title="Editar Reserva">
-                                    <i class="bi bi-pencil"></i>
+                                {% if current_user.has_permission('reservation:read_all') or (current_user.has_permission('reservation:read_own') and r.user_id == current_user.id) %}
+                                <a href="{{ url_for('reservations.detail', reservation_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver Detalhes">
+                                    <i class="bi bi-eye"></i>
                                 </a>
                                 {% endif %}
                             </td>

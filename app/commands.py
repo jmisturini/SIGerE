@@ -73,6 +73,11 @@ PERMISSION_DATA = [
     ('kitchen:sheet_create', 'kitchen', 'sheet_create', 'Enviar e salvar fichas técnicas (DOCX)'),
     ('kitchen:sheet_delete', 'kitchen', 'sheet_delete', 'Excluir fichas técnicas e preparações'),
     ('kitchen:shopping_export', 'kitchen', 'shopping_export', 'Gerar e exportar a requisição de compra'),
+    # Módulo de Notificações de atividades próximas
+    ('notification:manage', 'notification', 'manage',
+     'Configurar as notificações da unidade (antecedências e destinatários)'),
+    ('notification:groups', 'notification', 'groups',
+     'Gerenciar os grupos personalizados de notificação da unidade'),
     ('system:dashboard', 'system', 'dashboard', 'Acessar painel administrativo'),
     ('system:export', 'system', 'export', 'Exportar dados diversos'),
     # Módulo API (integrações externas de leitura de reservas)
@@ -107,7 +112,8 @@ ROLES_CONFIG = {
             'api:manage',
             'role:read', 'role:create', 'role:edit', 'role:delete',
             'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export',
-            'vt:empresas', 'vt:config'
+            'vt:empresas', 'vt:config',
+            'notification:manage', 'notification:groups'
         ]
     },
     'coordinator': {
@@ -557,7 +563,7 @@ def _seed_demo_data():
             function=random.choice(["Coordinator", "Secretary", "Technician", "Director"]),
             profile_type='employee',
             is_teacher=is_teacher_flag,
-            unity_id=random.choice(unity_ids),
+            unities=[random.choice(unities)],
             force_password_change=False,
             role_id=employee_role.id
         )
@@ -578,7 +584,7 @@ def _seed_demo_data():
             role='room',
             department=random.choice(["Science", "Math", "History", "Arts", "Languages", "Physical Ed"]),
             profile_type='teacher',
-            unity_id=random.choice(unity_ids),
+            unities=[random.choice(unities)],
             registration=f"REG-{i:04d}",
             force_password_change=False,
             role_id=teacher_role.id
@@ -735,7 +741,7 @@ def _seed_demo_data():
     for i, teacher in enumerate(sample_teachers):
         overtime = TeacherOvertimePay(
             teacher_id=teacher.id,
-            unity_id=teacher.unity_id,
+            unity_id=teacher.primary_unity_id,
             teaching_level=random.choice(['Técnico', 'Superior']),
             weekly_workload=random.choice([2, 4, 6]),
             hourly_value=random.choice([15.50, 22.30, 30.00]),
@@ -779,3 +785,32 @@ def import_legacy_command(dump_path, force):
         click.echo("  • " + line)
     click.echo(click.style("✅ Importação concluída.", fg="green"))
     click.echo("Todos os usuários importados iniciarão com troca de senha obrigatória.")
+
+
+@click.command('notify-scan')
+@with_appcontext
+@click.option('--dry-run', is_flag=True,
+              help='Mostra o que seria criado sem gravar nada.')
+def notify_scan_command(dry_run):
+    """Varre as reservas próximas e cria as notificações dos destinatários.
+
+    Para cada unidade com o módulo ativo (Notificações no painel admin),
+    cria o aviso por professor/criador/aprovadores/grupos configurados a cada
+    marco de antecedência já vencido — apenas das reservas com as notificações
+    ativadas no próprio detalhe (padrão desativado). Idempotente: a constraint
+    de unicidade impede duplicatas, então pode rodar com segurança a cada
+    15 minutos.
+
+    Uso: flask --app run notify-scan [--dry-run]
+    """
+    from app.services.notifications import varrer_reservas
+
+    stats = varrer_reservas(dry_run=dry_run)
+    rotulo = 'seriam criadas' if dry_run else 'criadas'
+    click.echo(f"Varredura concluída{' (dry-run)' if dry_run else ''}:")
+    click.echo(f"  Unidades com reservas na janela: {stats['unidades']}")
+    click.echo(f"  Reservas avaliadas: {stats['reservas']}")
+    click.echo(f"  Notificações {rotulo}: {stats['criadas']}")
+    click.echo(f"  Já existentes (sem duplicar): {stats['existentes']}")
+    if dry_run and stats['criadas']:
+        click.echo("Rode sem --dry-run para gravar.")

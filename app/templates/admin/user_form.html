@@ -49,10 +49,11 @@
                             {% for err in form.registration.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
-                        <div class="col-md-4">
-                            {{ form.unity_id.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                            {{ form.unity_id(class="form-select") }}
-                            {% for err in form.unity_id.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        <div class="col-md-8">
+                            {{ form.unities.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.unities(class="form-select", size=form.unities.choices|length if form.unities.choices|length > 1 else 2) }}
+                            <div class="form-text small">Segure Ctrl para vincular mais de uma unidade — o usuário alterna a unidade ativa pelo seletor no topo.</div>
+                            {% for err in form.unities.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
                         {# Campos exclusivos do perfil Professor #}

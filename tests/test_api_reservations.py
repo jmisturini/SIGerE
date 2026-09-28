@@ -65,7 +65,7 @@ class ApiReservationsTestCase(unittest.TestCase):
             self.comum_user = User(
                 email='comum@escola.edu',
                 full_name='Comum Teste', role='viewer', profile_type='employee',
-                role_id=comum_role.id, unity_id=None,  # definido abaixo (unidade 1)
+                role_id=comum_role.id,  # vínculo definido abaixo (unidade 1)
                 force_password_change=False, is_active_user=True,
             )
             self.comum_user.set_password(COMMON_PASSWORD)
@@ -84,7 +84,7 @@ class ApiReservationsTestCase(unittest.TestCase):
             db.session.add_all([self.unity1, self.unity2])
             db.session.flush()
 
-            self.comum_user.unity_id = self.unity1.id
+            self.comum_user.unities = [self.unity1]
 
             category = RoomCategory(name='Sala de Aula', code='SA')
             db.session.add(category)
@@ -311,10 +311,17 @@ class ApiReservationsTestCase(unittest.TestCase):
                                         headers=self._token_headers(raw))
         self.assertEqual(data['unity_id'], self.unity1_id)
 
-        # ?unity_id= é ignorado para o dono do token sem permissão de trocar
+        # ?unity_id= FORA do escopo do token é recusado (404), não ignorado;
+        # dentro do próprio escopo vale (multi-unidade).
         response, data = self._get_json('/api/v1/reservations',
                                         query_string={'unity_id': self.unity2_id},
                                         headers=self._token_headers(raw))
+        self.assertEqual(response.status_code, 404)
+
+        response, data = self._get_json('/api/v1/reservations',
+                                        query_string={'unity_id': self.unity1_id},
+                                        headers=self._token_headers(raw))
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(data['unity_id'], self.unity1_id)
         self.assertEqual([r['title'] for r in data['reservations']],
                          ['Aula de Matemática'])
