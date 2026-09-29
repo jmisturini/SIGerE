@@ -7,7 +7,8 @@ Cobre:
   botão no detalhe (dono ou edit_all), e a varredura ignora as desativadas;
 - o comando `flask notify-scan` (inclusive --dry-run);
 - o painel admin: configuração por unidade e CRUD de grupos com escopo;
-- o centro de notificações do usuário: listagem, sino (badge), marcar lida.
+- o centro de notificações do usuário: listagem, sino (badge), marcar lida,
+  limpar as lidas.
 """
 import os
 import tempfile
@@ -474,6 +475,41 @@ class TestCentroNotificacoes(NotificationsTestCase):
         resposta = self.client.post('/notificacoes/marcar-todas', follow_redirects=True)
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(self.client.get('/notificacoes/api/nao-lidas').get_json()['count'], 0)
+
+    def test_limpar_lidas_remove_somente_lidas(self):
+        lida_id = self._notificar(self.ids['criador'])
+        self._notificar(self.ids['criador'], titulo='Hoje: Outra aula')
+        self._login('criador@escola.edu')
+        self.client.post(f'/notificacoes/{lida_id}/lida', follow_redirects=False)
+
+        # Botão aparece quando há lidas (contagem global, não só da página)
+        html = self.client.get('/notificacoes/').get_data(as_text=True)
+        self.assertIn('Limpar lidas', html)
+
+        resposta = self.client.post('/notificacoes/limpar-lidas', follow_redirects=True)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('removida', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(Notification, lida_id))
+        self.assertEqual(self._contar(user_id=self.ids['criador']), 1)  # a não lida fica
+
+        # Sem lidas restantes, o botão some da listagem
+        self.assertNotIn('Limpar lidas', self.client.get('/notificacoes/').get_data(as_text=True))
+
+    def test_limpar_lidas_so_afeta_o_proprio_usuario(self):
+        lida_criador = self._notificar(self.ids['criador'])
+        lida_extra = self._notificar(self.ids['extra'])
+        self._login('criador@escola.edu')
+        self.client.post(f'/notificacoes/{lida_criador}/lida')
+        self._login('extra@escola.edu')
+        self.client.post(f'/notificacoes/{lida_extra}/lida')
+        self._login('criador@escola.edu')
+
+        resposta = self.client.post('/notificacoes/limpar-lidas', follow_redirects=True)
+        self.assertEqual(resposta.status_code, 200)
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(Notification, lida_criador))
+            self.assertIsNotNone(db.session.get(Notification, lida_extra))
 
     def test_notificacao_de_outro_usuario_vira_404(self):
         notificacao_id = self._notificar(self.ids['extra'])

@@ -1,10 +1,10 @@
 """Centro de notificações do usuário logado (o sino do topbar).
 
 As notificações são CRIADAS pela varredura `flask notify-scan` (systemd
-timer) — este blueprint é apenas leitura e marcação de lida, sempre
-escopado ao próprio usuário (id de outro usuário vira 404, sem revelar
-que a notificação existe). O contador de não lidas alimenta o badge do
-sino, renderizado no servidor e atualizado por um poll leve.
+timer) — este blueprint é apenas leitura, marcação de lida e limpeza das
+lidas, sempre escopado ao próprio usuário (id de outro usuário vira 404,
+sem revelar que a notificação existe). O contador de não lidas alimenta
+o badge do sino, renderizado no servidor e atualizado por um poll leve.
 """
 from datetime import datetime, timezone
 
@@ -32,7 +32,13 @@ def lista():
     paginacao = (Notification.query.filter_by(user_id=current_user.id)
                  .order_by(Notification.created_at.desc(), Notification.id.desc())
                  .paginate(page=page, per_page=POR_PAGINA, error_out=False))
-    return render_template('notifications/lista.html', paginacao=paginacao)
+    # Contagem global de lidas (não só da página): controla o botão "Limpar lidas"
+    qtde_lidas = (Notification.query
+                  .filter(Notification.user_id == current_user.id,
+                          Notification.read_at.isnot(None))
+                  .count())
+    return render_template('notifications/lista.html', paginacao=paginacao,
+                           qtde_lidas=qtde_lidas)
 
 
 @bp.route('/api/nao-lidas')
@@ -61,5 +67,18 @@ def marcar_todas():
             .update({'read_at': datetime.now(timezone.utc)}))
     db.session.commit()
     flash(f'{qtde} notificação(ões) marcada(s) como lida(s).', 'success'
+          if qtde else 'info')
+    return redirect(url_for('notifications.lista'))
+
+
+@bp.route('/limpar-lidas', methods=['POST'])
+@login_required
+def limpar_lidas():
+    qtde = (Notification.query
+            .filter(Notification.user_id == current_user.id,
+                    Notification.read_at.isnot(None))
+            .delete(synchronize_session=False))
+    db.session.commit()
+    flash(f'{qtde} notificação(ões) lida(s) removida(s).', 'success'
           if qtde else 'info')
     return redirect(url_for('notifications.lista'))
