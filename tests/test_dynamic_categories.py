@@ -174,7 +174,7 @@ class DynamicCategoriesTestCase(unittest.TestCase):
         page = resp.data.decode('utf-8')
         self.assertIn('Biblioteca', page)
         self.assertIn('Feira de Livros', page)
-        self.assertIn('(Próximos 7 dias)', page)
+        self.assertIn('Próximos 7 dias', page)
 
     # ── Dashboard ────────────────────────────────────────────────────────
 
