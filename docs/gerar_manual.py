@@ -36,7 +36,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 # ---------------------------------------------------------------- constantes
 
-VERSAO = '1.23.0'
+VERSAO = '1.25.0'
 DATA_CAPA = 'Setembro de 2026'
 
 PAGINA_W, PAGINA_H = A4
@@ -781,13 +781,15 @@ BLOCOS = [
         'cadastradas, usando a cor e o ícone de cada uma. Categorias sem atividade no recorte '
         'não aparecem;',
         '<b>Janela de exibição</b> — cada categoria define seu recorte: <b>Período atual</b> '
-        '(manhã, tarde ou noite, agrupado por andar) ou <b>Próximos 7 dias</b> (configurado no '
-        'cadastro da categoria, seção 13.4);',
+        '(manhã, tarde ou noite; o andar aparece no cartão de cada reserva) ou <b>Próximos '
+        '7 dias</b> (configurado no cadastro da categoria, seção 13.4);',
         '<b>Cartões de reserva</b> — código da sala em destaque, horário, professor, curso, '
         'disciplina e assunto;',
         '<b>Tema automático</b> — claro entre 6h e 18h e escuro no restante do dia;',
-        '<b>Rolagem automática</b> — blocos com muito conteúdo rolam sozinhos, com pausa nas '
-        'extremidades.',
+        '<b>Tudo em uma única página</b> — todas as categorias ficam empilhadas na mesma '
+        'tela; se o conteúdo não couber na altura, o totem reduz a escala até tudo aparecer '
+        'de uma vez, sem rolagem automática e sem animação (leve o suficiente para rodar em '
+        'Raspberry Pi). Em celulares a página rola normalmente.',
     ]),
     ('p', 'Sem atividade em andamento, o totem exibe “Nenhuma atividade em andamento no '
           'momento”.'),

@@ -10,12 +10,34 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.24.0'
+APP_VERSION = '1.25.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.25.0',
+        'data': '2026-09-30',
+        'titulo': 'Totem digital em página única com ajuste automático de escala',
+        'grupos': [
+            ('Alterado', [
+                'Totem digital (TV de corredor) em página única: todas as categorias com '
+                'atividade ficam empilhadas na mesma tela e, se o conteúdo não couber na '
+                'altura, a escala do conteúdo é reduzida até tudo aparecer de uma vez — sem '
+                'rolagem automática nem animações, que tornavam a apresentação demorada em '
+                'listas grandes. O ajuste de escala só age em telas grandes (no celular a '
+                'página rola normalmente); abaixo do piso de escala a página rola; o '
+                'parâmetro ?unity=ID, o clima e a atualização a cada 5 minutos continuam '
+                'iguais.',
+                'Desempenho do totem para hardware fraco (Raspberry Pi 3B+): remoção do CSS '
+                'do Bootstrap e da fonte Google Inter do carregamento (fontes do sistema, '
+                'com os ícones do Bootstrap Icons mantidos), sem backdrop-filter nem sombra '
+                'por cartão, tema dia/noite trocando apenas variáveis CSS e o relógio como '
+                'único temporizador da página.',
+            ]),
+        ],
+    },
     {
         'versao': '1.24.0',
         'data': '2026-09-29',
