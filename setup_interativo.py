@@ -1,33 +1,45 @@
-"""Setup interativo inicial do SIGerE.
+"""Setup interativo do SIGerE.
 
-Guia a implantação do sistema em um único comando, perguntando o necessário
-e executando cada etapa documentada no README (seção "Instalação"):
+Guia a implantação e a manutenção do sistema em um único comando:
 
     python setup_interativo.py
 
-Etapas:
-  1. Confere o Python (3.10+) e cria/reaproveita o ambiente virtual .venv;
-  2. Instala as dependências (requirements.txt);
-  3. Gera o arquivo .env (SECRET_KEY, banco de dados, Redis do rate limit, clima
-     do totem);
-  4. Cria a pasta de dados da instância (instance/uploads — fora do git);
-  5. Cria/atualiza o schema do banco (flask --app run db upgrade);
-  6. Popula os dados iniciais — implantação real (seed-admin), demonstração
-     (seed / seed-demo) ou migração do sistema legado (import-legacy);
-  7. Opcional: cadastra as unidades do Senac SC (seed-unidades);
-  8. Opcional: inicia o servidor de desenvolvimento.
+O menu inicial oferece três modos:
+
+  1. Instalação completa — do zero, em uma máquina nova:
+     1. Confere o Python (3.10+) e cria/reaproveita o ambiente virtual .venv;
+     2. Instala as dependências (requirements.txt);
+     3. Gera o arquivo .env (SECRET_KEY, banco de dados, Redis do rate limit, clima
+        do totem);
+     4. Cria a pasta de dados da instância (instance/uploads — fora do git);
+     5. Cria/atualiza o schema do banco (flask --app run db upgrade);
+     6. Popula os dados iniciais — implantação real (seed-admin), demonstração
+        (seed / seed-demo) ou migração do sistema legado (import-legacy);
+     7. Opcional: cadastra as unidades do Senac SC (seed-unidades);
+     8. Opcional: inicia o servidor de desenvolvimento.
+
+  2. Atualizar o sistema — rotina da seção "Atualizando a aplicação" de
+     docs/implantacao-producao.md: backup de segurança, git pull, dependências,
+     migrações (db upgrade) e sincronização de permissões (sync-permissions).
+
+  3. Restaurar backup — escolhe um snapshot gerado pelo `flask backup`
+     (SQLite ou PostgreSQL), sobrescreve o banco com ele e aplica as migrações
+     pendentes.
 
 Seguro de rodar mais de uma vez: etapas já concluídas são reaproveitadas e
 cada comando de seed tem guarda própria contra duplicação de dados.
 
 Somente biblioteca padrão — o script roda antes das dependências existirem.
 """
+import gzip
 import os
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit, parse_qs, unquote
 
 RAIZ = Path(__file__).resolve().parent
 ARQUIVO_ENV = RAIZ / '.env'
@@ -100,8 +112,8 @@ def python_da_venv():
     return RAIZ / '.venv' / caminho
 
 
-def preparar_venv():
-    titulo('1. Ambiente virtual (Python)')
+def preparar_venv(rotulo='1. Ambiente virtual (Python)'):
+    titulo(rotulo)
 
     if sys.version_info < (3, 10):
         erro(f"Python 3.10 ou superior é necessário (encontrado {sys.version.split()[0]}).\n"
@@ -124,8 +136,9 @@ def preparar_venv():
 
 # ─────────────────────────────── dependências ─────────────────────────────────
 
-def instalar_dependencias(venv_python):
-    titulo('2. Dependências (requirements.txt)')
+def instalar_dependencias(venv_python, rotulo='2. Dependências (requirements.txt)',
+                          perguntar_reinstalacao=True):
+    titulo(rotulo)
 
     # `redis` na checagem: entrou depois no requirements.txt — quem já tinha a
     # venv pronta não seria perguntado sobre reinstalar e o pacote faltaria
@@ -135,6 +148,11 @@ def instalar_dependencias(venv_python):
         [venv_python, '-c', 'import flask, flask_migrate, dotenv, redis'],
         capture_output=True,
     ).returncode == 0
+    if instalado and not perguntar_reinstalacao:
+        # Modos de manutenção (restauração): só garante o necessário para os
+        # comandos flask, sem interromper o fluxo com perguntas.
+        print('   Dependências principais já presentes.')
+        return
     if instalado and not sim_nao('As dependências principais já estão instaladas. Reinstalar?',
                                  padrao=False):
         print('   Instalação pulada.')
@@ -299,8 +317,8 @@ def executar_flask(venv_python, env, argumentos):
         raise SystemExit(1)
 
 
-def aplicar_schema(venv_python, env):
-    titulo('5. Schema do banco (Flask-Migrate/Alembic)')
+def aplicar_schema(venv_python, env, rotulo='5. Schema do banco (Flask-Migrate/Alembic)'):
+    titulo(rotulo)
     print('   Executando: flask --app run db upgrade')
     executar_flask(venv_python, env, ['db', 'upgrade'])
     ok('Schema do banco criado/atualizado (alembic head).')
@@ -375,6 +393,337 @@ def unidades_senac(venv_python, env):
     ok('Unidades cadastradas (idempotente — pode rodar de novo sem duplicar).')
 
 
+# ───────────────────────── modo: atualizar o sistema ─────────────────────────
+
+def preparar_manutencao():
+    """Base dos modos de manutenção (atualizar/restaurar): venv pronto e .env
+    existente — estes modos não reconfiguram nada, exigem instalação concluída."""
+    venv_python = preparar_venv(rotulo='Ambiente virtual (Python)')
+    if not ARQUIVO_ENV.exists():
+        erro('Arquivo .env não encontrado — atualização e restauração exigem uma '
+             'instalação já configurada.\n   Rode a instalação completa primeiro (opção 1 do menu).')
+        raise SystemExit(1)
+    env_arquivo = ler_env(ARQUIVO_ENV)
+    # Mesma coisa da instalação completa: repassa o .env no ambiente do processo
+    # para os comandos flask não dependerem da leitura do arquivo.
+    return venv_python, {**os.environ, **env_arquivo}, env_arquivo
+
+
+def atualizar_sistema():
+    """Rotina da seção "Atualizando a aplicação" de docs/implantacao-producao.md,
+    guiada: backup de segurança → git pull → dependências → db upgrade →
+    sync-permissions."""
+    titulo('Modo: atualização do sistema')
+    venv_python, env_processo, env_arquivo = preparar_manutencao()
+
+    titulo('Backup de segurança')
+    if sim_nao('Criar um backup do banco antes de atualizar (recomendado)?', padrao=True):
+        executar_flask(venv_python, env_processo, ['backup'])
+    else:
+        aviso('Sem backup — se algo der errado na atualização, não haverá ponto de retorno fácil.')
+
+    titulo('Código (git)')
+    if (RAIZ / '.git').is_dir():
+        print('   Executando: git pull --ff-only')
+        if subprocess.run(['git', 'pull', '--ff-only'], cwd=RAIZ).returncode != 0:
+            erro('Falha no git pull. Resolva manualmente (alterações locais não enviadas: '
+                 'git stash ou commit) e rode o setup de novo.')
+            raise SystemExit(1)
+        ok('Código atualizado do repositório.')
+    else:
+        aviso('Sem repositório git nesta pasta — etapa de código pulada (atualize os '
+              'arquivos pelo seu método de implantação).')
+
+    # Sem pergunta de reinstalação: a rotina documentada sempre roda o pip —
+    # dependências novas do release não são detectadas pela checagem de imports.
+    titulo('Dependências (requirements.txt)')
+    print('   Instalando/atualizando (pode levar alguns minutos)...')
+    if subprocess.run(
+            [venv_python, '-m', 'pip', 'install', '-r', str(ARQUIVO_REQ)]).returncode != 0:
+        erro('Falha ao instalar as dependências. Rode manualmente e execute este setup de novo:\n'
+             f'   "{venv_python}" -m pip install -r requirements.txt')
+        raise SystemExit(1)
+    ok('Dependências em dia com o requirements.txt.')
+
+    aplicar_schema(venv_python, env_processo,
+                   rotulo='Schema do banco (Flask-Migrate/Alembic)')
+
+    titulo('Permissões e papéis')
+    print('   Executando: flask --app run sync-permissions')
+    executar_flask(venv_python, env_processo, ['sync-permissions'])
+    ok('Permissões e papéis sincronizados (sync-permissions).')
+
+    titulo('Resumo da atualização')
+    for passo in passos:
+        print(f'   • {passo}')
+    print('\n   Próximos passos:')
+    if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
+        iniciar_servidor(venv_python, env_processo, rotulo='Servidor de desenvolvimento')
+    else:
+        print('     • Reinicie o serviço: sudo systemctl restart sigere')
+        print('     • Teste o login e a navegação: http://localhost:5000')
+
+
+# ─────────────────────────── modo: restaurar backup ──────────────────────────
+
+NOME_MOTOR = {'sqlite': 'SQLite', 'postgres': 'PostgreSQL'}
+
+
+def classificar_uri(uri):
+    """Motor e dados de conexão a partir da DATABASE_URL: ('sqlite', caminho do
+    arquivo), ('postgres', None) ou (None, None) quando o setup não sabe
+    restaurar. Mesma convenção do SQLAlchemy: 3 barras = caminho relativo,
+    4 = absoluto (mesma lógica de app/backup.py)."""
+    if ':memory:' in uri:
+        return None, None
+    if uri.startswith('sqlite'):
+        resto = uri.split('sqlite://', 1)[1]
+        caminho = resto[1:] if resto.startswith('//') else resto.lstrip('/')
+        caminho = Path(caminho)
+        return 'sqlite', caminho if caminho.is_absolute() else RAIZ / caminho
+    if uri.startswith(('postgres://', 'postgresql://')):
+        return 'postgres', None
+    return None, None
+
+
+def parametros_postgres(uri):
+    """Componentes de conexão de uma URI postgresql:// (para o ambiente do psql)."""
+    partes = urlsplit(uri)
+    sslmodes = parse_qs(partes.query).get('sslmode')
+    return {
+        'host': partes.hostname or 'localhost',
+        'porta': partes.port or 5432,
+        'usuario': unquote(partes.username) if partes.username else None,
+        'senha': unquote(partes.password) if partes.password else None,
+        'banco': (partes.path or '').lstrip('/'),
+        'sslmode': sslmodes[0] if sslmodes else None,
+    }
+
+
+def _ambiente_psql(parametros):
+    """Credenciais via variáveis de ambiente (PGHOST/PGPASSWORD...): o `ps` de
+    outros usuários mostra a linha de comando, nunca o ambiente — mesma técnica
+    do flask backup (app/backup.py)."""
+    env = os.environ.copy()
+    env['PGHOST'] = str(parametros['host'])
+    env['PGPORT'] = str(parametros['porta'])
+    env['PGDATABASE'] = parametros['banco']
+    if parametros['usuario']:
+        env['PGUSER'] = parametros['usuario']
+    if parametros['senha']:
+        env['PGPASSWORD'] = parametros['senha']
+    if parametros['sslmode']:
+        env['PGSSLMODE'] = parametros['sslmode']
+    return env
+
+
+def tamanho_legivel(caminho):
+    tamanho = os.path.getsize(caminho)
+    for unidade in ('B', 'KB', 'MB', 'GB'):
+        if tamanho < 1024 or unidade == 'GB':
+            return f'{tamanho:.1f} {unidade}' if unidade != 'B' else f'{tamanho} B'
+        tamanho /= 1024
+
+
+def motor_do_arquivo(caminho):
+    """Motor marcado no nome do backup gerado pelo flask backup
+    (`sigere-...-sqlite.sqlite.gz` / `sigere-...-postgres.sql.gz`) —
+    None quando o nome não marca (arquivo manual)."""
+    nome = Path(caminho).name
+    if '-sqlite.' in nome:
+        return 'sqlite'
+    if '-postgres.' in nome:
+        return 'postgres'
+    return None
+
+
+def escolher_arquivo_backup(motor, env):
+    """Oferece os backups da pasta configurada (BACKUP_DIR ou ./backups) e
+    devolve o caminho escolhido (None = cancelado)."""
+    pasta = Path(env.get('BACKUP_DIR') or (RAIZ / 'backups'))
+    elegiveis = []
+    if pasta.is_dir():
+        for arq in sorted(pasta.glob('sigere-*.gz'),
+                          key=lambda a: a.stat().st_mtime, reverse=True):
+            if motor_do_arquivo(arq) in (None, motor):
+                elegiveis.append(arq)
+
+    if elegiveis:
+        recentes = elegiveis[:10]
+        opcoes = [f'{a.name} ({tamanho_legivel(str(a))})' for a in recentes]
+        opcoes.append('Outro arquivo (informar o caminho)')
+        escolha = escolher('Qual backup restaurar? (mais recente primeiro)', opcoes, padrao=1)
+        if escolha <= len(recentes):
+            return elegiveis[escolha - 1]
+    else:
+        aviso(f'Nenhum backup na pasta {pasta} — o flask backup grava ali por padrão.')
+
+    while True:
+        caminho = entrada('Caminho do arquivo de backup (.gz) — vazio para cancelar')
+        if not caminho:
+            return None
+        candidato = Path(caminho).expanduser()
+        if not candidato.is_file():
+            erro(f'Arquivo não encontrado: {caminho}')
+            continue
+        marca = motor_do_arquivo(candidato)
+        if marca and marca != motor:
+            erro(f'O arquivo é um backup de {NOME_MOTOR[marca]}, mas o banco configurado '
+                 f'é {NOME_MOTOR[motor]} — informe o backup do motor correto.')
+            continue
+        return candidato
+
+
+def restaurar_sqlite(caminho_db, arquivo_backup):
+    """Sobrescreve o arquivo do banco com o snapshot gzip
+    (docs/implantacao-producao.md, seção "Restaurar")."""
+    with gzip.open(arquivo_backup, 'rb') as gz:
+        cabecalho = gz.read(16)
+    if not cabecalho.startswith(b'SQLite format 3'):
+        erro('O arquivo não parece um snapshot SQLite válido (cabeçalho inesperado) — '
+             'restauração abortada, o banco atual não foi tocado.')
+        raise SystemExit(1)
+
+    caminho_db.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with gzip.open(arquivo_backup, 'rb') as origem, open(caminho_db, 'wb') as destino:
+            shutil.copyfileobj(origem, destino)
+    except PermissionError:
+        erro(f'O arquivo {caminho_db} está em uso — pare a aplicação/servidor e rode a '
+             'restauração de novo.')
+        raise SystemExit(1)
+
+    # Restos de WAL de sessões anteriores podem invalidar o banco recém-gravado.
+    for sufixo in ('-wal', '-shm'):
+        lateral = Path(f'{caminho_db}{sufixo}')
+        if lateral.exists():
+            lateral.unlink()
+
+
+def localizar_binario(nome, dica_instalacao):
+    """Binário no PATH ou caminho informado pelo operador (None = cancelado)."""
+    binario = shutil.which(nome)
+    if binario:
+        return binario
+    while True:
+        informado = entrada(f"Binário '{nome}' não está no PATH — informe o caminho completo "
+                            f"(vazio cancela; {dica_instalacao})")
+        if not informado:
+            return None
+        candidato = Path(informado).expanduser()
+        if candidato.is_file():
+            return str(candidato)
+        erro(f'Arquivo não encontrado: {informado}')
+
+
+def restaurar_postgres(uri, arquivo_backup):
+    """Executa o dump no PostgreSQL via psql. Devolve True quando restaurou."""
+    parametros = parametros_postgres(uri)
+    env_psql = _ambiente_psql(parametros)
+
+    psql = localizar_binario(
+        'psql',
+        'instale o cliente PostgreSQL — Debian/Ubuntu: sudo apt install postgresql-client')
+    if not psql:
+        print('   Restauração cancelada.')
+        return False
+
+    if sim_nao('Recriar o banco antes de restaurar (apaga o atual e restaura limpo — recomendado)?',
+               padrao=True):
+        pasta_bin = Path(psql).parent
+        sufixo = '.exe' if os.name == 'nt' else ''
+        dropdb, createdb = pasta_bin / f'dropdb{sufixo}', pasta_bin / f'createdb{sufixo}'
+        if not (dropdb.is_file() and createdb.is_file()):
+            erro(f'Binários dropdb/createdb não encontrados ao lado de "{psql}".')
+            raise SystemExit(1)
+        print(f'   Recriando o banco {parametros["banco"]} em '
+              f'{parametros["host"]}:{parametros["porta"]}...')
+        if subprocess.run([str(dropdb), '--if-exists', parametros['banco']],
+                          env=env_psql).returncode != 0:
+            erro('Falha ao apagar o banco (dropdb) — confira as credenciais no .env.')
+            raise SystemExit(1)
+        dono = ['--owner', parametros['usuario']] if parametros['usuario'] else []
+        if subprocess.run([str(createdb), *dono, parametros['banco']],
+                          env=env_psql).returncode != 0:
+            erro('Falha ao criar o banco (createdb).')
+            raise SystemExit(1)
+        print('   Banco vazio recriado.')
+
+    print('   Restaurando o dump (pode levar alguns minutos)...')
+    with gzip.open(arquivo_backup, 'rb') as dump:
+        resultado = subprocess.run([psql, '-q', '-v', 'ON_ERROR_STOP=1'],
+                                   stdin=dump, env=env_psql)
+    if resultado.returncode != 0:
+        erro('Falha na restauração — o psql parou no primeiro erro (ON_ERROR_STOP). '
+             'Se o banco não estava vazio, tente de novo recriando-o antes.')
+        raise SystemExit(1)
+    return True
+
+
+def restaurar_backup():
+    titulo('Modo: restauração de backup')
+    venv_python, env_processo, env_arquivo = preparar_manutencao()
+
+    instalar_dependencias(venv_python, rotulo='Dependências do ambiente',
+                          perguntar_reinstalacao=False)
+
+    uri = env_arquivo.get('DATABASE_URL') or f'sqlite:///{ARQUIVO_DB}'
+    motor, caminho_db = classificar_uri(uri)
+    if motor is None:
+        erro(f'DATABASE_URL não suportada para restauração: "{uri}".\n'
+             '   O setup restaura bancos SQLite ou PostgreSQL (os mesmos do flask backup).')
+        raise SystemExit(1)
+
+    titulo(f'Backup a restaurar (banco {NOME_MOTOR[motor]})')
+    arquivo = escolher_arquivo_backup(motor, env_arquivo)
+    if arquivo is None:
+        print('   Restauração cancelada.')
+        return
+
+    if motor == 'sqlite':
+        destino = caminho_db
+    else:
+        p = parametros_postgres(uri)
+        destino = f'{p["banco"]} em {p["host"]}:{p["porta"]}'
+    aviso(f'A restauração SUBSTITUI todos os dados atuais do banco ({destino}).')
+    aviso('Se o servidor estiver no ar, pare-o antes (Ctrl+C no Flask de desenvolvimento; '
+          'sudo systemctl stop sigere em produção).')
+    if not sim_nao('Confirma a restauração? Os dados atuais serão perdidos.', padrao=False):
+        print('   Restauração cancelada.')
+        return
+
+    if sim_nao('Guardar um backup do estado atual antes de sobrescrever (recomendado)?',
+               padrao=True):
+        executar_flask(venv_python, env_processo, ['backup'])
+
+    titulo(f'Restaurando ({NOME_MOTOR[motor]})')
+    if motor == 'sqlite':
+        restaurar_sqlite(caminho_db, arquivo)
+        ok(f'Banco {caminho_db.name} restaurado de {arquivo.name}.')
+    else:
+        if not restaurar_postgres(uri, arquivo):
+            return
+        ok(f'Dump PostgreSQL aplicado a partir de {arquivo.name}.')
+
+    titulo('Migrações após o backup')
+    print('   Executando: flask --app run db upgrade (aplica migrações feitas depois do backup)')
+    executar_flask(venv_python, env_processo, ['db', 'upgrade'])
+    ok('Migrações aplicadas ao banco restaurado (alembic head).')
+
+    titulo('Resumo da restauração')
+    for passo in passos:
+        print(f'   • {passo}')
+    print('\n   Próximos passos:')
+    print('     • Teste o login e a navegação: http://localhost:5000')
+    if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
+        print('     • Suba o servidor: flask --app run run --debug')
+    else:
+        print('     • Reinicie o serviço: sudo systemctl restart sigere')
+    print('     • O backup do banco não inclui os uploads (instance/uploads) nem o .env — '
+          'para reconstruir uma máquina inteira, copie também essas partes '
+          '(docs/implantacao-producao.md, "restaurar uma instalação completa").')
+
+
 # ────────────────────────────── resumo / servidor ─────────────────────────────
 
 def resumo_final(env, modo_dados):
@@ -401,8 +750,9 @@ def resumo_final(env, modo_dados):
     else:
         print('     • Sirva atrás de Gunicorn + Nginx (guia: docs/implantacao-producao.md) — '
               'não use python run.py em produção.')
-    print('     • Atualizações futuras: git pull && flask --app run db upgrade '
-          '&& flask --app run sync-permissions')
+    print('     • Atualizações futuras: python setup_interativo.py — modo '
+          '"Atualizar o sistema" (backup, git pull, dependências, db upgrade '
+          'e sync-permissions).')
 
 
 def ip_da_rede_local():
@@ -418,8 +768,8 @@ def ip_da_rede_local():
         return None
 
 
-def iniciar_servidor(venv_python, env):
-    titulo('8. Servidor de desenvolvimento')
+def iniciar_servidor(venv_python, env, rotulo='8. Servidor de desenvolvimento'):
+    titulo(rotulo)
     if not sim_nao('Iniciar o servidor agora (Ctrl+C para parar)?', padrao=True):
         print('   Para iniciar depois: flask --app run run --debug')
         return
@@ -471,22 +821,39 @@ def main():
     print(f'   Projeto: {RAIZ}')
 
     try:
-        venv_python = preparar_venv()
-        instalar_dependencias(venv_python)
-        env_arquivo = configurar_env()
-        preparar_instance(env_arquivo)
+        modo = escolher(
+            'O que você quer fazer?',
+            [
+                'Instalação completa — do zero, em uma máquina nova '
+                '(venv, .env, banco e dados iniciais)',
+                'Atualizar o sistema — nova versão do código, dependências, '
+                'migrações e permissões',
+                'Restaurar um backup do banco de dados',
+            ],
+            padrao=1,
+        )
 
-        # Repassa o .env também no ambiente do processo: garante que os comandos
-        # enxerguem a configuração mesmo sem depender da leitura do arquivo.
-        env_processo = {**os.environ, **env_arquivo}
+        if modo == 2:
+            atualizar_sistema()
+        elif modo == 3:
+            restaurar_backup()
+        else:
+            venv_python = preparar_venv()
+            instalar_dependencias(venv_python)
+            env_arquivo = configurar_env()
+            preparar_instance(env_arquivo)
 
-        aplicar_schema(venv_python, env_processo)
-        modo_dados = popular_dados(venv_python, env_processo)
-        unidades_senac(venv_python, env_processo)
-        resumo_final(env_arquivo, modo_dados)
+            # Repassa o .env também no ambiente do processo: garante que os comandos
+            # enxerguem a configuração mesmo sem depender da leitura do arquivo.
+            env_processo = {**os.environ, **env_arquivo}
 
-        if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
-            iniciar_servidor(venv_python, env_processo)
+            aplicar_schema(venv_python, env_processo)
+            modo_dados = popular_dados(venv_python, env_processo)
+            unidades_senac(venv_python, env_processo)
+            resumo_final(env_arquivo, modo_dados)
+
+            if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
+                iniciar_servidor(venv_python, env_processo)
 
         print('\nSetup concluído. Bom uso! 🎓')
     except KeyboardInterrupt:
