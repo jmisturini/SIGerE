@@ -9,14 +9,25 @@
                 <h3 class="fw-bold mb-1"><i class="bi bi-bell me-2"></i>Notificações</h3>
                 <p class="text-muted mb-0">Atividades agendadas que se aproximam e avisos do sistema.</p>
             </div>
-            {% if paginacao.items %}
-            <form method="POST" action="{{ url_for('notifications.marcar_todas') }}" class="m-0">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-check2-all me-1"></i> Marcar todas como lidas
-                </button>
-            </form>
-            {% endif %}
+            <div class="d-flex flex-wrap gap-2">
+                {% if paginacao.items %}
+                <form method="POST" action="{{ url_for('notifications.marcar_todas') }}" class="m-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-check2-all me-1"></i> Marcar todas como lidas
+                    </button>
+                </form>
+                {% endif %}
+                {% if qtde_lidas %}
+                <form method="POST" action="{{ url_for('notifications.limpar_lidas') }}" class="m-0"
+                      onsubmit="return confirm('Remover as {{ qtde_lidas }} notificação(ões) já lida(s)? Esta ação não pode ser desfeita.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash me-1"></i> Limpar lidas
+                    </button>
+                </form>
+                {% endif %}
+            </div>
         </div>
 
         {% if paginacao.items %}

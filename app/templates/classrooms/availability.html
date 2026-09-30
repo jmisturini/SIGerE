@@ -175,48 +175,30 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
 <!-- Modal de detalhes da reserva -->
 <div class="modal fade" id="modalReserva" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title text-break" id="modalTitulo"></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-            </div>
-            <div class="modal-body">
-                <p class="mb-3"><span class="badge text-bg-success-subtle text-success border border-success-subtle" id="modalStatus"></span></p>
-                <div id="modalLinhas">
-                    <div class="d-flex gap-2 mb-2">
-                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Data</span>
-                        <span class="fw-medium" id="modalData"></span>
+        <div class="modal-content modal-reserva">
+            <div class="d-flex">
+                <div class="mr-bloco-data">
+                    <div class="mr-dia" id="modalDia"></div>
+                    <div class="mr-ano" id="modalAno"></div>
+                    <div class="mr-horario" id="modalHorario"></div>
+                </div>
+                <div class="mr-corpo modal-body flex-grow-1">
+                    <div class="d-flex align-items-start justify-content-between gap-2">
+                        <h5 class="mr-titulo text-break" id="modalTitulo"></h5>
+                        <span class="badge flex-shrink-0 mt-1" id="modalStatus"></span>
                     </div>
-                    <div class="d-flex gap-2 mb-2">
-                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Horário</span>
-                        <span class="fw-medium" id="modalHorario"></span>
+                    <div class="mr-detalhes" id="modalDetalhes">
+                        <span class="mr-linha" id="modalLinhaContexto"></span>
+                        <span class="mr-linha" id="modalLinhaSolicitante"></span>
                     </div>
-                    <div class="d-flex gap-2 mb-2" data-campo="curso">
-                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Curso</span>
-                        <span class="fw-medium" id="modalCurso"></span>
-                    </div>
-                    <div class="d-flex gap-2 mb-2" data-campo="disciplina">
-                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Disciplina</span>
-                        <span class="fw-medium" id="modalDisciplina"></span>
-                    </div>
-                    <div class="d-flex gap-2 mb-2" data-campo="professor">
-                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Professor</span>
-                        <span class="fw-medium" id="modalProfessor"></span>
-                    </div>
-                    <div class="d-flex gap-2 mb-2" data-campo="solicitante">
-                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Reservado por</span>
-                        <span class="fw-medium" id="modalSolicitante"></span>
-                    </div>
-                    <div class="d-flex gap-2 mb-2" data-campo="descricao">
-                        <span class="text-muted small text-uppercase fw-bold" style="width:110px;">Descrição</span>
-                        <span class="fw-medium text-break" id="modalDescricao"></span>
+                    <p class="mr-descricao text-break" id="modalDescricao"></p>
+                    <div class="mr-rodape">
+                        <a id="modalLinkCompleto" class="btn btn-sm btn-outline-primary" href="#">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>Ver detalhes completos
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer py-2">
-                <a id="modalLinkCompleto" class="btn btn-sm btn-outline-primary" href="#">
-                    <i class="bi bi-box-arrow-up-right me-1"></i>Ver detalhes completos
-                </a>
             </div>
         </div>
     </div>
@@ -227,18 +209,33 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
         const gatilho = event.relatedTarget;
         if (!gatilho) return;
         const atributo = (nome) => gatilho.getAttribute('data-' + nome) || '';
-        document.getElementById('modalTitulo').textContent = atributo('titulo');
-        document.getElementById('modalStatus').textContent = atributo('status');
-        document.getElementById('modalData').textContent = atributo('data');
+        const data = atributo('data');
+        // Bloco lateral: dia/mês com o ano, e o horário abaixo
+        document.getElementById('modalDia').textContent = data.slice(0, 5);
+        document.getElementById('modalAno').textContent = data.slice(-4);
         document.getElementById('modalHorario').textContent = atributo('horario');
-        // Campo sem valor (ex.: reserva sem curso) esconde a linha inteira
-        document.querySelectorAll('#modalLinhas [data-campo]').forEach(function (linha) {
-            const campo = linha.getAttribute('data-campo');
-            const destino = document.getElementById('modal' + campo.charAt(0).toUpperCase() + campo.slice(1));
-            const valor = atributo(campo);
-            destino.textContent = valor;
-            linha.classList.toggle('d-none', !valor);
-        });
+        document.getElementById('modalTitulo').textContent = atributo('titulo');
+        const badge = document.getElementById('modalStatus');
+        const status = atributo('status');
+        badge.textContent = status;
+        badge.className = 'badge flex-shrink-0 mt-1 ' + ({
+            'Aprovada': 'text-bg-success-subtle text-success border border-success-subtle',
+            'Pendente': 'text-bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+            'Cancelada': 'text-bg-danger-subtle text-danger-emphasis border border-danger-subtle'
+        }[status] || 'text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle');
+        // Linha de contexto (curso · disciplina · professor) some se não houver nenhum
+        const contexto = [atributo('curso'), atributo('disciplina'), atributo('professor')].filter(Boolean).join(' · ');
+        const linhaContexto = document.getElementById('modalLinhaContexto');
+        linhaContexto.textContent = contexto;
+        linhaContexto.classList.toggle('d-none', !contexto);
+        const solicitante = atributo('solicitante');
+        const linhaSolicitante = document.getElementById('modalLinhaSolicitante');
+        linhaSolicitante.textContent = solicitante ? 'Reservado por: ' + solicitante : '';
+        linhaSolicitante.classList.toggle('d-none', !solicitante);
+        document.getElementById('modalDetalhes').classList.toggle('d-none', !contexto && !solicitante);
+        const descricao = document.getElementById('modalDescricao');
+        descricao.textContent = atributo('descricao');
+        descricao.classList.toggle('d-none', !atributo('descricao'));
         const link = document.getElementById('modalLinkCompleto');
         link.href = atributo('link');
         link.classList.toggle('d-none', atributo('link-visivel') !== '1');
@@ -311,6 +308,82 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
         color: #fff;
     }
 
+    /* Modal de detalhes no estilo banner: bloco de data à esquerda */
+    .modal-reserva {
+        overflow: hidden;
+        /* O modal fica branco nos dois temas (padrão do app), então os tons
+           de texto/botão/badge usam os valores da superfície clara — no tema
+           escuro eles virariam tons claros e sumiriam sobre o branco. */
+        --bs-warning-text-emphasis: #664d03;
+        --bs-danger-text-emphasis: #b02a37;
+        --bs-secondary-text-emphasis: #5c636a;
+        --bs-secondary-color: rgba(33, 37, 41, 0.75);
+        --bs-secondary-border-color: #6c757d;
+        color: #212529;
+    }
+    .modal-reserva .mr-bloco-data {
+        flex-shrink: 0;
+        width: 118px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        color: #fff;
+        background-color: var(--primary-color, #004b8d);
+        padding: 1rem .75rem;
+        gap: .35rem;
+    }
+    .modal-reserva .mr-dia {
+        font-size: 1.7rem;
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: -.02em;
+    }
+    .modal-reserva .mr-ano {
+        font-size: .72rem;
+        font-weight: 600;
+        opacity: .85;
+        letter-spacing: .02em;
+    }
+    .modal-reserva .mr-horario {
+        font-size: .78rem;
+        font-weight: 600;
+        opacity: .9;
+        white-space: nowrap;
+    }
+    .modal-reserva .mr-corpo {
+        padding: 1rem 1.25rem 1rem 1.5rem;
+    }
+    .modal-reserva .mr-titulo {
+        font-size: 1.05rem;
+        font-weight: 700;
+        line-height: 1.3;
+        margin-bottom: 0;
+        /* Vence o [data-theme="dark"] h5 { color: #fff } do style.css */
+        color: #212529;
+    }
+    .modal-reserva .mr-detalhes {
+        font-size: .855rem;
+        color: #6c757d;
+        margin: .35rem 0 .75rem;
+    }
+    .modal-reserva .mr-linha {
+        display: block;
+    }
+    .modal-reserva .mr-descricao {
+        font-size: .855rem;
+        color: #6c757d;
+        margin-bottom: 0;
+    }
+    .modal-reserva .mr-rodape {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: .5rem;
+        margin-top: 1rem;
+    }
+
     /* No celular as 7 colunas ficam com ~40px cada: menos respiro e altura
        para os dias continuarem legíveis sem rolagem lateral. */
     @media (max-width: 575.98px) {
@@ -332,6 +405,23 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
         .event-pill {
             font-size: 0.6rem;
             padding: 2px 4px;
+        }
+    }
+
+    /* Bloco de data do modal encolhe no celular */
+    @media (max-width: 575.98px) {
+        .modal-reserva .mr-bloco-data {
+            width: 92px;
+            padding: .75rem .5rem;
+        }
+        .modal-reserva .mr-dia {
+            font-size: 1.35rem;
+        }
+        .modal-reserva .mr-horario {
+            font-size: .68rem;
+        }
+        .modal-reserva .mr-corpo {
+            padding: .75rem 1rem;
         }
     }
 </style>

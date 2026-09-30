@@ -41,12 +41,14 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 
 - 🏛️ **Reservas de espaços físicos** — salas de aula, auditórios, laboratórios de informática/saúde, cozinhas
 - 👨‍🏫 **Cronogramas de professores** com detecção automática de conflitos de horário
-- 💰 **Financeiro** — horas extras docentes e Vale Transporte (formulário público do pedido, conferência e correção pelo RH em "Pedidos VT", relatório do período e exportação das planilhas de pagamento)
+- 💰 **Financeiro** — horas extras docentes (lançamento, consulta com filtros e exportação da planilha de pagamento)
+- 🏥 **RH — Vale Transporte** (formulário público do pedido, conferência e correção pelo RH em "Pedidos VT", relatório do período e exportação das planilhas de pagamento)
+- 🔔 **Notificações** — avisos no sino quando uma atividade reservada se aproxima da data (opt-in por reserva), com destinatários, grupos e antecedências configurados por unidade
 - 🍳 **Cozinha** — fichas técnicas (.docx), preparações e requisição de compra
 - 📺 **Totens digitais** para corredores com exibição em tempo real de ocupação de salas
 - 📆 **Calendário interativo** com filtros avançados e visualização mensal
 - 🌐 **Portal público** com cronograma do dia e busca de aula para alunos
-- 🏢 **Multi-unidade** — dados isolados por unidade educacional (salas, reservas, cursos, feriados, cozinha), com alternância de unidade para administradores
+- 🏢 **Multi-unidade** — dados isolados por unidade educacional (salas, reservas, cursos, feriados, cozinha); o mesmo usuário pode atuar em várias unidades e alterna a unidade ativa pelo topo
 
 O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissões granulares, tema claro/escuro persistente, exportação de relatórios em PDF/Excel, layout responsivo (mobile/tablet/desktop) e seed opcional de dados de demonstração.
 
@@ -156,6 +158,12 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - API JSON (`/calendar/api/events`) com intervalo de datas obrigatório e filtros combináveis
 - Adaptação automática ao tema claro/escuro
 
+### 🔔 Notificações
+- **Sino na barra superior** com contador de não lidas (atualizado sozinho a cada minuto) e tela de notificações com **Marcar como lida**, **Marcar todas como lidas** e **Limpar lidas** (com confirmação); cada aviso leva ao detalhe da reserva ou ao calendário no dia da atividade
+- **Opt-in por reserva:** botão **"Ativar notificações"** no detalhe de reservas aprovadas e futuras (dono ou quem edita qualquer reserva); desativar interrompe os próximos avisos sem apagar os já criados
+- **Configuração por unidade** (Painel Admin): interruptor geral, antecedências em dias (ex.: `7, 1, 0`), destinatários fixos (professor, criador, aprovadores) e **Grupos de Notificação** com membros personalizados
+- **Varredura agendada:** comando idempotente `flask --app run notify-scan` (systemd timer a cada 15 minutos em produção; `--dry-run` para prévia)
+
 ### 💰 Financeiro
 - **Horas Extras:** com nível de ensino, valor hora, turno e dias selecionados no calendário (gravados apenas como dia, separados por vírgula — o mês/ano vêm do Mês Base)
 - **Regras de negócio:**
@@ -165,8 +173,8 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - **Código Orçamentário:** máscara automática com pontos — `xx.xx.xxxx.x` (9 dígitos) ou `xx.xx.xxxx.xx.xxxx` (14 dígitos), aplicada no cadastro e na exportação
 - **Exportação Excel:** planilha formatada com modelo pré-definido (`base_pagamento_extra.xlsx`), filtrável por mês e/ou professor
 
-### 🚌 Vale Transporte (`/vt`)
-Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora Extra e Vale Transporte). O ciclo do mês tem duas pontas: o **colaborador responde o formulário público** e o **RH confere, corrige e exporta** em Pedidos VT:
+### 🏥 RH — Vale Transporte (`/vt`)
+Módulo no bloco **RH** do menu lateral (o Financeiro concentra apenas a Hora Extra). O ciclo do mês tem duas pontas: o **colaborador responde o formulário público** e o **RH confere, corrige e exporta** em Pedidos VT:
 - **Formulário público (`/vt/pedido`):** sem login, o colaborador informa e-mail, nome e matrícula (e-mail de conta ativa autocompleta e trava os dados), se deseja VT no mês e, para cada empresa de ônibus usada (1 ou 2), a tarifa vigente, o trajeto (Somente Volta ou Ida e Volta) e o número de vales necessários; link por unidade (`/vt/pedido?unity=<id>`), com data de fechamento opcional que encerra o preenchimento
 - **Pedidos VT (`/vt/pedidos`):** listagem das respostas da unidade com botão **"Copiar link do formulário"**, filtros (busca por nome/e-mail/matrícula, vínculo, deseja VT, ordenação, esconder não optantes com valor R$ 0,00), correção individual de qualquer campo e exclusão de pedidos inválidos
 - **Planilha de pagamento:** exportação Excel por grupo — Todos os grupos, Técnico-Administrativo ou Professores — preenchendo o modelo `planilha_base_vt.xlsx` (Matrícula, Nome e Valor Total a partir da linha 5, máximo de 72 linhas por arquivo); inclui apenas Optante "Sim" com passes maior que zero; a coluna UO e a tabela de códigos de unidades do modelo são preservadas intactas
@@ -189,7 +197,7 @@ Módulo dividido em duas páginas, com sub-menus próprios no menu lateral (Hora
 - Seletor de unidade nas páginas públicas (`?unity=<id>`)
 
 ### 🎨 UI/UX
-- **Tema Claro/Escuro:** alternância global com persistência no `localStorage`
+- **Aparência:** um único seletor na barra superior reúne o tema claro/escuro e a cor da interface (Azul Senac padrão, Verde, Roxo, Laranja ou Grafite), com escolha persistida no `localStorage`
 - **Menu lateral contrátil:** botão no cabeçalho alterna entre expandido e modo compacto de ícones (desktop), com preferência salva no navegador; clicar num grupo com submenu reexpande o menu
 - **Design responsivo:** Bootstrap 5, todas as páginas adaptadas a mobile, tablet e desktop
 - **Interface em Português:** todo o sistema localizado para pt-BR
@@ -224,7 +232,7 @@ Guias detalhados disponíveis no diretório [`docs/`](docs/):
 
 | Guia | Conteúdo |
 |------|----------|
-| 📘 [Manual do Usuário](docs/manual-do-usuario.pdf) | Operação do sistema para todos os perfis: acesso, reservas, salas, calendário, portal público, totem, financeiro (hora extra e VT), cozinha, administração e API |
+| 📘 [Manual do Usuário](docs/manual-do-usuario.pdf) | Operação do sistema para todos os perfis: acesso, reservas, notificações, salas, calendário, portal público, totem, financeiro (hora extra), RH (Vale-Transporte), cozinha, administração e API |
 | 🛠️ [Desenvolvimento e Debug](docs/desenvolvimento-debug.md) | Ambiente na sua máquina: modo debug (`FLASK_DEBUG`), banco local, migrações, testes, depuração e erros comuns |
 | 🚢 [Implantação em Produção](docs/implantacao-producao.md) | Servidor real: PostgreSQL, Redis, Gunicorn + systemd, Nginx, HTTPS, atualização, backup e solução de problemas |
 | 📡 [API de Reservas](docs/api-reservas.md) | Uso da API REST de leitura para apps externos: autenticação, parâmetros, exemplos e FAQ |

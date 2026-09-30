@@ -6,8 +6,8 @@ from app.extensions import db
 from app.unity_context import current_unity_id, current_unity
 from datetime import datetime, date, time, timedelta
 import calendar
-from fpdf import FPDF
 from app.permissions import require_permission
+from app.services.pdf_report import RelatorioPDF
 
 bp = Blueprint('classrooms', __name__, url_prefix='/classrooms')
 
@@ -148,42 +148,64 @@ def list_classrooms():
 @require_permission('system:export')
 def export_pdf():
     classrooms = get_filtered_classrooms(request.args)
-    pdf = FPDF(orientation='L', unit='mm', format='A4')
-    pdf.add_page()
-    pdf.set_font("Helvetica", 'B', 16)
-    pdf.cell(0, 10, "Relatório de Salas", new_x="LMARGIN", new_y="NEXT", align="C")
-    # Multi-unidade: identifica a unidade no relatório
     unity = current_unity()
-    if unity:
-        pdf.set_font("Helvetica", '', 11)
-        pdf.cell(0, 7, unity.name, new_x="LMARGIN", new_y="NEXT", align="C")
-    pdf.ln(5)
-    
-    pdf.set_font("Helvetica", 'B', 10)
-    pdf.set_fill_color(37, 99, 235)
-    pdf.set_text_color(255, 255, 255)
-    headers = ['Nome', 'Código', 'Categoria', 'Prédio', 'Andar', 'Cap', 'PCs']
-    col_widths = [70, 25, 45, 55, 30, 15, 20]
-    for i, header in enumerate(headers):
-        pdf.cell(col_widths[i], 8, header, border=1, align='C', fill=True)
-    pdf.ln()
-    
-    pdf.set_font("Helvetica", '', 9)
-    pdf.set_text_color(0, 0, 0)
-    for index, c in enumerate(classrooms):
-        if index % 2 == 0:
-            pdf.set_fill_color(248, 250, 252)
-        else:
-            pdf.set_fill_color(255, 255, 255)
-        row_data = [
-            c.name[:35], c.code, c.category.name.title(),
-            c.building or 'N/A', c.floor or 'N/A', str(c.capacity),
-            str(c.computer_count) if c.category.controla_computadores else '0'
-        ]
-        for i, data in enumerate(row_data):
-            pdf.cell(col_widths[i], 7, data, border=1, align='C', fill=True)
-        pdf.ln()
-        
+    pdf = RelatorioPDF("Relatório de Salas",
+                       unidade=unity.name if unity else None)
+
+    # Reproduz na descrição os filtros aplicados na listagem — um relatório
+    # afixado em mural precisa explicar de onde veio a relação de salas
+    filtros = []
+    cat_id = request.args.get('category', type=int)
+    if cat_id:
+        cat_obj = RoomCategory.query.get(cat_id)
+        if cat_obj:
+            filtros.append(f"Categoria: {cat_obj.name}")
+    if request.args.get('available_now'):
+        filtros.append("Livres agora")
+    elif request.args.get('available_date'):
+        data_str = request.args.get('available_date')
+        try:
+            data_filtro = datetime.strptime(data_str, '%Y-%m-%d').date()
+            rotulo = f"Livres em {data_filtro:%d/%m/%Y}"
+        except ValueError:
+            rotulo = f"Livres em {data_str}"
+        periodo = request.args.get('available_period')
+        if periodo == 'morning':
+            rotulo += " pela manhã"
+        elif periodo == 'afternoon':
+            rotulo += " à tarde"
+        elif periodo:
+            rotulo += " à noite"
+        filtros.append(rotulo)
+    meta = " \u00b7 ".join(filtros) if filtros else "Todas as salas ativas da unidade"
+    pdf.linha_meta(f"{len(classrooms)} salas \u00b7 {meta}")
+
+    if classrooms:
+        capacidade_total = sum(c.capacity or 0 for c in classrooms)
+        salas_com_pc = sum(1 for c in classrooms if c.category.controla_computadores)
+        predios = {c.building for c in classrooms if c.building}
+        pdf.cartoes_kpi([
+            (str(len(classrooms)), "Salas listadas"),
+            (str(capacidade_total), "Capacidade total"),
+            (str(salas_com_pc), "Com computadores"),
+            (str(len(predios)), "Prédios"),
+        ])
+
+        headers = ['Nome', 'Código', 'Categoria', 'Prédio', 'Andar', 'Cap', 'PCs']
+        col_widths = [78, 26, 52, 52, 26, 18, 21]
+        aligns = ('LEFT', 'CENTER', 'LEFT', 'LEFT', 'CENTER', 'CENTER', 'CENTER')
+        linhas = []
+        for c in classrooms:
+            linhas.append({"celulas": [
+                c.name, c.code, c.category.name.title(),
+                c.building or 'N/A', c.floor or 'N/A', str(c.capacity),
+                str(c.computer_count) if c.category.controla_computadores else '0',
+            ]})
+        pdf.tabela(headers, linhas, col_widths, aligns)
+    else:
+        pdf.mensagem_vazia("Nenhuma sala encontrada",
+                           "Ajuste os filtros aplicados na listagem de salas.")
+
     pdf_output = pdf.output()
     response = make_response(bytes(pdf_output))
     response.headers['Content-Type'] = 'application/pdf'
@@ -332,81 +354,77 @@ def export_availability(classroom_id):
         Reservation.status == 'approved'
     ).order_by(Reservation.date, Reservation.start_time).all()
 
-    # Generate PDF (Landscape, mm, A4)
-    pdf = FPDF(orientation='L', unit='mm', format='A4')
-    pdf.add_page()
+    unity = current_unity()
+    pdf = RelatorioPDF("Agenda de Reservas",
+                       unidade=unity.name if unity else None)
+    pdf.linha_meta(f"Sala {classroom.name} ({classroom.code}) \u00b7 "
+                   f"{periodo_label} \u00b7 {len(reservations)} reservas")
 
-    # Title
-    pdf.set_font("Helvetica", 'B', 16)
-    pdf.cell(0, 10, f"Reservas - {classroom.name} ({classroom.code})", new_x="LMARGIN", new_y="NEXT", align="C")
-    pdf.set_font("Helvetica", 'B', 12)
-    pdf.cell(0, 8, periodo_label, new_x="LMARGIN", new_y="NEXT", align="C")
-    pdf.ln(5)
-    
-    # Table Header
-    pdf.set_font("Helvetica", 'B', 10)
-    pdf.set_fill_color(37, 99, 235) # Bootstrap Primary Blue
-    pdf.set_text_color(255, 255, 255)
-    
-    headers = ['Data', 'Início', 'Fim', 'Título', 'Curso', 'Disciplina', 'Professor']
-    col_widths = [35, 15, 15, 45, 50, 50, 50]
-    
-    for i, header in enumerate(headers):
-        pdf.cell(col_widths[i], 8, header, border=1, align='C', fill=True)
-    pdf.ln()
-    
-    # Table Rows
-    pdf.set_font("Helvetica", '', 9)
-    
-    # CORREÇÃO: Definir as variáveis de data e hora atuais
     today = date.today()
     now = datetime.now()
-    
-    for index, r in enumerate(reservations):
-        # Check if reservation has already passed
-        is_past = False
-        if r.date < today:
-            is_past = True
-        elif r.date == today and r.end_time < now.time():
-            is_past = True
 
-        # Set alternating row background colors
-        if index % 2 == 0:
-            pdf.set_fill_color(248, 250, 252)
-        else:
-            pdf.set_fill_color(255, 255, 255)
-            
-        # Set text color (gray if past, black if upcoming)
-        if is_past:
-            pdf.set_text_color(150, 150, 150)
-        else:
-            pdf.set_text_color(0, 0, 0)
-            
-        row_data = [
-            r.date.strftime('%d/%m/%Y'),
-            r.start_time.strftime('%H:%M'),
-            r.end_time.strftime('%H:%M'),
-            r.title[:40],
-            (r.course.name if r.course else 'N/A')[:30],
-            (r.subject.name if r.subject else 'N/A')[:30],
-            (r.teacher.full_name if r.teacher else 'N/A')[:30]
-        ]
-        
-        # Record start position to draw strikethrough line later if needed
-        start_x = pdf.get_x()
-        start_y = pdf.get_y()
-        
-        for i, data in enumerate(row_data):
-            pdf.cell(col_widths[i], 7, data, border=1, align='C', fill=True)
-        
-        # Draw strikethrough line if the reservation has passed
-        if is_past:
-            pdf.set_draw_color(150, 150, 150)
-            # Draw a line in the middle of the row height (7mm / 2 = 3.5mm)
-            pdf.line(start_x, start_y + 3.5, start_x + sum(col_widths), start_y + 3.5)
-            
-        pdf.ln()
-        
+    if reservations:
+        minutos_total = sum(
+            (datetime.combine(r.date, r.end_time)
+             - datetime.combine(r.date, r.start_time)).total_seconds() / 60
+            for r in reservations
+        )
+        horas, minutos = divmod(int(minutos_total), 60)
+        duracao = f"{horas}h{minutos:02d}" if minutos else f"{horas}h"
+        proximas = sum(
+            1 for r in reservations
+            if r.date > today
+            or (r.date == today and r.end_time >= now.time())
+        )
+        pdf.cartoes_kpi([
+            (str(len(reservations)), "Reservas"),
+            (duracao, "Horas reservadas"),
+            (str(len({r.date for r in reservations})), "Dias com atividade"),
+            (str(proximas), "Ainda vão ocorrer"),
+        ])
+
+        headers = ['Início', 'Fim', 'Título', 'Curso', 'Disciplina', 'Professor']
+        col_widths = [20, 20, 88, 55, 50, 40]
+        aligns = ('CENTER', 'CENTER', 'LEFT', 'LEFT', 'LEFT', 'LEFT')
+
+        # Agrupa as reservas por dia com faixas de data: em mural ou telão,
+        # o leitor localiza o dia de interesse sem ler linha por linha
+        linhas = []
+        data_atual = None
+        tem_passadas = False
+        for r in reservations:
+            if r.date != data_atual:
+                data_atual = r.date
+                faixa = (f"{DIAS_SEMANA_PT[r.date.weekday()]}, "
+                         f"{r.date:%d/%m/%Y}")
+                if r.date == today:
+                    faixa += " \u00b7 hoje"
+                dia_passado = r.date < today
+                linhas.append({"faixa": faixa,
+                               "estilo": RelatorioPDF.PASSADO if dia_passado else None})
+            is_past = r.date < today or (
+                r.date == today and r.end_time < now.time())
+            tem_passadas = tem_passadas or is_past
+            linhas.append({
+                "celulas": [
+                    r.start_time.strftime('%H:%M'),
+                    r.end_time.strftime('%H:%M'),
+                    r.title,
+                    r.course.name if r.course else 'N/A',
+                    r.subject.name if r.subject else 'N/A',
+                    r.teacher.full_name if r.teacher else 'N/A',
+                ],
+                "estilo": RelatorioPDF.PASSADO if is_past else None,
+            })
+        pdf.tabela(headers, linhas, col_widths, aligns)
+
+        if tem_passadas:
+            pdf.nota("Em cinza riscado: reservas que já ocorreram.")
+    else:
+        pdf.mensagem_vazia("Nenhuma reserva aprovada no período",
+                           "As reservas confirmadas aparecem nesta agenda "
+                           "assim que aprovadas.")
+
     # Output PDF
     pdf_output = pdf.output()
     # CORREÇÃO: Converter para bytes explicitamente (resolve o erro do bytearray)

@@ -10,12 +10,27 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.23.0'
+APP_VERSION = '1.24.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.24.0',
+        'data': '2026-09-29',
+        'titulo': 'Relatórios PDF com identidade visual, detalhes em banner e limpeza de notificações lidas',
+        'grupos': [
+            ('Adicionado', [
+                'Relatórios PDF de exportação com a identidade visual do SIGerE (faixa azul com a unidade e a hora de emissão, título repetido em todas as páginas, tabela zebrada e rodapé com paginação): o botão “Exportar PDF” da listagem de salas gera o “Relatório de Salas” com indicadores em cartões (salas listadas, capacidade total, salas com computadores e prédios) e a tabela dos resultados; os botões “Exportar Reservas do Dia/Semana/Mês (PDF)” da disponibilidade geram a “Agenda de Reservas” com indicadores (reservas, horas reservadas, dias com atividade e quantas ainda vão ocorrer) e a tabela agrupada dia a dia, com faixas de data e as reservas já ocorridas em cinza riscado.',
+                'Botão “Limpar lidas” na tela de notificações: remove permanentemente todos os avisos já lidos, com confirmação e mensagem de resultado — o botão só aparece quando existe ao menos uma notificação lida; avisos não lidos nunca são apagados por ele.',
+                'Manual do usuário atualizado (docs/manual-do-usuario.pdf) para o estado atual do sistema: novo capítulo de Notificações, Vale-Transporte no bloco RH do menu, usuários multi-unidades, seletor único de aparência, banner de detalhes na disponibilidade, relatórios PDF e as seções de administração de notificações e grupos; o pipeline de geração agora é versionado em docs/gerar_manual.py.',
+            ]),
+            ('Alterado', [
+                'Detalhes da reserva na disponibilidade da sala em banner horizontal: clicar em uma reserva — nas pílulas das visões de Semana e Mês ou no botão “Detalhes” da visão de Dia — abre um banner com o bloco de data (dia, ano e horário) ao lado do título, da situação, do curso, da disciplina, do professor e de quem reservou; o botão “Ver detalhes completos” aparece só para quem tem acesso à reserva.',
+            ]),
+        ],
+    },
     {
         'versao': '1.23.0',
         'data': '2026-09-28',
