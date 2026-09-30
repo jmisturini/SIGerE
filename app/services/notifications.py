@@ -5,10 +5,13 @@ Regras do módulo:
   ativo, os marcos de antecedência (dias antes da data da reserva) e os
   destinatários: professor designado, criador da reserva, aprovadores da
   unidade (reservation:approve) e grupos personalizados.
-- Um marco dispara quando hoje >= data da reserva - marco (janela aberta) e a
-  reserva ainda não passou. A notificação é única por (destinatário, reserva,
-  marco) — constraint no banco — então atrasos do timer não duplicam nem pulam
-  avisos: a varredura seguinte cria o que ficou faltando.
+- A cada varredura, a reserva dispara o marco mais iminente já vencido
+  (lead >= dias restantes — janela aberta: atraso do timer não pula o aviso
+  mais próximo). Marcos vencidos anteriores ficam absorvidos: dispará-los
+  tardiamente criaria avisos redundantes com o mesmo conteúdo (uma reserva
+  criada na véspera, com marcos 7,1,0, avisaria "Amanhã" duas vezes). A
+  notificação é única por (destinatário, reserva, marco) — constraint no
+  banco — então rodar a varredura de novo não duplica.
 - Só entram reservas approved com data de hoje em diante; pendentes e
   canceladas não avisam.
 - A reserva precisa ter as notificações ativadas (notify_enabled, botão no
@@ -90,8 +93,8 @@ def varrer_reservas(hoje=None, dry_run=False):
     """Cria as notificações de reservas próximas que ainda não existem.
 
     Percorre as configurações ativas, acha as reservas approved dentro da
-    maior janela de antecedência e, para cada marco já vencido, cria o aviso
-    por destinatário (get-or-create pela constraint de unicidade). Com
+    maior janela de antecedência e, no marco mais iminente já vencido, cria o
+    aviso por destinatário (get-or-create pela constraint de unicidade). Com
     dry_run=True nada é gravado — a contagem mostra o que seria criado.
     Retorna estatísticas para o log do comando."""
     hoje = hoje or date.today()
@@ -135,23 +138,27 @@ def varrer_reservas(hoje=None, dry_run=False):
                 url = f'/calendar/?initialDate={reservation.date.isoformat()}'
 
             # Marcos vencidos: lead >= dias restantes (janela aberta — se o
-            # timer ficar dias parado, os marcos atrasados disparam de uma vez).
-            for lead in leads:
-                if lead < dias_restantes:
+            # timer ficar dias parado, o aviso mais próximo não se perde).
+            # Entre os vencidos dispara só o mais iminente (menor lead): os
+            # anteriores foram absorvidos por ele e sairiam com título e corpo
+            # idênticos — p. ex., reserva criada na véspera com marcos 7,1,0
+            # geraria dois avisos "Amanhã" no mesmo dia.
+            vencidos = [lead for lead in leads if lead >= dias_restantes]
+            if not vencidos:
+                continue
+            milestone = f'{min(vencidos)}d'
+            for user in destinatarios:
+                if _notificacao_existente(user.id, reservation.id, milestone):
+                    stats['existentes'] += 1
                     continue
-                milestone = f'{lead}d'
-                for user in destinatarios:
-                    if _notificacao_existente(user.id, reservation.id, milestone):
-                        stats['existentes'] += 1
-                        continue
-                    if dry_run:
-                        stats['criadas'] += 1
-                        continue
-                    db.session.add(Notification(
-                        user_id=user.id, reservation_id=reservation.id,
-                        event_type=EVENT_RESERVATION_UPCOMING, milestone=milestone,
-                        title=titulo, body=corpo, url=url))
+                if dry_run:
                     stats['criadas'] += 1
+                    continue
+                db.session.add(Notification(
+                    user_id=user.id, reservation_id=reservation.id,
+                    event_type=EVENT_RESERVATION_UPCOMING, milestone=milestone,
+                    title=titulo, body=corpo, url=url))
+                stats['criadas'] += 1
 
     if not dry_run:
         db.session.commit()
