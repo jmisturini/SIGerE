@@ -8,327 +8,352 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="32x32">
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Totem roda em hardware fraco (Raspberry Pi): sem Bootstrap, sem fontes
+         externas, sem backdrop-filter/box-shadow, sem animação — CSS enxuto e
+         zero timers além do relógio. -->
     <style>
-        :root {
-            /* Tema Claro (Senac/Moderno) */
-            --bg-light: #f4f6f9;
-            --card-bg-light: #ffffff;
-            --text-main-light: #1e293b;
-            --text-muted-light: #64748b;
-            --border-light: #e2e8f0;
-            --primary-light: #004b8d;
-            --danger-light: #ef4444;
-            --shadow-light: 0 4px 20px rgba(0, 0, 0, 0.05);
-
-            /* Tema Escuro (Senac/Moderno) */
-            --bg-dark: #0d1117;
-            --card-bg-dark: #161b22;
-            --text-main-dark: #f8fafc;
-            --text-muted-dark: #8b949e;
-            --border-dark: #30363d;
-            --primary-dark: #2c7be5;
-            --danger-dark: #f87171;
-            --shadow-dark: 0 4px 20px rgba(0, 0, 0, 0.3);
+        /* Tema via custom properties: os componentes só referenciam as
+           variáveis; trocar dia/noite é trocar o bloco de variáveis. */
+        body {
+            --primary: #2c7be5;
+            --primary-soft: rgba(44, 123, 229, 0.14);
+            --primary-border: rgba(44, 123, 229, 0.45);
+            --bg: #0d1117;
+            --header-bg: #161b22;
+            --card-bg: #161b22;
+            --text: #f8fafc;
+            --muted: #8b949e;
+            --border: #30363d;
+            --chip-bg: #21262d;
+            --chip-text: #c9d1d9;
         }
+        body.day-theme {
+            --primary: #004b8d;
+            --primary-soft: rgba(0, 75, 141, 0.08);
+            --primary-border: rgba(0, 75, 141, 0.35);
+            --bg: #f4f6f9;
+            --header-bg: #ffffff;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --muted: #64748b;
+            --border: #e2e8f0;
+            --chip-bg: #e2e8f0;
+            --chip-text: #475569;
+        }
+
+        * { box-sizing: border-box; }
 
         body {
-            font-family: 'Inter', sans-serif;
-            /* Totem em tela cheia: a página nunca rola — as seções com
-               atividade dividem entre si a altura do viewport */
+            margin: 0;
+            font-family: "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
             height: 100vh;
-            overflow: hidden;
             display: flex;
             flex-direction: column;
-            transition: background-color 0.5s ease, color 0.5s ease;
+            overflow: hidden;
         }
 
-        /* Dia */
-        body.day-theme {
-            background-color: var(--bg-light);
-            color: var(--text-main-light);
+        /* ── Cabeçalho ─────────────────────────────────────────────── */
+        .totem-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
         }
-        body.day-theme .totem-header {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--border-light);
-        }
-        body.day-theme .room-card, body.day-theme .aud-card {
-            background: var(--card-bg-light);
-            border: 1px solid var(--border-light);
-            box-shadow: var(--shadow-light);
-            color: var(--text-main-light);
-        }
-        /* A cor da borda esquerda vem do cadastro da categoria (inline); o
-           fallback abaixo cobre categorias sem cor definida. */
-        body.day-theme .room-card.occupied { border-left: 5px solid var(--primary-light); }
-        body.day-theme .aud-card { border-left: 5px solid var(--primary-light); }
-        body.day-theme .category-badge { background: #e2e8f0; color: #475569; }
-        body.day-theme .event-time { color: var(--text-muted-light); }
-        body.day-theme .clock-date { color: var(--text-muted-light); }
-        body.day-theme .text-muted { color: var(--text-muted-light) !important; }
-
-        /* Noite */
-        body.night-theme {
-            background-color: var(--bg-dark);
-            color: var(--text-main-dark);
-        }
-        body.night-theme .totem-header {
-            background: rgba(13, 17, 23, 0.8);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--border-dark);
-        }
-        body.night-theme .room-card, body.night-theme .aud-card {
-            background: var(--card-bg-dark);
-            border: 1px solid var(--border-dark);
-            box-shadow: var(--shadow-dark);
-            color: var(--text-main-dark);
-        }
-        body.night-theme .room-card.occupied { border-left: 5px solid var(--primary-dark); }
-        body.night-theme .aud-card { border-left: 5px solid var(--primary-dark); }
-        body.night-theme .category-badge { background: #21262d; color: #c9d1d9; }
-        body.night-theme .event-time { color: var(--text-muted-dark); }
-        body.night-theme .clock-date { color: var(--text-muted-dark); }
-        body.night-theme .text-muted { color: var(--text-muted-dark) !important; }
-
-        /* Componentes */
-        .clock-time { font-size: 3.5rem; font-weight: 800; letter-spacing: -2px; }
-        .weather-widget { font-size: 1.5rem; font-weight: 600; }
-
-        /* Título e unidade em destaque no cabeçalho */
-        .totem-heading {
-            font-size: 1.6rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: var(--primary-dark);
-        }
-        body.day-theme .totem-heading { color: var(--primary-light); }
+        .clock-time { font-size: 3rem; font-weight: 800; letter-spacing: -1px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+        .clock-date { color: var(--muted); font-weight: 500; }
+        .header-center { text-align: center; }
+        .totem-heading { font-size: 1.5rem; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: var(--primary); }
         .totem-unity-badge {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
             gap: 8px;
-            font-size: 1.2rem;
+            margin-top: 4px;
+            font-size: 1.1rem;
             font-weight: 700;
-            padding: 5px 18px;
+            padding: 4px 16px;
             border-radius: 999px;
-            color: var(--primary-dark);
-            background: rgba(44, 123, 229, 0.14);
-            border: 1px solid rgba(44, 123, 229, 0.45);
+            color: var(--primary);
+            background: var(--primary-soft);
+            border: 1px solid var(--primary-border);
         }
-        body.day-theme .totem-unity-badge {
-            color: var(--primary-light);
-            background: rgba(0, 75, 141, 0.08);
-            border-color: rgba(0, 75, 141, 0.35);
-        }
-        .period-title { font-size: 1.4rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border-bottom: 3px solid var(--primary-dark); padding-bottom: 8px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
-        body.day-theme .period-title { border-color: var(--primary-light); }
+        .weather-widget { text-align: right; font-size: 1.4rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .weather-widget .weather-city { color: var(--muted); font-size: 0.95rem; font-weight: 500; }
 
-        /* A altura restante é dividida igualmente entre as seções com
-           atividade; sem nenhuma, a mensagem ocupa a tela centralizada. */
+        /* ── Conteúdo: página única ────────────────────────────────── */
+        /* Todas as categorias empilhadas na mesma tela. Se o conteúdo não
+           couber na altura, o JS reduz a escala até caber (zoom, que reflui
+           e mantém o texto nítido — nada de transform/animacao). O
+           overflow-y:auto cobre o caso extremo em que o piso de escala
+           ainda estoura a tela e o fallback sem JS. */
         .totem-content {
             flex: 1 1 auto;
             min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 14px 24px;
+        }
+        .totem-content.is-empty {
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #deck-inner { display: flex; flex-direction: column; gap: 14px; }
+        .totem-section { display: flex; flex-direction: column; }
+        .totem-empty { text-align: center; color: var(--muted); }
+        .totem-empty h2 { margin: 0; }
+
+        .section-head {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            border-bottom: 3px solid var(--cat-color, var(--primary));
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .section-title { font-size: 1.35rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+        .section-title .bi { margin-right: 6px; }
+        .section-window { color: var(--muted); font-weight: 600; font-size: 1rem; }
+        .section-count { margin-left: auto; color: var(--muted); font-weight: 600; font-size: 1rem; }
+
+        /* Grid responsivo: a largura define as colunas (5 em 1080p; quando a
+           escala reduz, o conteúdo ganha largura e cabem mais colunas) */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
             gap: 14px;
-            padding-top: 12px;
-            padding-bottom: 12px;
+            align-content: start;
         }
-        .totem-section {
-            flex: 1 1 0;
-            min-height: 0;
+
+        .room-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--cat-color, var(--primary));
+            border-radius: 10px;
+            padding: 12px 16px;
             display: flex;
             flex-direction: column;
+            gap: 4px;
+            min-width: 0;
         }
-        .totem-section .period-title { flex: 0 0 auto; }
-        .totem-empty { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; }
-
-        .category-badge { font-size: 0.95rem; padding: 4px 12px; border-radius: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-        .room-card { border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; transition: transform 0.2s; }
-        .room-card:last-child { margin-bottom: 0; }
-        .room-code { font-size: 1.5rem; font-weight: 800; }
-        .event-title { font-size: 1.1rem; font-weight: 600; }
-        .event-time { font-size: 0.95rem; display: flex; align-items: center; gap: 5px; }
-        .event-info { display: flex; flex-direction: column; gap: 2px; font-size: 1rem; line-height: 1.35; }
-        .info-line { overflow-wrap: anywhere; }
-        .info-label { color: var(--text-muted-light); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 8px; }
-        body.night-theme .info-label { color: var(--text-muted-dark); }
-        .aud-card { border-radius: 12px; padding: 12px 16px; }
-
-        /* Rolagem interna POR seção: só anima quando as atividades daquela
-           categoria não cabem na fatia de tela dela — a página em si nunca
-           rola */
-        .totem-scroll {
-            flex: 1 1 auto;
-            min-height: 0;
-            overflow-y: hidden;
-            padding-right: 10px;
-            position: relative;
+        .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .room-code { font-size: 1.6rem; font-weight: 800; line-height: 1.15; }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 999px;
+            background: var(--chip-bg);
+            color: var(--chip-text);
+            white-space: nowrap;
         }
-        .totem-header { z-index: 1000; }
+        .chip-accent { background: var(--cat-color, var(--primary)); color: #fff; }
+        .event-time { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+        .event-title { font-weight: 600; }
+        .info-line { font-size: 0.95rem; line-height: 1.35; overflow-wrap: anywhere; }
+        .info-label { color: var(--muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 8px; }
 
-        /* Celulares: relógio e clima menores; sem eles o cabeçalho
-           estourava a largura de 320px. */
-        @media (max-width: 575.98px) {
-            .clock-time { font-size: 2rem; letter-spacing: -1px; }
-            .weather-widget { font-size: 1rem; }
-            .totem-header .container-fluid { flex-wrap: wrap; gap: 8px; }
-            .period-title { font-size: 1.1rem; }
-            .totem-content { gap: 8px; padding-top: 8px; padding-bottom: 8px; }
-            .room-code { font-size: 1.2rem; }
-            .event-title { font-size: 1rem; }
-            .event-info { font-size: 0.9rem; }
+        /* Celulares: cabeçalho compacto, só relógio e clima; o conteúdo rola
+           naturalmente (o ajuste de escala só age em telas grandes) */
+        @media (max-width: 767.98px) {
+            .header-center { display: none; }
+            .clock-time { font-size: 1.8rem; }
+            .totem-header { padding: 10px 14px; }
+            .totem-content { padding: 10px 14px; }
+            .room-code { font-size: 1.3rem; }
+            .cards-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body class="night-theme">
-<div class="totem-header py-4 sticky-top">
-    <div class="container-fluid d-flex justify-content-between align-items-center">
-        <div>
-            <div class="clock-date" id="date-display">Carregando...</div>
-            <div class="clock-time" id="time-display">00:00:00</div>
-        </div>
-        <div class="text-center d-none d-md-block">
-            <div class="totem-heading">Ocupação de Salas</div>
-            {% if totem_unity %}
-            <div class="totem-unity-badge mt-1">
-                <i class="bi bi-geo-alt-fill"></i>
-                <span>{{ totem_unity.name }}</span>
-            </div>
-            {% endif %}
-        </div>
-        <div class="weather-widget text-end">
-            <i class="bi bi-cloud-sun"></i> <span id="weather-temp">--°C</span>
-            <div class="text-muted fs-6" id="weather-city">Carregando...</div>
-        </div>
+<header class="totem-header">
+    <div>
+        <div class="clock-date" id="date-display">Carregando...</div>
+        <div class="clock-time" id="time-display">00:00:00</div>
     </div>
-</div>
+    <div class="header-center">
+        <div class="totem-heading">Ocupação de Salas</div>
+        {% if totem_unity %}
+        <div class="totem-unity-badge">
+            <i class="bi bi-geo-alt-fill"></i>
+            <span>{{ totem_unity.name }}</span>
+        </div>
+        {% endif %}
+    </div>
+    <div class="weather-widget">
+        <i class="bi bi-cloud-sun"></i> <span id="weather-temp">--°C</span>
+        <div class="weather-city" id="weather-city">Carregando...</div>
+    </div>
+</header>
 
-<div class="totem-content container-fluid">
+<main id="deck" class="totem-content{% if not category_sections %} is-empty{% endif %}">
+    <div id="deck-inner">
     {% for sec in category_sections %}
     {% set cat = sec.category %}
-    <section class="totem-section">
-        <div class="period-title" style="border-color: {{ cat.display_color }};">
-            <i class="bi {{ cat.display_icon }}"></i>
-            {{ cat.name }}
-            {% if sec.window == 'week' %}(Próximos 7 dias){% else %}({{ current_period }}){% endif %}
+    {% if sec.window == 'week' %}{% set sec_count = sec.reservations|length %}{% else %}{% set sec_count = sec.floors.values()|map('length')|sum %}{% endif %}
+    <section class="totem-section" style="--cat-color: {{ cat.display_color }};">
+        <div class="section-head">
+            <span class="section-title"><i class="bi {{ cat.display_icon }}"></i>{{ cat.name }}</span>
+            {% if sec.window == 'week' %}<span class="section-window">Próximos 7 dias</span>{% else %}<span class="section-window">{{ current_period }}</span>{% endif %}
+            <span class="section-count">{{ sec_count }} {% if sec_count == 1 %}reserva{% else %}reservas{% endif %}</span>
         </div>
-        <div class="totem-scroll">
-        {% if sec.window == 'week' %}
-            <div class="row g-3">
+        <div class="cards-grid">
+            {% if sec.window == 'week' %}
                 {% for r in sec.reservations %}
-                <div class="col-md-6 col-lg-4">
-                    <div class="aud-card" style="border-left-color: {{ cat.display_color }};">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="room-code">{{ r.classroom.code }}</span>
-                            <span class="badge fs-6" style="background-color: {{ cat.display_color }};">{{ r.date.strftime('%d/%m') }}</span>
-                        </div>
-                        <div class="event-info mt-2">
-                            <div class="info-line"><span class="info-label">Horário</span><span class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</span></div>
-                            {% if r.teacher %}<div class="info-line"><span class="info-label">Professor</span>{{ r.teacher.full_name }}</div>{% endif %}
-                            {% if r.course %}<div class="info-line"><span class="info-label">Curso</span>{{ r.course.name }}</div>{% endif %}
-                            {% if r.subject %}<div class="info-line"><span class="info-label">Disciplina</span>{{ r.subject.name }}</div>{% endif %}
-                            <div class="info-line"><span class="info-label">Assunto</span><span class="event-title">{{ r.title }}</span></div>
-                        </div>
+                <article class="room-card">
+                    <div class="card-top">
+                        <span class="room-code">{{ r.classroom.code }}</span>
+                        <span class="chip chip-accent">{{ r.date.strftime('%d/%m') }}</span>
                     </div>
-                </div>
+                    <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
+                    {% if r.teacher %}<div class="info-line"><span class="info-label">Professor</span>{{ r.teacher.full_name }}</div>{% endif %}
+                    {% if r.course %}<div class="info-line"><span class="info-label">Curso</span>{{ r.course.name }}</div>{% endif %}
+                    {% if r.subject %}<div class="info-line"><span class="info-label">Disciplina</span>{{ r.subject.name }}</div>{% endif %}
+                    <div class="info-line"><span class="info-label">Assunto</span><span class="event-title">{{ r.title }}</span></div>
+                </article>
                 {% endfor %}
-            </div>
-        {% else %}
-            <div class="row g-3">
+            {% else %}
                 {% for floor_name, reservations in sec.floors.items() %}
-                <div class="col-md-6 col-lg-4">
-                    <div class="category-badge"><i class="bi bi-layers"></i> {{ floor_name }}</div>
                     {% for r in reservations %}
-                    <div class="room-card occupied" style="border-left-color: {{ cat.display_color }};">
-                        <div class="d-flex justify-content-between align-items-center">
+                    <article class="room-card">
+                        <div class="card-top">
                             <span class="room-code">{{ r.classroom.code }}</span>
-                            <span class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</span>
+                            <span class="chip"><i class="bi bi-layers"></i> {{ floor_name }}</span>
                         </div>
-                        <div class="event-info mt-2">
-                            {% if r.teacher %}<div class="info-line"><span class="info-label">Professor</span>{{ r.teacher.full_name }}</div>{% endif %}
-                            {% if r.course %}<div class="info-line"><span class="info-label">Curso</span>{{ r.course.name }}</div>{% endif %}
-                            {% if r.subject %}<div class="info-line"><span class="info-label">Disciplina</span>{{ r.subject.name }}</div>{% endif %}
-                            <div class="info-line"><span class="info-label">Assunto</span><span class="event-title">{{ r.title }}</span></div>
-                        </div>
-                    </div>
+                        <div class="event-time"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</div>
+                        {% if r.teacher %}<div class="info-line"><span class="info-label">Professor</span>{{ r.teacher.full_name }}</div>{% endif %}
+                        {% if r.course %}<div class="info-line"><span class="info-label">Curso</span>{{ r.course.name }}</div>{% endif %}
+                        {% if r.subject %}<div class="info-line"><span class="info-label">Disciplina</span>{{ r.subject.name }}</div>{% endif %}
+                        <div class="info-line"><span class="info-label">Assunto</span><span class="event-title">{{ r.title }}</span></div>
+                    </article>
                     {% endfor %}
-                </div>
                 {% endfor %}
-            </div>
-        {% endif %}
+            {% endif %}
         </div>
     </section>
     {% else %}
     <div class="totem-empty">
-        <div class="text-center text-muted">
-            <i class="bi bi-emoji-smile fs-1 d-block mb-3"></i>
-            <h3>Nenhuma atividade em andamento no momento</h3>
+        <div>
+            <i class="bi bi-emoji-smile" style="font-size: 3rem; display: block; margin-bottom: 12px;"></i>
+            <h2>Nenhuma atividade em andamento no momento</h2>
         </div>
     </div>
     {% endfor %}
-</div>
+    </div>
+</main>
 
 <script>
-    function updateClock() {
-        const now = new Date();
-        document.getElementById('date-display').textContent = now.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        document.getElementById('time-display').textContent = now.toLocaleTimeString('pt-BR', { hour12: false });
-    }
-    setInterval(updateClock, 1000); updateClock();
+    // ── Relógio ──────────────────────────────────────────────────────────
+    // O texto da hora muda a cada segundo; a data só é reescrita quando
+    // troca o dia (menos trabalho no hardware fraco da TV).
+    (function () {
+        var timeEl = document.getElementById('time-display');
+        var dateEl = document.getElementById('date-display');
+        var lastDate = '';
+        function tick() {
+            var now = new Date();
+            timeEl.textContent = now.toLocaleTimeString('pt-BR', { hour12: false });
+            var d = now.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            if (d !== lastDate) { dateEl.textContent = d; lastDate = d; }
+        }
+        tick();
+        setInterval(tick, 1000);
+    })();
 
-    // Open-Meteo API — coordenadas da unidade exibida (definidas no painel)
-    const lat = {{ weather_lat }}; const lon = {{ weather_lon }};
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
-        .then(r => r.json()).then(data => {
-            if (data.current_weather) {
-                document.getElementById('weather-temp').textContent = `${Math.round(data.current_weather.temperature)}°C`;
-                let icon = 'bi-cloud'; const code = data.current_weather.weathercode;
+    // ── Clima (Open-Meteo) ── coordenadas da unidade exibida (painel)
+    (function () {
+        var lat = {{ weather_lat }}; var lon = {{ weather_lon }};
+        fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current_weather=true')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.current_weather) return;
+                document.getElementById('weather-temp').textContent = Math.round(data.current_weather.temperature) + '°C';
+                var icon = 'bi-cloud'; var code = data.current_weather.weathercode;
                 if (code === 0) icon = 'bi-sun'; else if (code <= 3) icon = 'bi-cloud-sun'; else if (code <= 48) icon = 'bi-cloud-fog'; else if (code <= 67) icon = 'bi-cloud-rain'; else if (code <= 77) icon = 'bi-snow'; else if (code <= 99) icon = 'bi-cloud-lightning-rain';
-                document.querySelector('.weather-widget i').className = `bi ${icon}`;
+                document.querySelector('.weather-widget i').className = 'bi ' + icon;
                 document.getElementById('weather-city').textContent = {{ weather_city|tojson }};
+            })
+            .catch(function () { document.getElementById('weather-city').textContent = 'Indisponível'; });
+    })();
+
+    // ── Tema dia/noite ── reavaliado a cada reload (meta refresh de 5 min)
+    (function () {
+        var hour = new Date().getHours();
+        if (hour >= 6 && hour < 18) {
+            document.body.classList.remove('night-theme');
+            document.body.classList.add('day-theme');
+        }
+    })();
+
+    // ── Ajuste de escala: tudo em uma única página ──────────────────────
+    // Se as categorias empilhadas não couberem na altura da tela, a escala
+    // do conteúdo é reduzida (zoom) até tudo aparecer de uma vez — sem
+    // rolagem automática e sem animação, leve para o Raspberry Pi. A
+    // largura é compensada para a tela continuar ocupada por completo: com
+    // mais altura disponível por linha, cabem mais colunas de cards.
+    // Abaixo do piso de escala (conteúdo absurdo de grande), a página rola.
+    (function () {
+        var deck = document.getElementById('deck');
+        var inner = document.getElementById('deck-inner');
+        if (!inner || !inner.querySelector('.totem-section')) return; // tela vazia
+
+        var MIN_SCALE = 0.4;
+        var rebuildTimer = null;
+
+        function fit() {
+            inner.style.zoom = '';
+            inner.style.width = '';
+            if (!('zoom' in inner.style)) return;      // sem suporte: rola
+            if (window.innerWidth < 768) return;       // celular: rola
+
+            var cs = getComputedStyle(deck);
+            var availH = deck.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+            var availW = deck.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+            var natural = inner.offsetHeight;
+            if (natural <= availH) return;             // já cabe: escala 1
+
+            // Busca binária pela maior escala que cabe: a altura do conteúdo
+            // muda em degraus (o número de colunas do grid é discreto), então
+            // uma iteração simples oscila. A largura é recalibrada medindo o
+            // que cada escala renderiza de fato — a semântica de zoom varia
+            // entre versões do Chromium, e medir é mais confiável que presumir.
+            var lo = MIN_SCALE, hi = 1, best = MIN_SCALE, bestWidth = '100%';
+            for (var i = 0; i < 6; i++) {
+                var mid = (lo + hi) / 2;
+                inner.style.zoom = String(mid);
+                inner.style.width = '100%';
+                var width = (100 * availW / inner.getBoundingClientRect().width) + '%';
+                inner.style.width = width;
+                if (inner.getBoundingClientRect().height <= availH + 1) {
+                    best = mid;
+                    bestWidth = width;
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
             }
-        }).catch(() => document.getElementById('weather-city').textContent = 'Indisponível');
+            inner.style.zoom = String(best);
+            inner.style.width = bestWidth;
+        }
 
-    // Auto Day/Night Theme
-    const hour = new Date().getHours();
-    if (hour >= 6 && hour < 18) { 
-        document.body.classList.remove('night-theme'); 
-        document.body.classList.add('day-theme'); 
-    }
-    
-    // --- Auto-Scroll Logic for Totem ---
-    document.querySelectorAll('.totem-scroll').forEach(container => {
-        let pos = 0;
-        let dir = 1; // 1 para baixo, -1 para cima
-        let paused = false;
-
-        setInterval(() => {
-            if (paused) return;
-            // Se o conteúdo não ultrapassa a altura do contêiner, não rola
-            if (container.scrollHeight <= container.clientHeight) return;
-
-            pos += dir;
-            container.scrollTop = pos;
-
-            // Se chegou ao fundo, pausa e inverte a direção
-            if (pos >= container.scrollHeight - container.clientHeight) {
-                dir = -1;
-                paused = true;
-                setTimeout(() => paused = false, 4000); // Pausa 4 segundos no fundo
-            } 
-            // Se voltou ao topo, pausa e inverte a direção
-            else if (pos <= 0) {
-                dir = 1;
-                paused = true;
-                setTimeout(() => paused = false, 4000); // Pausa 4 segundos no topo
-            }
-        }, 40); // Velocidade da rolagem (menor = mais rápido)
-    });
+        fit();
+        window.addEventListener('resize', function () {
+            clearTimeout(rebuildTimer);
+            rebuildTimer = setTimeout(fit, 250);
+        });
+    })();
 </script>
 </body>
 </html>
