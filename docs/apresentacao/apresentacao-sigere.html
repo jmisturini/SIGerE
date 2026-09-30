@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>SIGerE — Apresentação aos Usuários</title>
+<style>
+  @font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('assets/fonts/inter-var-latin.woff2') format('woff2');
+  }
+  /* ═══════════ Base ═══════════ */
+  @page { size: 1280px 720px; margin: 0; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1280px;
+    background: #004b8d; /* cor da página mais escura (capa) — evita frestas claras nas bordas */
+    font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+    color: #16232e;
+    -webkit-font-smoothing: antialiased;
+  }
+  * { box-sizing: border-box; }
+
+  .page {
+    width: 1280px;
+    height: 720px;
+    position: relative;
+    overflow: hidden;      /* recorta decorações e evita deslocamento do conteúdo */
+    background: #ffffff;
+    break-after: page;
+    page-break-after: always;
+  }
+  .page:last-child { break-after: auto; page-break-after: auto; }
+
+  @media screen {
+    html {
+      height: auto;
+      display: flex;
+      justify-content: center;
+      background: #004b8d;
+    }
+    body {
+      transform-origin: top center;
+      scale: min(1, calc(100vw / 1280));
+      margin: 0 auto;
+      box-shadow: 0 0 60px rgba(0,0,0,.35);
+    }
+  }
+
+  /* ═══════════ Tokens ═══════════ */
+  :root {
+    --primary: #004b8d;
+    --primary-dark: #003a6e;
+    --accent: #2c7be5;
+    --ink: #16232e;
+    --muted: #54677a;
+    --line: #d8e2ec;
+    --tint: #eef4fa;
+    --ok: #157347;
+    --warn: #b45309;
+    --no: #b02a37;
+  }
+
+  /* ═══════════ Anatomia do slide ═══════════ */
+  .pad { height: 100%; padding: 46px 64px 58px; display: flex; flex-direction: column; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .kicker { font-size: 11px; font-weight: 700; letter-spacing: 3.2px; color: var(--accent); text-transform: uppercase; }
+  .pageno { font-size: 11px; font-weight: 700; color: #9db0c2; letter-spacing: 1px; }
+  h2.title { margin: 10px 0 0; font-size: 33px; font-weight: 800; letter-spacing: -0.6px; color: var(--ink); }
+  h2.title .soft { color: var(--primary); }
+  .rule { height: 1px; background: var(--line); margin: 18px 0 24px; }
+  .content { flex: 1; min-height: 0; }
+  .foot {
+    margin-top: auto; padding-top: 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 10.5px; font-weight: 600; color: #90a4b7; letter-spacing: .6px;
+  }
+  .foot .brand { display: flex; align-items: center; gap: 7px; }
+  .foot img { width: 15px; height: 15px; border-radius: 4px; display: block; }
+
+  /* ═══════════ Componentes ═══════════ */
+  .lead { font-size: 16.5px; line-height: 1.62; color: var(--muted); max-width: 1060px; margin: 0; }
+  .lead strong { color: var(--ink); font-weight: 700; }
+
+  .shot { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+          background: #fff; box-shadow: 0 14px 34px rgba(0, 43, 84, .13); }
+  .chrome { height: 27px; background: #eef2f6; border-bottom: 1px solid var(--line);
+            display: flex; align-items: center; gap: 5px; padding: 0 12px; }
+  .chrome i { width: 8px; height: 8px; border-radius: 50%; background: #c3cfdb; }
+  .chrome .url { margin-left: 8px; font-size: 10px; color: #8195a8; font-weight: 600; letter-spacing: .3px; }
+  .shot img { display: block; width: 100%; height: auto; }
+  .cap { font-size: 11.5px; color: var(--muted); margin-top: 10px; text-align: center; font-weight: 500; }
+
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 17px; }
+  .steps li { display: flex; gap: 14px; align-items: flex-start; }
+  .steps .n { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff;
+              font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .steps h4 { margin: 0 0 3px; font-size: 15.5px; font-weight: 700; color: var(--ink); }
+  .steps p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
+
+  .bullets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 15px; }
+  .bullets li { position: relative; padding-left: 22px; font-size: 14.5px; line-height: 1.58; color: #32465a; }
+  .bullets li::before { content: ""; position: absolute; left: 0; top: 9px; width: 9px; height: 3px; border-radius: 2px; background: var(--accent); }
+  .bullets strong { color: var(--ink); }
+
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; height: 100%; min-height: 0; align-items: center; }
+  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 22px; }
+  .colstack { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+
+  .card { background: var(--tint); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; }
+  .card h4 { margin: 0 0 10px; font-size: 16px; font-weight: 800; color: var(--primary); }
+  .card p { margin: 0; font-size: 14px; line-height: 1.6; color: #32465a; }
+  .card .idx { float: right; font-size: 12px; font-weight: 800; color: #9db0c2; letter-spacing: 1.5px; }
+
+  .strip { background: var(--tint); border: 1px solid var(--line); border-radius: 10px;
+           padding: 17px 24px; font-size: 13.5px; line-height: 1.55; color: #32465a; }
+  .strip strong { color: var(--ink); }
+
+  .chip { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 800; letter-spacing: 1.2px;
+          padding: 4px 11px; border-radius: 999px; text-transform: uppercase; }
+  .chip.ok   { background: #e5f2ea; color: var(--ok); }
+  .chip.warn { background: #faf0e0; color: var(--warn); }
+  .chip.no   { background: #f9e7e9; color: var(--no); }
+
+  .modgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .mod { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 19px 18px 17px;
+         border-top: 3px solid var(--primary); }
+  .mod b { display: block; font-size: 14px; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
+  .mod span { font-size: 11.5px; line-height: 1.45; color: var(--muted); display: block; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 22px; }
+  .stat { border-left: 3px solid var(--primary); padding-left: 16px; }
+  .stat .v { font-size: 30px; font-weight: 900; color: var(--primary); letter-spacing: -0.5px; }
+  .stat .l { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 2px; line-height: 1.4; }
+
+  table.perf { width: 100%; border-collapse: collapse; }
+  table.perf th { background: var(--primary); color: #fff; font-size: 12px; letter-spacing: 1.6px;
+                  text-transform: uppercase; text-align: left; padding: 11px 18px; font-weight: 800; }
+  table.perf th:first-child { border-radius: 8px 0 0 0; width: 250px; }
+  table.perf th:last-child { border-radius: 0 8px 0 0; }
+  table.perf td { padding: 16px 18px; font-size: 13.5px; line-height: 1.5; color: #32465a;
+                  border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.perf td.who { font-weight: 800; color: var(--ink); font-size: 14px; }
+  table.perf tr:nth-child(even) td { background: #f7fafd; }
+
+  .note { font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+  .note strong { color: var(--ink); }
+
+  /* ═══════════ Capa ═══════════ */
+  .cover { background: var(--primary); color: #fff; }
+  .cover .pad { padding: 64px 84px 56px; }
+  .cover-kicker { font-size: 12.5px; font-weight: 700; letter-spacing: 5px; color: rgba(255,255,255,.62); text-transform: uppercase; }
+  .cover-logo { width: 84px; height: 84px; border-radius: 20px; display: block;
+                box-shadow: 0 0 0 2px rgba(255,255,255,.28), 0 18px 40px rgba(0,26,51,.35); }
+  .cover-hero { font-size: 104px; font-weight: 900; letter-spacing: -3px; line-height: 1; margin: 26px 0 0; }
+  .cover-sub { font-size: 23px; font-weight: 600; color: rgba(255,255,255,.92); margin-top: 14px; letter-spacing: .2px; }
+  .cover-bar { width: 76px; height: 3px; background: #fff; opacity: .85; border-radius: 2px; margin: 30px 0; }
+  .cover-sum { font-size: 16.5px; line-height: 1.65; color: rgba(255,255,255,.82); max-width: 660px; }
+  .cover-body { margin: auto 0; }
+  .cover-meta { margin-top: auto; display: flex; justify-content: space-between;
+                font-size: 11.5px; font-weight: 700; letter-spacing: 2.4px; color: rgba(255,255,255,.6); text-transform: uppercase; }
+  .decor-svg { position: absolute; top: 0; left: 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ SLIDE 1 · CAPA ═══════════════ -->
+<section class="page cover">
+  <svg class="decor-svg" width="1280" height="720" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="990" y="-130" width="420" height="420" rx="44" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1.5"/>
+    <rect x="900" y="550" width="260" height="260" rx="32" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1.5"/>
+    <line x1="0" y1="170" x2="1280" y2="170" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+  </svg>
+  <div class="pad">
+    <div class="cover-body">
+      <div class="cover-kicker">Apresentação aos usuários</div>
+      <img class="cover-logo" src="assets/favicon.svg" alt="Logo SIGerE" style="margin-top:30px;">
+      <h1 class="cover-hero">SIGerE</h1>
+      <div class="cover-sub">Sistema Integrado de Gerenciamento Educacional</div>
+      <div class="cover-bar"></div>
+      <p class="cover-sum">Um só lugar para reservar espaços, acompanhar a agenda da unidade
+      e organizar rotinas administrativas — do professor à administração.</p>
+    </div>
+    <div class="cover-meta"><span>Versão 1.25.0</span><span>Setembro de 2026</span></div>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 2 · O QUE É ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Visão geral</span><span class="pageno">02</span></header>
+    <h2 class="title">Um sistema, <span class="soft">toda a rotina da unidade</span></h2>
+    <div class="rule"></div>
+    <div class="content colstack" style="justify-content:center; gap:38px;">
+      <p class="lead">O SIGerE é a plataforma web que integra <strong>reservas de espaços</strong>,
+      <strong>agenda de aulas</strong> e <strong>rotinas administrativas</strong> — com detecção automática
+      de conflitos, avisos, exportações prontas e tema claro ou escuro.</p>
+      <div class="modgrid">
+        <div class="mod"><b>Reservas de espaços</b><span>Salas, laboratórios, auditórios e quadras, com controle de conflitos</span></div>
+        <div class="mod"><b>Calendário geral</b><span>Todas as aulas aprovadas, com filtros combinados</span></div>
+        <div class="mod"><b>Notificações</b><span>Avisos no sino antes das suas reservas</span></div>
+        <div class="mod"><b>Portal público</b><span>Cronograma do dia e busca de aula, sem login</span></div>
+        <div class="mod"><b>Totem de corredor</b><span>Ocupação em tempo real nas TVs da unidade</span></div>
+        <div class="mod"><b>Financeiro</b><span>Lançamento e exportação de horas extras</span></div>
+        <div class="mod"><b>RH · Vale-Transporte</b><span>Pedido público, conferência e planilhas</span></div>
+        <div class="mod"><b>Cozinha</b><span>Fichas técnicas, preparações e compras</span></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="v">8 módulos</div><div class="l">integrados em um único acesso</div></div>
+        <div class="stat"><div class="v">Multi-unidade</div><div class="l">dados isolados por unidade educacional</div></div>
+        <div class="stat"><div class="v">PDF e Excel</div><div class="l">exportações prontas em todo o sistema</div></div>
+      </div>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>Sistema Integrado de Gerenciamento Educacional</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 3 · ACESSO ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Primeiros passos</span><span class="pageno">03</span></header>
+    <h2 class="title">Como acessar</h2>
+    <div class="rule"></div>
+    <div class="content cols2">
+      <div class="colstack" style="gap:20px;">
+        <ol class="steps">
+          <li><span class="n">1</span><div><h4>Abra o endereço do SIGerE</h4><p>O link da sua unidade é informado pela administração.</p></div></li>
+          <li><span class="n">2</span><div><h4>Entre com e-mail e senha</h4><p>Use o seu e-mail institucional cadastrado.</p></div></li>
+          <li><span class="n">3</span><div><h4>Troque a senha no primeiro acesso</h4><p>O sistema pede uma nova senha — escolha uma que só você conheça.</p></div></li>
+          <li><span class="n">4</span><div><h4>Deixe com a sua cara</h4><p>Escolha tema claro ou escuro e a cor de destaque no menu do topo.</p></div></li>
+        </ol>
+        <p class="note"><strong>Esqueceu a senha?</strong> A redefinição é feita pelo administrador da sua unidade.</p>
+      </div>
+      <figure class="shot">
+        <div class="chrome"><i></i><i></i><i></i><span class="url">SIGerE — Faça login para continuar</span></div>
+        <img src="assets/01-login.png" alt="Tela de login do SIGerE">
+      </figure>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>03 · Acesso</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 4 · PAINEL ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">O dia a dia</span><span class="pageno">04</span></header>
+    <h2 class="title">Painel: o dia da unidade <span class="soft">em um relance</span></h2>
+    <div class="rule"></div>
+    <div class="content cols2">
+      <figure class="shot">
+        <div class="chrome"><i></i><i></i><i></i><span class="url">SIGerE — Painel</span></div>
+        <img src="assets/02-dashboard.png" alt="Painel do SIGerE com as reservas do dia">
+        <figcaption class="cap">Painel — resumo das reservas de hoje, por categoria de espaço</figcaption>
+      </figure>
+      <div class="colstack" style="justify-content:center; gap:18px;">
+        <ul class="bullets">
+          <li><strong>Reservas do dia agrupadas por categoria</strong> de espaço, com horário, sala, curso e professor.</li>
+          <li>O <strong>período atual</strong> fica em destaque — você sabe o que está acontecendo agora.</li>
+          <li>Botão <strong>“Nova Reserva”</strong> sempre visível no topo.</li>
+          <li><strong>Menu lateral contrátil</strong> organiza tudo: Calendário, Salas e Reservas, Financeiro, RH, Cozinha e Administração.</li>
+        </ul>
+        <p class="note">É a primeira tela depois do login — e o ponto de partida para qualquer tarefa.</p>
+      </div>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>04 · Painel</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 5 · SALAS ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Espaços</span><span class="pageno">05</span></header>
+    <h2 class="title">Salas: encontre <span class="soft">o espaço certo</span></h2>
+    <div class="rule"></div>
+    <div class="content cols2">
+      <div class="colstack" style="justify-content:center; gap:18px;">
+        <ul class="bullets">
+          <li><strong>Filtros de disponibilidade:</strong> o que está livre agora, por data e período, ou por categoria de espaço.</li>
+          <li>Cada sala tem uma página própria com a <strong>agenda do mês inteira</strong> — navegue entre os meses.</li>
+          <li>Exporte a <strong>lista de salas e a agenda em PDF</strong> para imprimir ou divulgar.</li>
+        </ul>
+        <p class="note"><strong>Dica:</strong> consulte a disponibilidade da sala antes de criar a reserva — evita pedidos impedidos.</p>
+      </div>
+      <figure class="shot">
+        <div class="chrome"><i></i><i></i><i></i><span class="url">SIGerE — Disponibilidade da sala</span></div>
+        <img src="assets/05-disponibilidade-sala.png" alt="Agenda mensal de disponibilidade de uma sala">
+        <figcaption class="cap">Disponibilidade mensal de uma sala</figcaption>
+      </figure>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>05 · Salas</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 6 · RESERVAS ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">O fluxo principal</span><span class="pageno">06</span></header>
+    <h2 class="title">Reservas: <span class="soft">pedir, conferir, usar</span></h2>
+    <div class="rule"></div>
+    <div class="content" style="display:flex; flex-direction:column; gap:20px;">
+      <div class="cols2">
+        <ol class="steps">
+          <li><span class="n">1</span><div><h4>Reservas → Nova Reserva</h4><p>Escolha a sala, a data e o horário.</p></div></li>
+          <li><span class="n">2</span><div><h4>Complete os dados</h4><p>Informe curso, disciplina e professor.</p></div></li>
+          <li><span class="n">3</span><div><h4>O sistema confere tudo na hora</h4><p>Verifica conflito de sala e de professor antes de salvar.</p></div></li>
+        </ol>
+        <figure class="shot">
+          <div class="chrome"><i></i><i></i><i></i><span class="url">SIGerE — Todas as Reservas</span></div>
+          <img src="assets/04-reservas.png" alt="Lista de reservas com status aprovada e pendente">
+        </figure>
+      </div>
+      <div class="cols3">
+        <div class="card"><span class="chip ok">Aprovada</span><p style="margin-top:9px;">Sala e professor livres — a reserva já vale e aparece no calendário.</p></div>
+        <div class="card"><span class="chip warn">Pendente</span><p style="margin-top:9px;">O professor já tem reserva nesse horário — um gestor precisa aprovar.</p></div>
+        <div class="card"><span class="chip no">Impedida</span><p style="margin-top:9px;">Sala ocupada, domingo ou feriado — o sistema bloqueia o pedido.</p></div>
+      </div>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>06 · Reservas</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 7 · SÉRIES / COMPARTILHAR / NOTIFICAÇÕES ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Produtividade</span><span class="pageno">07</span></header>
+    <h2 class="title">Recursos que <span class="soft">economizam o seu tempo</span></h2>
+    <div class="rule"></div>
+    <div class="content" style="display:flex; flex-direction:column; justify-content:center; gap:26px;">
+      <div class="cols3">
+        <div class="card"><span class="idx">01</span><h4>Séries de aulas</h4>
+          <p>Precisa da mesma sala toda semana? Marque a <strong>repetição</strong> ao criar a reserva:
+          o sistema cria a série, pula fins de semana e feriados, e depois permite
+          <strong>editar ou cancelar o lote inteiro</strong> em&nbsp;“Gerenciar&nbsp;Série”.</p>
+        </div>
+        <div class="card"><span class="idx">02</span><h4>Compartilhar</h4>
+          <p>Na tela da reserva, envie o link por <strong>e-mail ou WhatsApp</strong> para colegas e alunos
+          — sem copiar e colar nada. Quem recebe vê os detalhes da aula direto no portal.</p>
+        </div>
+        <div class="card"><span class="idx">03</span><h4>Notificações</h4>
+          <p>Clique em <strong>“Ativar notificações”</strong> na sua reserva. O sino no topo do sistema avisa
+          nos prazos definidos pela unidade — por exemplo, <strong>7, 1 e 0 dias antes</strong> — e o aviso
+          leva direto à reserva.</p>
+        </div>
+      </div>
+      <div class="strip"><strong>Para o dia a dia de quem reserva:</strong> todos os perfis que criam reservas
+      usam esses recursos — sem nenhuma configuração extra do seu lado.</div>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>07 · Recursos</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 8 · CALENDÁRIO ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Agenda</span><span class="pageno">08</span></header>
+    <h2 class="title">Calendário: a agenda <span class="soft">completa da unidade</span></h2>
+    <div class="rule"></div>
+    <div class="content cols2">
+      <div class="colstack" style="justify-content:center; gap:18px;">
+        <ul class="bullets">
+          <li>Todas as aulas e reservas <strong>aprovadas</strong>, agrupadas por data e andar.</li>
+          <li><strong>Combine filtros:</strong> período (manhã, tarde, noite), sala, professor, curso e disciplina.</li>
+          <li>Ideal para <strong>conferir a agenda antes</strong> de pedir um novo horário.</li>
+        </ul>
+        <p class="note">Cada categoria de espaço aparece com a <strong>cor e o ícone</strong> definidos no cadastro — a leitura fica instantânea.</p>
+      </div>
+      <figure class="shot">
+        <div class="chrome"><i></i><i></i><i></i><span class="url">SIGerE — Calendário</span></div>
+        <img src="assets/03-calendario.png" alt="Calendário do SIGerE com filtros combinados">
+        <figcaption class="cap">Calendário com filtros combinados</figcaption>
+      </figure>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>08 · Calendário</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 9 · PORTAL + TOTEM ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Sem login</span><span class="pageno">09</span></header>
+    <h2 class="title">Portal público e <span class="soft">totem de corredor</span></h2>
+    <div class="rule"></div>
+    <div class="content" style="display:flex; flex-direction:column; gap:18px;">
+      <div class="cols2">
+        <div class="colstack" style="gap:12px;">
+          <figure class="shot">
+            <div class="chrome"><i></i><i></i><i></i><span class="url">Portal público — Início</span></div>
+            <img src="assets/07-portal-home.png" alt="Página inicial do portal público do SIGerE">
+          </figure>
+          <p class="note"><strong>Portal:</strong> o aluno vê o cronograma do dia por período — com selo “Agora” —
+          e busca a própria aula por curso, disciplina, professor ou sala. Sem conta, sem barreira.</p>
+        </div>
+        <div class="colstack" style="gap:12px;">
+          <figure class="shot">
+            <div class="chrome"><i></i><i></i><i></i><span class="url">Totem — Ocupação de salas</span></div>
+            <img src="assets/06-totem.png" alt="Totem de corredor do SIGerE com a ocupação das salas">
+          </figure>
+          <p class="note"><strong>Totem:</strong> nas TVs do corredor, o SIGerE mostra relógio, clima e as salas
+          ocupadas por andar. A tela se atualiza sozinha a cada 5 minutos.</p>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>09 · Portal e totem</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 10 · PERFIS ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Permissões</span><span class="pageno">10</span></header>
+    <h2 class="title">Quem pode fazer o quê</h2>
+    <div class="rule"></div>
+    <div class="content colstack" style="gap:16px; justify-content:center;">
+      <table class="perf">
+        <tr><th>Perfil</th><th>O que pode fazer</th></tr>
+        <tr><td class="who">Professor</td><td>Cria e gerencia as <strong>próprias</strong> reservas; consulta salas, calendário e cursos; exporta relatórios.</td></tr>
+        <tr><td class="who">Assistente / Logística</td><td>Mesmos recursos do professor — pensado para a equipe de apoio.</td></tr>
+        <tr><td class="who">Analista</td><td>Além das próprias reservas: <strong>aprova reservas pendentes</strong> e lança horas extras.</td></tr>
+        <tr><td class="who">Gestor</td><td>Gerencia <strong>todas as reservas</strong>, salas e cursos; controle completo de hora extra.</td></tr>
+        <tr><td class="who">Administrador</td><td>Cadastra usuários, salas, cursos e feriados; configura os módulos da unidade.</td></tr>
+        <tr><td class="who">Super Administrador</td><td>Tudo isso, em <strong>todas as unidades</strong>: alterna entre elas e configura a API.</td></tr>
+      </table>
+      <p class="note">O menu lateral mostra <strong>apenas o que o seu perfil pode usar</strong>.
+      Há ainda o perfil adicional do <strong>módulo Cozinha</strong>, concedido junto com qualquer papel.</p>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>10 · Perfis</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 11 · MÓDULOS OPCIONAIS ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Por unidade</span><span class="pageno">11</span></header>
+    <h2 class="title">Módulos opcionais: <span class="soft">ativados conforme a unidade</span></h2>
+    <div class="rule"></div>
+    <div class="content" style="display:flex; flex-direction:column; justify-content:center; gap:26px;">
+      <div class="cols3">
+        <div class="card"><span class="idx">01</span><h4>Financeiro · Hora Extra</h4>
+          <p>Lançamento de horas extras por professor, nível de ensino e turno, com código orçamentário.
+          O mês anterior fica <strong>bloqueado</strong> e o corrente vai até o <strong>dia 25</strong>.
+          Exportação em Excel pronta para o pagamento.</p>
+        </div>
+        <div class="card"><span class="idx">02</span><h4>RH · Vale-Transporte</h4>
+          <p>O colaborador responde um <strong>formulário público, sem login</strong>. O RH confere os pedidos,
+          corrige o que for preciso, exporta a <strong>planilha por grupo</strong> e acompanha indicadores
+          em um relatório com gráficos.</p>
+        </div>
+        <div class="card"><span class="idx">03</span><h4>Cozinha</h4>
+          <p>Fichas técnicas em <strong>.docx</strong> viram preparações com porções e ingredientes ajustáveis.
+          Selecione as preparações da semana e exporte a <strong>requisição de compra</strong> em Excel,
+          com as quantidades já somadas.</p>
+        </div>
+      </div>
+      <div class="strip"><strong>Ativação por unidade:</strong> o administrador liga ou desliga cada módulo
+      nas configurações da unidade — o menu só mostra o que estiver ativo para você.</div>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>11 · Módulos opcionais</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 12 · ADMINISTRAÇÃO ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Para administradores</span><span class="pageno">12</span></header>
+    <h2 class="title">Painel Admin: <span class="soft">a sala de máquinas</span></h2>
+    <div class="rule"></div>
+    <div class="content colstack" style="gap:22px;">
+      <p class="lead" style="font-size:15px;">Um clique no botão <strong>“Painel Admin”</strong>, no topo, abre os cadastros que sustentam o sistema:</p>
+      <div class="modgrid">
+        <div class="mod"><b>Usuários e papéis</b><span>Contas, senhas e permissões de cada perfil</span></div>
+        <div class="mod"><b>Salas e categorias</b><span>Espaços com as cores e ícones usados no totem</span></div>
+        <div class="mod"><b>Cursos e disciplinas</b><span>A oferta da unidade, usada nas reservas</span></div>
+        <div class="mod"><b>Feriados</b><span>Importação oficial da BrasilAPI em um clique</span></div>
+        <div class="mod"><b>Unidades e módulos</b><span>Multi-unidade com dados isolados e módulos opcionais</span></div>
+        <div class="mod"><b>API e integrações</b><span>Tokens de leitura para painéis e outros sistemas</span></div>
+        <div class="mod"><b>Vale-Transporte</b><span>Empresas de ônibus, tarifas e data de fechamento</span></div>
+        <div class="mod"><b>Notificações</b><span>Grupos e antecedências dos avisos automáticos</span></div>
+      </div>
+      <p class="note">Após a instalação, o painel guia a <strong>configuração inicial</strong> com um checklist — nada fica para trás.</p>
+    </div>
+    <footer class="foot"><span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span><span>12 · Administração</span></footer>
+  </div>
+</section>
+
+<!-- ═══════════════ SLIDE 13 · ENCERRAMENTO ═══════════════ -->
+<section class="page">
+  <div class="pad">
+    <header class="top"><span class="kicker">Para começar bem</span><span class="pageno">13</span></header>
+    <h2 class="title">Bom proveito!</h2>
+    <div class="rule"></div>
+    <div class="content cols2">
+      <div class="colstack" style="gap:16px;">
+        <h4 style="margin:0; font-size:15px; font-weight:800; color:var(--primary); letter-spacing:1.5px; text-transform:uppercase;">Dicas de bom uso</h4>
+        <ul class="bullets">
+          <li><strong>Reserve com antecedência</strong> e confira a disponibilidade da sala antes.</li>
+          <li><strong>Ative as notificações</strong> das suas reservas e acompanhe o sino.</li>
+          <li><strong>Divulgue o portal</strong> com os alunos — a agenda do dia, sempre atualizada.</li>
+        </ul>
+      </div>
+      <div class="colstack" style="gap:16px;">
+        <h4 style="margin:0; font-size:15px; font-weight:800; color:var(--primary); letter-spacing:1.5px; text-transform:uppercase;">Ajuda e novidades</h4>
+        <ul class="bullets">
+          <li><strong>Manual do Usuário completo</strong>, disponível com o administrador da unidade.</li>
+          <li><strong>Novidades:</strong> clique na versão no rodapé do sistema para ver o que mudou.</li>
+          <li><strong>Acesso e senhas:</strong> fale com o administrador da sua unidade.</li>
+        </ul>
+      </div>
+    </div>
+    <footer class="foot">
+      <span class="brand"><img src="assets/favicon.svg" alt="">SIGerE · Apresentação aos usuários</span>
+      <span>SIGerE — a agenda da unidade, organizada.</span>
+    </footer>
+  </div>
+</section>
+
+</body>
+</html>
