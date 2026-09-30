@@ -10,12 +10,36 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.25.0'
+APP_VERSION = '1.25.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.25.1',
+        'data': '2026-09-30',
+        'titulo': 'Notificações de atividade próxima sem avisos duplicados',
+        'grupos': [
+            ('Corrigido', [
+                'A varredura de reservas próximas (flask notify-scan) não gera mais avisos '
+                'duplicados quando a reserva entra na janela com antecedência menor que o maior '
+                'marco configurado — uma reserva criada na véspera para o dia seguinte, com '
+                'marcos de 7, 1 e 0 dias, recebia na véspera dois avisos idênticos de "Amanhã", '
+                'um do marco "de 7 dias" que nunca existiu de fato e outro "de 1 dia". Agora '
+                'cada varredura cria apenas o aviso do marco mais iminente já vencido: no fluxo '
+                'normal cada marco continua disparando exatamente no seu dia (7 dias antes, 1 '
+                'dia antes e no próprio dia), e o aviso cujo prazo nunca chegou a existir não '
+                'dispara tardiamente; atrasos do timer continuam sem pular o aviso mais '
+                'próximo.',
+                'Migração que limpa os avisos duplicados já acumulados: para o mesmo '
+                'destinatário e reserva com título e corpo idênticos, fica apenas o aviso do '
+                'marco mais iminente — avisos legítimos, criados em dias diferentes com títulos '
+                'distintos ("Em 7 dias", "Amanhã", "Hoje"), não são tocados. A atualização do '
+                'servidor (flask db upgrade) aplica a limpeza automaticamente.',
+            ]),
+        ],
+    },
     {
         'versao': '1.25.0',
         'data': '2026-09-30',
