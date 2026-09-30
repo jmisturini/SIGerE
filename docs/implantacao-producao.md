@@ -621,8 +621,10 @@ aplicação**: sem o timer abaixo, os avisos não são gerados (o sino e a tela 
 notificações continuam funcionando, apenas ficam vazios).
 
 O comando é idempotente — a unicidade por (destinatário, reserva, marco de
-antecedência) impede duplicatas — e atrasos não pulam avisos: marcos vencidos
-disparam na primeira varredura seguinte. Cada unidade liga o módulo e configura
+antecedência) impede duplicatas — e atrasos não pulam avisos: na primeira
+varredura seguinte dispara o marco vencido mais iminente (marcos anteriores a
+ele ficam absorvidos, para não gerar avisos repetidos com o mesmo conteúdo).
+Cada unidade liga o módulo e configura
 antecedências/destinatários no Painel Admin → Notificações.
 
 Crie `/etc/systemd/system/sigere-notify.service` (mesmo usuário do backup):
