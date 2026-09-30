@@ -36,7 +36,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 # ---------------------------------------------------------------- constantes
 
-VERSAO = '1.23.0'
+VERSAO = '1.25.0'
 DATA_CAPA = 'Setembro de 2026'
 
 PAGINA_W, PAGINA_H = A4
