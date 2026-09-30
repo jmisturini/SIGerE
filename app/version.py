@@ -10,12 +10,35 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.25.1'
+APP_VERSION = '1.26.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.26.0',
+        'data': '2026-09-30',
+        'titulo': 'Nova identidade visual no favicon e na barra lateral',
+        'grupos': [
+            ('Alterado', [
+                'Favicon do site e logo da barra lateral trocados pelo emblema da nova marca '
+                '(a letra "S" com o prédio isométrico e as setas de renovação), com o fundo '
+                'da arte removido: no lugar do ícone genérico de prédio (bi-building), a '
+                'sidebar exibe o emblema ao lado do texto "SIGerE", restando apenas o texto '
+                'no modo contraído, como antes; o favicon desenhado (prédio em tile azul) deu '
+                'lugar a favicon.ico (16/32/48), favicon-16x16.png, favicon-32x32.png, '
+                'apple-touch-icon.png (fundo branco, exigência do iOS) e favicon.svg com o '
+                'raster embutido — os <link> dos templates não mudam.',
+                'Documentação alinhada à nova marca: as telas que exibem a barra lateral '
+                '(login, painel, calendário, reservas, disponibilidade de sala, portal e '
+                'cronograma público) foram recapturadas em docs/screenshots/ com os dados de '
+                'demonstração (flask seed), e a apresentação aos usuários recebeu o novo '
+                'emblema na capa (tile branco) e nos rodapés, com apresentacao-sigere.pdf e '
+                'o preview regenerados.',
+            ]),
+        ],
+    },
     {
         'versao': '1.25.1',
         'data': '2026-09-30',
