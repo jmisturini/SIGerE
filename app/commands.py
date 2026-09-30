@@ -795,11 +795,12 @@ def notify_scan_command(dry_run):
     """Varre as reservas próximas e cria as notificações dos destinatários.
 
     Para cada unidade com o módulo ativo (Notificações no painel admin),
-    cria o aviso por professor/criador/aprovadores/grupos configurados a cada
-    marco de antecedência já vencido — apenas das reservas com as notificações
-    ativadas no próprio detalhe (padrão desativado). Idempotente: a constraint
-    de unicidade impede duplicatas, então pode rodar com segurança a cada
-    15 minutos.
+    cria o aviso por professor/criador/aprovadores/grupos configurados no
+    marco de antecedência mais iminente já vencido (marcos anteriores ficam
+    absorvidos, para não repetir avisos com o mesmo conteúdo) — apenas das
+    reservas com as notificações ativadas no próprio detalhe (padrão
+    desativado). Idempotente: a constraint de unicidade impede duplicatas,
+    então pode rodar com segurança a cada 15 minutos.
 
     Uso: flask --app run notify-scan [--dry-run]
     """

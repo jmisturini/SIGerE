@@ -193,14 +193,40 @@ class TestVarredura(NotificationsTestCase):
         self.assertEqual(stats['existentes'], 2)
         self.assertEqual(self._contar(), 2)
 
-    def test_janela_atrasada_dispara_marcos_vencidos_de_uma_vez(self):
-        # Reserva amanhã: marcos de 7 e 1 dia já venceram; o do dia, não.
+    def test_janela_atrasada_dispara_somente_o_marco_mais_iminente(self):
+        # Reserva amanhã: marcos de 7 e 1 dia já venceram, mas dispara só o
+        # mais iminente (1 dia) — os anteriores sairiam com o mesmo título
+        # ("Amanhã") e seriam avisos redundantes.
         self._criar_reserva(em_dias=1)
         with self.app.app_context():
             varrer_reservas()
-        self.assertEqual(self._contar(milestone='7d'), 2)
+        self.assertEqual(self._contar(milestone='7d'), 0)
         self.assertEqual(self._contar(milestone='1d'), 2)
         self.assertEqual(self._contar(milestone='0d'), 0)
+
+    def test_reserva_criada_na_vespera_para_hoje_nao_duplica(self):
+        # Bug reportado: marcos 7,1,0 e reserva criada na véspera para o dia
+        # seguinte. Na véspera, '7d' e '1d' estavam vencidos juntos e saíam na
+        # mesma varredura com título e corpo idênticos ("Amanhã: ...") — o
+        # usuário via notificações duplicadas. Agora sai só o '1d' na véspera
+        # e o '0d' no dia.
+        reservation_id = self._criar_reserva(em_dias=1)
+        with self.app.app_context():
+            stats = varrer_reservas()
+        self.assertEqual(stats['criadas'], 2)              # professor + criador
+        self.assertEqual(self._contar(milestone='1d'), 2)
+        self.assertEqual(self._contar(milestone='7d'), 0)
+
+        # No dia da reserva entra o aviso "Hoje", sem repetir "Amanhã".
+        with self.app.app_context():
+            data = db.session.get(Reservation, reservation_id).date
+            varrer_reservas(hoje=data)
+        self.assertEqual(self._contar(milestone='0d'), 2)
+        self.assertEqual(self._contar(), 4)
+        with self.app.app_context():
+            titulos = {n.title for n in Notification.query.all()}
+        self.assertEqual(titulos,
+                         {'Amanhã: Aula de Teste', 'Hoje: Aula de Teste'})
 
     def test_reserva_no_dia_avisa_hoje(self):
         self._criar_reserva(em_dias=0)
