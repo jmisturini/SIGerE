@@ -1,57 +1,138 @@
 {% extends 'base.html' %}
+{% import '_unidade_publica.html' as unidade_publica %}
 {% block title %}Bem-vindo - SIGerE{% endblock %}
 
 {% block content %}
-<div class="page-header text-center mb-5">
-    <h1 class="display-5 fw-bold mb-3">SIGerE</h1>
-    <p class="lead text-muted col-lg-8 mx-auto">
-        Bem-vindo ao SIGerE! Consulte o cronograma de aulas do dia, encontre a sua aula
-        pelo curso, disciplina, professor ou sala — e faça login para gerenciar suas reservas.
-    </p>
+<div class="page-header text-center mb-4">
+    <h1 class="home-titulo mb-0">Bem-vindo ao SIGerE</h1>
 </div>
 
-<div class="row g-4 justify-content-center">
-    <div class="col-md-6 col-lg-4 d-flex align-items-stretch">
-        <div class="card w-100 text-center hover-shadow border-0">
-            <div class="card-body d-flex flex-column justify-content-center align-items-center p-4">
-                <div class="feature-icon bg-primary-subtle text-primary mb-4">
-                    <i class="bi bi-search"></i>
+{% if public_unity %}
+{# Faixa "Agora no campus": período corrente, aulas em andamento e a próxima #}
+<div class="faixa-agora">
+    <span class="pulso" aria-hidden="true"></span>
+    <span>
+        <strong>Agora no campus:</strong> período da {{ periodo_atual_label }}
+        {%- if em_andamento_count %}
+        · {{ em_andamento_count }} aula{{ 's' if em_andamento_count != 1 }} em andamento
+        {%- endif %}
+        {%- if proxima_aula %}
+        · próxima às {{ proxima_aula.start_time.strftime('%H:%M') }} na sala {{ proxima_aula.classroom.code }}
+        {%- endif %}
+        {%- if not em_andamento_count and not proxima_aula %}· sem aulas restantes hoje{% endif %}
+    </span>
+    <a href="{{ url_for('public.daily_schedule') }}" class="ms-auto fw-semibold text-nowrap ver-tudo">
+        Ver tudo <i class="bi bi-arrow-right"></i>
+    </a>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    {# ── Card busca funcional: submete direto para a página de resultados ── #}
+    <div class="col-md-6 col-lg-4 d-flex">
+        <div class="card card-func w-100">
+            <div class="faixa-topo"></div>
+            <div class="card-body d-flex flex-column">
+                <div class="icone-chip"><i class="bi bi-search"></i></div>
+                <h4 class="fw-bold">Buscar minha aula</h4>
+                <p class="desc mb-3">Informe o curso, a disciplina, o professor ou a sala.</p>
+                <form method="GET" action="{{ url_for('public.class_search') }}#resultados">
+                    {% if public_unity and public_unities|length > 1 %}
+                    <input type="hidden" name="unity" value="{{ public_unity.id }}">
+                    {% endif %}
+                    <div class="mb-2">
+                        <label class="form-label" for="home-q">O que procurar</label>
+                        <input type="text" name="q" id="home-q" class="form-control"
+                               placeholder="Ex.: Curso 18, SA210, Barbara Wilson…">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="home-data">Data</label>
+                        <input type="date" name="data" id="home-data" class="form-control" value="{{ today.isoformat() }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search me-1"></i> Buscar aula
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {# ── Card cronograma: prévia curta das aulas que ainda vêm hoje ── #}
+    <div class="col-md-6 col-lg-4 d-flex">
+        <div class="card card-func w-100">
+            <div class="faixa-topo"></div>
+            <div class="card-body d-flex flex-column">
+                <div class="icone-chip"><i class="bi bi-calendar-day"></i></div>
+                <h4 class="fw-bold">Cronograma de hoje</h4>
+                {% if public_unity %}
+                <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                    <p class="desc mb-0">Próximas aulas de hoje{% if public_unities|length > 1 %} na {{ public_unity.name }}{% endif %}.</p>
+                    {{ unidade_publica.seletor(public_unity, public_unities, 'public.home') }}
                 </div>
-                <h4 class="fw-bold mb-2">Buscar Minha Aula</h4>
-                <p class="text-muted mb-4">Encontre sua aula informando o curso, a disciplina, o professor ou a sala.</p>
-                <a href="{{ url_for('public.class_search') }}" class="btn btn-primary mt-auto w-100">
-                    <i class="bi bi-search"></i> Buscar Aula
+                {% if aulas_preview %}
+                <div class="mb-3">
+                    {% for r in aulas_preview %}
+                    <div class="mini-aula {{ 'em-andamento' if r.id in ids_em_andamento }}">
+                        <span class="hora">{{ r.start_time.strftime('%H:%M') }}–{{ r.end_time.strftime('%H:%M') }}</span>
+                        <span class="info">
+                            <span class="titulo">{{ r.title }}</span>
+                            {% if r.teacher %}<span class="meta">{{ r.teacher.full_name }}</span>
+                            {% elif r.course %}<span class="meta">{{ r.course.name }}</span>{% endif %}
+                        </span>
+                        {% if r.id in ids_em_andamento %}
+                        <span class="badge badge-agora" title="Aula em andamento agora">Agora</span>
+                        {% endif %}
+                        <span class="sala">{{ r.classroom.code }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="vazio mb-3">
+                    <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
+                    <p class="small mb-0">Nenhuma aula restante hoje na unidade {{ public_unity.name }}.</p>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="vazio mb-3">
+                    <i class="bi bi-buildings fs-2 d-block mb-2"></i>
+                    <p class="small mb-0">O cronograma de aulas será exibido assim que uma unidade for criada no painel.</p>
+                </div>
+                {% endif %}
+                <a href="{{ url_for('public.daily_schedule') }}" class="btn btn-primary w-100 mt-auto">
+                    <i class="bi bi-calendar-day me-1"></i> Ver dia completo
                 </a>
             </div>
         </div>
     </div>
 
-    <div class="col-md-6 col-lg-4 d-flex align-items-stretch">
-        <div class="card w-100 text-center hover-shadow border-0">
-            <div class="card-body d-flex flex-column justify-content-center align-items-center p-4">
-                <div class="feature-icon bg-primary-subtle text-primary mb-4">
-                    <i class="bi bi-calendar-day"></i>
-                </div>
-                <h4 class="fw-bold mb-2">Cronograma de Aulas</h4>
-                <p class="text-muted mb-4">Veja as aulas do dia organizadas por manhã, tarde e noite.</p>
-                <a href="{{ url_for('public.daily_schedule') }}" class="btn btn-primary mt-auto w-100">
-                    <i class="bi bi-calendar-day"></i> Ver Cronograma
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6 col-lg-4 d-flex align-items-stretch">
-        <div class="card w-100 text-center hover-shadow border-0">
-            <div class="card-body d-flex flex-column justify-content-center align-items-center p-4">
-                <div class="feature-icon bg-primary-subtle text-primary mb-4">
-                    <i class="bi bi-box-arrow-in-right"></i>
-                </div>
-                <h4 class="fw-bold mb-2">Entrar</h4>
-                <p class="text-muted mb-4">Acesse seu painel para gerenciar reservas e consultas.</p>
-                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary mt-auto w-100">
-                    <i class="bi bi-unlock"></i> Fazer Login
-                </a>
+    {# ── Card login: form completo embutido (CSRF + WTForms) ── #}
+    <div class="col-md-6 col-lg-4 d-flex">
+        <div class="card card-func w-100">
+            <div class="faixa-topo"></div>
+            <div class="card-body d-flex flex-column">
+                <div class="icone-chip"><i class="bi bi-shield-lock"></i></div>
+                <h4 class="fw-bold">Entrar no sistema</h4>
+                <p class="desc mb-3">Para a equipe do campus: gerencie reservas e consultas.</p>
+                <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-2">
+                        {{ form.email.label(class="form-label") }}
+                        {{ form.email(class="form-control", placeholder="nome@sp.senac.br", autocomplete="username") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        <div class="input-group">
+                            {{ form.password(class="form-control", id="home-password", placeholder="Digite sua senha", autocomplete="current-password") }}
+                            <button class="btn btn-outline-secondary" type="button" data-password-toggle="home-password"
+                                    title="Mostrar/ocultar senha" tabindex="-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 mt-auto">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Fazer login
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -60,21 +141,129 @@
 
 {% block scripts %}
 <style>
-    .feature-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: 16px;
+    /* ── Home funcional (redesign C): cores via tokens do app para herdar
+       tema escuro e accent sem CSS dedicado por tema ── */
+    .home-titulo {
+        font-weight: 800;
+        letter-spacing: -.02em;
+        font-size: 1.8rem;
+    }
+
+    .faixa-agora {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        background: var(--bs-primary-bg-subtle);
+        border-radius: 12px;
+        padding: .65rem 1.1rem;
+        font-size: .88rem;
+        max-width: 720px;
+        margin: 0 auto 1.8rem;
+    }
+    .faixa-agora .pulso {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        animation: pulso-agora 1.6s infinite;
+        flex-shrink: 0;
+    }
+    @keyframes pulso-agora {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .4; }
+    }
+    .faixa-agora .ver-tudo { color: var(--primary-color); }
+
+    .card-func {
+        border-radius: 18px;
+        overflow: hidden;
+    }
+    .card-func .faixa-topo {
+        height: 5px;
+        background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
+    }
+    .card-func .icone-chip {
+        width: 54px;
+        height: 54px;
+        border-radius: 15px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.8rem;
+        font-size: 1.5rem;
+        background: var(--bs-primary-bg-subtle);
+        color: var(--primary-color);
+        margin-bottom: 1rem;
     }
-    .hover-shadow {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    .card-func h4 { font-size: 1.1rem; }
+    .card-func .desc {
+        color: var(--text-muted);
+        font-size: .87rem;
     }
-    .hover-shadow:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.1) !important;
+    .card-func .form-label {
+        font-size: .74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        letter-spacing: .04em;
+    }
+
+    /* Linha de aula compacta: título de aula é longo demais para caber ao
+       lado da hora e da sala num card estreito — hora, selo "Agora" e sala
+       ficam na primeira linha e o título ganha a linha inteira. */
+    .mini-aula {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .25rem .6rem;
+        padding: .6rem .75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 11px;
+        margin-bottom: .5rem;
+        background: var(--body-bg);
+    }
+    .mini-aula .hora {
+        order: 1;
+        font-weight: 700;
+        font-size: .8rem;
+        color: var(--primary-color);
+        white-space: nowrap;
+    }
+    .mini-aula .badge-agora {
+        order: 2;
+        flex-shrink: 0;
+        background: var(--primary-color);
+        color: #fff;
+        font-weight: 700;
+        font-size: .64rem;
+    }
+    .mini-aula .sala {
+        order: 3;
+        margin-left: auto;
+        background: var(--bs-primary-bg-subtle);
+        color: var(--primary-color);
+        font-weight: 700;
+        font-size: .7rem;
+        border-radius: 6px;
+        padding: .2rem .5rem;
+        white-space: nowrap;
+    }
+    .mini-aula .info {
+        order: 4;
+        flex-basis: 100%;
+    }
+    .mini-aula .titulo {
+        display: block;
+        font-weight: 600;
+        font-size: .87rem;
+        line-height: 1.25;
+    }
+    .mini-aula .meta {
+        font-size: .74rem;
+        color: var(--text-muted);
+    }
+    .mini-aula.em-andamento {
+        border-color: var(--bs-primary-border-subtle);
+        background: var(--bs-primary-bg-subtle);
     }
 </style>
 {% endblock %}

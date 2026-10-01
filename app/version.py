@@ -10,12 +10,38 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.26.0'
+APP_VERSION = '1.27.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.27.0',
+        'data': '2026-10-01',
+        'titulo': 'Home pública com cards funcionais (redesign opção C)',
+        'grupos': [
+            ('Adicionado', [
+                'A home do visitante passa a executar as funções na própria página, '
+                'seguindo a opção "Cards funcionais" do redesign: card de busca com '
+                'formulário que submete direto para /buscar-aula (termo, data e '
+                'unidade), card do cronograma com prévia das próximas aulas do dia — '
+                'badge "Agora" nas aulas em andamento, seletor de unidade do portal '
+                'público e botão "Ver dia completo" — e card "Entrar no sistema" com '
+                'o formulário de login completo (e-mail, senha com mostrar/ocultar e '
+                'CSRF), sem nova rota: a home consulta o banco reusando os mesmos '
+                'dados de /cronograma.',
+                'Faixa "Agora no campus" no topo da home: período corrente do dia '
+                '(manhã/tarde/noite), quantidade de aulas em andamento e a próxima '
+                'aula com horário e sala, com link "Ver tudo" para o cronograma '
+                'completo.',
+            ]),
+            ('Alterado', [
+                'Cabeçalho da home reduzido ao título "Bem-vindo ao SIGerE", sem o '
+                'parágrafo descritivo.',
+            ]),
+        ],
+    },
     {
         'versao': '1.26.0',
         'data': '2026-09-30',

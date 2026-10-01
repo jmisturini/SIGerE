@@ -3,6 +3,7 @@ from flask_login import current_user
 from sqlalchemy import or_
 from app.models import User, Classroom, Reservation, Course, Subject, Unity
 from app.unity_context import current_unity_id
+from app.forms import LoginForm
 from datetime import date, time, datetime
 
 bp = Blueprint('public', __name__)
@@ -64,7 +65,28 @@ def home():
     # Redirect to dashboard if the user is already logged in
     if current_user.is_authenticated:
         return redirect(url_for('main.index'))
-    return render_template('home.html')
+    # Home funcional (redesign C): a busca, o cronograma do dia e o login
+    # passam a executar na própria página — mesmos dados de /cronograma
+    # (_aulas_do_dia) e o form de login aponta para auth.login como antes.
+    periods, _, unity, unities = _aulas_do_dia(date.today())
+    agora = datetime.now().time()
+    aulas_hoje = [r for p in periods for r in p['reservations']]
+    em_andamento = [r for r in aulas_hoje if r.start_time <= agora < r.end_time]
+    proximas = [r for r in aulas_hoje if r.start_time > agora]
+    return render_template(
+        'home.html',
+        today=date.today(),
+        # Prévia curta do cronograma: aula em andamento + próximas do dia
+        aulas_preview=(em_andamento + proximas)[:4],
+        ids_em_andamento={r.id for r in em_andamento},
+        em_andamento_count=len(em_andamento),
+        proxima_aula=proximas[0] if proximas else None,
+        periodo_atual_label=next(
+            label for key, label, _, _ in PERIODOS_DIA if key == _periodo_atual()),
+        public_unity=unity,
+        public_unities=unities,
+        form=LoginForm(),
+    )
 
 
 def _parse_data_arg():
