@@ -531,6 +531,17 @@ body {
     display: contents;
 }
 
+/* Seletor de unidade do portal público (cronograma, busca e home): com um
+   cadastro grande (ex.: unidades do Senac SC) o menu ficava mais alto que a
+   tela e os itens do fim ficavam inalcançáveis — altura máxima com rolagem. */
+.dropdown-menu-unidades {
+    max-height: min(60vh, 26rem);
+    max-width: calc(100vw - 2rem);
+    overflow-y: auto;
+    /* Rolar até o fim do menu não arrasta a página atrás */
+    overscroll-behavior: contain;
+}
+
 /* Nav-tabs e paginação são flex-nowrap no Bootstrap: com 4 abas ou muitas
    páginas elas estouravam a largura da tela no mobile. */
 .nav-tabs {
