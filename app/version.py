@@ -10,12 +10,32 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.27.0'
+APP_VERSION = '1.27.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.27.1',
+        'data': '2026-10-01',
+        'titulo': 'Dropdown de unidades não quebra mais com a lista completa',
+        'grupos': [
+            ('Corrigido', [
+                'Seletor de unidade do portal público (home, cronograma e busca de '
+                'aula) com cadastro grande de unidades: o menu do dropdown ganha '
+                'altura máxima (~60% da tela) com barra de rolagem interna, e rolar '
+                'até o fim do menu não arrasta mais a página atrás (overscroll-'
+                'behavior) — antes, com todas as unidades do Senac SC cadastradas, '
+                'os itens do fim da lista ficavam além da borda inferior da tela e '
+                'inalcançáveis.',
+                'Na home pública, o card "Cronograma de hoje" não corta mais o menu '
+                'de unidades aberto: o card funcional deixou de usar overflow '
+                'hidden — a faixa gradiente do topo passou a carregar o próprio '
+                'raio de canto, preservando as bordas arredondadas do card.',
+            ]),
+        ],
+    },
     {
         'versao': '1.27.0',
         'data': '2026-10-01',

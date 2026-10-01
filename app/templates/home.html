@@ -174,12 +174,15 @@
     }
     .faixa-agora .ver-tudo { color: var(--primary-color); }
 
+    /* Sem overflow: hidden no card — o dropdown do seletor de unidade abre
+       para fora do card e seria cortado. A faixa do topo carrega o próprio
+       raio superior, então nada escapa das bordas arredondadas. */
     .card-func {
         border-radius: 18px;
-        overflow: hidden;
     }
     .card-func .faixa-topo {
         height: 5px;
+        border-radius: 18px 18px 0 0;
         background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
     }
     .card-func .icone-chip {
