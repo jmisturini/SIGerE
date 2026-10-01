@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PREVIEW A — Portal · SIGerE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+    :root {
+        --azul: #004b8d;
+        --azul-escuro: #002a48;
+        --azul-hover: #003d70;
+        --bg: #f4f6f9;
+        --muted: #6c757d;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: #333; }
+
+    /* Selo de mockup */
+    .selo-preview {
+        position: fixed; top: 14px; right: -42px; z-index: 2000;
+        transform: rotate(38deg);
+        background: #b45309; color: #fff; font-size: .68rem; font-weight: 700;
+        letter-spacing: .08em; padding: 5px 48px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+
+    /* Topbar */
+    .topbar {
+        background: #fff; border-bottom: 1px solid rgba(0,0,0,.06);
+        padding: .65rem 1.5rem; position: sticky; top: 0; z-index: 1000;
+    }
+    .brand { display: flex; align-items: center; gap: .65rem; text-decoration: none; }
+    .brand img { height: 34px; }
+    .brand-text { font-weight: 800; color: var(--azul-escuro); font-size: 1.15rem; letter-spacing: -.01em; }
+    .clock { text-align: right; line-height: 1.15; }
+    .clock strong { font-size: 1rem; font-weight: 600; color: #333; }
+    .clock small { display: block; font-size: .72rem; color: var(--muted); }
+    .btn-entrar {
+        --bs-btn-color: var(--azul); --bs-btn-border-color: var(--azul);
+        --bs-btn-hover-bg: var(--azul); --bs-btn-hover-border-color: var(--azul);
+        font-weight: 600;
+    }
+
+    /* Hero */
+    .hero {
+        background: linear-gradient(135deg, var(--azul-escuro) 0%, var(--azul) 60%, #0a6abf 100%);
+        color: #fff; padding: 4.5rem 1rem 7rem; position: relative; overflow: hidden;
+    }
+    .hero::before, .hero::after {
+        content: ''; position: absolute; border-radius: 50%;
+        background: rgba(255,255,255,.06);
+    }
+    .hero::before { width: 520px; height: 520px; top: -220px; right: -120px; }
+    .hero::after { width: 320px; height: 320px; bottom: -160px; left: -80px; }
+    .hero-eyebrow {
+        display: inline-flex; align-items: center; gap: .5rem;
+        background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
+        border-radius: 999px; padding: .3rem .9rem; font-size: .8rem; font-weight: 600;
+    }
+    .hero h1 { font-weight: 800; font-size: clamp(1.9rem, 4vw, 2.8rem); letter-spacing: -.02em; }
+    .hero p.lead { color: rgba(255,255,255,.85); max-width: 560px; }
+
+    /* Busca em pílula */
+    .busca-pilula {
+        background: #fff; border-radius: 18px; padding: .55rem;
+        box-shadow: 0 18px 40px rgba(0,20,40,.35);
+        max-width: 780px; margin: 0 auto;
+    }
+    .busca-pilula .form-control, .busca-pilula .form-control:focus {
+        border: 0; box-shadow: none; background: transparent; font-size: 1.02rem;
+    }
+    .busca-pilula .divisoria { border-left: 1px solid rgba(0,0,0,.1); height: 34px; align-self: center; }
+    .busca-pilula input[type="date"] { max-width: 165px; font-size: .95rem; }
+    .btn-buscar {
+        background: var(--azul); color: #fff; font-weight: 700; border-radius: 12px;
+        padding: .7rem 1.4rem; --bs-btn-hover-bg: var(--azul-hover); --bs-btn-hover-color: #fff;
+    }
+    .chips { gap: .5rem; }
+    .chip {
+        background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.3);
+        color: #fff; border-radius: 999px; padding: .28rem .85rem; font-size: .8rem;
+        text-decoration: none; transition: background .15s;
+    }
+    .chip:hover { background: rgba(255,255,255,.28); color: #fff; }
+
+    /* Puxar a seção de aulas sobre o hero */
+    .sobre-pos-hero { margin-top: -4.2rem; position: relative; z-index: 5; }
+    /* O cabeçalho da seção pousa sobre o gradiente: texto claro obrigatório */
+    .sobre-hero-cabecalho, .sobre-hero-cabecalho h2 { color: #fff; }
+    .sobre-hero-cabecalho .text-muted { color: rgba(255,255,255,.72) !important; }
+    .sobre-hero-cabecalho .btn-link { color: #fff; font-weight: 600; }
+    .sobre-hero-cabecalho .btn-outline-light { --bs-btn-color: #fff; --bs-btn-border-color: rgba(255,255,255,.5); }
+
+    /* Cartões de período */
+    .periodo-card { border: 0; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,.05); }
+    .periodo-card .card-header {
+        background: transparent; border-bottom: 1px solid rgba(0,0,0,.05);
+        font-weight: 700; padding: 1rem 1.15rem;
+    }
+    .periodo-icone {
+        width: 38px; height: 38px; border-radius: 11px; display: inline-flex;
+        align-items: center; justify-content: center; font-size: 1.05rem;
+        background: #d4e4f2; color: var(--azul);
+    }
+    .aula-item { padding: .8rem 1.15rem; border-top: 1px solid rgba(0,0,0,.04); }
+    .aula-item .hora { font-weight: 700; font-size: .9rem; }
+    .aula-item .sala {
+        background: #d4e4f2; color: var(--azul); font-weight: 700; font-size: .72rem;
+        border-radius: 7px; padding: .18rem .5rem;
+    }
+    .aula-item .titulo { font-weight: 600; font-size: .93rem; margin-top: .15rem; }
+    .aula-item .meta { font-size: .78rem; color: var(--muted); }
+    .badge-agora {
+        background: #fff; color: var(--azul); font-weight: 700; font-size: .68rem;
+        animation: pulso 1.6s infinite;
+    }
+    @keyframes pulso { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+    /* Faixa de login */
+    .faixa-login {
+        background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,.05);
+    }
+
+    .footer { color: var(--muted); font-size: .82rem; padding: 1.6rem 0 2rem; }
+    .footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="selo-preview">PREVIEW A · MOCKUP</div>
+
+<!-- Topbar -->
+<nav class="topbar d-flex align-items-center justify-content-between">
+    <a class="brand" href="#">
+        <img src="../../app/static/img/logo-sigere.png" alt="">
+        <span class="brand-text">SIGerE</span>
+    </a>
+    <div class="d-flex align-items-center gap-3">
+        <div class="clock d-none d-md-block">
+            <strong>14:32:05</strong>
+            <small>qua, 30 de set · ☀ 26°C Campus</small>
+        </div>
+        <a href="#entrar" class="btn btn-entrar btn-outline-primary">
+            <i class="bi bi-box-arrow-in-right me-1"></i> Entrar
+        </a>
+    </div>
+</nav>
+
+<!-- Hero com busca integrada -->
+<header class="hero">
+    <div class="container text-center position-relative">
+        <span class="hero-eyebrow"><i class="bi bi-geo-alt-fill"></i> Unidade Central</span>
+        <h1 class="mt-3 mb-2">Encontre a sua aula</h1>
+        <p class="lead mx-auto mb-4">Consulte o cronograma do dia ou busque pelo curso, disciplina,
+            professor ou sala — sem precisar de conta.</p>
+
+        <form class="busca-pilula d-flex flex-column flex-lg-row align-items-lg-center gap-2 px-3" action="#" method="get">
+            <i class="bi bi-search text-muted d-none d-lg-block ms-2 fs-5"></i>
+            <input type="text" class="form-control py-2" placeholder="Curso, disciplina, professor ou sala — ex.: SA210">
+            <span class="divisoria d-none d-lg-block"></span>
+            <input type="date" class="form-control py-2" value="2026-09-30">
+            <button type="submit" class="btn btn-buscar text-nowrap"><i class="bi bi-search me-1"></i> Buscar aula</button>
+        </form>
+
+        <div class="chips d-flex flex-wrap justify-content-center mt-3">
+            <span class="text-white-50 me-1 small">Mais buscados:</span>
+            <a class="chip" href="#">Desenvolvimento de Sistemas</a>
+            <a class="chip" href="#">SA210</a>
+            <a class="chip" href="#">Barbara Wilson</a>
+        </div>
+    </div>
+</header>
+
+<!-- Cronograma do dia, puxado sobre o hero -->
+<main class="sobre-pos-hero container">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 sobre-hero-cabecalho">
+        <h2 class="h4 fw-bold mb-0">Aulas de hoje <span class="text-muted fw-normal fs-6">· qua, 30/09</span></h2>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-light btn-sm"><i class="bi bi-geo-alt me-1"></i>Unidade Central <i class="bi bi-chevron-down ms-1"></i></button>
+            <a href="#" class="btn btn-link btn-sm text-decoration-none">Ver cronograma completo <i class="bi bi-arrow-right"></i></a>
+        </div>
+    </div>
+
+    <div class="row g-3 g-lg-4">
+        <!-- Manhã -->
+        <div class="col-md-4 d-flex">
+            <div class="periodo-card card w-100">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <span class="periodo-icone"><i class="bi bi-sunrise"></i></span>
+                    Manhã
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-auto">2</span>
+                </div>
+                <div>
+                    <div class="aula-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="hora"><i class="bi bi-clock text-primary me-1"></i>08:00 – 09:40</span>
+                            <span class="sala">SA210</span>
+                        </div>
+                        <div class="titulo">Desenvolvimento de Sistemas</div>
+                        <div class="meta"><i class="bi bi-mortarboard me-1"></i>Téc. Desenvolvimento · <i class="bi bi-person-badge ms-1 me-1"></i>Barbara Wilson</div>
+                    </div>
+                    <div class="aula-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="hora"><i class="bi bi-clock text-primary me-1"></i>09:50 – 11:30</span>
+                            <span class="sala">SA305</span>
+                        </div>
+                        <div class="titulo">Banco de Dados</div>
+                        <div class="meta"><i class="bi bi-mortarboard me-1"></i>Téc. Desenvolvimento · <i class="bi bi-person-badge ms-1 me-1"></i>Marcos Silva</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tarde (período atual) -->
+        <div class="col-md-4 d-flex">
+            <div class="periodo-card card w-100 border-primary shadow">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <span class="periodo-icone"><i class="bi bi-sun"></i></span>
+                    Tarde
+                    <span class="badge badge-agora ms-1" title="Período em curso agora"><i class="bi bi-broadcast me-1"></i>Agora</span>
+                    <span class="badge bg-primary text-white ms-auto">2</span>
+                </div>
+                <div>
+                    <div class="aula-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="hora"><i class="bi bi-clock text-primary me-1"></i>13:30 – 15:10</span>
+                            <span class="sala">SC102</span>
+                        </div>
+                        <div class="titulo">Design de Interfaces</div>
+                        <div class="meta"><i class="bi bi-mortarboard me-1"></i>Téc. Design Gráfico · <i class="bi bi-person-badge ms-1 me-1"></i>Ana Costa</div>
+                    </div>
+                    <div class="aula-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="hora"><i class="bi bi-clock text-primary me-1"></i>15:20 – 17:00</span>
+                            <span class="sala">SB201</span>
+                        </div>
+                        <div class="titulo">Contabilidade Gerencial</div>
+                        <div class="meta"><i class="bi bi-mortarboard me-1"></i>Téc. Administração · <i class="bi bi-person-badge ms-1 me-1"></i>Pedro Almeida</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Noite -->
+        <div class="col-md-4 d-flex">
+            <div class="periodo-card card w-100">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <span class="periodo-icone"><i class="bi bi-moon-stars"></i></span>
+                    Noite
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-auto">1</span>
+                </div>
+                <div>
+                    <div class="aula-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="hora"><i class="bi bi-clock text-primary me-1"></i>19:00 – 20:40</span>
+                            <span class="sala">SA110</span>
+                        </div>
+                        <div class="titulo">Inglês Técnico</div>
+                        <div class="meta"><i class="bi bi-mortarboard me-1"></i>Téc. Desenvolvimento · <i class="bi bi-person-badge ms-1 me-1"></i>Carla Mendes</div>
+                    </div>
+                    <div class="text-center text-muted small py-3">
+                        <i class="bi bi-moon-stars me-1"></i>Nenhuma outra aula no período
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Faixa de login -->
+    <div class="faixa-login d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 p-4 mt-4 mb-2" id="entrar">
+        <div class="d-flex align-items-center gap-3">
+            <span class="periodo-icone" style="width:46px;height:46px;font-size:1.25rem;">
+                <i class="bi bi-shield-lock"></i>
+            </span>
+            <div>
+                <div class="fw-bold">É da equipe do campus?</div>
+                <div class="small text-muted mb-0">Entre para gerenciar reservas, salas e consultas.</div>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="#" class="btn btn-outline-primary fw-semibold">Criar solicitação de acesso</a>
+            <a href="#" class="btn btn-primary fw-semibold"><i class="bi bi-box-arrow-in-right me-1"></i> Fazer login</a>
+        </div>
+    </div>
+
+    <footer class="footer text-center">
+        © 2026 SIGerE · <a href="#">v1.24.0</a> · Cronograma público atualizado automaticamente
+    </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

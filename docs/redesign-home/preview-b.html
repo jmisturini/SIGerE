@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PREVIEW B — Split · SIGerE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+    :root {
+        --azul: #004b8d;
+        --azul-escuro: #002a48;
+        --azul-hover: #003d70;
+        --bg: #f4f6f9;
+        --muted: #6c757d;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: #333; }
+
+    .selo-preview {
+        position: fixed; top: 14px; right: -42px; z-index: 2000;
+        transform: rotate(38deg);
+        background: #b45309; color: #fff; font-size: .68rem; font-weight: 700;
+        letter-spacing: .08em; padding: 5px 48px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+
+    .layout { display: flex; min-height: 100vh; }
+
+    /* Painel esquerdo: acesso */
+    .painel-acesso {
+        width: 400px; flex-shrink: 0; position: relative; overflow: hidden;
+        background: linear-gradient(170deg, var(--azul-escuro) 0%, var(--azul) 100%);
+        color: #fff; display: flex; flex-direction: column;
+        padding: 2.2rem 2.4rem;
+    }
+    .painel-acesso::before {
+        content: ''; position: absolute; width: 420px; height: 420px; border-radius: 50%;
+        background: rgba(255,255,255,.05); top: -160px; right: -180px;
+    }
+    .painel-acesso::after {
+        content: ''; position: absolute; width: 260px; height: 260px; border-radius: 50%;
+        background: rgba(255,255,255,.05); bottom: -110px; left: -110px;
+    }
+    .painel-brand { display: flex; align-items: center; gap: .65rem; }
+    .painel-brand img { height: 38px; }
+    .painel-brand span { font-weight: 800; font-size: 1.25rem; letter-spacing: -.01em; }
+
+    .card-login {
+        background: #fff; color: #333; border: 0; border-radius: 18px;
+        box-shadow: 0 20px 45px rgba(0,15,30,.4);
+    }
+    .card-login .form-control { border-radius: 10px; padding: .6rem .9rem; }
+    .btn-entrar {
+        background: var(--azul); border: 0; color: #fff; font-weight: 700;
+        border-radius: 10px; padding: .65rem; --bs-btn-hover-bg: var(--azul-hover); --bs-btn-hover-color: #fff;
+    }
+    .olho { border: 1px solid #dee2e6; border-radius: 0 10px 10px 0; }
+
+    .painel-rodape {
+        margin-top: auto; font-size: .8rem; color: rgba(255,255,255,.65);
+        display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem;
+    }
+    .relogio strong { display: block; font-size: 1.5rem; font-weight: 700; color: #fff; }
+    .relogio small { font-size: .75rem; }
+
+    /* Painel direito: conteúdo público */
+    .painel-conteudo { flex: 1; padding: 2.4rem 3rem; overflow-y: auto; }
+
+    .titulo-publico h2 { font-weight: 800; font-size: 1.7rem; letter-spacing: -.02em; color: var(--azul-escuro); }
+    .busca-barra {
+        background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 14px;
+        padding: .4rem; box-shadow: 0 4px 20px rgba(0,0,0,.05);
+    }
+    .busca-barra .form-control, .busca-barra .form-control:focus {
+        border: 0; box-shadow: none; background: transparent;
+    }
+    .busca-barra input[type="date"] { max-width: 160px; font-size: .92rem; }
+    .btn-buscar {
+        background: var(--azul); color: #fff; font-weight: 700; border-radius: 10px;
+        --bs-btn-hover-bg: var(--azul-hover); --bs-btn-hover-color: #fff;
+    }
+
+    .linha-periodo {
+        display: flex; align-items: center; gap: .6rem; font-weight: 700;
+        font-size: .8rem; text-transform: uppercase; letter-spacing: .06em;
+        color: var(--muted); margin-bottom: .8rem;
+    }
+    .linha-periodo .periodo-icone {
+        width: 34px; height: 34px; border-radius: 10px; display: inline-flex;
+        align-items: center; justify-content: center; font-size: .95rem;
+        background: #d4e4f2; color: var(--azul);
+    }
+    .linha-periodo .badge { font-size: .7rem; }
+
+    .aula-linha {
+        background: #fff; border: 1px solid rgba(0,0,0,.05); border-radius: 12px;
+        padding: .75rem 1rem; display: flex; align-items: center; gap: 1rem;
+        margin-bottom: .55rem; box-shadow: 0 2px 10px rgba(0,0,0,.03);
+        transition: transform .15s;
+    }
+    .aula-linha:hover { transform: translateX(3px); }
+    .aula-hora {
+        font-weight: 700; font-size: .85rem; color: var(--azul);
+        min-width: 96px; line-height: 1.2;
+    }
+    .aula-hora small { display: block; color: var(--muted); font-weight: 500; }
+    .aula-info { flex: 1; min-width: 0; }
+    .aula-info .titulo { font-weight: 600; font-size: .95rem; }
+    .aula-info .meta { font-size: .78rem; color: var(--muted); }
+    .sala {
+        background: #d4e4f2; color: var(--azul); font-weight: 700; font-size: .74rem;
+        border-radius: 7px; padding: .25rem .6rem;
+    }
+    .coluna-periodo.ativa .aula-linha { border-color: rgba(0,75,141,.35); background: #f7fafd; }
+    .badge-agora { background: var(--azul); color: #fff; font-weight: 700; font-size: .66rem; animation: pulso 1.6s infinite; }
+    @keyframes pulso { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+    .atalhos { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .atalho {
+        background: #fff; border: 1px dashed rgba(0,75,141,.35); border-radius: 12px;
+        padding: .8rem 1.1rem; text-decoration: none; color: var(--azul-escuro);
+        display: flex; align-items: center; gap: .7rem; font-weight: 600; font-size: .9rem;
+        transition: all .15s; flex: 1; min-width: 200px;
+    }
+    .atalho:hover { background: #f0f6fc; transform: translateY(-2px); color: var(--azul-escuro); }
+    .atalho i { font-size: 1.3rem; color: var(--azul); }
+
+    .footer { color: var(--muted); font-size: .8rem; margin-top: 2.5rem; }
+    @media (max-width: 991px) {
+        .layout { flex-direction: column; }
+        .painel-acesso { width: 100%; }
+        .painel-conteudo { padding: 1.6rem 1.2rem; }
+    }
+</style>
+</head>
+<body>
+<div class="selo-preview">PREVIEW B · MOCKUP</div>
+
+<div class="layout">
+    <!-- Painel esquerdo: marca + login -->
+    <aside class="painel-acesso">
+        <div class="painel-brand">
+            <img src="../../app/static/img/logo-sigere.png" alt="">
+            <span>SIGerE</span>
+        </div>
+
+        <p class="mt-4 mb-0" style="color: rgba(255,255,255,.8); font-size: .92rem;">
+            Consulte as aulas do campus ao lado — <strong class="text-white">sem precisar de conta</strong>.
+            A equipe entra aqui para gerenciar reservas.
+        </p>
+
+        <div class="card card-login mt-4 p-4 position-relative">
+            <h5 class="fw-bold mb-1">Entrar no sistema</h5>
+            <p class="small text-muted mb-3">Use o e-mail institucional.</p>
+            <form>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">E-mail</label>
+                    <input type="email" class="form-control" placeholder="nome@sp.senac.br">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Senha</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" placeholder="Digite sua senha" style="border-radius:10px 0 0 10px;">
+                        <button class="btn btn-outline-secondary olho" type="button" tabindex="-1"><i class="bi bi-eye"></i></button>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-entrar w-100"><i class="bi bi-box-arrow-in-right me-1"></i> Entrar</button>
+                <div class="text-center mt-3">
+                    <a href="#" class="small text-decoration-none">Esqueci minha senha</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="painel-rodape">
+            <div class="relogio">
+                <strong>14:32</strong>
+                <small>qua, 30 de set de 2026</small>
+            </div>
+            <div class="text-end">
+                <div style="font-size:1.4rem;"><i class="bi bi-cloud-sun-fill"></i> 26°C</div>
+                <small>Unidade Central</small>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Painel direito: busca + cronograma -->
+    <main class="painel-conteudo">
+        <div class="titulo-publico d-flex flex-wrap align-items-end justify-content-between gap-2 mb-4">
+            <div>
+                <h2 class="mb-1">Aulas de hoje <span class="text-muted fw-normal fs-6">· qua, 30/09</span></h2>
+                <p class="text-muted mb-0 small">Busque pelo curso, disciplina, professor ou sala — ou navegue pelos períodos.</p>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-geo-alt me-1"></i>Unidade Central <i class="bi bi-chevron-down ms-1"></i></button>
+        </div>
+
+        <form class="busca-barra d-flex flex-column flex-lg-row align-items-lg-center gap-2 px-3 mb-4" action="#" method="get">
+            <i class="bi bi-search text-muted d-none d-lg-block fs-5"></i>
+            <input type="text" class="form-control py-2" placeholder="Curso, disciplina, professor ou sala — ex.: SA210">
+            <span class="divisoria d-none d-lg-block" style="border-left:1px solid rgba(0,0,0,.1); height:30px;"></span>
+            <input type="date" class="form-control py-2" value="2026-09-30">
+            <button type="submit" class="btn btn-buscar px-4"><i class="bi bi-search me-1"></i> Buscar</button>
+        </form>
+
+        <div class="row g-4 mb-2">
+            <!-- Manhã -->
+            <div class="col-lg-4 coluna-periodo">
+                <div class="linha-periodo">
+                    <span class="periodo-icone"><i class="bi bi-sunrise"></i></span>
+                    Manhã
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-auto">2 aulas</span>
+                </div>
+                <div class="aula-linha">
+                    <div class="aula-hora">08:00–09:40<small>SA210</small></div>
+                    <div class="aula-info">
+                        <div class="titulo">Desenvolvimento de Sistemas</div>
+                        <div class="meta">Barbara Wilson · Téc. Desenvolvimento</div>
+                    </div>
+                </div>
+                <div class="aula-linha">
+                    <div class="aula-hora">09:50–11:30<small>SA305</small></div>
+                    <div class="aula-info">
+                        <div class="titulo">Banco de Dados</div>
+                        <div class="meta">Marcos Silva · Téc. Desenvolvimento</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarde -->
+            <div class="col-lg-4 coluna-periodo ativa">
+                <div class="linha-periodo">
+                    <span class="periodo-icone"><i class="bi bi-sun"></i></span>
+                    Tarde
+                    <span class="badge badge-agora ms-1"><i class="bi bi-broadcast me-1"></i>Agora</span>
+                    <span class="badge bg-primary text-white ms-auto">2 aulas</span>
+                </div>
+                <div class="aula-linha">
+                    <div class="aula-hora">13:30–15:10<small>SC102</small></div>
+                    <div class="aula-info">
+                        <div class="titulo">Design de Interfaces</div>
+                        <div class="meta">Ana Costa · Téc. Design Gráfico</div>
+                    </div>
+                </div>
+                <div class="aula-linha">
+                    <div class="aula-hora">15:20–17:00<small>SB201</small></div>
+                    <div class="aula-info">
+                        <div class="titulo">Contabilidade Gerencial</div>
+                        <div class="meta">Pedro Almeida · Téc. Administração</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Noite -->
+            <div class="col-lg-4 coluna-periodo">
+                <div class="linha-periodo">
+                    <span class="periodo-icone"><i class="bi bi-moon-stars"></i></span>
+                    Noite
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-auto">1 aula</span>
+                </div>
+                <div class="aula-linha">
+                    <div class="aula-hora">19:00–20:40<small>SA110</small></div>
+                    <div class="aula-info">
+                        <div class="titulo">Inglês Técnico</div>
+                        <div class="meta">Carla Mendes · Téc. Desenvolvimento</div>
+                    </div>
+                </div>
+                <div class="text-center text-muted small py-2">
+                    <i class="bi bi-moon-stars me-1"></i>Nenhuma outra aula no período
+                </div>
+            </div>
+        </div>
+
+        <div class="atalhos mt-4">
+            <a class="atalho" href="#">
+                <i class="bi bi-calendar-week"></i>
+                <span>Ver cronograma completo<br><small class="text-muted fw-normal">qualquer dia da semana</small></span>
+                <i class="bi bi-arrow-right ms-auto"></i>
+            </a>
+            <a class="atalho" href="#">
+                <i class="bi bi-geo-alt"></i>
+                <span>Detectar unidade próxima<br><small class="text-muted fw-normal">pela sua localização</small></span>
+                <i class="bi bi-arrow-right ms-auto"></i>
+            </a>
+        </div>
+
+        <footer class="footer">© 2026 SIGerE · <a href="#" class="text-muted">v1.24.0</a></footer>
+    </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
