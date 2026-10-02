@@ -46,7 +46,7 @@
                         </div>
                         {% if n.body %}<div class="text-muted small mt-1">{{ n.body }}</div>{% endif %}
                         <div class="text-muted small mt-1">
-                            <i class="bi bi-clock me-1"></i>{{ n.created_at.strftime('%d/%m/%Y %H:%M') }}
+                            <i class="bi bi-clock me-1"></i>{{ n.created_at | horario_local }}
                         </div>
                     </div>
                     {% if not n.is_read %}

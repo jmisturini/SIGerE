@@ -136,6 +136,28 @@ def create_app(config_class=Config):
         from app.version import APP_VERSION
         return {'app_version': APP_VERSION}
 
+    @app.template_filter('horario_local')
+    def horario_local(dt):
+        """Datetime (gravado em UTC) exibido no fuso local do servidor —
+        sem isso, os horários aparecem 3h adiantados no Brasil. O SQLite
+        devolve os datetimes ingênuos (tzinfo perdido no round-trip): por
+        convenção do sistema, o valor ingênuo representa UTC."""
+        if dt is None:
+            return '—'
+        try:
+            if dt.tzinfo is None:
+                from datetime import timezone as _tz
+                dt = dt.replace(tzinfo=_tz.utc)
+            return dt.astimezone().strftime('%d/%m/%Y %H:%M')
+        except (ValueError, OSError, TypeError):
+            return dt.strftime('%d/%m/%Y %H:%M') if dt else '—'
+
+    @app.template_filter('mes_referencia')
+    def mes_referencia(month_base):
+        """'2026-10' → 'Outubro/2026' — mesmo rótulo da caixa de consulta."""
+        from app.blueprints.payments import _rotulo_mes
+        return _rotulo_mes(month_base)
+
     # Coordenadas do clima (totem/portal): preferem a localização da unidade
     # ativa (cada unidade tem a sua, editável no painel) e caem para as
     # globais do Config quando a unidade não tem coordenadas próprias.
