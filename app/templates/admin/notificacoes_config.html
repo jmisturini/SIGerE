@@ -65,10 +65,20 @@
                     </div>
                     {% if grupos %}
                     <div class="mb-3">
+                        {{ form.groups.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                         {{ form.groups(class="form-select", size=grupos|length if grupos|length <= 8 else 8, multiple=true) }}
                         {% for err in form.groups.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
-                        <div class="form-text">Segure Ctrl (ou toque e arraste no celular) para selecionar vários.
-                            Grupos criados em <em>Gerenciar grupos</em> aparecem aqui.</div>
+                        <div class="form-text">Grupos que recebem os avisos de reserva próxima
+                            (antecedência configurada acima). Segure Ctrl (ou toque e arraste no
+                            celular) para selecionar vários.</div>
+                    </div>
+                    <div class="mb-3">
+                        {{ form.overload_groups.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.overload_groups(class="form-select", size=grupos|length if grupos|length <= 8 else 8, multiple=true) }}
+                        {% for err in form.overload_groups.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        <div class="form-text">Grupos que recebem o aviso de sobrecarga: uma reserva
+                            que deixa o professor com mais de 2 reservas no mesmo dia nasce Pendente
+                            e estes grupos são avisados na hora. Sem seleção, ninguém recebe.</div>
                     </div>
                     {% else %}
                     <div class="alert alert-light border small mb-3">

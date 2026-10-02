@@ -111,6 +111,19 @@
             <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
         </a>
     </div>
+    {% if current_user.has_permission('course_type:read') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_course_types') }}">
+            <span class="painel-card-icon"><i class="bi bi-mortarboard-fill"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ course_types_count }}</span>
+                <span class="painel-card-label">Tipos de Curso</span>
+                <span class="painel-card-sub">Hora Extra</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
     <div class="col-6 col-md-4 col-xxl-3">
         <a class="painel-card" href="{{ url_for('admin.list_holidays') }}">
             <span class="painel-card-icon"><i class="bi bi-calendar-x"></i></span>

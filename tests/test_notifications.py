@@ -379,10 +379,19 @@ class TestComandoNotifyScan(NotificationsTestCase):
 
 class TestPainelAdmin(NotificationsTestCase):
     def test_config_salva_destinatarios_e_marcos(self):
+        with self.app.app_context():
+            grupo_proximas = NotificationGroup(name='Próximas', unity_id=self.ids['unity'])
+            grupo_sobrecarga = NotificationGroup(name='Sobrecarga', unity_id=self.ids['unity'])
+            db.session.add_all([grupo_proximas, grupo_sobrecarga])
+            db.session.commit()
+            id_proximas, id_sobrecarga = grupo_proximas.id, grupo_sobrecarga.id
+
         resposta = self.client.post('/admin/notificacoes/configuracao', data={
             'is_enabled': 'on',
             'lead_days': '3,1',
             'notify_teacher': 'on',
+            'groups': [str(id_proximas)],
+            'overload_groups': [str(id_sobrecarga)],
             # criador e aprovadores desmarcados (checkbox ausente = False)
         }, follow_redirects=True)
         self.assertEqual(resposta.status_code, 200)
@@ -393,6 +402,9 @@ class TestPainelAdmin(NotificationsTestCase):
             self.assertTrue(config.notify_teacher)
             self.assertFalse(config.notify_creator)
             self.assertFalse(config.notify_approvers)
+            # Cada seleção cai no seu campo: reserva próxima × sobrecarga.
+            self.assertEqual([g.name for g in config.groups], ['Próximas'])
+            self.assertEqual([g.name for g in config.overload_groups], ['Sobrecarga'])
 
     def test_config_rejeita_marcos_invalidos(self):
         resposta = self.client.post('/admin/notificacoes/configuracao', data={

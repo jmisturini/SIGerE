@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% from '_pagination.html' import render_pagination %}
+{% block title %}Vale Alimentação - Professores{% endblock %}
+
+{% block content %}
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Vale Alimentação — Professores</h3>
+        <p class="text-muted mb-0">Lançamento de dias trabalhados por professor.</p>
+    </div>
+</div>
+
+{% if current_user.has_permission('meal:create') %}
+<div class="card mb-4">
+    <div class="card-body p-4">
+        <form method="POST" action="{{ url_for('payments.add_meal_allowance', **request.args.to_dict()) }}" novalidate>
+            {{ form.hidden_tag() }}
+            <div class="row g-3 align-items-end">
+                <div class="col-md-7">
+                    {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.teacher(class="form-select") }}
+                    {% for err in form.teacher.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    {{ form.days.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.days(class="form-control", min=1, placeholder="Ex.: 12") }}
+                    {% for err in form.days.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-md-2 d-grid">
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<form method="GET" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-8">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="teacher_filter">Professor</label>
+                <select id="teacher_filter" name="teacher_filter" class="form-select">
+                    <option value="">Todos os Professores</option>
+                    {% for t in list_teachers %}
+                        <option value="{{ t.id }}" {{ 'selected' if filter_teacher == t.id }}>{{ t.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary flex-grow-1">
+                    <i class="bi bi-funnel me-1"></i> Filtrar
+                </button>
+                <a href="{{ url_for('payments.list_meal_allowance') }}"
+                   class="btn btn-outline-secondary {{ '' if filter_teacher else 'disabled' }}"
+                   {{ '' if filter_teacher else 'aria-disabled="true" tabindex="-1"' }}
+                   title="Limpar o filtro aplicado">
+                    <i class="bi bi-x-circle me-1"></i> Limpar
+                </a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Professor</th>
+                        <th>Dias Trabalhados</th>
+                        <th>Lançado em</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for e in entries %}
+                    <tr id="meal-{{ e.id }}">
+                        <td class="ps-4 fw-bold">{{ e.teacher.full_name }}</td>
+                        <td>{{ e.days }} dia{{ 's' if e.days > 1 }}</td>
+                        <td>{{ e.created_at | horario_local }}</td>
+                        <td class="text-end pe-4 text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                                    data-bs-target="#view-meal-{{ e.id }}" title="Ver informações do lançamento">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            {% if current_user.has_permission('meal:edit') %}
+                            <a href="{{ url_for('payments.edit_meal_allowance', entry_id=e.id, **request.args.to_dict()) }}"
+                               class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% endif %}
+                            {% if current_user.has_permission('meal:delete') %}
+                            <form method="POST" action="{{ url_for('payments.delete_meal_allowance', entry_id=e.id) }}"
+                                  class="d-inline" onsubmit="return confirm('Excluir este lançamento do Vale Alimentação?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted p-5">
+                            <i class="bi bi-basket2 fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">{{ 'Nenhum lançamento para o professor filtrado' if filter_teacher else 'Nenhum lançamento adicionado' }}</h5>
+                            <p class="small mb-0">Use o formulário acima para lançar os dias trabalhados de um professor.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for e in entries %}
+<div class="modal fade" id="view-meal-{{ e.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye text-primary me-2"></i>Lançamento de Vale Alimentação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Professor</div>
+                        <div class="fw-semibold">{{ e.teacher.full_name }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Dias Trabalhados</div>
+                        <div>{{ e.days }} dia{{ 's' if e.days > 1 }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Lançado em</div>
+                        <div>{{ e.created_at | horario_local }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Responsável pelo Lançamento</div>
+                        <div>{{ e.created_by.full_name if e.created_by else '—' }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                {% if current_user.has_permission('meal:edit') %}
+                <a href="{{ url_for('payments.edit_meal_allowance', entry_id=e.id, **request.args.to_dict()) }}" class="btn btn-primary">
+                    <i class="bi bi-pencil me-1"></i> Editar
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{{ render_pagination(pagination, 'payments.list_meal_allowance') }}
+
+{% endblock %}

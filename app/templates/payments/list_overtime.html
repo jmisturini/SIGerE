@@ -4,14 +4,6 @@
 
 {% block content %}
 
-<!-- Aviso sobre o navegador: compacto e sem botão de fechar -->
-<div class="alert alert-warning border border-warning-subtle d-flex align-items-center gap-2 py-2 px-3 mb-4 small" role="alert">
-    <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-    <div>
-        <strong>Aviso:</strong> para o correto funcionamento do calendário, recomenda-se o uso do Google Chrome, Edge ou Safari. Evite o Mozilla Firefox.
-    </div>
-</div>
-
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
         <h3 class="fw-bold mb-1">Horas Extras</h3>
@@ -21,11 +13,34 @@
         <a href="https://antigaintranet.sc.senac.br/formularios/classificaProjetosEspeciais/form.php" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary">
             <i class="bi bi-box-arrow-up-right me-1"></i> Formulário FIC
         </a>
+        {% if current_user.has_permission('payment:close_month') and filter_month %}
+        <form method="POST" action="{{ url_for('payments.close_month_overtime') }}" class="d-inline"
+              onsubmit="return confirm('Fechar os lançamentos de {{ filter_month_label }}? O mês não aceitará mais edições e a planilha final será baixada.');">
+            <input type="hidden" name="month_base" value="{{ filter_month }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger" {{ 'disabled' if filter_month in meses_fechados }}
+                    title="{{ 'Este mês já está fechado' if filter_month in meses_fechados else 'Fecha os lançamentos do mês, bloqueia edições e baixa a planilha final' }}">
+                <i class="bi bi-lock-fill me-1"></i> Fechar Mês
+            </button>
+        </form>
+        {% endif %}
         <a href="{{ url_for('payments.create_overtime', **request.args.to_dict()) }}" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i> Nova Hora Extra
         </a>
     </div>
 </div>
+
+{% if fechamento %}
+<div class="alert alert-secondary d-flex align-items-center gap-2 py-2 px-3 mb-4 small" role="alert">
+    <i class="bi bi-lock-fill flex-shrink-0"></i>
+    <div>
+        Os lançamentos de <strong>{{ filter_month | mes_referencia }}</strong> foram fechados em
+        <strong>{{ fechamento.closed_at | horario_local }}</strong>
+        {% if fechamento.closed_by %} por <strong>{{ fechamento.closed_by.full_name }}</strong>{% endif %} —
+        o mês está somente leitura.
+    </div>
+</div>
+{% endif %}
 
 <!-- Formulário Unificado de Filtro e Exportação -->
 <form method="GET" class="card mb-4">
@@ -71,7 +86,9 @@
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle">
+            <!-- text-nowrap: evita quebra de valores curtos ("2026-10", nomes) —
+                 abaixo da largura natural, o contêiner rola em vez de espremer -->
+            <table class="table table-hover mb-0 align-middle text-nowrap">
                 <thead>
                     <tr>
                         <th class="ps-4">Professor</th>
@@ -90,21 +107,26 @@
                 {% for o in infos %}
                     <tr id="overtime-{{ o.id }}">
                         <td class="ps-4 fw-bold">{{ o.teacher.full_name }}</td>
-                        <td>{{ o.month_base }}</td>
+                        <td>{{ o.month_base | mes_referencia }}</td>
                         <td>{{ o.teaching_level }}</td>
                         <td><small class="text-muted">{{ o.multiple_dates or '-' }}</small></td>
                         <td><small class="d-inline-block text-truncate align-middle text-muted" style="max-width: 180px;"
                                    title="{{ o.justification or '' }}">{{ o.justification or '-' }}</small></td>
                         <td>{{ o.shift }}</td>
                         <td>{{ o.budget_code | budget_code }}</td>
-                        <td>{{ o.weekly_workload | decimal_hours }}</td>
+                        <td>{{ o.weekly_workload | hours_minutes }}</td>
                         <td>R$ {{ "%.2f"|format(o.hourly_value) }}</td>
                         <td class="text-end pe-4 text-nowrap">
                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
                                     data-bs-target="#view-overtime-{{ o.id }}" title="Ver informações do lançamento">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            {% if o.is_editable %}
+                            {% if o.month_base in meses_fechados %}
+                                {# Mês fechado: somente leitura #}
+                                <span class="d-inline-block ms-1" title="Mês fechado: o lançamento não pode mais ser alterado ou excluído.">
+                                    <i class="bi bi-lock-fill text-muted"></i>
+                                </span>
+                            {% else %}
                                 {% if current_user.has_permission('payment:edit') %}
                                 <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
                                     <i class="bi bi-pencil"></i>
@@ -118,11 +140,6 @@
                                     </button>
                                 </form>
                                 {% endif %}
-                            {% else %}
-                                {# Lançamento trancado: mês anterior ou mais de 30 dias #}
-                                <span class="d-inline-block ms-1" title="Trancado: lançamentos de meses anteriores ou com mais de 30 dias não podem ser alterados.">
-                                    <i class="bi bi-lock-fill text-muted"></i>
-                                </span>
                             {% endif %}
                         </td>
                     </tr>
@@ -157,9 +174,13 @@
                     </div>
                     <div class="col-md-6">
                         <div class="small fw-bold text-uppercase text-muted">Mês Base</div>
-                        <div>{{ o.month_base }}</div>
+                        <div>{{ o.month_base | mes_referencia }}</div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Tipo de Curso</div>
+                        <div>{{ o.course_type.name if o.course_type else '—' }}</div>
+                    </div>
+                    <div class="col-md-6">
                         <div class="small fw-bold text-uppercase text-muted">Nível de Ensino</div>
                         <div>{{ o.teaching_level }}</div>
                     </div>
@@ -169,11 +190,15 @@
                     </div>
                     <div class="col-md-4">
                         <div class="small fw-bold text-uppercase text-muted">Carga Horária</div>
-                        <div>{{ o.weekly_workload | decimal_hours }} h ({{ o.weekly_workload | hours_minutes }})</div>
+                        <div>{{ o.weekly_workload | hours_minutes }}</div>
                     </div>
                     <div class="col-md-4">
                         <div class="small fw-bold text-uppercase text-muted">Valor H/a</div>
                         <div>R$ {{ "%.2f"|format(o.hourly_value) }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Data do Lançamento</div>
+                        <div>{{ o.created_at | horario_local }}</div>
                     </div>
                     <div class="col-md-4">
                         <div class="small fw-bold text-uppercase text-muted">Código Orçamentário</div>
@@ -188,6 +213,10 @@
                         <div>{{ o.justification or '—' }}</div>
                     </div>
                     <div class="col-12">
+                        <div class="small fw-bold text-uppercase text-muted">Observação</div>
+                        <div>{{ o.observation or '—' }}</div>
+                    </div>
+                    <div class="col-12">
                         <div class="small fw-bold text-uppercase text-muted">Responsável pelo Lançamento</div>
                         <div>{{ o.accountable.full_name if o.accountable else '—' }}</div>
                     </div>
@@ -195,7 +224,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
-                {% if o.is_editable and current_user.has_permission('payment:edit') %}
+                {% if o.month_base not in meses_fechados and current_user.has_permission('payment:edit') %}
                 <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id, **request.args.to_dict()) }}" class="btn btn-primary">
                     <i class="bi bi-pencil me-1"></i> Editar
                 </a>
