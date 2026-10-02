@@ -10,12 +10,55 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.27.1'
+APP_VERSION = '1.28.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.28.0',
+        'data': '2026-10-02',
+        'titulo': 'Vale Alimentação no RH, Hora Extra com fechamento do mês e '
+                  'reservas com carga docente',
+        'grupos': [
+            ('Adicionado', [
+                'Módulo Vale Alimentação - Professores no RH: lançamento de dias '
+                'trabalhados (professor + dias) com formulário, listagem com filtro '
+                'por professor, edição, exclusão e detalhes (permissões meal:*);',
+                'Catálogo de Tipos de Curso no Painel Admin, alimentando o novo campo '
+                'obrigatório "Tipo de Curso" da Hora Extra (permissões course_type:*);',
+                'Campo Observação no lançamento de Hora Extra — tipo de curso e '
+                'observação também saem na planilha de exportação;',
+                'Botão "Fechar Mês" na consulta de Hora Extra (payment:close_month): '
+                'bloqueia edição e exclusão dos lançamentos do mês e baixa a planilha '
+                'final;',
+                'Regra de carga docente: a reserva que deixa o professor com mais de 2 '
+                'reservas ativas no mesmo dia nasce Pendente e avisa na hora os grupos '
+                'personalizados selecionados na configuração de notificações — válida '
+                'na criação, edição e repetições em série;',
+                'Filtro de salas com múltiplos períodos: caixas de seleção '
+                'Manhã/Tarde/Noite — a sala precisa estar livre em todos os períodos '
+                'marcados.',
+            ]),
+            ('Alterado', [
+                'Hora Extra: o Mês de Referência é derivado pela janela de lançamento '
+                '(do dia 20 do mês anterior ao dia 20 do mês corrente) — sai o seletor '
+                'manual de mês e os bloqueios de "até o dia 25" e de 30 dias;',
+                'Hora Extra: carga horária exibida e exportada em horas e minutos '
+                'inteiros (4h30), sem conversão para decimal;',
+                'Reserva: o Curso passa a ser obrigatório e o Título/Assunto opcional — '
+                'em branco, a reserva usa o nome do curso como título;',
+                'Horários de lançamento, fechamento e notificações exibidos no fuso '
+                'local do servidor (antes, UTC adiantava 3h).',
+            ]),
+            ('Corrigido', [
+                'Aviso de navegador removido das telas de Hora Extra;',
+                'Layout da consulta de Hora Extra e do filtro de salas: colunas sem '
+                'quebra de valores, rótulos alinhados e data no padrão dd/mm/aaaa.',
+            ]),
+        ],
+    },
     {
         'versao': '1.27.1',
         'data': '2026-10-01',
