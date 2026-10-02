@@ -1,6 +1,6 @@
 # Defaults de data/dhora usam lambda: passar datetime.now(timezone.utc) direto
 # avaliaria UMA vez no import, congelando created_at/updated_at no boot da app.
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
 import re
 
@@ -42,7 +42,7 @@ class Unity(db.Model):
         {'code': MODULE_KITCHEN, 'label': 'Cozinha', 'attr': 'kitchen_enabled',
          'description': 'Fichas técnicas, preparações e requisição de compras'},
         {'code': MODULE_FINANCE, 'label': 'Financeiro', 'attr': 'finance_enabled',
-         'description': 'Hora extra e vale transporte'},
+         'description': 'Hora extra, vale alimentação e vale transporte'},
     )
 
     classrooms = db.relationship('Classroom', backref='unity', lazy=True)
@@ -317,6 +317,10 @@ class TeacherOvertimePay(db.Model):
     shift = db.Column(db.String(50), nullable=False) # E.g., 'Matutino', 'Vespertino', 'Noturno'
     multiple_dates = db.Column(db.String(255))
     justification = db.Column(db.String(100))
+    # Tipo de curso é obrigatório no formulário; nullable no banco apenas para
+    # os lançamentos anteriores à existência do campo (exibem "—" nos detalhes).
+    course_type_id = db.Column(db.Integer, db.ForeignKey('course_types.id'), nullable=True)
+    observation = db.Column(db.Text)
     month_base = db.Column(db.String(7), nullable=False) # YYYY-MM
     accountable_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -325,17 +329,62 @@ class TeacherOvertimePay(db.Model):
     teacher = db.relationship('User', foreign_keys=[teacher_id])
     accountable = db.relationship('User', foreign_keys=[accountable_id])
 
-    @property
-    def is_editable(self):
-        """False para lançamentos de meses anteriores ou com mais de 30 dias.
 
-        Mesma regra validada nos routes de editar/excluir (payments.py) —
-        usada também para esconder os botões na listagem.
-        """
-        now = datetime.now()
-        if (self.created_at.year, self.created_at.month) < (now.year, now.month):
-            return False
-        return now.date() - self.created_at.date() <= timedelta(days=30)
+# Tipo de curso do lançamento de Hora Extra (ex.: Técnico, Superior, FIC):
+# catálogo gerenciado no Painel Admin (/admin/tipos-curso) — nada fixo no
+# código. Nome único: a lista alimenta o dropdown do formulário.
+class CourseType(db.Model):
+    __tablename__ = 'course_types'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(60), nullable=False, unique=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    overtime_pays = db.relationship('TeacherOvertimePay', backref='course_type')
+
+    def __repr__(self):
+        return f'<CourseType {self.name}>'
+
+
+# Fechamento mensal da Hora Extra: registra quando a unidade fechou os
+# lançamentos de um mês de referência — daí em diante o mês não aceita mais
+# edição nem exclusão (a planilha final foi baixada no fechamento). Substitui
+# os antigos bloqueios de 30 dias e de mês anterior.
+class OvertimeMonthClosure(db.Model):
+    __tablename__ = 'overtime_month_closures'
+    __table_args__ = (
+        db.UniqueConstraint('unity_id', 'month_base',
+                            name='uq_overtime_closure_unity_month'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=False, index=True)
+    month_base = db.Column(db.String(7), nullable=False)  # YYYY-MM
+    closed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    closed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    closed_by = db.relationship('User')
+
+    def __repr__(self):
+        return f'<OvertimeMonthClosure unity={self.unity_id} {self.month_base}>'
+
+
+# Lançamento simples do Vale Alimentação de Professores (RH): cada linha é a
+# contagem de dias trabalhados informada para um professor — sem valores nem
+# vínculo com folha; o responsável pelo lançamento fica registrado.
+class TeacherMealAllowance(db.Model):
+    __tablename__ = 'teacher_meal_allowances'
+    id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
+    days = db.Column(db.Integer, nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    teacher = db.relationship('User', foreign_keys=[teacher_id])
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+    def __repr__(self):
+        return f'<TeacherMealAllowance {self.teacher_id} +{self.days}d>'
 
 # Registro do módulo Vale Transporte (Financeiro): uma linha por colaborador,
 # espelhando todas as colunas da aba "Vale Transporte" do Pedido de Compra
@@ -809,6 +858,11 @@ class KitchenRecipeIngredient(db.Model):
 
 EVENT_RESERVATION_UPCOMING = 'reservation_upcoming'
 
+# Regra de carga docente: reserva que leva o professor além do limite diário
+# (app/services/scheduling.py) nasce Pendente e avisa os grupos personalizados
+# da unidade — criada no momento da gravação, não pela varredura notify-scan.
+EVENT_TEACHER_DAILY_LIMIT = 'teacher_daily_limit'
+
 # Grupos personalizados de destinatários por unidade: a equipe que deve ser
 # avisada junta (ex.: "Coordenação Gastronomia"). A configuração da unidade
 # seleciona quais grupos recebem os avisos.
@@ -823,6 +877,16 @@ notification_group_members = db.Table(
 # Grupos selecionados por cada configuração de unidade.
 notification_config_groups = db.Table(
     'notification_config_groups',
+    db.Column('config_id', db.Integer,
+              db.ForeignKey('unity_notification_configs.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('group_id', db.Integer,
+              db.ForeignKey('notification_groups.id', ondelete='CASCADE'), primary_key=True),
+)
+
+# Grupos que recebem o aviso de sobrecarga de professor (regra de carga
+# docente) — seleção dedicada, independente dos avisos de reserva próxima.
+notification_config_overload_groups = db.Table(
+    'notification_config_overload_groups',
     db.Column('config_id', db.Integer,
               db.ForeignKey('unity_notification_configs.id', ondelete='CASCADE'), primary_key=True),
     db.Column('group_id', db.Integer,
@@ -851,7 +915,10 @@ class UnityNotificationConfig(db.Model):
     """Configuração por unidade dos avisos de reserva próxima: liga/desliga o
     módulo, define os marcos de antecedência (dias antes da data da reserva) e
     quem recebe — professor designado, criador, aprovadores da unidade e
-    grupos personalizados. Gerenciada em /admin/notificacoes/configuracao."""
+    grupos personalizados. Gerenciada em /admin/notificacoes/configuracao.
+
+    O aviso da regra de carga docente (EVENT_TEACHER_DAILY_LIMIT) tem seleção
+    de grupos própria: overload_groups — vazio, ninguém recebe."""
     __tablename__ = 'unity_notification_configs'
     id = db.Column(db.Integer, primary_key=True)
     unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=False,
@@ -867,6 +934,11 @@ class UnityNotificationConfig(db.Model):
     notify_approvers = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     groups = db.relationship('NotificationGroup', secondary='notification_config_groups',
                              lazy='select', order_by='NotificationGroup.name')
+    # Grupos que recebem o aviso de sobrecarga de professor (regra de carga
+    # docente) — seleção própria; vazia, ninguém recebe o aviso.
+    overload_groups = db.relationship('NotificationGroup',
+                                      secondary='notification_config_overload_groups',
+                                      lazy='select', order_by='NotificationGroup.name')
 
     def lead_days_list(self):
         """Marcos normalizados: ints >= 0 sem duplicatas, maior primeiro."""

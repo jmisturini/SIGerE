@@ -22,19 +22,27 @@
 
 <form method="GET" id="filterForm" class="card mb-4">
     <div class="card-body">
-        <div class="row g-3 align-items-end">
+        <!-- align-items-start: os rótulos das três colunas nascem na mesma
+             altura; o select de períodos (3 linhas) pendura o texto de ajuda
+             abaixo de si sem empurrar os outros campos para baixo -->
+        <div class="row g-3 align-items-start">
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Disponível</label>
                 <input type="date" id="available_date" name="available_date" class="form-control" value="{{ request.args.get('available_date', '') }}">
             </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Período</label>
-                <select id="available_period" name="available_period" class="form-select">
-                    <option value="">Qualquer</option>
-                    <option value="morning" {{ 'selected' if request.args.get('available_period') == 'morning' }}>Manhã</option>
-                    <option value="afternoon" {{ 'selected' if request.args.get('available_period') == 'afternoon' }}>Tarde</option>
-                    <option value="evening" {{ 'selected' if request.args.get('available_period') == 'evening' }}>Noite</option>
-                </select>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Períodos</label>
+                <div class="d-flex flex-wrap gap-3 pt-2" role="group" aria-label="Períodos">
+                    {% for valor, rotulo in [('morning', 'Manhã'), ('afternoon', 'Tarde'), ('evening', 'Noite')] %}
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" name="available_period"
+                               id="period_{{ valor }}" value="{{ valor }}"
+                               {{ 'checked' if valor in request.args.getlist('available_period') }}>
+                        <label class="form-check-label" for="period_{{ valor }}">{{ rotulo }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="form-text">A sala precisa estar livre em todos os períodos marcados.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1">Tipo de Sala</label>
@@ -45,8 +53,8 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md">
-                <div class="d-flex flex-wrap gap-2">
+            <div class="col-md d-flex align-items-end">
+                <div class="d-flex flex-wrap gap-2 w-100">
                     <button type="submit" id="filterBtn" class="btn btn-outline-primary flex-fill" disabled>
                         <i class="bi bi-funnel me-1"></i> Filtrar
                     </button>
@@ -127,7 +135,7 @@
             <h5 class="mb-1">Nenhuma sala encontrada</h5>
             <p class="small mb-0">
                 {% if is_filtered %}
-                    Todas as salas podem estar ocupadas no período selecionado.
+                    Todas as salas podem estar ocupadas nos períodos selecionados.
                 {% else %}
                     Não há salas ativas no sistema.
                 {% endif %}
@@ -154,21 +162,22 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const dateInput = document.getElementById('available_date');
-    const periodSelect = document.getElementById('available_period');
+    const periodChecks = document.querySelectorAll('input[name="available_period"]');
     const categorySelect = document.getElementById('category_select');
     const nowCheckbox = document.getElementById('available_now');
     const filterBtn = document.getElementById('filterBtn');
     const filterForm = document.getElementById('filterForm');
 
     function updateFilterBtn() {
-        const hasDatePeriod = dateInput.value && periodSelect.value;
+        const temPeriodo = Array.from(periodChecks).some(c => c.checked);
+        const hasDatePeriod = dateInput.value && temPeriodo;
         const hasCategory = categorySelect.value !== '';
         const hasNow = nowCheckbox.checked;
         filterBtn.disabled = !(hasDatePeriod || hasCategory || hasNow);
     }
 
     updateFilterBtn();
-    [dateInput, periodSelect, categorySelect, nowCheckbox].forEach(element => {
+    [dateInput, categorySelect, nowCheckbox, ...periodChecks].forEach(element => {
         element.addEventListener('input', updateFilterBtn);
         element.addEventListener('change', updateFilterBtn);
     });

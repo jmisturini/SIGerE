@@ -11,7 +11,10 @@ from app.permissions import require_permission, require_permission_or_owner
 # central — mantidos aqui por re-export para compatibilidade.
 from app.services.scheduling import (check_conflict, check_schedule_restrictions,
                                      check_teacher_conflict, slot_locks,
+                                     teacher_exceeds_daily_limit,
+                                     TEACHER_DAILY_RESERVATION_LIMIT,
                                      MAX_REPEAT_RANGE_DAYS)
+from app.services.notifications import notificar_sobrecarga_professor
 from app.services.share import build_reservation_share_texts
 
 RESERVATIONS_PER_PAGE = 25
@@ -76,6 +79,14 @@ def _subject_choices_with_course_map():
     choices = [(0, '-- Nenhum --')] + [(s.id, f"{s.name}") for s in subjects]
     course_map = {s.id: (s.course_id or 0) for s in subjects}
     return choices, course_map
+
+def _titulo_reserva(form):
+    """Título final da reserva: o assunto quando preenchido; senão o nome do
+    curso (obrigatório) e, por segurança, um rótulo genérico. O modelo exige
+    título não nulo e ele aparece como destaque nas listas e no compartilhar."""
+    return ((form.title.data or '').strip()
+            or dict(form.course.choices).get(form.course.data)
+            or 'Reserva de sala')
 
 def _classrooms_for_current_unity():
     return Classroom.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Classroom.code).all()
@@ -172,29 +183,46 @@ def create():
 
             teacher_id = form.teacher.data if form.teacher.data > 0 else None
             is_teacher_conflict = False
+            excede_limite_diario = False
             if teacher_id:
                 is_teacher_conflict = check_teacher_conflict(
                     teacher_id, form.date.data, form.start_time.data, form.end_time.data
                 ) is not None
+                # Regra de carga: o docente já chega ao limite de reservas
+                # ativas no dia — nasce PENDENTE para avaliação.
+                excede_limite_diario = teacher_exceeds_daily_limit(
+                    teacher_id, form.date.data)
 
-            status = 'pending' if is_teacher_conflict else 'approved'
+            status = 'pending' if (is_teacher_conflict or excede_limite_diario) else 'approved'
 
             reservation = Reservation(
                 user_id=current_user.id, classroom_id=classroom_id,
                 course_id=form.course.data if form.course.data > 0 else None,
                 subject_id=form.subject.data if form.subject.data > 0 else None,
-                teacher_id=teacher_id, title=form.title.data,
+                teacher_id=teacher_id, title=_titulo_reserva(form),
                 description=form.description.data, date=form.date.data,
                 start_time=form.start_time.data, end_time=form.end_time.data,
                 status=status,
                 unity_id=classroom.unity_id
             )
             db.session.add(reservation)
+            if excede_limite_diario:
+                # O aviso referencia a reserva: garante o id antes de criar
+                # as notificações (elas saem no mesmo commit).
+                db.session.flush()
+                notificar_sobrecarga_professor(reservation)
             db.session.commit()
 
         if is_teacher_conflict:
             flash('Reserva criada como PENDENTE devido a conflito de professor.', 'warning')
             return redirect(url_for('reservations.teacher_conflict_warning', reservation_id=reservation.id))
+
+        if excede_limite_diario:
+            professor = db.session.get(User, teacher_id)
+            flash(f'Reserva criada como PENDENTE: {professor.full_name} passa de '
+                  f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas em '
+                  f'{form.date.data.strftime("%d/%m/%Y")}. Os grupos personalizados '
+                  f'da unidade foram notificados.', 'warning')
 
         flash('Reserva agendada com sucesso!', 'success')
         return redirect(url_for('reservations.my_reservations'))
@@ -428,7 +456,7 @@ def edit(reservation_id):
             reservation.course_id = form.course.data if form.course.data > 0 else None
             reservation.subject_id = form.subject.data if form.subject.data > 0 else None
             reservation.teacher_id = form.teacher.data if form.teacher.data > 0 else None
-            reservation.title = form.title.data
+            reservation.title = _titulo_reserva(form)
             reservation.description = form.description.data
             reservation.date = form.date.data
             reservation.start_time = form.start_time.data
@@ -436,19 +464,31 @@ def edit(reservation_id):
 
             # Recheck de docente na edição (a criação já fazia; a edição não):
             # mudar data/horário/professor pode criar sobreposição — a reserva
-            # volta a PENDENTE, mesmo critério da criação.
+            # volta a PENDENTE, mesmo critério da criação. A carga diária do
+            # docente também revalida, excluindo a própria reserva da contagem.
             teacher_conflict = False
+            excede_limite_diario = False
             if reservation.teacher_id:
                 teacher_conflict = check_teacher_conflict(
                     reservation.teacher_id, reservation.date, reservation.start_time,
                     reservation.end_time, exclude_id=reservation.id) is not None
-            if teacher_conflict and reservation.status == 'approved':
+                excede_limite_diario = teacher_exceeds_daily_limit(
+                    reservation.teacher_id, reservation.date,
+                    exclude_id=reservation.id)
+            if (teacher_conflict or excede_limite_diario) and reservation.status == 'approved':
                 reservation.status = 'pending'
+            if excede_limite_diario:
+                notificar_sobrecarga_professor(reservation)
 
             db.session.commit()
 
         if teacher_conflict and reservation.status == 'pending':
             flash('Reserva atualizada como PENDENTE devido a conflito de professor.', 'warning')
+        elif excede_limite_diario and reservation.status == 'pending':
+            flash(f'Reserva atualizada como PENDENTE: o professor passa de '
+                  f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas em '
+                  f'{reservation.date.strftime("%d/%m/%Y")}. Os grupos '
+                  f'personalizados da unidade foram notificados.', 'warning')
         else:
             flash('Reserva atualizada com sucesso.', 'success')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
@@ -628,6 +668,7 @@ def repeat_schedule(reservation_id):
         flash('Data inválida.', 'danger')
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
+    excede_limite_diario = False
     with slot_locks(res.classroom_id, [new_date]):
         allowed, msg = check_schedule_restrictions(new_date, res.start_time, res.end_time)
         if not allowed:
@@ -639,19 +680,34 @@ def repeat_schedule(reservation_id):
             flash(f'Conflito de sala em {new_date}.', 'danger')
             return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
-        # Série de repetição: origem e geradas compartilham o mesmo grupo
+        # Série de repetição: origem e geradas compartilham o mesmo grupo.
+        # Carga docente: se a repetição leva o professor além do limite
+        # diário, nasce PENDENTE (e notifica) em vez de aprovada.
         if res.repeat_group_id is None:
             res.repeat_group_id = res.id
+        excede_limite_diario = res.teacher_id is not None and teacher_exceeds_daily_limit(
+            res.teacher_id, new_date)
         new_res = Reservation(
             user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
             subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
             description=res.description, date=new_date, start_time=res.start_time,
-            end_time=res.end_time, status='approved', unity_id=res.unity_id,
+            end_time=res.end_time,
+            status='pending' if excede_limite_diario else 'approved',
+            unity_id=res.unity_id,
             repeat_group_id=res.repeat_group_id
         )
         db.session.add(new_res)
+        if excede_limite_diario:
+            # O aviso referencia a reserva: garante o id antes de notificar.
+            db.session.flush()
+            notificar_sobrecarga_professor(new_res)
         db.session.commit()
-    flash(f'Reserva agendada com sucesso para {new_date}.', 'success')
+    if excede_limite_diario:
+        flash(f'Reserva agendada como PENDENTE para {new_date}: o professor passa de '
+              f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas no dia. Os grupos '
+              f'personalizados da unidade foram notificados.', 'warning')
+    else:
+        flash(f'Reserva agendada com sucesso para {new_date}.', 'success')
     return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
 @bp.route('/<int:reservation_id>/repeat_schedule_all', methods=['POST'])
@@ -680,6 +736,7 @@ def repeat_schedule_all(reservation_id):
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
     scheduled_count = 0
+    pendentes_count = 0
     current_date = start_date
     original_weekday = res.date.weekday()
 
@@ -713,22 +770,39 @@ def repeat_schedule_all(reservation_id):
                         teacher_conflict = check_teacher_conflict(
                             res.teacher_id, current_date, res.start_time, res.end_time) is not None
                     if not teacher_conflict:
-                        # Série de repetição: origem e geradas no mesmo grupo
+                        # Série de repetição: origem e geradas no mesmo grupo.
+                        # Carga docente: a repetição que leva o professor além
+                        # do limite diário nasce PENDENTE (e notifica) em vez
+                        # de aprovada — conflito de horário segue pulando o dia.
                         if res.repeat_group_id is None:
                             res.repeat_group_id = res.id
+                        excede = (res.teacher_id is not None
+                                  and teacher_exceeds_daily_limit(
+                                      res.teacher_id, current_date))
                         new_res = Reservation(
                             user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
                             subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
                             description=res.description, date=current_date, start_time=res.start_time,
-                            end_time=res.end_time, status='approved', unity_id=res.unity_id,
+                            end_time=res.end_time,
+                            status='pending' if excede else 'approved',
+                            unity_id=res.unity_id,
                             repeat_group_id=res.repeat_group_id
                         )
                         db.session.add(new_res)
+                        if excede:
+                            # O aviso referencia a reserva: garante o id.
+                            db.session.flush()
+                            notificar_sobrecarga_professor(new_res)
+                            pendentes_count += 1
                         scheduled_count += 1
             current_date += timedelta(days=1)
 
         db.session.commit()
     flash(f'{scheduled_count} novas reservas agendadas com sucesso.', 'success')
+    if pendentes_count:
+        flash(f'{pendentes_count} delas nasceram PENDENTES: o professor passa de '
+              f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas no dia. Os grupos '
+              f'personalizados da unidade foram notificados.', 'warning')
     return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
 # ================= SERIES MANAGEMENT (agendamentos repetidos) =================

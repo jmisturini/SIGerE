@@ -2,14 +2,6 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<!-- Aviso sobre o navegador: compacto e sem botão de fechar -->
-<div class="alert alert-warning border border-warning-subtle d-flex align-items-center gap-2 py-2 px-3 mb-4 small" role="alert">
-    <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-    <div>
-        <strong>Aviso:</strong> para o correto funcionamento do calendário, recomenda-se o uso do Google Chrome, Edge ou Safari. Evite o Mozilla Firefox.
-    </div>
-</div>
-
 <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
         <div class="card">
@@ -37,16 +29,23 @@
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.shift.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
+                            {{ form.shift.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.shift(class="form-select") }}
                             {% for err in form.shift.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+
+                        <div class="col-md-6">
+                            {{ form.course_type.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.course_type(class="form-select") }}
+                            {% for err in form.course_type.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            <div class="form-text small">Tipos de curso cadastrados no Painel Admin.</div>
                         </div>
                         
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-uppercase text-muted mb-1">Carga Horária Semanal</label>
-                            {# Dois campos (hora e minuto): a dica abaixo mostra a
-                               conversão para hora decimal — valor que segue para
-                               a planilha e para a visualização. #}
+                            {# Dois campos (hora e minuto): a dica abaixo mostra o
+                               formato gravado e exibido — hora e minutos
+                               inteiros, sem conversão para decimal. #}
                             <div class="d-flex gap-2">
                                 <div class="input-group">
                                     {{ form.weekly_workload_hours(class="form-control", min="0", step="1", placeholder="Hora", aria_label="Horas da carga horária semanal") }}
@@ -69,27 +68,15 @@
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.month_base.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                            {# Dois selects (mês e ano) sincronizados com o campo oculto:
-                               o Firefox não tem seletor nativo para type="month". #}
-                            {% set meses_pt = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-                                               'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'] %}
-                            <div class="d-flex gap-2">
-                                <select id="month_base_month" class="form-select" aria-label="Mês do lançamento">
-                                    {% for m in range(1, 13) %}
-                                    <option value="{{ m }}">{{ meses_pt[m - 1] }}</option>
-                                    {% endfor %}
-                                </select>
-                                <select id="month_base_year" class="form-select" aria-label="Ano do lançamento">
-                                    {% for y in range(now.year - 1, now.year + 3) %}
-                                    <option value="{{ y }}">{{ y }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            {{ form.month_base() }}
-                            {% for err in form.month_base.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            <label class="form-label small fw-bold text-uppercase text-muted mb-1">Mês de Referência</label>
+                            {# Mês derivado da janela de lançamento (dia 20 do mês
+                               anterior a dia 20 do mês corrente) — não é escolhido
+                               no formulário, apenas informado. #}
+                            <input class="form-control" value="{{ month_label }}" disabled>
+                            <div class="form-text small">Derivado automaticamente: lançamentos entre o dia 20 do mês
+                                anterior e o dia 20 contam para este mês.</div>
                         </div>
-                        
+
                         <div class="col-md-6">
                             {{ form.budget_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.budget_code(class="form-control", maxlength=18, inputmode="numeric", placeholder="Ex: 95.00.0123.4") }}
@@ -104,8 +91,14 @@
                         </div>
                         
                         <div class="col-12">
-                            {{ form.justification.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
+                            {{ form.justification.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.justification(class="form-control") }}
+                        </div>
+
+                        <div class="col-12">
+                            {{ form.observation.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.observation(class="form-control", rows="2") }}
+                            {% for err in form.observation.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                     </div>
                     
@@ -127,41 +120,14 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const monthBaseInput = document.getElementById('month_base');
+    // Mês de referência vem do servidor (janela 20→20) — trava o calendário
+    // de datas nesse mês.
+    const monthBase = {{ month_base | tojson }};
     const datesInput = document.getElementById('multiple_dates');
 
-    // Mês Base vem de dois selects (mês e ano) que preenchem o campo oculto
-    // month_base (YYYY-MM) — o Firefox não tem seletor nativo de mês.
-    const monthBaseMonth = document.getElementById('month_base_month');
-    const monthBaseYear = document.getElementById('month_base_year');
-
-    function applyMonthBaseToSelects() {
-        const parts = (monthBaseInput.value || '').split('-');
-        if (parts.length === 2) {
-            monthBaseMonth.value = String(parseInt(parts[1], 10));
-            monthBaseYear.value = parts[0];
-            // Os selects viram Tom Select no base.html: mudar o nativo após o
-            // load não atualiza o controle visível — sincroniza manualmente.
-            if (window.tomSelectSync) {
-                window.tomSelectSync(monthBaseMonth);
-                window.tomSelectSync(monthBaseYear);
-            }
-        }
-    }
-
-    function syncMonthBaseFromSelects() {
-        const mes = String(monthBaseMonth.value).padStart(2, '0');
-        monthBaseInput.value = monthBaseYear.value + '-' + mes;
-        monthBaseInput.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-
-    monthBaseMonth.addEventListener('change', syncMonthBaseFromSelects);
-    monthBaseYear.addEventListener('change', syncMonthBaseFromSelects);
-    applyMonthBaseToSelects();
-
-    // O campo grava apenas os dias ("10, 17, 25") — o mês e o ano vêm do Mês
-    // Base. Registros antigos com a data completa ("17/09/2026" ou
-    // "2026-09-17") são convertidos quando o mês/ano coincide com o Mês Base.
+    // O campo grava apenas os dias ("10, 17, 25") — o mês e o ano vêm do mês
+    // de referência. Registros antigos com a data completa ("17/09/2026" ou
+    // "2026-09-17") são convertidos quando o mês/ano coincide.
     function diasSalvos(raw, mesBase) {
         if (!raw) return [];
         const partes = (mesBase || '').split('-');
@@ -186,9 +152,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Reconstrói as datas selecionadas a partir dos dias salvos e limpa o
     // campo: o flatpickr reescreve o valor no formato "só dias".
     const datasIniciais = [];
-    if (monthBaseInput.value) {
-        const [ano, mes] = monthBaseInput.value.split('-').map(Number);
-        for (const dia of diasSalvos(datesInput.value, monthBaseInput.value)) {
+    if (monthBase) {
+        const [ano, mes] = monthBase.split('-').map(Number);
+        for (const dia of diasSalvos(datesInput.value, monthBase)) {
             datasIniciais.push(new Date(ano, mes - 1, dia));
         }
     }
@@ -210,26 +176,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Função para travar o calendário no mês selecionado
+    // Trava o calendário no mês de referência
     function syncCalendarMonth() {
-        if (monthBaseInput.value) {
-            let [year, month] = monthBaseInput.value.split('-');
+        if (monthBase) {
+            let [year, month] = monthBase.split('-');
             let minDate = new Date(year, month - 1, 1);
             let maxDate = new Date(year, month, 0);
             fp.set('minDate', minDate);
             fp.set('maxDate', maxDate);
             fp.jumpToDate(minDate, true);
-        } else {
-            fp.set('minDate', null);
-            fp.set('maxDate', null);
         }
     }
-
-    // Se o usuário mudar o mês base, limpamos as datas antigas
-    monthBaseInput.addEventListener('input', function() {
-        fp.clear();
-        autoResize();
-    });
 
     // Máscara do Código Orçamentário: agrupa os dígitos em 2.2.4.2 (.4) —
     // xx.xx.xxxx.x para 9 dígitos e xx.xx.xxxx.xx.xxxx para 14.
@@ -246,29 +203,21 @@ document.addEventListener('DOMContentLoaded', function() {
         this.value = masked;
     });
 
-    // Carga Horária Semanal: hora + minuto convertidos para hora decimal —
-    // a dica mostra exatamente o valor que será gravado e exportado.
+    // Carga Horária Semanal: a dica mostra o formato gravado/exibido —
+    // hora e minutos inteiros (4h30), sem conversão para decimal.
     const workloadHours = document.getElementById('weekly_workload_hours');
     const workloadMinutes = document.getElementById('weekly_workload_minutes');
     const workloadHint = document.getElementById('workload-hint');
 
-    function formatDecimalHoras(valor) {
-        return parseFloat(valor.toFixed(2)).toString().replace('.', ',');
-    }
-
     function updateWorkloadHint() {
-        const horas = parseInt(workloadHours.value, 10);
+        const horas = parseInt(workloadHours.value, 10) || 0;
         const minutos = parseInt(workloadMinutes.value, 10);
-        if ((isNaN(horas) && isNaN(minutos)) || horas < 0 || minutos < 0 || minutos > 59) {
+        if (isNaN(minutos) || minutos < 0 || minutos > 59 || (horas === 0 && minutos === 0)) {
             workloadHint.textContent = '';
             return;
         }
-        const total = (horas || 0) + (minutos || 0) / 60;
-        if (total <= 0) {
-            workloadHint.textContent = '';
-            return;
-        }
-        workloadHint.textContent = 'Equivale a ' + formatDecimalHoras(total) + ' h (hora decimal)';
+        workloadHint.textContent = 'Será registrado como ' + horas + 'h' +
+            String(minutos).padStart(2, '0');
     }
 
     workloadHours.addEventListener('input', updateWorkloadHint);

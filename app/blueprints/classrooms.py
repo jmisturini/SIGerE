@@ -21,6 +21,29 @@ MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
 DIAS_SEMANA_PT = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira',
                   'Sexta-feira', 'Sábado', 'Domingo']
 
+# Períodos do filtro de disponibilidade da listagem: rótulo pt-BR e janela do
+# dia. O select aceita mais de um período — a sala precisa estar livre em
+# todos os escolhidos.
+PERIODOS_FILTRO = {
+    'morning': ('Manhã', time(0, 0), time(12, 0)),
+    'afternoon': ('Tarde', time(12, 0), time(18, 0)),
+    'evening': ('Noite', time(18, 0), time(23, 59)),
+}
+PERIODOS_ORDEM = ('morning', 'afternoon', 'evening')
+
+
+def _periodos_filtro(args):
+    """Períodos marcados no filtro (select múltiplo), na ordem canônica."""
+    escolhidos = set(args.getlist('available_period'))
+    return [p for p in PERIODOS_ORDEM if p in escolhidos]
+
+
+def _juntar_nomes(nomes):
+    """'Manhã, Tarde e Noite' — lista em português com 'e' antes do último."""
+    if len(nomes) <= 1:
+        return nomes[0] if nomes else ''
+    return ', '.join(nomes[:-1]) + ' e ' + nomes[-1]
+
 # Helper function to apply filters and return a query
 def get_filtered_classrooms(args):
     # Multi-unidade: apenas salas da unidade ativa
@@ -30,7 +53,6 @@ def get_filtered_classrooms(args):
     )
     
     available_date_str = args.get('available_date')
-    available_period = args.get('available_period')
     available_now = args.get('available_now')
     selected_category = args.get('category', '')
     
@@ -51,28 +73,28 @@ def get_filtered_classrooms(args):
         if occupied_flat:
             query = query.filter(~Classroom.id.in_(occupied_flat))
             
-    elif available_date_str and available_period:
-        try:
-            filter_date = datetime.strptime(available_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            filter_date = date.today()
-            
-        if available_period == 'morning':
-            p_start, p_end = time(0, 0), time(12, 0)
-        elif available_period == 'afternoon':
-            p_start, p_end = time(12, 0), time(18, 0)
-        else: 
-            p_start, p_end = time(18, 0), time(23, 59)
-            
-        occupied_ids = db.session.query(Reservation.classroom_id).filter(
-            Reservation.date == filter_date,
-            Reservation.status == 'approved',
-            Reservation.start_time < p_end,
-            Reservation.end_time > p_start
-        ).distinct().all()
-        occupied_flat = [r[0] for r in occupied_ids]
-        if occupied_flat:
-            query = query.filter(~Classroom.id.in_(occupied_flat))
+    elif available_date_str:
+        periodos = _periodos_filtro(args)
+        if periodos:
+            try:
+                filter_date = datetime.strptime(available_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                filter_date = date.today()
+
+            # A sala precisa estar livre em TODOS os períodos escolhidos:
+            # uma única ocupação em qualquer um deles já a exclui.
+            occupied_flat = set()
+            for periodo in periodos:
+                _, p_start, p_end = PERIODOS_FILTRO[periodo]
+                occupied_flat.update(
+                    r[0] for r in db.session.query(Reservation.classroom_id).filter(
+                        Reservation.date == filter_date,
+                        Reservation.status == 'approved',
+                        Reservation.start_time < p_end,
+                        Reservation.end_time > p_start
+                    ).distinct().all())
+            if occupied_flat:
+                query = query.filter(~Classroom.id.in_(occupied_flat))
 
     return query.order_by(Classroom.building, Classroom.code).all()
 
@@ -115,17 +137,20 @@ def list_classrooms():
     if request.args.get('available_now'):
         is_filtered = True
         filter_message = "Mostrando salas disponíveis agora."
-    elif request.args.get('available_date') and request.args.get('available_period'):
+    elif request.args.get('available_date') and _periodos_filtro(request.args):
         is_filtered = True
-        period_map = {
-            'morning': 'Manhã',
-            'afternoon': 'Tarde',
-            'evening': 'Noite'
-        }
-        period_pt = period_map.get(request.args.get('available_period'), request.args.get('available_period'))
-        # Escape obrigatório: o template exibe esta mensagem com o filtro |safe
-        raw_date = escape(request.args.get('available_date', ''))
-        filter_message = f"Mostrando salas disponíveis em <strong>{raw_date}</strong> durante a <strong>{period_pt}</strong>."
+        periodos_txt = _juntar_nomes(
+            [PERIODOS_FILTRO[p][0] for p in _periodos_filtro(request.args)])
+        # Data no padrão da tela (dd/mm/aaaa); valor inválido cai escapado.
+        try:
+            data_filtro = datetime.strptime(request.args.get('available_date', ''), '%Y-%m-%d')
+            data_txt = escape(data_filtro.strftime('%d/%m/%Y'))
+        except ValueError:
+            data_txt = escape(request.args.get('available_date', ''))
+        # Todos os rótulos de período são femininos: o artigo único serve
+        # para um período ("a Manhã") ou vários ("a Manhã e Tarde").
+        filter_message = (f"Mostrando salas disponíveis em <strong>{data_txt}</strong> "
+                          f"durante a <strong>{periodos_txt}</strong>.")
     elif request.args.get('category'):
         is_filtered = True
         cat_id = request.args.get('category', type=int)
@@ -169,13 +194,13 @@ def export_pdf():
             rotulo = f"Livres em {data_filtro:%d/%m/%Y}"
         except ValueError:
             rotulo = f"Livres em {data_str}"
-        periodo = request.args.get('available_period')
-        if periodo == 'morning':
-            rotulo += " pela manhã"
-        elif periodo == 'afternoon':
-            rotulo += " à tarde"
-        elif periodo:
-            rotulo += " à noite"
+        periodos = _periodos_filtro(request.args)
+        if len(periodos) == 1:
+            rotulo += {'morning': ' pela manhã', 'afternoon': ' à tarde',
+                       'evening': ' à noite'}[periodos[0]]
+        elif periodos:
+            nomes = _juntar_nomes([PERIODOS_FILTRO[p][0] for p in periodos])
+            rotulo += f" nos períodos de {nomes}"
         filtros.append(rotulo)
     meta = " \u00b7 ".join(filtros) if filtros else "Todas as salas ativas da unidade"
     pdf.linha_meta(f"{len(classrooms)} salas \u00b7 {meta}")

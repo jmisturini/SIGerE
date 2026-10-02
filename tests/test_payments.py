@@ -1,18 +1,23 @@
 """Testes do módulo de Hora Extra (pagamentos).
 
-Cobre as regras pedidas no módulo Financeiro:
-- Bloqueio (com mensagem visível) de lançamentos com Mês Base anterior ao mês
-  atual — antes, o lançamento era gravado silenciosamente, sem erro;
-- Consulta abre no mês atual, com caixa de seleção de meses e opção
-  "Todos os meses";
-- Exportação filtrada por professor;
-- Máscara do Código Orçamentário (xx.xx.xxxx.xx e xx.xx.xxxx.xx.xxxx).
+Cobre as regras atuais do módulo Financeiro:
+- Mês de referência derivado da janela de lançamento (dia 20 do mês anterior
+  a dia 20 do mês corrente) — sem escolha manual de Mês Base;
+- Fechamento do mês (permissão payment:close_month): baixa a planilha final e
+  tranca edição/exclusão dos lançamentos daquele mês — não existe mais o
+  bloqueio de 30 dias nem o de mês anterior;
+- Carga horária exibida e exportada em hora/minuto inteiros (4h30), sem
+  conversão para hora decimal;
+- Consulta abre no mês da janela, com caixa de seleção de meses e opção
+  "Todos os meses"; exportação filtrada por professor;
+- Máscara do Código Orçamentário (xx.xx.xxxx.x e xx.xx.xxxx.xx.xxxx);
+- Aviso de navegador removido das duas páginas do módulo.
 """
 import os
 import re
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from unittest.mock import patch
@@ -22,7 +27,8 @@ from openpyxl import load_workbook
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.models import Permission, Role, TeacherOvertimePay, Unity, User
+from app.models import (CourseType, OvertimeMonthClosure, Permission, Role,
+                        TeacherOvertimePay, Unity, User)
 
 EMAIL = 'financeiro@escola.edu'
 PASSWORD = 'SenhaForte123'
@@ -36,12 +42,21 @@ class TestConfig(Config):
 
 
 class FixedDatetime(datetime):
-    """datetime com now() fixado no dia 10 do mês corrente real: fica fora da
-    janela do dia 25, então o mês atual é sempre lançável nos testes."""
+    """datetime com now() fixado no dia 10 do mês corrente real: dentro da
+    janela 20→20, o mês da janela é sempre o mês atual."""
     @classmethod
     def now(cls):
         today = datetime.now()
         return cls(today.year, today.month, 10, 12, 0)
+
+
+class FixedDatetimeDia25(datetime):
+    """now() fixado no dia 25 do mês corrente real: depois do dia 20, a janela
+    aponta para o mês seguinte."""
+    @classmethod
+    def now(cls):
+        today = datetime.now()
+        return cls(today.year, today.month, 25, 12, 0)
 
 
 class PaymentsTestCase(unittest.TestCase):
@@ -55,6 +70,12 @@ class PaymentsTestCase(unittest.TestCase):
         self.app.config['SESSION_COOKIE_SECURE'] = False
         self.client = self.app.test_client()
 
+        # Relógio do blueprint fixado no dia 10: a janela 20→20 aponta sempre
+        # para o mês atual, tornando os testes independentes do dia de execução.
+        patcher = patch('app.blueprints.payments.datetime', FixedDatetime)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
         with self.app.app_context():
             db.create_all()
             self.unity = Unity(name='Unidade Teste', code='UT')
@@ -63,7 +84,7 @@ class PaymentsTestCase(unittest.TestCase):
 
             perms = [Permission(code=code, module='payment', action=code.split(':')[1])
                      for code in ('payment:read', 'payment:create', 'payment:edit',
-                                  'payment:delete', 'payment:export')]
+                                  'payment:delete', 'payment:export', 'payment:close_month')]
             db.session.add_all(perms)
             role = Role(name='financeiro-teste', label='Financeiro Teste', permissions=perms)
             db.session.add(role)
@@ -88,9 +109,14 @@ class PaymentsTestCase(unittest.TestCase):
             )
             other_teacher.set_password(PASSWORD)
             db.session.add_all([manager, teacher, other_teacher])
+            db.session.flush()
+
+            self.course_type = CourseType(name='Técnico', is_active=True)
+            db.session.add(self.course_type)
             db.session.commit()
             self.teacher_id, self.other_teacher_id = teacher.id, other_teacher.id
             self.unity_id = self.unity.id
+            self.course_type_id = self.course_type.id
 
         self._login()
 
@@ -112,6 +138,7 @@ class PaymentsTestCase(unittest.TestCase):
         payload = {
             'teacher': str(self.teacher_id),
             'teaching_level': 'Superior',
+            'course_type': str(self.course_type_id),
             'shift': 'Noturno',
             'weekly_workload_hours': '4',
             'weekly_workload_minutes': '30',
@@ -119,27 +146,41 @@ class PaymentsTestCase(unittest.TestCase):
             'budget_code': '950001234',
             'multiple_dates': '10/09/2026',
             'justification': 'Substituicao de aula',
-            'month_base': datetime.now().strftime('%Y-%m'),
+            'observation': 'Turma integral',
         }
         payload.update(overrides)
         return payload
 
-    def _previous_month(self):
-        return (datetime.now().replace(day=1) - timedelta(days=1)).strftime('%Y-%m')
+    def _mes_atual(self):
+        return datetime.now().strftime('%Y-%m')
+
+    def _mes_seguinte(self):
+        hoje = datetime.now()
+        mes = hoje.month + 1
+        ano = hoje.year + (1 if mes > 12 else 0)
+        return f'{ano:04d}-{1 if mes > 12 else mes:02d}'
 
     def _add_overtime(self, month_base, teacher_id=None, budget_code='950001234', created_at=None,
-                      weekly_workload=4):
+                      weekly_workload=4, course_type_id='SET', observation=None):
         with self.app.app_context():
             record = TeacherOvertimePay(
                 teacher_id=teacher_id or self.teacher_id, teaching_level='Superior',
+                course_type_id=self.course_type_id if course_type_id == 'SET' else course_type_id,
                 unity_id=self.unity_id, weekly_workload=weekly_workload, hourly_value=25.5,
                 budget_code=budget_code, shift='Noturno', month_base=month_base,
+                observation=observation,
             )
             if created_at is not None:
                 record.created_at = created_at
             db.session.add(record)
             db.session.commit()
             return record.id
+
+    def _fechar_mes(self, month_base):
+        with self.app.app_context():
+            db.session.add(OvertimeMonthClosure(
+                unity_id=self.unity_id, month_base=month_base))
+            db.session.commit()
 
     # ---------- Máscara do Código Orçamentário ----------
 
@@ -160,21 +201,30 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertEqual(hours_minutes_filter(4), '4h')
         self.assertEqual(hours_minutes_filter(None), '—')
 
-    # ---------- Cadastro: bloqueio de mês anterior ----------
+    # ---------- Cadastro: mês base derivado da janela 20→20 ----------
 
-    def test_create_past_month_is_blocked_with_error(self):
+    def test_create_deriva_mes_base_da_janela(self):
+        # Dia 10 (antes do dia 20): o lançamento conta para o mês corrente.
         response = self.client.post('/payments/overtime/create',
-                                    data=self._create_payload(month_base=self._previous_month()),
-                                    follow_redirects=True)
+                                    data=self._create_payload(), follow_redirects=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn('meses anteriores ao mês atual', response.get_data(as_text=True))
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
         with self.app.app_context():
-            self.assertEqual(db.session.query(TeacherOvertimePay).count(), 0)
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.month_base, self._mes_atual())
 
-    def test_create_current_month_succeeds_and_formats_budget_code(self):
-        with patch('app.blueprints.payments.datetime', FixedDatetime):
+    def test_create_apos_dia_20_conta_para_o_mes_seguinte(self):
+        with patch('app.blueprints.payments.datetime', FixedDatetimeDia25):
             response = self.client.post('/payments/overtime/create',
                                         data=self._create_payload(), follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.month_base, self._mes_seguinte())
+
+    def test_create_current_month_succeeds_and_formats_budget_code(self):
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(), follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
         with self.app.app_context():
@@ -184,15 +234,43 @@ class PaymentsTestCase(unittest.TestCase):
     def test_create_accepts_masked_budget_code(self):
         # O campo formatado pela máscara (com pontos) passa na validação
         # e é normalizado no banco.
-        with patch('app.blueprints.payments.datetime', FixedDatetime):
-            response = self.client.post('/payments/overtime/create', data=self._create_payload(
-                budget_code='95.00.0123.40.1234'), follow_redirects=True)
+        response = self.client.post('/payments/overtime/create', data=self._create_payload(
+            budget_code='95.00.0123.40.1234'), follow_redirects=True)
         self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
         with self.app.app_context():
             record = db.session.query(TeacherOvertimePay).first()
             self.assertEqual(record.budget_code, '95.00.0123.40.1234')
 
-    # ---------- Carga horária semanal: hora + minuto → hora decimal ----------
+    # ---------- Tipo de curso (obrigatório) e observação ----------
+
+    def test_create_exige_tipo_de_curso(self):
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(course_type='0'),
+                                    follow_redirects=True)
+        self.assertIn('Selecione o tipo de curso', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.query(TeacherOvertimePay).count(), 0)
+
+    def test_create_salva_tipo_de_curso_e_observacao(self):
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(), follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.course_type_id, self.course_type_id)
+            self.assertEqual(record.observation, 'Turma integral')
+        # Campos também aparecem nos detalhes do lançamento
+        page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        self.assertIn('Técnico', page)
+        self.assertIn('Turma integral', page)
+
+    def test_form_mostra_mes_derivado_e_sem_seletor(self):
+        page = self.client.get('/payments/overtime/create').get_data(as_text=True)
+        self.assertIn('Mês de Referência', page)
+        self.assertNotIn('id="month_base_month"', page)
+        self.assertIn('dia 20 do mês', page)
+
+    # ---------- Carga horária semanal: hora + minuto, sem decimal ----------
 
     def test_create_form_has_hours_minutes_fields_and_hint(self):
         page = self.client.get('/payments/overtime/create').get_data(as_text=True)
@@ -200,55 +278,61 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('id="weekly_workload_minutes"', page)
         self.assertIn('id="workload-hint"', page)
 
-    def test_create_converts_hours_minutes_to_decimal(self):
-        # 4h30 é gravado como 4,5 (hora decimal) — valor exportado na planilha
-        # e exibido na consulta.
-        with patch('app.blueprints.payments.datetime', FixedDatetime):
-            response = self.client.post('/payments/overtime/create',
-                                        data=self._create_payload(), follow_redirects=True)
+    def test_create_grava_carga_e_listagem_mostra_hora_minuto(self):
+        # 4h30 é gravado internamente como 4,5 — e exibido como 4h30, sem
+        # hora decimal em lugar nenhum.
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(), follow_redirects=True)
         self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
         with self.app.app_context():
             record = db.session.query(TeacherOvertimePay).first()
             self.assertEqual(record.weekly_workload, Decimal('4.50'))
 
         page = self.client.get('/payments/overtime/list').get_data(as_text=True)
-        self.assertIn('<td>4,5</td>', page)
+        self.assertIn('<td>4h30</td>', page)
+        self.assertNotIn('4,5', page)
 
-    def test_list_modal_shows_decimal_and_hours_minutes(self):
-        # Nos detalhes do lançamento os dois formatos aparecem: decimal e hora:minuto
-        self._add_overtime(datetime.now().strftime('%Y-%m'), weekly_workload=Decimal('4.50'))
+    def test_list_modal_shows_hours_and_launch_date(self):
+        self._add_overtime(self._mes_atual(), weekly_workload=Decimal('4.50'))
         page = self.client.get('/payments/overtime/list').get_data(as_text=True)
-        self.assertIn('4,5 h (4h30)', page)
+        self.assertIn('4h30', page)
+        # Dia de lançamento nos detalhes
+        self.assertIn('Data do Lançamento', page)
 
     def test_create_rejects_minutes_out_of_range(self):
-        with patch('app.blueprints.payments.datetime', FixedDatetime):
-            response = self.client.post('/payments/overtime/create',
-                                        data=self._create_payload(weekly_workload_minutes='75'),
-                                        follow_redirects=True)
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(weekly_workload_minutes='75'),
+                                    follow_redirects=True)
         self.assertIn('Os minutos devem estar entre 0 e 59.', response.get_data(as_text=True))
         with self.app.app_context():
             self.assertEqual(db.session.query(TeacherOvertimePay).count(), 0)
 
     def test_create_rejects_zero_workload(self):
-        with patch('app.blueprints.payments.datetime', FixedDatetime):
-            response = self.client.post('/payments/overtime/create',
-                                        data=self._create_payload(weekly_workload_hours='0',
-                                                                  weekly_workload_minutes='0'),
-                                        follow_redirects=True)
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(weekly_workload_hours='0',
+                                                              weekly_workload_minutes='0'),
+                                    follow_redirects=True)
         self.assertIn('Carga Horária Semanal deve ser maior que 0', response.get_data(as_text=True))
 
-    def test_export_writes_decimal_hours(self):
-        # A planilha recebe a hora decimal (4,5) na coluna Horas
-        self._add_overtime(datetime.now().strftime('%Y-%m'), weekly_workload=Decimal('4.50'))
+    def test_export_writes_hours_and_minutes(self):
+        # A planilha recebe hora e minutos inteiros (4h30) — sem decimal
+        self._add_overtime(self._mes_atual(), weekly_workload=Decimal('4.50'))
         response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
         workbook = load_workbook(BytesIO(response.data))
         ws = workbook['Extra NEB']
-        self.assertEqual(ws.cell(row=7, column=3).value, 4.5)
+        self.assertEqual(ws.cell(row=7, column=3).value, '4h30')
+
+    def test_export_inclui_tipo_de_curso_e_observacao(self):
+        self._add_overtime(self._mes_atual(), observation='Turma integral')
+        response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
+        workbook = load_workbook(BytesIO(response.data))
+        ws = workbook['Extra NEB']
+        self.assertEqual(ws.cell(row=7, column=9).value, 'Técnico')
+        self.assertEqual(ws.cell(row=7, column=10).value, 'Turma integral')
 
     def test_edit_get_splits_decimal_into_hours_minutes(self):
         # 4.33 volta para o formulário como 4h20
-        record_id = self._add_overtime(datetime.now().strftime('%Y-%m'),
-                                       weekly_workload=Decimal('4.33'))
+        record_id = self._add_overtime(self._mes_atual(), weekly_workload=Decimal('4.33'))
         page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
         self.assertRegex(page, r'id="weekly_workload_hours"[^>]*value="4"')
         self.assertRegex(page, r'id="weekly_workload_minutes"[^>]*value="20"')
@@ -258,31 +342,39 @@ class PaymentsTestCase(unittest.TestCase):
         # nome do campo teacher: o WTForms tenta int(User), falha em silêncio
         # e a seleção cai no primeiro professor da lista. "Professora Teste"
         # não é a primeira da lista ("Outro Professor" vem antes).
-        record_id = self._add_overtime(datetime.now().strftime('%Y-%m'))
+        record_id = self._add_overtime(self._mes_atual())
         page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
         opcao = re.search(rf'<option[^>]*value="{self.teacher_id}"[^>]*>', page)
         self.assertIsNotNone(opcao, 'option do professor do lançamento não encontrada')
         self.assertIn('selected', opcao.group(0))
 
+    def test_edit_restaura_tipo_de_curso(self):
+        # Mesmo padrão do professor: o relationship course_type (objeto) tem o
+        # nome do campo — a rota restaura a seleção pelo id.
+        record_id = self._add_overtime(self._mes_atual())
+        page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
+        opcao = re.search(rf'<option[^>]*value="{self.course_type_id}"[^>]*>', page)
+        self.assertIsNotNone(opcao, 'option do tipo de curso não encontrada')
+        self.assertIn('selected', opcao.group(0))
+
     def test_edit_stores_converted_decimal(self):
-        record_id = self._add_overtime(datetime.now().strftime('%Y-%m'))
-        with patch('app.blueprints.payments.datetime', FixedDatetime):
-            response = self.client.post(f'/payments/overtime/edit/{record_id}',
-                                        data=self._create_payload(weekly_workload_hours='2',
-                                                                  weekly_workload_minutes='45'),
-                                        follow_redirects=True)
+        record_id = self._add_overtime(self._mes_atual())
+        response = self.client.post(f'/payments/overtime/edit/{record_id}',
+                                    data=self._create_payload(weekly_workload_hours='2',
+                                                              weekly_workload_minutes='45'),
+                                    follow_redirects=True)
         self.assertIn('Alteração realizada', response.get_data(as_text=True))
         with self.app.app_context():
             record = db.session.get(TeacherOvertimePay, record_id)
             self.assertEqual(record.weekly_workload, Decimal('2.75'))
 
-    # ---------- Consulta: mês atual como padrão ----------
+    # ---------- Consulta: mês da janela como padrão ----------
 
     def test_list_defaults_to_current_month(self):
-        self._add_overtime(datetime.now().strftime('%Y-%m'))
+        self._add_overtime(self._mes_atual())
         self._add_overtime('2024-08', teacher_id=self.other_teacher_id)
 
-        # Sem parâmetros: abre no mês atual
+        # Sem parâmetros: abre no mês da janela (mês atual com o relógio fixo)
         response = self.client.get('/payments/overtime/list')
         page = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
@@ -302,14 +394,14 @@ class PaymentsTestCase(unittest.TestCase):
 
     def test_list_shows_budget_code_formatted(self):
         # Registro antigo (criado direto no banco, sem máscara) aparece formatado
-        self._add_overtime(datetime.now().strftime('%Y-%m'), budget_code='950001234')
+        self._add_overtime(self._mes_atual(), budget_code='950001234')
         response = self.client.get('/payments/overtime/list?month_base=')
         self.assertIn('95.00.0123.4', response.get_data(as_text=True))
 
     # ---------- Exportação por professor ----------
 
     def test_export_filtered_by_teacher(self):
-        self._add_overtime(datetime.now().strftime('%Y-%m'))
+        self._add_overtime(self._mes_atual())
         self._add_overtime('2024-08', teacher_id=self.other_teacher_id)
 
         response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
@@ -324,84 +416,104 @@ class PaymentsTestCase(unittest.TestCase):
         # Código Orçamentário sai formatado mesmo para registros antigos
         self.assertEqual(ws.cell(row=7, column=7).value, '95.00.0123.4')
 
-    # ---------- Regra dos 30 dias: botões escondidos na listagem ----------
+    # ---------- Fechamento do mês ----------
 
-    def test_is_editable_property(self):
-        now = datetime.now()
-        with self.app.app_context():
-            recent = TeacherOvertimePay(
-                teacher_id=self.teacher_id, unity_id=self.unity_id,
-                teaching_level='Superior', weekly_workload=4, hourly_value=25.5,
-                budget_code='950001234', shift='Noturno',
-                month_base=now.strftime('%Y-%m'), created_at=now,
-            )
-            self.assertTrue(recent.is_editable)
+    def test_list_shows_edit_delete_for_open_month(self):
+        self._add_overtime(self._mes_atual())
 
-            # Primeiro dia do mês atual: editável (dentro do mês corrente a
-            # idade máxima é ~30 dias, então a regra do mês é a que domina)
-            first_day = TeacherOvertimePay(
-                teacher_id=self.teacher_id, unity_id=self.unity_id,
-                teaching_level='Superior', weekly_workload=4, hourly_value=25.5,
-                budget_code='950001234', shift='Noturno',
-                month_base=now.strftime('%Y-%m'), created_at=now.replace(day=1),
-            )
-            self.assertTrue(first_day.is_editable)
-
-            # Mês anterior ao atual, mesmo com poucos dias, é trancado
-            last_month = now.replace(day=1) - timedelta(days=1)
-            previous = TeacherOvertimePay(
-                teacher_id=self.teacher_id, unity_id=self.unity_id,
-                teaching_level='Superior', weekly_workload=4, hourly_value=25.5,
-                budget_code='950001234', shift='Noturno',
-                month_base=last_month.strftime('%Y-%m'), created_at=last_month,
-            )
-            self.assertFalse(previous.is_editable)
-
-            # Mais de 30 dias: trancado
-            old = TeacherOvertimePay(
-                teacher_id=self.teacher_id, unity_id=self.unity_id,
-                teaching_level='Superior', weekly_workload=4, hourly_value=25.5,
-                budget_code='950001234', shift='Noturno',
-                month_base=now.strftime('%Y-%m'), created_at=now - timedelta(days=40),
-            )
-            self.assertFalse(old.is_editable)
-
-    def test_list_hides_edit_delete_for_locked_records(self):
-        # Registro de mês antigo e registro com mais de 30 dias: a listagem
-        # não pode oferecer editar/excluir (o backend bloqueia, mas os botões
-        # apareciam) — mostra o cadeado no lugar.
-        self._add_overtime('2024-08', teacher_id=self.other_teacher_id,
-                           created_at=datetime(2024, 8, 15))
-        self._add_overtime(datetime.now().strftime('%Y-%m'),
-                           created_at=datetime.now() - timedelta(days=40))
-
-        page = self.client.get('/payments/overtime/list?month_base=').get_data(as_text=True)
-        self.assertIn('bi-lock-fill', page)
-        self.assertNotIn('/payments/overtime/edit/', page)
-        self.assertNotIn('/payments/overtime/delete/', page)
-
-    def test_list_shows_edit_delete_for_current_records(self):
-        self._add_overtime(datetime.now().strftime('%Y-%m'))
-
-        page = self.client.get('/payments/overtime/list?month_base=').get_data(as_text=True)
-        self.assertNotIn('bi-lock-fill', page)
+        page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        # O cadeado das linhas (não o ícone do botão Fechar Mês)
+        self.assertNotIn('bi-lock-fill text-muted', page)
         self.assertIn('/payments/overtime/edit/', page)
         self.assertIn('/payments/overtime/delete/', page)
 
-    def test_edit_and_delete_still_blocked_for_locked_records(self):
-        record_id = self._add_overtime('2024-08', created_at=datetime(2024, 8, 15))
+    def test_fechar_mes_baixa_planilha_e_tranca(self):
+        record_id = self._add_overtime(self._mes_atual(), weekly_workload=Decimal('4.50'))
 
+        response = self.client.post('/payments/overtime/close-month',
+                                    data={'month_base': self._mes_atual()})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('spreadsheetml', response.content_type)
+        workbook = load_workbook(BytesIO(response.data))
+        ws = workbook['Extra NEB']
+        self.assertEqual(ws.cell(row=7, column=3).value, '4h30')
+
+        with self.app.app_context():
+            closure = db.session.query(OvertimeMonthClosure).one()
+            self.assertEqual(closure.month_base, self._mes_atual())
+            self.assertIsNotNone(closure.closed_by_id)
+
+        # A listagem mostra o cadeado e o aviso de mês fechado
+        page = self.client.get(f'/payments/overtime/list?month_base={self._mes_atual()}').get_data(as_text=True)
+        self.assertIn('bi-lock-fill text-muted', page)
+        self.assertIn('somente leitura', page)
+        self.assertNotIn('/payments/overtime/edit/', page)
+
+        # E o backend bloqueia edição/exclusão dos lançamentos do mês
         response = self.client.get(f'/payments/overtime/edit/{record_id}', follow_redirects=True)
-        self.assertIn('não podem ser alterados', response.get_data(as_text=True))
+        self.assertIn('já foi fechado', response.get_data(as_text=True))
         response = self.client.post(f'/payments/overtime/delete/{record_id}', follow_redirects=True)
-        self.assertIn('não podem ser excluídos', response.get_data(as_text=True))
+        self.assertIn('não pode mais ser excluído', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.query(TeacherOvertimePay).count(), 1)
+
+    def test_fechar_mes_sem_lancamentos_recusado(self):
+        response = self.client.post('/payments/overtime/close-month',
+                                    data={'month_base': '2024-08'},
+                                    follow_redirects=True)
+        self.assertIn('Não há lançamentos', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.query(OvertimeMonthClosure).count(), 0)
+
+    def test_fechar_mes_ja_fechado_nao_duplica(self):
+        self._fechar_mes(self._mes_atual())
+        self._add_overtime(self._mes_atual())
+        response = self.client.post('/payments/overtime/close-month',
+                                    data={'month_base': self._mes_atual()},
+                                    follow_redirects=True)
+        self.assertIn('já estavam fechados', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.query(OvertimeMonthClosure).count(), 1)
+
+    def test_fechar_mes_exige_permissao(self):
+        self._add_overtime(self._mes_atual())
+        with self.app.app_context():
+            role = Role.query.filter_by(name='financeiro-teste').first()
+            role.permissions = [p for p in role.permissions if p.code != 'payment:close_month']
+            db.session.commit()
+        response = self.client.post('/payments/overtime/close-month',
+                                    data={'month_base': self._mes_atual()})
+        self.assertEqual(response.status_code, 403)
+        with self.app.app_context():
+            self.assertEqual(db.session.query(OvertimeMonthClosure).count(), 0)
+
+    def test_botao_fechar_mes_somente_com_permissao(self):
+        self._add_overtime(self._mes_atual())
+        page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        self.assertIn('Fechar Mês', page)
+
+        with self.app.app_context():
+            role = Role.query.filter_by(name='financeiro-teste').first()
+            role.permissions = [p for p in role.permissions if p.code != 'payment:close_month']
+            db.session.commit()
+        page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        self.assertNotIn('Fechar Mês', page)
+
+    def test_list_hides_edit_delete_para_mes_fechado(self):
+        self._add_overtime(self._mes_atual())
+        self._fechar_mes(self._mes_atual())
+
+        page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        self.assertIn('bi-lock-fill text-muted', page)
+        self.assertNotIn('/payments/overtime/edit/', page)
+        self.assertNotIn('/payments/overtime/delete/', page)
 
     def test_delete_overtime_preserva_filtros_de_origem(self):
         # Excluir a partir da linha não pode devolver a listagem limpa
         # (sem o mês/professor filtrados nem a página atual).
-        record_id = self._add_overtime(datetime.now().strftime('%Y-%m'))
+        record_id = self._add_overtime(self._mes_atual())
         referrer = ('http://localhost/payments/overtime/list'
-                    f'?month_base={datetime.now().strftime("%Y-%m")}&page=2')
+                    f'?month_base={self._mes_atual()}&page=2')
         response = self.client.post(f'/payments/overtime/delete/{record_id}',
                                     headers={'Referer': referrer})
         location = response.headers.get('Location', '')
@@ -415,20 +527,19 @@ class PaymentsTestCase(unittest.TestCase):
         # Antes, o macro ficava no bloco scripts e a paginação era renderizada
         # depois do layout (abaixo do rodapé). Deve vir antes do <footer>.
         for _ in range(30):  # 25 por página → 2 páginas
-            self._add_overtime(datetime.now().strftime('%Y-%m'))
+            self._add_overtime(self._mes_atual())
 
         page = self.client.get('/payments/overtime/list?month_base=').get_data(as_text=True)
         self.assertIn('Navegação de páginas', page)
         self.assertLess(page.index('Navegação de páginas'), page.index('<footer'))
 
-    # ---------- Aviso de navegador ----------
+    # ---------- Aviso de navegador removido ----------
 
-    def test_browser_notice_compact_and_fixed(self):
+    def test_aviso_de_navegador_removido(self):
         for url in ('/payments/overtime/list', '/payments/overtime/create'):
             page = self.client.get(url).get_data(as_text=True)
-            self.assertIn('Evite o Mozilla Firefox', page)
-            # O aviso antigo era dispensável (btn-close); o novo é fixo e compacto
-            self.assertNotIn('alert-dismissible fade show d-flex', page)
+            self.assertNotIn('Evite o Mozilla Firefox', page)
+            self.assertNotIn('recomenda-se o uso do Google Chrome', page)
 
 
 if __name__ == '__main__':

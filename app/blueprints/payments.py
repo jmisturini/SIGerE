@@ -2,8 +2,9 @@ import os
 import re
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
-from app.models import User, TeacherOvertimePay
-from app.forms import FormTeacherOvertimePay
+from app.models import (User, TeacherOvertimePay, TeacherMealAllowance,
+                        OvertimeMonthClosure, CourseType)
+from app.forms import FormTeacherOvertimePay, FormValeAlimentacao
 from app.extensions import db
 from app.unity_context import current_unity_id
 from datetime import datetime
@@ -26,6 +27,43 @@ BUDGET_CODE_LENGTHS = (9, 14)
 
 MONTH_NAMES_PT = ('Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro')
+
+# Janela de lançamento da Hora Extra: do dia 20 do mês anterior ao dia 20 do
+# mês corrente, tudo que é lançado conta para o mês corrente; depois do dia
+# 20, conta para o mês seguinte. O Mês Base é derivado do dia do lançamento —
+# não há escolha manual.
+MONTH_WINDOW_DAY = 20
+
+
+def _month_base_janela(now=None):
+    """Mês de referência do lançamento pela janela 20→20."""
+    now = now or datetime.now()
+    if now.day <= MONTH_WINDOW_DAY:
+        return now.strftime('%Y-%m')
+    mes = now.month + 1
+    ano = now.year + (1 if mes > 12 else 0)
+    return f'{ano:04d}-{mes if mes <= 12 else 1:02d}'
+
+
+def _rotulo_mes(month_base):
+    """'Novembro/2026' — rótulo legível do mês de referência (YYYY-MM)."""
+    try:
+        parsed = datetime.strptime(month_base, '%Y-%m')
+    except (TypeError, ValueError):
+        return month_base or '—'
+    return f'{MONTH_NAMES_PT[parsed.month - 1]}/{parsed.year}'
+
+
+def _mes_fechado(unity_id, month_base):
+    """O mês de referência já foi fechado nesta unidade?"""
+    return db.session.query(OvertimeMonthClosure.id).filter_by(
+        unity_id=unity_id, month_base=month_base).first() is not None
+
+
+def _meses_fechados(unity_id):
+    """Conjunto dos meses já fechados na unidade (uma consulta por página)."""
+    return {c.month_base for c in
+            OvertimeMonthClosure.query.filter_by(unity_id=unity_id).all()}
 
 # ================= HELPER FUNCTIONS =================
 
@@ -64,19 +102,11 @@ def budget_code_filter(value):
     return format_budget_code(value)
 
 
-@bp.app_template_filter('decimal_hours')
-def decimal_hours_filter(value):
-    """Hora decimal no padrão pt-BR, sem zeros à direita: 4.5 → '4,5',
-    4.33 → '4,33', 4 → '4'. Usado na listagem e no modal de visualização."""
-    if value is None:
-        return '—'
-    return f'{float(value):.2f}'.rstrip('0').rstrip('.').replace('.', ',')
-
-
 @bp.app_template_filter('hours_minutes')
 def hours_minutes_filter(value):
     """Hora decimal como hora/minuto: 4.5 → '4h30', 4.33 → '4h20',
-    4 → '4h'. Complemento legível do decimal nos detalhes do lançamento."""
+    4 → '4h'. Único formato de carga horária exibido na consulta e enviado à
+    planilha — a hora decimal não é mais usada."""
     if value is None:
         return '—'
     horas, minutos = divmod(decimal_to_minutes(value), 60)
@@ -85,19 +115,14 @@ def hours_minutes_filter(value):
 
 def _month_options():
     """Meses para a caixa de seleção da consulta: os que já possuem lançamentos
-    na unidade + o mês atual, do mais recente para o mais antigo."""
+    na unidade + o mês da janela atual, do mais recente para o mais antigo."""
     rows = (TeacherOvertimePay.query.with_entities(TeacherOvertimePay.month_base)
             .filter_by(unity_id=current_unity_id()).distinct().all())
     months = {row[0] for row in rows if row[0]}
-    months.add(datetime.now().strftime('%Y-%m'))
+    months.add(_month_base_janela())
     options = []
     for value in sorted(months, reverse=True):
-        try:
-            parsed = datetime.strptime(value, '%Y-%m')
-        except ValueError:
-            options.append((value, value))
-            continue
-        options.append((value, f'{MONTH_NAMES_PT[parsed.month - 1]}/{parsed.year}'))
+        options.append((value, _rotulo_mes(value)))
     return options
 
 
@@ -137,11 +162,11 @@ def decimal_to_minutes(value):
 @require_permission('payment:read')
 @require_module('finance')
 def list_overtime():
-    # A consulta abre no mês atual; a caixa de seleção permite escolher outro
-    # mês ou "Todos os meses" (valor vazio).
+    # A consulta abre no mês da janela de lançamento (20→20); a caixa de
+    # seleção permite escolher outro mês ou "Todos os meses" (valor vazio).
     filter_month = request.args.get('month_base')
     if filter_month is None:
-        filter_month = datetime.now().strftime('%Y-%m')
+        filter_month = _month_base_janela()
     filter_teacher = request.args.get('teacher_filter', type=int)
 
     # CORREÇÃO: a condição anterior era dead-code — @require_permission('payment:read') já garante
@@ -158,9 +183,17 @@ def list_overtime():
                   per_page=PAYS_PER_PAGE, error_out=False)
     list_teachers = _teachers_for_current_unity()
 
+    fechamento = None
+    if filter_month and filter_month in _meses_fechados(current_unity_id()):
+        fechamento = OvertimeMonthClosure.query.filter_by(
+            unity_id=current_unity_id(), month_base=filter_month).first()
+
     return render_template('payments/list_overtime.html', infos=pagination.items, pagination=pagination,
                            list_teachers=list_teachers, month_options=_month_options(),
-                           filter_month=filter_month, filter_teacher=filter_teacher)
+                           filter_month=filter_month, filter_teacher=filter_teacher,
+                           filter_month_label=_rotulo_mes(filter_month),
+                           meses_fechados=_meses_fechados(current_unity_id()),
+                           fechamento=fechamento)
 
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required
@@ -169,32 +202,18 @@ def list_overtime():
 def create_overtime():
     form = FormTeacherOvertimePay()
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
+    form.course_type.choices = _course_type_choices()
 
-    if request.method == 'GET':
-        form.month_base.data = datetime.now().strftime('%Y-%m')
+    # Mês de referência derivado da janela 20→20 — o formulário não escolhe
+    # mês; o lançamento conta para o mês da janela em que foi feito.
+    month_base = _month_base_janela()
 
     if form.validate_on_submit():
-        current_date = datetime.now()
-        month_base_str = form.month_base.data
-
-        if not re.match(r'^\d{4}-\d{2}$', month_base_str):
-            flash('Erro: O formato do Mês Base é inválido. Utilize YYYY-MM (ex: 2024-05).', 'danger')
-            return redirect(url_for('payments.create_overtime'))
-
-        try:
-            month_base = datetime.strptime(month_base_str, '%Y-%m')
-        except ValueError:
-            flash('Erro: O Mês Base inserido não é uma data válida.', 'danger')
-            return redirect(url_for('payments.create_overtime'))
-
-        # Meses anteriores já foram fechados: bloqueia com mensagem visível
-        # (antes, o lançamento era gravado silenciosamente).
-        if month_base_str < current_date.strftime('%Y-%m'):
-            flash('Erro: Não é possível lançar Hora Extra de meses anteriores ao mês atual.', 'danger')
-            return redirect(url_for('payments.create_overtime'))
-
-        if month_base.year == current_date.year and month_base.month == current_date.month and current_date.day > 25:
-            flash('Erro: Lançamentos do mês atual só podem ser feitos até o dia 25.', 'danger')
+        # Fechamento antecipado: se a unidade já fechou o mês da janela,
+        # nenhum lançamento novo pode entrar nele.
+        if _mes_fechado(current_unity_id(), month_base):
+            flash('Erro: O mês de referência deste lançamento já foi fechado. '
+                  'Não é possível lançar em um mês fechado.', 'danger')
             return redirect(url_for('payments.create_overtime'))
 
         hourly_value = parse_currency(form.hourly_value.data)
@@ -210,18 +229,21 @@ def create_overtime():
 
         overtime = TeacherOvertimePay(
             teacher_id=form.teacher.data, teaching_level=form.teaching_level.data,
+            course_type_id=form.course_type.data,
             unity_id=current_unity_id(),
             weekly_workload=weekly_workload, hourly_value=hourly_value,
             budget_code=format_budget_code(form.budget_code.data), shift=form.shift.data,
             multiple_dates=form.multiple_dates.data, justification=form.justification.data,
-            month_base=form.month_base.data, accountable_id=current_user.id
+            observation=form.observation.data,
+            month_base=month_base, accountable_id=current_user.id
         )
         db.session.add(overtime)
         db.session.commit()
         flash('Lançamento de Hora Extra realizado!', 'success')
         return redirect_preserving_args('payments.list_overtime')
 
-    return render_template('payments/form_overtime.html', form=form, title='Nova Hora Extra')
+    return render_template('payments/form_overtime.html', form=form, title='Nova Hora Extra',
+                           month_base=month_base, month_label=_rotulo_mes(month_base))
 
 @bp.route('/overtime/edit/<int:overtime_id>', methods=['GET', 'POST'])
 @login_required
@@ -230,20 +252,23 @@ def create_overtime():
 def edit_overtime(overtime_id):
     overtime = _get_overtime_scoped(overtime_id)
 
-    # Regra centralizada em TeacherOvertimePay.is_editable (mês anterior ao
-    # atual ou mais de 30 dias não podem ser alterados).
-    if not overtime.is_editable:
-        flash('Erro: Registros dos meses anteriores não podem ser alterados.', 'danger')
+    # O mês fechado é o único tranca: sem fechamento, o lançamento permanece
+    # editável (os antigos bloqueios de 30 dias e de mês anterior saíram).
+    if _mes_fechado(overtime.unity_id, overtime.month_base):
+        flash('Erro: O mês deste lançamento já foi fechado; o registro não pode mais ser alterado.', 'danger')
         return redirect_back('payments.list_overtime')
 
     form = FormTeacherOvertimePay(obj=overtime)
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
+    form.course_type.choices = _course_type_choices()
 
     if request.method == 'GET':
-        # O relationship TeacherOvertimePay.teacher (objeto User) tem o mesmo
-        # nome do campo: o WTForms tenta int(User), falha em silêncio e a
-        # seleção volta para o primeiro professor da lista — restaura pelo id.
+        # Os relationships overtime.teacher e overtime.course_type (objetos)
+        # têm os mesmos nomes dos campos: o WTForms tenta int(objeto), falha
+        # em silêncio e a seleção volta para o primeiro da lista — restaura
+        # pelos ids.
         form.teacher.data = overtime.teacher_id
+        form.course_type.data = overtime.course_type_id
         form.hourly_value.data = f"{overtime.hourly_value:.2f}".replace('.', ',')
         # A carga em hora decimal volta para os dois campos (ex: 4.33 → 4h20)
         total_minutes = decimal_to_minutes(overtime.weekly_workload)
@@ -251,23 +276,6 @@ def edit_overtime(overtime_id):
         form.weekly_workload_minutes.data = total_minutes % 60
 
     if form.validate_on_submit():
-        month_base_str = form.month_base.data
-
-        if not re.match(r'^\d{4}-\d{2}$', month_base_str):
-            flash('Erro: O formato do Mês Base é inválido. Utilize YYYY-MM (ex: 2024-05).', 'danger')
-            return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
-
-        try:
-            datetime.strptime(month_base_str, '%Y-%m')
-        except ValueError:
-            flash('Erro: O Mês Base inserido não é uma data válida.', 'danger')
-            return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
-
-        now = datetime.now()
-        if month_base_str < now.strftime('%Y-%m'):
-            flash('Erro: Não é possível definir o Mês Base para um mês anterior ao atual.', 'danger')
-            return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
-
         hourly_value = parse_currency(form.hourly_value.data)
         if hourly_value is None or hourly_value <= 0:
             flash('Erro: O Valor H/a deve ser maior que 0.', 'danger')
@@ -280,20 +288,24 @@ def edit_overtime(overtime_id):
 
         overtime.teacher_id = form.teacher.data
         overtime.teaching_level = form.teaching_level.data
+        overtime.course_type_id = form.course_type.data
         overtime.weekly_workload = weekly_workload
         overtime.hourly_value = hourly_value
         overtime.budget_code = format_budget_code(form.budget_code.data)
         overtime.shift = form.shift.data
         overtime.multiple_dates = form.multiple_dates.data
         overtime.justification = form.justification.data
-        overtime.month_base = form.month_base.data
+        overtime.observation = form.observation.data
+        # O Mês Base não muda na edição: é derivado da janela de lançamento.
         overtime.accountable_id = current_user.id
 
         db.session.commit()
         flash('Alteração realizada!', 'success')
         return redirect_preserving_args('payments.list_overtime')
 
-    return render_template('payments/form_overtime.html', form=form, title='Editar Hora Extra')
+    return render_template('payments/form_overtime.html', form=form, title='Editar Hora Extra',
+                           month_base=overtime.month_base,
+                           month_label=_rotulo_mes(overtime.month_base))
 
 @bp.route('/overtime/delete/<int:overtime_id>', methods=['POST'])
 @login_required
@@ -301,15 +313,224 @@ def edit_overtime(overtime_id):
 @require_module('finance')
 def delete_overtime(overtime_id):
     overtime = _get_overtime_scoped(overtime_id)
-    # Regra centralizada em TeacherOvertimePay.is_editable — igual ao edit.
-    if not overtime.is_editable:
-        flash('Erro: Registros dos meses anteriores não podem ser excluídos.', 'danger')
+    # Mesma regra do edit: mês fechado é o único bloqueio.
+    if _mes_fechado(overtime.unity_id, overtime.month_base):
+        flash('Erro: O mês deste lançamento já foi fechado; o registro não pode mais ser excluído.', 'danger')
         return redirect_back('payments.list_overtime')
 
     db.session.delete(overtime)
     db.session.commit()
     flash('Registro de Hora Extra excluído', 'success')
     return redirect_back('payments.list_overtime')
+
+# ================= CLOSE MONTH (FECHAMENTO) =================
+
+@bp.route('/overtime/close-month', methods=['POST'])
+@login_required
+@require_permission('payment:close_month')
+@require_module('finance')
+def close_month_overtime():
+    """Fecha os lançamentos do mês de referência: grava o fechamento (trava
+    edição e exclusão do mês) e devolve a planilha final do mês para download."""
+    month_base = request.form.get('month_base', '')
+    if not re.match(r'^\d{4}-\d{2}$', month_base):
+        flash('Erro: Mês inválido para fechamento.', 'danger')
+        return redirect(url_for('payments.list_overtime'))
+
+    unity_id = current_unity_id()
+    if _mes_fechado(unity_id, month_base):
+        flash(f'Os lançamentos de {_rotulo_mes(month_base)} já estavam fechados.', 'info')
+        return redirect(url_for('payments.list_overtime', month_base=month_base))
+
+    overtimes = TeacherOvertimePay.query.filter_by(
+        unity_id=unity_id, month_base=month_base).order_by(TeacherOvertimePay.created_at).all()
+    if not overtimes:
+        flash(f'Erro: Não há lançamentos em {_rotulo_mes(month_base)} para fechar.', 'danger')
+        return redirect(url_for('payments.list_overtime', month_base=month_base))
+
+    db.session.add(OvertimeMonthClosure(
+        unity_id=unity_id, month_base=month_base, closed_by_id=current_user.id))
+    db.session.commit()
+
+    output = _planilha_overtime(overtimes, month_base)
+    if output is None:
+        # Fechamento gravado, mas sem o modelo no servidor: avisa o operador
+        # para restabelecer o arquivo e rebaixar pela Exportação.
+        flash(f'Lançamentos de {_rotulo_mes(month_base)} fechados, mas o modelo '
+              f'da planilha não foi encontrado no servidor.', 'warning')
+        return redirect(url_for('payments.list_overtime', month_base=month_base))
+
+    flash(f'Lançamentos de {_rotulo_mes(month_base)} fechados. A planilha final '
+          f'do mês foi gerada para download.', 'success')
+    return current_app.response_class(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename=hora_extra_{month_base}_fechada.xlsx'}
+    )
+
+# ================= MEAL ALLOWANCE ROUTES (RH) =================
+
+def _meal_choices():
+    return [(t.id, t.full_name) for t in _teachers_for_current_unity()]
+
+
+def _course_type_choices():
+    """Tipos de curso ativos (catálogo do Painel Admin) para o dropdown."""
+    return [(ct.id, ct.name) for ct in
+            CourseType.query.filter_by(is_active=True).order_by(CourseType.name).all()]
+
+
+def _get_meal_scoped(entry_id):
+    entry = db.get_or_404(TeacherMealAllowance, entry_id)
+    if entry.unity_id != current_unity_id():
+        abort(404)
+    return entry
+
+
+def _render_meal_allowance(form, teacher_filter=None):
+    """Página completa do módulo (formulário + filtro + listagem) — usada no
+    GET e no re-render do POST com erro de validação."""
+    query = TeacherMealAllowance.query.filter_by(unity_id=current_unity_id())
+    if teacher_filter:
+        query = query.filter_by(teacher_id=teacher_filter)
+    pagination = query.order_by(TeacherMealAllowance.created_at.desc(),
+                                TeacherMealAllowance.id.desc()) \
+        .paginate(page=request.args.get('page', 1, type=int),
+                  per_page=PAYS_PER_PAGE, error_out=False)
+    return render_template('payments/meal_allowance.html', form=form,
+                           entries=pagination.items, pagination=pagination,
+                           list_teachers=_teachers_for_current_unity(),
+                           filter_teacher=teacher_filter)
+
+
+@bp.route('/meal-allowance', methods=['GET'])
+@login_required
+@require_permission('meal:read')
+@require_module('finance')
+def list_meal_allowance():
+    """Vale Alimentação - Professores: formulário de lançamento em cima e a
+    listagem (com filtro por professor) abaixo, na mesma página."""
+    form = FormValeAlimentacao()
+    form.teacher.choices = _meal_choices()
+    return _render_meal_allowance(
+        form, teacher_filter=request.args.get('teacher_filter', type=int))
+
+
+@bp.route('/meal-allowance/add', methods=['POST'])
+@login_required
+@require_permission('meal:create')
+@require_module('finance')
+def add_meal_allowance():
+    form = FormValeAlimentacao()
+    form.teacher.choices = _meal_choices()
+    if form.validate_on_submit():
+        professor = db.session.get(User, form.teacher.data)
+        db.session.add(TeacherMealAllowance(
+            teacher_id=form.teacher.data, days=form.days.data,
+            unity_id=current_unity_id(), created_by_id=current_user.id))
+        db.session.commit()
+        flash(f'Lançamento adicionado: {professor.full_name} — '
+              f'{form.days.data} dia(s) trabalhados.', 'success')
+        # Mantém o filtro ativo: quem lançou filtrando por um professor
+        # continua vendo a lista dele.
+        return redirect_preserving_args('payments.list_meal_allowance')
+    return _render_meal_allowance(
+        form, teacher_filter=request.args.get('teacher_filter', type=int))
+
+
+@bp.route('/meal-allowance/<int:entry_id>/edit', methods=['GET', 'POST'])
+@login_required
+@require_permission('meal:edit')
+@require_module('finance')
+def edit_meal_allowance(entry_id):
+    entry = _get_meal_scoped(entry_id)
+    form = FormValeAlimentacao(obj=entry)
+    form.teacher.choices = _meal_choices()
+
+    if request.method == 'GET':
+        # O relationship entry.teacher (objeto User) tem o mesmo nome do
+        # campo: restaura a seleção pelo id, como na edição de Hora Extra.
+        form.teacher.data = entry.teacher_id
+
+    if form.validate_on_submit():
+        entry.teacher_id = form.teacher.data
+        entry.days = form.days.data
+        db.session.commit()
+        flash('Alteração realizada!', 'success')
+        return redirect_preserving_args('payments.list_meal_allowance')
+
+    return render_template('payments/meal_allowance_form.html', form=form, entry=entry)
+
+
+@bp.route('/meal-allowance/<int:entry_id>/delete', methods=['POST'])
+@login_required
+@require_permission('meal:delete')
+@require_module('finance')
+def delete_meal_allowance(entry_id):
+    entry = _get_meal_scoped(entry_id)
+    db.session.delete(entry)
+    db.session.commit()
+    flash('Lançamento do Vale Alimentação excluído.', 'success')
+    return redirect_back('payments.list_meal_allowance')
+
+def _planilha_overtime(overtimes, month_base):
+    """Monta a planilha no modelo institucional (base_pagamento_extra.xlsx,
+    aba Extra NEB). A carga horária sai em hora e minuto inteiros (4h30) —
+    a planilha não usa mais a conversão para hora decimal. Retorna o BytesIO
+    pronto para a resposta de download."""
+    template_path = os.path.join(current_app.root_path, 'static', 'templates_excel', 'base_pagamento_extra.xlsx')
+    if not os.path.exists(template_path):
+        return None
+    workbook = load_workbook(filename=template_path)
+    ws = workbook['Extra NEB']
+
+    if month_base:
+        try:
+            base_date = datetime.strptime(month_base, "%Y-%m").date()
+            ws.cell(row=4, column=4, value=base_date)
+        except ValueError:
+            pass
+
+    border = Border(left=Side(border_style='thin', color='FF000000'),
+                    right=Side(border_style='thin', color='FF000000'),
+                    top=Side(border_style='thin', color='FF000000'),
+                    bottom=Side(border_style='thin', color='FF000000'))
+    font = Font(name='Calibri', size=14)
+    alignment = Alignment(horizontal='center', vertical='center', wrapText=True)
+
+    for merged_cell in list(ws.merged_cells.ranges):
+        ws.unmerge_cells(str(merged_cell))
+
+    # Todas as linhas são inseridas de uma única vez antes de escrever os
+    # dados (inserir dentro do loop deslocaria o conteúdo do template).
+    ws.insert_rows(7, len(overtimes))
+
+    for baseline, data in enumerate(overtimes, start=7):
+        minutos = decimal_to_minutes(data.weekly_workload) if data.weekly_workload else 0
+        cell_data = [
+            (1, data.teacher.full_name),
+            (2, data.teaching_level),
+            (3, f'{minutos // 60}h{minutos % 60:02d}'),
+            (4, float(data.hourly_value) if data.hourly_value else 0),
+            (5, data.multiple_dates or ''),
+            (6, data.shift),
+            (7, format_budget_code(data.budget_code)),
+            (8, data.justification or ''),
+            (9, data.course_type.name if data.course_type else '—'),
+            (10, data.observation or ''),
+        ]
+
+        for col, value in cell_data:
+            cell = ws.cell(row=baseline, column=col, value=value)
+            cell.border = border
+            cell.font = font
+            cell.alignment = alignment
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return output
+
 
 # ================= EXCEL EXPORT ROUTES =================
 
@@ -337,59 +558,10 @@ def export_excel_overtime():
         flash('Informações não encontradas para os filtros selecionados.', 'danger')
         return redirect(url_for('payments.list_overtime'))
 
-    template_path = os.path.join(current_app.root_path, 'static', 'templates_excel', 'base_pagamento_extra.xlsx')
-
-    if not os.path.exists(template_path):
+    output = _planilha_overtime(overtimes, month_base)
+    if output is None:
         flash('Modelo do Excel não encontrado no servidor.', 'danger')
         return redirect(url_for('payments.list_overtime'))
-
-    workbook = load_workbook(filename=template_path)
-    ws = workbook['Extra NEB']
-
-    if month_base:
-        try:
-            base_date = datetime.strptime(month_base, "%Y-%m").date()
-            ws.cell(row=4, column=4, value=base_date)
-        except ValueError:
-            pass
-
-    border = Border(left=Side(border_style='thin', color='FF000000'),
-                    right=Side(border_style='thin', color='FF000000'),
-                    top=Side(border_style='thin', color='FF000000'),
-                    bottom=Side(border_style='thin', color='FF000000'))
-    font = Font(name='Calibri', size=14)
-    alignment = Alignment(horizontal='center', vertical='center', wrapText=True)
-
-    for merged_cell in list(ws.merged_cells.ranges):
-        ws.unmerge_cells(str(merged_cell))
-
-    # CORREÇÃO: antes, ws.insert_rows(baseline) era chamado a cada iteração do loop,
-    # deslocando o conteúdo do template repetidamente. Agora todas as linhas são
-    # inseridas de uma única vez antes de escrever os dados.
-    ws.insert_rows(7, len(overtimes))
-
-    for baseline, data in enumerate(overtimes, start=7):
-        cell_data = [
-            (1, data.teacher.full_name),
-            (2, data.teaching_level),
-            (3, float(data.weekly_workload) if data.weekly_workload else 0),
-            (4, float(data.hourly_value) if data.hourly_value else 0),
-            (5, data.multiple_dates or ''),
-            (6, data.shift),
-            (7, format_budget_code(data.budget_code)),
-            (8, data.justification or '')
-        ]
-
-        for col, value in cell_data:
-            cell = ws.cell(row=baseline, column=col, value=value)
-            cell.border = border
-            cell.font = font
-            cell.alignment = alignment
-
-    output = BytesIO()
-    workbook.save(output)
-    output.seek(0)
-
     return current_app.response_class(
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

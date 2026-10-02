@@ -38,3 +38,6 @@ backups/
 
 # Banco SQLite local (contém hashes de senha — nunca versionar)
 *.db
+
+# Capturas dos testes de GUI (artefatos locais)
+gui-test-screenshots/

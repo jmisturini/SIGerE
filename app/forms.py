@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from flask_wtf import FlaskForm
 from wtforms import (StringField, PasswordField, SubmitField, IntegerField, FloatField, DateField, TimeField, TextAreaField, SelectField, BooleanField, SelectMultipleField, RadioField)
-from wtforms.validators import (DataRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
+from wtforms.validators import (DataRequired, InputRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, date
 import re
 from sqlalchemy import func
@@ -278,10 +278,14 @@ class ClassroomForm(BaseForm):
 
 class ReservationForm(BaseForm):
     classroom = SelectField('Sala', coerce=int, validators=[DataRequired()])
-    course = SelectField('Curso', coerce=int, validators=[Optional()])
+    # Obrigatório: o placeholder (0, '-- Nenhum --') coage a 0, que o
+    # DataRequired recusa — não há como gravar reserva sem curso.
+    course = SelectField('Curso', coerce=int, validators=[DataRequired(message='Selecione o curso.')])
     subject = SelectField('Disciplina', coerce=int, validators=[Optional()])
     teacher = SelectField('Professor', coerce=int, validators=[Optional()])
-    title = StringField('Título / Assunto', validators=[DataRequired(), Length(max=200)])
+    # Título/Assunto opcional: sem preenchimento, a reserva recebe o nome do
+    # curso como título (fallback no blueprint).
+    title = StringField('Título / Assunto (opcional)', validators=[Optional(), Length(max=200)])
     description = TextAreaField('Descrição / Finalidade', validators=[Optional()])
     date = DateField('Data', validators=[DataRequired()])
     start_time = TimeField('Horário de Início', validators=[DataRequired()])
@@ -439,13 +443,17 @@ class UnityForm(BaseForm):
 class FormTeacherOvertimePay(BaseForm):
     teacher = SelectField('Professor', coerce=int, validators=[DataRequired()])
     teaching_level = SelectField('Nível de Ensino', choices=[
-        ('Técnico', 'Técnico'), 
+        ('Técnico', 'Técnico'),
         ('Superior', 'Superior'),
         ('FIC', 'FIC'),
         ('FIC I', 'FIC I'),
         ('FIC II', 'FIC II'),
         ('FIC III', 'FIC III')
     ], validators=[DataRequired()])
+    # Catálogo gerenciado no Painel Admin (/admin/tipos-curso): os choices
+    # vêm da rota (apenas tipos ativos).
+    course_type = SelectField('Tipo de Curso', coerce=int,
+                              validators=[DataRequired(message='Selecione o tipo de curso.')])
     # Carga Horária Semanal em dois campos (hora e minuto): a conversão para
     # hora decimal fica em workload_decimal() — é esse valor que é gravado,
     # exportado na planilha e exibido na consulta. A validação do total (> 0)
@@ -459,9 +467,9 @@ class FormTeacherOvertimePay(BaseForm):
     shift = SelectField('Turno', choices=[('Matutino', 'Matutino'), ('Vespertino', 'Vespertino'), ('Noturno', 'Noturno')], validators=[DataRequired()])
     multiple_dates = StringField('Múltiplas Datas', validators=[Optional(), Length(max=255)])
     justification = StringField('Justificativa', validators=[Optional(), Length(max=100)])
-    # Renderizado como campo oculto: a interface usa dois selects (mês e ano)
-    # porque o Firefox não tem seletor nativo para <input type="month">.
-    month_base = StringField('Mês Base', validators=[DataRequired()], render_kw={'type': 'hidden'})
+    observation = TextAreaField('Observação', validators=[Optional(), Length(max=500)])
+    # Mês Base não é campo do formulário: é derivado da janela de lançamento
+    # (dia 20 do mês anterior a dia 20 do mês corrente) no blueprint.
     submit = SubmitField('Lançar Hora Extra')
 
     def workload_decimal(self):
@@ -477,6 +485,9 @@ class FormTeacherOvertimePay(BaseForm):
     def validate_justification(self, field):
         _validar_texto(field, 'Justificativa')
 
+    def validate_observation(self, field):
+        _validar_texto(field, 'Observação')
+
     def validate_hourly_value(self, field):
         # Aceita formatos: 15,50 | 15.50 | 1550 | 15
         if not re.match(r'^(\d{1,3}([,.]\d{1,2})?|\d+)$', field.data.replace(',', '.')):
@@ -491,9 +502,37 @@ class FormTeacherOvertimePay(BaseForm):
         if len(digits) not in (9, 14):
             raise ValidationError('O código orçamentário deve ter 9 ou 14 dígitos.')
 
-    def validate_month_base(self, field):
-        if not re.match(r'^\d{4}-(0[1-9]|1[0-2])$', field.data):
-            raise ValidationError('Formato inválido. Use YYYY-MM (ex: 2024-01).')
+
+# =============================================================================
+# COURSE TYPE FORM (admin: tipos de curso da Hora Extra)
+# =============================================================================
+
+class CourseTypeForm(BaseForm):
+    name = StringField('Nome do Tipo de Curso', validators=[DataRequired(), Length(max=60)])
+    is_active = BooleanField('Ativo', default=True)
+    submit = SubmitField('Salvar Tipo de Curso')
+
+    def validate_name(self, field):
+        _validar_texto(field, 'Nome do Tipo de Curso')
+
+
+# =============================================================================
+# VALE ALIMENTAÇÃO - PROFESSORES FORM (RH)
+# =============================================================================
+
+class FormValeAlimentacao(BaseForm):
+    """Lançamento simples do Vale Alimentação de Professores (RH): escolhe o
+    professor e informa os dias trabalhados — o cadastro é só a contagem,
+    sem mês base nem valores (os choices do professor vêm da rota)."""
+    teacher = SelectField('Professor', coerce=int,
+                          validators=[DataRequired(message='Selecione o professor.')])
+    days = IntegerField('Dias Trabalhados', validators=[
+        # InputRequired (não DataRequired): 0 tem input e deve cair na
+        # validação de faixa ("entre 1 e 999"), não na de campo vazio.
+        InputRequired(message='Informe os dias trabalhados.'),
+        NumberRange(min=1, max=999,
+                    message='Os dias trabalhados devem estar entre 1 e 999.')])
+    submit = SubmitField('Adicionar')
 
 
 # =============================================================================
@@ -822,8 +861,9 @@ class FormVtPedido(BaseForm):
 class FormNotificacaoConfig(BaseForm):
     """Configuração por unidade dos avisos de reserva próxima: liga/desliga o
     módulo, marcos de antecedência (dias antes da reserva) e destinatários
-    fixos (professor, criador e aprovadores) — os grupos personalizados são
-    o campo groups, preenchido pela rota com os grupos da unidade."""
+    fixos (professor, criador e aprovadores). Os grupos personalizados são os
+    campos groups (avisos de reserva próxima) e overload_groups (aviso de
+    sobrecarga de professor), preenchidos pela rota com os grupos da unidade."""
     is_enabled = BooleanField('Notificar reservas próximas nesta unidade', default=True)
     lead_days = StringField(
         'Antecedências — dias antes da reserva',
@@ -834,7 +874,9 @@ class FormNotificacaoConfig(BaseForm):
     notify_creator = BooleanField('Criador da reserva', default=True)
     notify_approvers = BooleanField(
         'Aprovadores da unidade (quem pode aprovar reservas)', default=False)
-    groups = SelectMultipleField('Grupos personalizados', coerce=int, choices=[])
+    groups = SelectMultipleField('Avisos de reserva próxima', coerce=int, choices=[])
+    overload_groups = SelectMultipleField(
+        'Aviso de sobrecarga de professor', coerce=int, choices=[])
     submit = SubmitField('Salvar configurações')
 
     def validate_lead_days(self, field):
@@ -854,6 +896,13 @@ class FormNotificacaoConfig(BaseForm):
                 'Há valores repetidos ou inválidos na lista de antecedências.')
 
     def validate_groups(self, field):
+        self._validar_grupos_da_unidade(field)
+
+    def validate_overload_groups(self, field):
+        self._validar_grupos_da_unidade(field)
+
+    @staticmethod
+    def _validar_grupos_da_unidade(field):
         # POST forjado com grupo de outra unidade: mesmo que os ids batam com
         # grupos existentes, todos precisam pertencer à unidade ativa.
         from app.models import NotificationGroup

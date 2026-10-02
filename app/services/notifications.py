@@ -21,7 +21,12 @@ from datetime import date, timedelta
 
 from app.extensions import db
 from app.models import (Reservation, User, UnityNotificationConfig, Notification,
-                        EVENT_RESERVATION_UPCOMING)
+                        EVENT_RESERVATION_UPCOMING, EVENT_TEACHER_DAILY_LIMIT)
+from app.services.scheduling import count_teacher_reservations
+
+# Marco único da notificação de sobrecarga (não é antecedência em dias):
+# uma reserva gera no máximo um aviso deste tipo por destinatário.
+_MILESTONE_SOBRECARGA = 'diario'
 
 
 def parse_lead_days(texto):
@@ -163,3 +168,60 @@ def varrer_reservas(hoje=None, dry_run=False):
     if not dry_run:
         db.session.commit()
     return stats
+
+
+def notificar_sobrecarga_professor(reservation):
+    """Aviso imediato da regra de carga docente: a reserva gravada levou o
+    professor além do limite diário e nasceu Pendente — os grupos com a
+    seleção dedicada na configuração da unidade (overload_groups) recebem um
+    aviso para avaliar.
+
+    Diferente da varredura (notify-scan), este aviso é criado no momento em
+    que a reserva é gravada. Sem configuração salva ou sem grupos escolhidos,
+    ninguém recebe — a pendência da reserva independe do aviso.
+
+    Idempotente pela unicidade de (destinatário, evento, reserva, marco):
+    regravar a reserva (ex.: editar) não duplica avisos. Retorna quantos
+    avisos criou. A reserva já deve estar em flush (id preenchido).
+    """
+    config = UnityNotificationConfig.query.filter_by(
+        unity_id=reservation.unity_id).first()
+    grupos = config.overload_groups if config is not None else []
+    if not grupos:
+        return 0
+
+    professor = reservation.teacher.full_name if reservation.teacher else 'Professor'
+    qtd = count_teacher_reservations(reservation.teacher_id, reservation.date)
+    sala = reservation.classroom.code if reservation.classroom else '—'
+    titulo = f'Sobrecarga de professor: {reservation.title}'[:200]
+    corpo = (f'{professor} ficará com {qtd} reservas em '
+             f'{reservation.date.strftime("%d/%m/%Y")} — '
+             f'{sala} · {reservation.start_time.strftime("%H:%M")}–'
+             f'{reservation.end_time.strftime("%H:%M")}. '
+             f'A reserva "{reservation.title}" aguarda aprovação.')
+
+    criadas = 0
+    vistos = set()
+    for grupo in grupos:
+        for user in grupo.members:
+            if not user.is_active_user or user.id in vistos:
+                continue
+            vistos.add(user.id)
+            if Notification.query.filter_by(
+                    user_id=user.id, event_type=EVENT_TEACHER_DAILY_LIMIT,
+                    reservation_id=reservation.id,
+                    milestone=_MILESTONE_SOBRECARGA).first():
+                continue
+            # Deep link: o criador vai ao detalhe da reserva (sempre pode
+            # vê-la); os demais, ao calendário no dia da atividade.
+            if user.id == reservation.user_id:
+                url = f'/reservations/{reservation.id}'
+            else:
+                url = f'/calendar/?initialDate={reservation.date.isoformat()}'
+            db.session.add(Notification(
+                user_id=user.id, reservation_id=reservation.id,
+                event_type=EVENT_TEACHER_DAILY_LIMIT,
+                milestone=_MILESTONE_SOBRECARGA,
+                title=titulo, body=corpo, url=url))
+            criadas += 1
+    return criadas

@@ -110,7 +110,8 @@
                 </li>
                 {% endif %}
 
-                {% set in_overtime = request.endpoint and request.endpoint.startswith('payments.') %}
+                {% set in_overtime = request.endpoint and request.endpoint.startswith('payments.') and not request.endpoint.startswith('payments.meal') %}
+                {% set in_meal = request.endpoint and request.endpoint.startswith('payments.meal') %}
                 {% set in_vt = request.endpoint and request.endpoint.startswith('vt.') %}
                 {# O Financeiro concentra o Pagamento Extra (payment:*). #}
                 {# O módulo Financeiro pode ser desligado por unidade (edição da unidade) — o toggle governa também o Vale-Transporte, no RH. #}
@@ -140,9 +141,11 @@
                 </li>
                 {% endif %}
 
-                {# RH: Vale-Transporte (vt:*) — segue sob o módulo Financeiro da unidade #}
-                {% if unity_module_enabled('finance') and current_user.has_permission('vt:read') %}
+                {# RH: Vale-Transporte (vt:*) e Vale Alimentação (meal:*) — seguem sob o módulo Financeiro da unidade #}
+                {% if unity_module_enabled('finance') and (current_user.has_permission('vt:read') or current_user.has_permission('meal:read')) %}
                 <li class="nav-section">RH</li>
+                {% endif %}
+                {% if unity_module_enabled('finance') and current_user.has_permission('vt:read') %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if in_vt else '' }}" title="Vale Transporte" data-bs-toggle="collapse" href="#menu-vt" role="button" aria-expanded="{{ 'true' if in_vt else 'false' }}" aria-controls="menu-vt">
                         <i class="bi bi-bus-front"></i> <span>Vale Transporte</span>
@@ -162,6 +165,13 @@
                             </li>
                         </ul>
                     </div>
+                </li>
+                {% endif %}
+                {% if unity_module_enabled('finance') and current_user.has_permission('meal:read') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_meal else '' }}" title="Vale Alimentação - Professores" href="{{ url_for('payments.list_meal_allowance') }}">
+                        <i class="bi bi-basket2"></i> <span>Vale Alimentação</span>
+                    </a>
                 </li>
                 {% endif %}
 
