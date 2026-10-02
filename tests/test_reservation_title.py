@@ -44,7 +44,8 @@ class ReservationTitleTestCase(unittest.TestCase):
             db.session.add(self.unity)
             db.session.flush()
 
-            perms = [Permission(code='reservation:create', module='reservation', action='create')]
+            perms = [Permission(code='reservation:create', module='reservation', action='create'),
+                     Permission(code='reservation:read_own', module='reservation', action='read_own')]
             db.session.add_all(perms)
             role = Role(name='gestor-teste', label='Gestor Teste', permissions=perms)
             db.session.add(role)

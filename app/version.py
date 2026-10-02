@@ -10,12 +10,44 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.28.0'
+APP_VERSION = '1.29.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.29.0',
+        'data': '2026-10-02',
+        'titulo': 'Cadastrar reserva leva aos detalhes; menu e permissões corrigidos',
+        'grupos': [
+            ('Alterado', [
+                'Ao clicar em "Cadastrar Reserva", o usuário é direcionado aos detalhes '
+                'da reserva recém-criada — antes ia para a listagem "Minhas Reservas". '
+                'O flash de sucesso (e o aviso de pendência por carga docente, quando a '
+                'reserva nasce Pendente) aparece no topo da página de detalhes; o aviso '
+                'dedicado de conflito de professor continua abrindo a própria tela de '
+                'pendência.',
+            ]),
+            ('Corrigido', [
+                'Barra lateral: abrir o Vale Alimentação não marca mais o grupo nem os '
+                'itens da Hora Extra — a detecção de página usava o prefixo '
+                '"payments.meal", que não corresponde aos endpoints reais '
+                '(payments.*_meal_allowance), de modo que a página do Vale Alimentação '
+                'acendia "Hora Extra" e "Consultar H. Extras" e a edição de um '
+                'lançamento acendia "Nova Hora Extra", sem destacar o item do próprio '
+                'módulo. O critério passa a ser "meal_allowance" no endpoint e os itens '
+                'do submenu usam os prefixos específicos do Hora Extra; testes de '
+                'regressão cobrem a listagem, a edição e a consulta.',
+                'Painel de permissões (formulário de papéis): os grupos dos módulos sem '
+                'rótulo no dicionário de tradução apareciam com o nome em inglês gerado '
+                'pelo fallback do código — "Meal", "Course Type", "Notification" e '
+                '"Api" — e agora exibem Vale Alimentação, Tipos de Curso, Notificações '
+                'e API; um teste estrutural garante que todo módulo do catálogo de '
+                'permissões tenha rótulo em português.',
+            ]),
+        ],
+    },
     {
         'versao': '1.28.0',
         'data': '2026-10-02',

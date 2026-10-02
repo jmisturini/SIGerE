@@ -225,7 +225,9 @@ def create():
                   f'da unidade foram notificados.', 'warning')
 
         flash('Reserva agendada com sucesso!', 'success')
-        return redirect(url_for('reservations.my_reservations'))
+        # Direciona aos detalhes da reserva recém-criada (não à listagem).
+        return redirect(url_for('reservations.detail',
+                                reservation_id=reservation.id))
 
     return render_template('reservations/create.html', form=form, classrooms=classrooms,
                             subject_course_map=subject_course_map)
