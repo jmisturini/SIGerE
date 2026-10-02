@@ -110,8 +110,9 @@
                 </li>
                 {% endif %}
 
-                {% set in_overtime = request.endpoint and request.endpoint.startswith('payments.') and not request.endpoint.startswith('payments.meal') %}
-                {% set in_meal = request.endpoint and request.endpoint.startswith('payments.meal') %}
+                {# Endpoints do Vale Alimentação: payments.{list,add,edit,delete}_meal_allowance #}
+                {% set in_meal = request.endpoint and 'meal_allowance' in request.endpoint %}
+                {% set in_overtime = request.endpoint and request.endpoint.startswith('payments.') and not in_meal %}
                 {% set in_vt = request.endpoint and request.endpoint.startswith('vt.') %}
                 {# O Financeiro concentra o Pagamento Extra (payment:*). #}
                 {# O módulo Financeiro pode ser desligado por unidade (edição da unidade) — o toggle governa também o Vale-Transporte, no RH. #}
@@ -125,13 +126,13 @@
                     <div class="collapse {{ 'show' if in_overtime else '' }}" id="menu-hora-extra">
                         <ul class="nav flex-column nav-submenu">
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('payments.list') }}" title="Consultar H. Extras" href="{{ url_for('payments.list_overtime') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.list_overtime') }}" title="Consultar H. Extras" href="{{ url_for('payments.list_overtime') }}">
                                     <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
                                 </a>
                             </li>
                             {% if current_user.has_permission('payment:create') %}
                             <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('payments.create') or ep.startswith('payments.edit') }}" title="Nova Hora Extra" href="{{ url_for('payments.create_overtime') }}">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.create_overtime') or ep.startswith('payments.edit_overtime') }}" title="Nova Hora Extra" href="{{ url_for('payments.create_overtime') }}">
                                     <i class="bi bi-plus-circle"></i> <span>Nova Hora Extra</span>
                                 </a>
                             </li>

@@ -10,7 +10,7 @@ import unittest
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.models import Permission, Role, Unity, User
+from app.models import (Permission, Role, TeacherMealAllowance, Unity, User)
 
 EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
@@ -54,6 +54,7 @@ class SidebarActiveTestCase(unittest.TestCase):
             user.set_password(PASSWORD)
             db.session.add(user)
             db.session.commit()
+            self.unity_id = self.unity.id
 
         response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
@@ -109,6 +110,70 @@ class SidebarActiveTestCase(unittest.TestCase):
         page = response.get_data(as_text=True)
         self.assertIn('Unidades', page)
         self.assertNotIn('Tokens da API', page)
+
+    # --- Vale Alimentação (payments.*_meal_allowance) vs. Hora Extra ---
+
+    FINANCEIRO = ('payment:read', 'payment:create', 'meal:read', 'meal:edit')
+
+    def _conceder(self, codigos):
+        """Substitui as permissões do papel do usuário de teste."""
+        with self.app.app_context():
+            user = User.query.filter_by(email=EMAIL).first()
+            perms = []
+            for codigo in codigos:
+                perm = Permission.query.filter_by(code=codigo).first()
+                if perm is None:
+                    perm = Permission(code=codigo, module=codigo.split(':')[0],
+                                      action=codigo.split(':')[1])
+                    db.session.add(perm)
+                perms.append(perm)
+            user.role_obj.permissions = perms
+            db.session.commit()
+
+    def test_vale_alimentacao_nao_marca_hora_extra(self):
+        """A página do Vale Alimentação destaca o item dela — os endpoints
+        payments.*_meal_allowance não podem marcar o grupo nem a consulta
+        de Hora Extra."""
+        self._conceder(self.FINANCEIRO)
+        page = self.client.get('/payments/meal-allowance').get_data(as_text=True)
+        self.assertEqual(self._navlink(page, 'Vale Alimentação - Professores'),
+                         'active')
+        self.assertEqual(self._navlink(page, 'Hora Extra'), '')
+        self.assertEqual(self._navlink(page, 'Consultar H. Extras'), '')
+
+    def test_editar_vale_alimentacao_nao_marca_nova_hora_extra(self):
+        """Editar um lançamento do Vale Alimentação não pode destacar o
+        item Nova Hora Extra (payments.edit_meal_allowance começa com
+        payments.edit)."""
+        self._conceder(self.FINANCEIRO)
+        with self.app.app_context():
+            professor = User(email='professor@escola.edu',
+                             full_name='Professor Silva', role='room',
+                             profile_type='teacher',
+                             unities=[db.session.get(Unity, self.unity_id)],
+                             force_password_change=False, is_active_user=True)
+            professor.set_password(PASSWORD)
+            db.session.add(professor)
+            db.session.flush()
+            entry = TeacherMealAllowance(teacher_id=professor.id, days=5,
+                                         unity_id=self.unity_id)
+            db.session.add(entry)
+            db.session.commit()
+            entry_id = entry.id
+
+        page = self.client.get(f'/payments/meal-allowance/{entry_id}/edit') \
+            .get_data(as_text=True)
+        self.assertEqual(self._navlink(page, 'Nova Hora Extra'), '')
+        self.assertEqual(self._navlink(page, 'Vale Alimentação - Professores'),
+                         'active')
+
+    def test_hora_extra_continua_sendo_destacada(self):
+        """Guarda contra correção exagerada: na consulta de Hora Extra o
+        destaque continua no lugar certo."""
+        self._conceder(self.FINANCEIRO)
+        page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        self.assertEqual(self._navlink(page, 'Consultar H. Extras'), 'active')
+        self.assertEqual(self._navlink(page, 'Hora Extra'), 'active')
 
 
 if __name__ == '__main__':
