@@ -1,9 +1,10 @@
 """Testes da validação do título/assunto da reserva.
 
-Títulos reais trazem números, ordinais e pontuação ("2º Concurso de
-Integração", "Reunião de pais 1º semestre") — o antigo filtro "apenas
-alfabético" os recusava. O filtro permissivo continua recusando símbolos
-sem uso legítimo (ex.: <script>).
+O curso é obrigatório e o título/assunto é opcional — sem preenchimento, a
+reserva recebe o nome do curso como título. Títulos reais trazem números,
+ordinais e pontuação ("2º Concurso de Integração", "Reunião de pais 1º
+semestre") — o antigo filtro "apenas alfabético" os recusava. O filtro
+permissivo continua recusando símbolos sem uso legítimo (ex.: <script>).
 """
 import os
 import tempfile
@@ -13,7 +14,7 @@ from datetime import date, timedelta
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.models import (Classroom, Permission, Reservation, Role,
+from app.models import (Classroom, Course, Permission, Reservation, Role,
                         RoomCategory, Unity, User)
 
 EMAIL = 'gestor@escola.edu'
@@ -65,8 +66,14 @@ class ReservationTitleTestCase(unittest.TestCase):
             room = Classroom(name='Sala 1', code='S1', capacity=30,
                              unity_id=self.unity.id, category_id=category.id)
             db.session.add(room)
+            db.session.flush()
+
+            course = Course(name='Curso Teste', code='CT',
+                            unity_id=self.unity.id, is_active=True)
+            db.session.add(course)
             db.session.commit()
             self.room_id = room.id
+            self.course_id = course.id
 
         response = self.client.post('/login', data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
@@ -88,10 +95,11 @@ class ReservationTitleTestCase(unittest.TestCase):
             quando += timedelta(days=1)
         return quando
 
-    def _payload(self, title):
+    def _payload(self, title, course=None):
         return {
             'classroom': str(self.room_id),
-            'course': '0', 'subject': '0', 'teacher': '0',
+            'course': str(course if course is not None else self.course_id),
+            'subject': '0', 'teacher': '0',
             'title': title,
             'description': '',
             'date': self._data_proxima().strftime('%Y-%m-%d'),
@@ -123,6 +131,21 @@ class ReservationTitleTestCase(unittest.TestCase):
         self.assertIn('contém caracteres não permitidos', response.get_data(as_text=True))
         with self.app.app_context():
             self.assertEqual(Reservation.query.count(), 0)
+
+    def test_curso_e_obrigatorio(self):
+        response = self.client.post('/reservations/create',
+                                    data=self._payload('Aula qualquer', course=0),
+                                    follow_redirects=True)
+        self.assertIn('Selecione o curso', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(Reservation.query.count(), 0)
+
+    def test_titulo_opcional_recebe_nome_do_curso(self):
+        response = self.client.post('/reservations/create',
+                                    data=self._payload(''),
+                                    follow_redirects=True)
+        self.assertIn('Reserva agendada com sucesso', response.get_data(as_text=True))
+        self.assertEqual(self._reservas_titulo('Curso Teste'), ['Curso Teste'])
 
 
 if __name__ == '__main__':

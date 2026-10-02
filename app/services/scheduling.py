@@ -103,6 +103,36 @@ def check_teacher_conflict(teacher_id, reservation_date, start_time, end_time,
     return query.first()
 
 
+# ── Regra de carga docente ───────────────────────────────────────────────────
+# Mais de TEACHER_DAILY_RESERVATION_LIMIT reservas ativas (aprovadas +
+# pendentes) do mesmo docente no dia leva a reserva nova/editada a PENDENTE
+# para avaliação — a agenda do professor ficou carregada demais.
+
+TEACHER_DAILY_RESERVATION_LIMIT = 2
+
+
+def count_teacher_reservations(teacher_id, reservation_date, exclude_id=None):
+    """Reservas ativas (approved/pending) do docente no dia — base da regra
+    de carga diária. Ainda não gravada na seção crítica, contar com exclude_id
+    da própria reserva na edição; na criação ela ainda não existe no banco."""
+    query = Reservation.query.filter(
+        Reservation.teacher_id == teacher_id,
+        Reservation.date == reservation_date,
+        Reservation.status.in_(['approved', 'pending']),
+    )
+    if exclude_id:
+        query = query.filter(Reservation.id != exclude_id)
+    return query.count()
+
+
+def teacher_exceeds_daily_limit(teacher_id, reservation_date, exclude_id=None):
+    """True se a reserva em julgamento leva o docente além do limite diário:
+    já existem TEACHER_DAILY_RESERVATION_LIMIT reservas ativas dele no dia
+    (esta nova completa mais de LIMIT)."""
+    return count_teacher_reservations(teacher_id, reservation_date,
+                                      exclude_id) >= TEACHER_DAILY_RESERVATION_LIMIT
+
+
 def check_schedule_restrictions(res_date, start_time, end_time=None):
     """Regras de calendário: domingos, feriados cadastrados na unidade e
     sábado após 18:00 (o fim da reserva também deve caber até 18:00)."""
