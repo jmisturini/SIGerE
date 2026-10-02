@@ -331,9 +331,7 @@ BLOCOS = [
     ]),
     ('h2', '1.3 Requisitos para uso'),
     ('ul', [
-        '<b>Navegador atual</b> (Google Chrome, Microsoft Edge ou Safari). No formulário de '
-        'Hora Extra, o calendário de seleção de dias funciona melhor nesses navegadores — evite '
-        'o Mozilla Firefox;',
+        '<b>Navegador atualizado</b> (Google Chrome, Microsoft Edge ou Safari);',
         '<b>Login válido</b> criado por um administrador (o sistema não possui autocadastro);',
         '<b>Computador, tablet ou celular</b> — todas as telas se adaptam ao tamanho da tela '
         'do dispositivo.',
@@ -387,7 +385,8 @@ BLOCOS = [
     ('ul', [
         '<b>Menu lateral</b> — agrupado em <b>Geral</b> (Painel, Calendário), <b>Salas e '
         'Reservas</b> (Salas; submenu Reservas com Nova Reserva, Minhas Reservas e Todas as '
-        'Reservas), <b>Financeiro</b> (Hora Extra), <b>RH</b> (Vale Transporte) e <b>Cozinha</b> '
+        'Reservas), <b>Financeiro</b> (Hora Extra), <b>RH</b> (Vale Transporte e Vale '
+        'Alimentação) e <b>Cozinha</b> '
         '(Ficha Técnica, Preparações, Compras). Os grupos Financeiro, RH e Cozinha só aparecem '
         'para quem tem permissão e quando o módulo está ativado na unidade;',
         '<b>Botão de contrair menu</b> — no topo da barra lateral, alterna entre o modo '
@@ -488,8 +487,10 @@ BLOCOS = [
           '(quando aplicável).'),
     ('p', 'Use os filtros do painel superior para encontrar a sala ideal:'),
     ('ul', [
-        '<b>Data Disponível + Período</b> (Manhã/Tarde/Noite) — mostra apenas as salas livres na '
-        'data e período escolhidos;',
+        '<b>Data Disponível + Períodos</b> (caixas de seleção Manhã/Tarde/Noite) — mostra '
+        'apenas as salas livres na data, em todos os períodos marcados; marcar '
+        '<b>Manhã</b> e <b>Tarde</b>, por exemplo, exclui a sala que tiver qualquer aula em '
+        'qualquer um dos dois períodos;',
         '<b>Tipo de Sala</b> — restringe a uma categoria;',
         '<b>Mostrar apenas salas disponíveis AGORA</b> — filtra pelas salas livres no horário '
         'corrente; o filtro é aplicado na hora em que é marcado ou desmarcado, sem depender do '
@@ -539,11 +540,11 @@ BLOCOS = [
      ['Campo', 'Obrigatório', 'Preenchimento'],
      [
          ['Sala', 'Sim', 'Selecione a sala desejada (apenas salas ativas da unidade).'],
-         ['Curso', 'Não', 'Curso vinculado à reserva; “-- Nenhum --” se não se aplicar.'],
+         ['Curso', 'Sim', 'Curso vinculado à reserva; a lista traz apenas os cursos da unidade.'],
          ['Disciplina', 'Não', 'Ao escolher um curso, a lista mostra apenas as disciplinas dele.'],
          ['Professor', 'Não', 'Docente responsável pela atividade.'],
-         ['Título / Assunto', 'Sim', 'Nome da atividade (até 200 caracteres; letras, números e '
-          'pontuação comum).'],
+         ['Título / Assunto', 'Não', 'Nome da atividade (até 200 caracteres; letras, números e '
+          'pontuação comum). Em branco, a reserva usa o nome do curso como título.'],
          ['Descrição / Finalidade', 'Não', 'Detalhes livres sobre a reserva.'],
          ['Data', 'Sim', 'Data da reserva (datas passadas são recusadas).'],
          ['Horário de Início', 'Sim', 'Hora de início (no mesmo dia, não pode já ter passado).'],
@@ -574,6 +575,9 @@ BLOCOS = [
           'reserva pode coincidir com o início de outra).'],
          ['Professor ocupado', 'Se o professor já está em outra reserva (aprovada ou pendente) '
           'no mesmo horário, a reserva é criada como Pendente para avaliação do administrador.'],
+         ['Carga do professor', 'Mais de 2 reservas ativas do mesmo professor no mesmo dia: a '
+          'reserva é criada como Pendente e os grupos selecionados para o aviso de sobrecarga '
+          '(seção 13.10) recebem um aviso para avaliar.'],
          ['Reservas passadas', 'Viram registro histórico somente leitura: não podem ser '
           'editadas, canceladas nem excluídas.'],
      ],
@@ -585,8 +589,9 @@ BLOCOS = [
      [
          ['Aprovada', 'Confirmada e ocupando a sala. Reservas sem conflitos são aprovadas '
           'automaticamente.'],
-         ['Pendente', 'Aguardando análise do administrador (normalmente por conflito de '
-          'professor). Não aparece no totem, no portal nem no calendário público.'],
+         ['Pendente', 'Aguardando análise do administrador (por conflito de professor, horário '
+          'sobreposto, ou carga diária do docente). Não aparece no totem, no portal nem no '
+          'calendário público.'],
          ['Cancelada', 'Desativada por decisão do usuário ou do administrador; permanece no '
           'histórico.'],
      ],
@@ -657,6 +662,9 @@ BLOCOS = [
         '<b>Agendar Todos</b> — cria de uma vez todas as datas disponíveis;',
         '<b>Resetar</b> — volta ao passo 1 para escolher outro intervalo.',
     ]),
+    ('p', 'Se a repetição deixa o professor com mais de 2 reservas no mesmo dia, a reserva '
+          'daquele dia nasce <b>Pendente</b> (em vez de Aprovada) e os grupos selecionados para '
+          'o aviso de sobrecarga (seção 13.10) são avisados na hora.'),
     ('p', 'Todas as reservas criadas ficam vinculadas na mesma série e podem ser gerenciadas em '
           'lote.'),
     ('h2', '6.8 Gerenciar uma série'),
@@ -797,18 +805,18 @@ BLOCOS = [
     # ================================================================ 10
     ('h1', '10. Financeiro — Hora Extra'),
     ('p', 'O módulo <b>Hora Extra</b> (menu Financeiro) registra as horas extras docentes para '
-          'pagamento. A listagem traz <b>Professor</b>, <b>Mês Base</b>, <b>Nível</b>, '
-          '<b>Dias Selecionados</b>, <b>Turno</b>, <b>Código Orçamentário</b>, <b>Horas</b> e '
-          '<b>Valor hora/aula</b>, com 25 registros por página. O ícone de olho abre o resumo '
-          'completo do lançamento.'),
+          'pagamento. A listagem traz <b>Professor</b>, <b>Mês de Referência</b>, <b>Nível</b>, '
+          '<b>Dias Selecionados</b>, <b>Turno</b>, <b>Código Orçamentário</b>, <b>Horas</b> '
+          '(em horas e minutos, ex.: 4h30) e <b>Valor hora/aula</b>, com 25 registros por '
+          'página. O ícone de olho abre o resumo completo do lançamento, incluindo a '
+          '<b>Data do Lançamento</b>.'),
     ('h2', '10.1 Consultar lançamentos'),
     ('ul', [
-        '<b>Mês Base</b> — a consulta abre no mês atual; a lista também oferece “Todos os '
-        'meses” e os meses já lançados;',
+        '<b>Mês de Referência</b> — a consulta abre no mês da janela de lançamento; a lista '
+        'também oferece “Todos os meses” e os meses já lançados;',
         '<b>Professor</b> — filtra por docente;',
-        '<b>Filtrar</b> aplica a combinação; <b>Limpar</b> volta ao mês atual;',
-        'Lançamentos trancados (fora do prazo de edição) exibem um cadeado com o aviso '
-        'correspondente.',
+        '<b>Filtrar</b> aplica a combinação; <b>Limpar</b> volta ao mês da janela;',
+        'Lançamentos de um mês <b>fechado</b> exibem um cadeado com o aviso correspondente.',
     ]),
     ('h2', '10.2 Lançar uma hora extra'),
     ('p', 'Clique em <b>Nova Hora Extra</b> e preencha:'),
@@ -817,34 +825,42 @@ BLOCOS = [
      [
          ['Professor', 'Sim', 'Docente da unidade ativa.'],
          ['Nível de Ensino', 'Sim', 'Técnico, Superior, FIC, FIC I, FIC II ou FIC III.'],
-         ['Carga Horária Semanal', 'Sim', 'Informada em horas e minutos (ex.: 4h30); exibida '
-          'também em hora decimal (4,5).'],
+         ['Carga Horária Semanal', 'Sim', 'Informada e exibida em horas e minutos inteiros '
+          '(ex.: 4h30) — em toda a tela e na planilha.'],
          ['Valor H/a', 'Sim', 'Valor da hora/aula em reais, aceitando vírgula ou ponto decimal '
           '(ex.: 15,50).'],
          ['Código Orçamentário', 'Sim', '9 ou 14 dígitos; a máscara com pontos '
           '(xx.xx.xxxx.x) é aplicada automaticamente ao digitar.'],
          ['Turno', 'Sim', 'Matutino, Vespertino ou Noturno.'],
-         ['Mês Base', 'Sim', 'Mês e ano de referência do pagamento.'],
-         ['Múltiplas Datas', 'Não', 'Calendário de seleção múltipla limitado ao Mês Base; '
-          'apenas os dias são gravados (ex.: 10, 17, 25).'],
+         ['Mês de Referência', '—', 'Derivado automaticamente pela janela de lançamento (ver '
+          'regras abaixo); não é escolhido no formulário.'],
+         ['Múltiplas Datas', 'Não', 'Calendário de seleção múltipla limitado ao mês de '
+          'referência; apenas os dias são gravados (ex.: 10, 17, 25).'],
          ['Justificativa', 'Não', 'Texto curto (até 100 caracteres).'],
      ],
      [118, 68, 297],
      'Tabela 5 — Campos do lançamento de Hora Extra.'),
-    ('p', 'Clique em <b>Lançar Hora Extra</b> para gravar. Regras de prazo:'),
+    ('p', 'Clique em <b>Lançar Hora Extra</b> para gravar. O mês de referência do lançamento é '
+          'definido pela <b>janela 20→20</b>:'),
     ('ul', [
-        'Não é possível lançar para meses anteriores ao atual;',
-        'Lançamentos do mês corrente só podem ser feitos até o dia 25; do dia 26 em diante, '
-        'apenas para o mês seguinte;',
-        'Edição e exclusão são permitidas somente para lançamentos criados no mês corrente e '
-        'com até 30 dias; registros mais antigos ficam trancados.',
+        'Tudo que é lançado <b>entre o dia 20 do mês anterior e o dia 20 do mês corrente</b> '
+        'conta para o mês corrente;',
+        'Do dia 21 em diante, o lançamento conta para o mês seguinte;',
+        'Não há bloqueio por prazo: enquanto o mês <b>não for fechado</b>, seus lançamentos '
+        'podem ser editados e excluídos livremente.',
     ]),
     ('h2', '10.3 Exportar a planilha'),
-    ('p', 'Com pelo menos o <b>Mês Base</b> ou o <b>Professor</b> selecionado, clique em '
+    ('p', 'Com pelo menos o <b>Mês de Referência</b> ou o <b>Professor</b> selecionado, clique em '
           '<b>Exportar</b>. O arquivo Excel gerado (<b>overtime_export.xlsx</b>) preenche o '
           'modelo institucional da folha de pagamento de hora extra com os lançamentos '
-          'filtrados: professor, nível, horas, valor, datas, turno, código orçamentário e '
-          'justificativa.'),
+          'filtrados: professor, nível, carga em <b>hora e minutos inteiros</b> (4h30), valor, '
+          'datas, turno, código orçamentário e justificativa.'),
+    ('h2', '10.4 Fechar o mês'),
+    ('p', 'Com a permissão apropriada, o botão <b>Fechar Mês</b> encerra os lançamentos do mês '
+          'em consulta: grava o fechamento, <b>bloqueia a edição e a exclusão</b> de todos os '
+          'lançamentos daquele mês (que passam a exibir cadeado) e <b>baixa a planilha final</b> '
+          'do mês na hora. O fechamento é por unidade e fica registrado com data e responsável; '
+          'mês fechado não reabre e a consulta do mês exibe o aviso de somente leitura.'),
 
     # ================================================================ 11
     ('h1', '11. RH — Vale-Transporte'),
@@ -933,6 +949,17 @@ BLOCOS = [
         'para Ida e Volta (usados pelo botão “Usar valor base” do formulário) e a data de '
         'fechamento, que encerra automaticamente o preenchimento na data limite.',
     ]),
+    ('h2', '11.7 Vale Alimentação — Professores'),
+    ('p', 'No menu <b>RH &gt; Vale Alimentação</b> fica o lançamento simples de dias trabalhados '
+          'docentes. Selecione o <b>Professor</b>, informe os <b>Dias Trabalhados</b> (de 1 a '
+          '999) e clique em <b>Adicionar</b> — o registro entra na listagem logo abaixo, com a '
+          'data do lançamento. A caixa de <b>filtro</b> acima da listagem restringe os registros '
+          'a um professor. O botão <b>Detalhes</b> (olho) abre as informações completas do '
+          'lançamento: professor, dias, data e o responsável pelo lançamento. Com permissão de '
+          'edição, o botão <b>Editar</b> (lápis) abre o lançamento para correção, e com '
+          'permissão de exclusão o botão <b>Excluir</b> (lixeira) o remove com confirmação. '
+          'Cada unidade vê apenas os seus lançamentos, e quem tem acesso de consulta, mas não '
+          'de lançamento, vê somente a listagem.'),
 
     # ================================================================ 12
     ('h1', '12. Cozinha'),
@@ -1145,8 +1172,11 @@ BLOCOS = [
         'é 180 dias);',
         '<b>Destinatários fixos</b> — <b>Professor designado na reserva</b>, <b>Criador da '
         'reserva</b> e <b>Aprovadores da unidade</b>, cada um ligado ou desligado à parte;',
-        '<b>Grupos personalizados</b> — seleciona quais grupos da unidade (seção 13.11) '
-        'recebem os avisos, junto com os destinatários fixos.',
+        '<b>Grupos personalizados</b> — duas seleções entre os grupos da unidade (seção 13.11): '
+        '<b>Avisos de reserva próxima</b> recebe os avisos de antecedência, e o <b>Aviso de '
+        'sobrecarga de professor</b> é acionado na hora em que uma reserva deixa o professor com '
+        'mais de 2 reservas no mesmo dia; sem seleção nesse segundo campo, o aviso não é '
+        'enviado a ninguém.',
     ]),
     ('p', 'Clique em <b>Salvar configurações</b> para gravar.'),
     ('h2', '13.11 Grupos de notificação'),

@@ -848,6 +848,7 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `payment:read` / `payment:read_own` | Ver todos / próprios pagamentos |
 | `payment:create` / `payment:edit` / `payment:delete` | Criar / editar / excluir lançamentos |
 | `payment:export` | Exportar pagamentos |
+| `payment:close_month` | Fechar os lançamentos do mês de Hora Extra (bloqueia edições e baixa a planilha final) |
 | `vt:read` | Acessar o Vale-Transporte (pedidos e relatório) |
 | `vt:edit` / `vt:delete` / `vt:export` | Corrigir / excluir pedidos de VT / exportar a planilha de pagamento |
 | `vt:empresas` / `vt:config` | Gerenciar empresas de ônibus e tarifas / configurar o pedido público (vales base e data de fechamento) |
@@ -859,6 +860,8 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `system:export` | Exportar dados diversos |
 | `api:manage` | Gerenciar tokens de acesso à API de reservas |
 | `role:read` / `role:create` / `role:edit` / `role:delete` | Visualizar / criar / editar / excluir papéis |
+| `meal:read` / `meal:create` | Acessar o Vale Alimentação - Professores / lançar dias trabalhados |
+| `meal:edit` / `meal:delete` | Editar / excluir lançamentos do Vale Alimentação - Professores |
 | `*` | Permissão universal (super admin) |
 
 ---
