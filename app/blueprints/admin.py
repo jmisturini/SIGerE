@@ -697,10 +697,12 @@ def import_holidays():
 # O Financeiro tem dois grupos de permissões separados (Pagamento Extra e
 # Vale-Transporte) para que papéis distintos possam cobrir cada área.
 MODULO_LABELS = {
-    'course': 'Cursos', 'holiday': 'Feriados', 'kitchen': 'Cozinha',
-    'payment': 'Pagamento Extra', 'reservation': 'Reservas', 'role': 'Papéis',
-    'room': 'Salas', 'system': 'Sistema', 'unity': 'Unidades',
-    'user': 'Usuários', 'vt': 'Vale-Transporte',
+    'api': 'API', 'course': 'Cursos', 'course_type': 'Tipos de Curso',
+    'holiday': 'Feriados', 'kitchen': 'Cozinha', 'meal': 'Vale Alimentação',
+    'notification': 'Notificações', 'payment': 'Pagamento Extra',
+    'reservation': 'Reservas', 'role': 'Papéis', 'room': 'Salas',
+    'system': 'Sistema', 'unity': 'Unidades', 'user': 'Usuários',
+    'vt': 'Vale-Transporte',
 }
 
 # Módulos de permissão que dependem de um módulo ligável por unidade:
