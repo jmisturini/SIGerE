@@ -68,7 +68,44 @@
                             {% for err in form.end_time.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                     </div>
-                    
+
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-1"><i class="bi bi-bell me-1"></i> Notificações</h6>
+                    <p class="text-muted small mb-3">Opcional — desativado por padrão. Ao ativar, os destinatários
+                        escolhidos recebem um aviso no sino antes do início da atividade.</p>
+                    <div class="form-check form-switch mb-3">
+                        {{ form.notify_enabled(class="form-check-input", role="switch", id="notify_enabled_switch") }}
+                        {{ form.notify_enabled.label(class="form-check-label fw-medium", for="notify_enabled_switch") }}
+                        {% for err in form.notify_enabled.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                    </div>
+                    <div id="notificacoesDetalhes" class="{{ 'd-none' if not form.notify_enabled.data }}">
+                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">Avisar antes da atividade</label>
+                        <div class="d-flex flex-wrap gap-4 mb-3">
+                            <div class="form-check">
+                                {{ form.notify_24h(class="form-check-input", id="notify_24h_check") }}
+                                {{ form.notify_24h.label(class="form-check-label", for="notify_24h_check") }}
+                            </div>
+                            <div class="form-check">
+                                {{ form.notify_1h(class="form-check-input", id="notify_1h_check") }}
+                                {{ form.notify_1h.label(class="form-check-label", for="notify_1h_check") }}
+                            </div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                {{ form.notify_groups.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                {{ form.notify_groups(class="form-select", multiple=true) }}
+                                <div class="form-text">Grupos personalizados cadastrados no painel admin.</div>
+                                {% for err in form.notify_groups.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.notify_users.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                {{ form.notify_users(class="form-select", multiple=true) }}
+                                <div class="form-text">Adicione usuários individualmente, além dos grupos.</div>
+                                {% for err in form.notify_users.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
                         <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">Cancelar</a>
                         {{ form.submit(class="btn btn-primary px-4") }}
@@ -87,44 +124,6 @@
         const startInput = document.getElementById('start_time');
         const endInput = document.getElementById('end_time');
         const warningBox = document.getElementById('dateWarning');
-
-        // Filtro curso → disciplina: ao selecionar um curso, só aparecem as
-        // disciplinas vinculadas a ele (sem curso, todas ficam visíveis).
-        const courseSelect = document.getElementById('course');
-        const subjectSelect = document.getElementById('subject');
-        const subjectCourseMap = {{ subject_course_map | tojson }};
-        const allSubjectOptions = Array.from(subjectSelect.options);
-        let userChangedCourse = false;
-
-        function applySubjectFilter() {
-            const courseId = String(parseInt(courseSelect.value, 10) || 0);
-            const currentValue = subjectSelect.value;
-            const visible = allSubjectOptions.filter(opt => {
-                if (opt.value === '' || opt.value === '0') return true;
-                if (courseId === '0') return true;
-                return String(subjectCourseMap[opt.value] || 0) === courseId;
-            });
-            subjectSelect.innerHTML = '';
-            visible.forEach(opt => subjectSelect.appendChild(opt));
-            if (!visible.some(opt => opt.value === currentValue)) {
-                if (userChangedCourse) {
-                    subjectSelect.value = '0';
-                } else {
-                    // Dados antigos com disciplina de outro curso: mantém a
-                    // opção na lista para não descartar o valor ao salvar.
-                    const orphan = allSubjectOptions.find(opt => opt.value === currentValue);
-                    if (orphan) subjectSelect.appendChild(orphan);
-                    subjectSelect.value = currentValue;
-                }
-            }
-            // Select com busca (Tom Select): espelha as opções recarregadas.
-            if (window.tomSelectSync) tomSelectSync(subjectSelect);
-        }
-        courseSelect.addEventListener('change', function() {
-            userChangedCourse = true;
-            applySubjectFilter();
-        });
-        applySubjectFilter();
 
         function updateWarnings() {
             let messages = [];
@@ -163,6 +162,15 @@
         dateInput.addEventListener('change', updateWarnings);
         startInput.addEventListener('change', updateWarnings);
         endInput.addEventListener('change', updateWarnings);
+
+        // Notificações: os detalhes (antecedências e destinatários) só
+        // aparecem com o interruptor ativado.
+        const notifySwitch = document.getElementById('notify_enabled_switch');
+        const notifyDetalhes = document.getElementById('notificacoesDetalhes');
+        if (notifySwitch && notifyDetalhes) {
+            const alternarDetalhes = () => notifyDetalhes.classList.toggle('d-none', !notifySwitch.checked);
+            notifySwitch.addEventListener('change', alternarDetalhes);
+        }
     });
 </script>
 {% endblock %}

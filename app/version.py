@@ -10,12 +10,62 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.29.0'
+APP_VERSION = '1.30.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.30.0',
+        'data': '2026-10-03',
+        'titulo': 'Notificações por reserva com avisos de 24h/1h e preferências no perfil',
+        'grupos': [
+            ('Adicionado', [
+                'Redesign dos avisos de atividade próxima: a configuração agora é feita na '
+                'própria reserva, na seção "Notificações" dos formulários de criar e editar '
+                '(desativada por padrão). Quem cria a reserva ativa o aviso, escolhe avisar '
+                '24 horas e/ou 1 hora antes do início e define os destinatários — usuários '
+                'individuais além dos grupos personalizados cadastrados no painel admin. '
+                'Sem ao menos um marco e um destinatário, o formulário não grava.',
+                'Preferências de notificação no perfil (/perfil): o usuário pode desativar '
+                'todas as notificações de atividade próxima ou silenciar apenas as de salas '
+                'de determinados tipos (categorias de sala). A varredura respeita os '
+                'silenciamentos; o aviso de sobrecarga de professor não é afetado.',
+                'Botão "Limpar lidas" no centro de notificações agora está sempre visível, '
+                'com a contagem de notificações lidas ao lado do rótulo; sem lidas, aparece '
+                'desabilitado com explicação no tooltip. A confirmação antes de remover '
+                'continua.',
+            ]),
+            ('Alterado', [
+                'Varredura notify-scan: os marcos de antecedência passam a ser por horas '
+                '(24h/1h antes do início da atividade), configurados na própria reserva em '
+                'vez da configuração da unidade. Ao encontrar marcos vencidos em conjunto, '
+                'dispara só o mais iminente, como antes; atividades já iniciadas não avisam. '
+                'O comando continua idempotente e aceita rodar a cada 15 minutos.',
+                'Painel admin: a página de Notificações passa a cuidar apenas do aviso de '
+                'sobrecarga de professor (regra de carga docente) — a escolha dos grupos '
+                'destinatários desse aviso permanece igual. As antecedências e os '
+                'destinatários fixos dos avisos de reserva próxima saíram da configuração '
+                'geral da unidade e migraram para a reserva.',
+                'Detalhe da reserva: o botão de notificações virou atalho para a edição e o '
+                'rodapé "Informações Gerais" exibe o estado atual (Ativadas/Desativadas, '
+                'marcos configurados e número de destinatários). A rota de alternância '
+                'rápida foi removida — o estado agora é editado no formulário.',
+                'Formulário de reserva: o campo Disciplina lista todas as disciplinas ativas '
+                'da unidade, independentemente do curso selecionado — o filtro em JavaScript '
+                'que escondia as disciplinas de outros cursos foi removido (cursos e '
+                'disciplinas não são sempre pai e filho no domínio da escola).',
+            ]),
+            ('Removido', [
+                'Colunas da configuração geral de notificações por unidade (módulo '
+                'ligado/desligado, antecedências em dias e destinatários fixos) — '
+                'substituídas pela configuração por reserva. Reservas com notificações já '
+                'ativadas herdam os destinatários que a unidade configurava, com o aviso de '
+                '24 horas ligado.',
+            ]),
+        ],
+    },
     {
         'versao': '1.29.0',
         'data': '2026-10-02',

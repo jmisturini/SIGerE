@@ -227,8 +227,11 @@ class Reservation(db.Model):
     # compartilham o mesmo repeat_group_id — permite editar/excluir o lote.
     repeat_group_id = db.Column(db.Integer, db.ForeignKey('reservations.id'),
                                 nullable=True, index=True)
-    # Notificações de proximidade são opt-in por reserva: o botão no detalhe
-    # ativa/desativa; sem ativação a varredura notify-scan ignora a reserva.
+    # Notificações de proximidade são opt-in por reserva: o interruptor na
+    # seção "Notificações" do formulário ativa/desativa; sem ativação a
+    # varredura notify-scan ignora a reserva. Destinatários e antecedências
+    # ficam na configuração 1:1 (notification_config, definida junto aos
+    # modelos de notificação).
     notify_enabled = db.Column(db.Boolean, nullable=False, default=False,
                                server_default='0')
 
@@ -851,7 +854,7 @@ class KitchenRecipeIngredient(db.Model):
 # ─────────────────────────────────────────────────────────────────────────────
 # Notificações de atividades próximas. A varredura (comando `flask notify-scan`,
 # agendado por systemd timer na produção) cria uma Notification por destinatário
-# a cada marco de antecedência configurado na unidade (UnityNotificationConfig) —
+# conforme a configuração da própria reserva (ReservationNotificationConfig) —
 # a constraint de unicidade garante idempotência: rodar a varredura duas vezes,
 # ou o timer disparar em cima do outro, não duplica avisos.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -874,17 +877,40 @@ notification_group_members = db.Table(
               db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
 )
 
-# Grupos selecionados por cada configuração de unidade.
-notification_config_groups = db.Table(
-    'notification_config_groups',
+# Grupos selecionados como destinatários de uma reserva específica.
+reservation_notification_groups = db.Table(
+    'reservation_notification_groups',
     db.Column('config_id', db.Integer,
-              db.ForeignKey('unity_notification_configs.id', ondelete='CASCADE'), primary_key=True),
+              db.ForeignKey('reservation_notification_configs.id', ondelete='CASCADE'), primary_key=True),
     db.Column('group_id', db.Integer,
               db.ForeignKey('notification_groups.id', ondelete='CASCADE'), primary_key=True),
 )
 
+# Usuários individuais selecionados como destinatários de uma reserva.
+reservation_notification_users = db.Table(
+    'reservation_notification_users',
+    db.Column('config_id', db.Integer,
+              db.ForeignKey('reservation_notification_configs.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('user_id', db.Integer,
+              db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+)
+
+# Tipos de sala silenciados pelo usuário (preferência no perfil). O user_id
+# referencia a própria preferência (1:1 com o usuário) para a junção ser
+# inequívoca; apagar o usuário apaga a preferência e, em cascata, esta tabela.
+user_notification_muted_categories = db.Table(
+    'user_notification_muted_categories',
+    db.Column('user_id', db.Integer,
+              db.ForeignKey('user_notification_prefs.user_id', ondelete='CASCADE'),
+              primary_key=True),
+    db.Column('category_id', db.Integer,
+              db.ForeignKey('room_categories.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
 # Grupos que recebem o aviso de sobrecarga de professor (regra de carga
-# docente) — seleção dedicada, independente dos avisos de reserva próxima.
+# docente) — seleção dedicada na configuração da unidade, independente das
+# configurações por reserva.
 notification_config_overload_groups = db.Table(
     'notification_config_overload_groups',
     db.Column('config_id', db.Integer,
@@ -911,39 +937,72 @@ class NotificationGroup(db.Model):
         return f'<NotificationGroup {self.name}>'
 
 
-class UnityNotificationConfig(db.Model):
-    """Configuração por unidade dos avisos de reserva próxima: liga/desliga o
-    módulo, define os marcos de antecedência (dias antes da data da reserva) e
-    quem recebe — professor designado, criador, aprovadores da unidade e
-    grupos personalizados. Gerenciada em /admin/notificacoes/configuracao.
+class ReservationNotificationConfig(db.Model):
+    """Configuração de notificações da própria reserva, feita no formulário de
+    criar/editar (padrão: desativada). Define os avisos de antecedência
+    (24h e/ou 1h antes do início da atividade) e os destinatários explícitos:
+    usuários individuais e grupos personalizados da unidade. A varredura
+    notify-scan ignora reservas sem esta configuração ou com notify_enabled
+    desativado."""
+    __tablename__ = 'reservation_notification_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    reservation_id = db.Column(db.Integer,
+                               db.ForeignKey('reservations.id', ondelete='CASCADE'),
+                               nullable=False, unique=True, index=True)
+    notify_24h = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    notify_1h = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    groups = db.relationship('NotificationGroup', secondary='reservation_notification_groups',
+                             lazy='select', order_by='NotificationGroup.name')
+    users = db.relationship('User', secondary='reservation_notification_users',
+                            lazy='select', order_by='User.full_name')
+    reservation = db.relationship('Reservation',
+                                  backref=db.backref('notification_config', uselist=False,
+                                                     cascade='all, delete-orphan'))
 
-    O aviso da regra de carga docente (EVENT_TEACHER_DAILY_LIMIT) tem seleção
-    de grupos própria: overload_groups — vazio, ninguém recebe."""
+    @property
+    def marcos_ativos(self):
+        """Rótulos dos marcos habilitados, na ordem em que aparecem na UI."""
+        return [rotulo for rotulo, ativo in
+                (('24 horas antes', self.notify_24h), ('1 hora antes', self.notify_1h))
+                if ativo]
+
+    def __repr__(self):
+        return f'<ReservationNotificationConfig reservation={self.reservation_id}>'
+
+
+class UserNotificationPref(db.Model):
+    """Preferências de notificação do usuário (autoatendimento no perfil):
+    silenciar todos os avisos de atividade próxima ou apenas os de salas de
+    determinados tipos (RoomCategory). Vale só para os avisos de reserva
+    próxima — o aviso de sobrecarga de professor não passa por aqui."""
+    __tablename__ = 'user_notification_prefs'
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'),
+                        primary_key=True)
+    mute_all = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    muted_categories = db.relationship('RoomCategory',
+                                       secondary='user_notification_muted_categories',
+                                       lazy='select', order_by='RoomCategory.name')
+    user = db.relationship('User', backref=db.backref('notification_pref', uselist=False))
+
+    def __repr__(self):
+        return f'<UserNotificationPref user={self.user_id}>'
+
+
+class UnityNotificationConfig(db.Model):
+    """Sobrou apenas para o aviso de sobrecarga de professor: os grupos da
+    unidade que recebem o aviso quando uma reserva leva o docente além do
+    limite diário (EVENT_TEACHER_DAILY_LIMIT, criado na gravação da reserva).
+    Os avisos de atividade próxima são configurados na própria reserva
+    (ReservationNotificationConfig)."""
     __tablename__ = 'unity_notification_configs'
     id = db.Column(db.Integer, primary_key=True)
     unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=False,
                          unique=True, index=True)
-    is_enabled = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
-    # Marcos de antecedência em dias antes da reserva, em CSV (ex.: '7,1,0' —
-    # 0 = no próprio dia). Ordem e duplicatas são normalizadas na leitura.
-    lead_days = db.Column(db.String(50), nullable=False, default='7,1', server_default='7,1')
-    notify_teacher = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
-    notify_creator = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
-    # "Aprovadores": quem pode aprovar reservas da unidade (reservation:approve)
-    # — a noção de equipe administrativa que precisa saber da agenda.
-    notify_approvers = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
-    groups = db.relationship('NotificationGroup', secondary='notification_config_groups',
-                             lazy='select', order_by='NotificationGroup.name')
     # Grupos que recebem o aviso de sobrecarga de professor (regra de carga
     # docente) — seleção própria; vazia, ninguém recebe o aviso.
     overload_groups = db.relationship('NotificationGroup',
                                       secondary='notification_config_overload_groups',
                                       lazy='select', order_by='NotificationGroup.name')
-
-    def lead_days_list(self):
-        """Marcos normalizados: ints >= 0 sem duplicatas, maior primeiro."""
-        from app.services.notifications import parse_lead_days
-        return parse_lead_days(self.lead_days)
 
     def __repr__(self):
         return f'<UnityNotificationConfig unity={self.unity_id}>'

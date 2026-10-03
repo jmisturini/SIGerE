@@ -1,27 +1,32 @@
 """Testes do módulo de notificações de atividades próximas.
 
 Cobre:
-- o serviço de varredura: marcos de antecedência, idempotência, destinatários
-  (professor, criador, aprovadores e grupos personalizados), status e unidade;
-- o opt-in por reserva: notificações desativadas por padrão, ativadas pelo
-  botão no detalhe (dono ou edit_all), e a varredura ignora as desativadas;
+- a configuração por reserva: interruptor (padrão desativado) no formulário de
+  criar/editar, marcos de antecedência (24h/1h antes do início) e destinatários
+  explícitos (usuários individuais e grupos personalizados);
+- o serviço de varredura: marcos por horas, janela aberta (o mais iminente
+  vencido dispara), idempotência, status, atividade já iniciada e reservas sem
+  configuração;
+- as preferências do usuário no perfil: silenciar tudo ou por tipo de sala;
 - o comando `flask notify-scan` (inclusive --dry-run);
-- o painel admin: configuração por unidade e CRUD de grupos com escopo;
+- o painel admin: aviso de sobrecarga de professor (única configuração de
+  unidade que resta) e CRUD de grupos com escopo;
 - o centro de notificações do usuário: listagem, sino (badge), marcar lida,
   limpar as lidas.
 """
 import os
 import tempfile
 import unittest
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.models import (Classroom, Notification, NotificationGroup, Permission,
-                        Reservation, Role, RoomCategory, Unity,
-                        UnityNotificationConfig, User)
-from app.services.notifications import parse_lead_days, varrer_reservas
+from app.models import (Classroom, Course, Notification, NotificationGroup,
+                        Permission, Reservation, ReservationNotificationConfig,
+                        Role, RoomCategory, Unity, UnityNotificationConfig,
+                        User, UserNotificationPref)
+from app.services.notifications import varrer_reservas
 
 EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
@@ -36,7 +41,7 @@ class TestConfig(Config):
 
 class NotificationsTestCase(unittest.TestCase):
     """Base: app + unidade com sala, admin (gestor), professor, criador e um
-    funcionário extra; configuração de notificação ativa com marcos 7,1,0."""
+    funcionário extra; grupos e curso para o formulário de reserva."""
 
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix='.db')
@@ -60,6 +65,13 @@ class NotificationsTestCase(unittest.TestCase):
             db.session.add_all(perms)
             role_gestor = Role(name='gestor', label='Gestor', permissions=perms)
             db.session.add(role_gestor)
+            # Quem cria reservas no formulário precisa de reservation:create
+            # (e read_own para ver os detalhes das próprias).
+            perms_criador = [p for p in perms
+                             if p.code in ('reservation:create', 'reservation:read_own')]
+            role_criador = Role(name='solicitante', label='Solicitante',
+                                permissions=perms_criador)
+            db.session.add(role_criador)
             db.session.flush()
 
             self.gestor = User(email=EMAIL, full_name='Gestor Teste', role='room',
@@ -74,6 +86,7 @@ class NotificationsTestCase(unittest.TestCase):
             self.professor.set_password(PASSWORD)
             self.criador = User(email='criador@escola.edu', full_name='Carla Criadora',
                                 role='room', profile_type='employee', unities=[self.unity],
+                                role_id=role_criador.id,
                                 force_password_change=False, is_active_user=True)
             self.criador.set_password(PASSWORD)
             self.extra = User(email='extra@escola.edu', full_name='Eva Extra',
@@ -83,23 +96,25 @@ class NotificationsTestCase(unittest.TestCase):
             db.session.add_all([self.gestor, self.professor, self.criador, self.extra])
             db.session.flush()
 
-            category = RoomCategory(name='Sala de Aula', code='sala_aula', abbr='SA')
-            db.session.add(category)
+            self.category = RoomCategory(name='Sala de Aula', code='sala_aula', abbr='SA')
+            self.lab = RoomCategory(name='Laboratório', code='lab', abbr='LB')
+            db.session.add_all([self.category, self.lab])
             db.session.flush()
             self.sala = Classroom(name='Sala 1', code='S1', capacity=30,
-                                  unity_id=self.unity.id, category_id=category.id)
+                                  unity_id=self.unity.id, category_id=self.category.id)
             db.session.add(self.sala)
             db.session.flush()
 
-            self.config = UnityNotificationConfig(unity_id=self.unity.id,
-                                                  lead_days='7,1,0')
-            db.session.add(self.config)
+            self.curso = Course(name='Curso Teste', code='CT',
+                                unity_id=self.unity.id, is_active=True)
+            db.session.add(self.curso)
             db.session.commit()
 
             self.ids = {'professor': self.professor.id, 'criador': self.criador.id,
                         'extra': self.extra.id, 'gestor': self.gestor.id,
                         'sala': self.sala.id, 'unity': self.unity.id,
-                        'config': self.config.id}
+                        'curso': self.curso.id, 'categoria': self.category.id,
+                        'lab': self.lab.id}
 
         self._login()
 
@@ -119,13 +134,16 @@ class NotificationsTestCase(unittest.TestCase):
                                     follow_redirects=True)
         self.assertEqual(response.status_code, 200)
 
-    def _criar_reserva(self, *, em_dias=5, status='approved', titulo='Aula de Teste',
-                       notificar=True, dono_id=None):
+    def _criar_reserva(self, *, em_dias=5, hora=9, status='approved',
+                       titulo='Aula de Teste', notificar=True, notify_24h=True,
+                       notify_1h=False, usuarios=('professor', 'criador'),
+                       grupos=(), dono_id=None):
         """Reserva aprovada padrão: criador = Carla, professor = Paulo.
 
-        notificar=True já ativa as notificações da reserva (opt-in) — os
-        testes da varredura exercitam o caminho com avisos ligados; os testes
-        do opt-in criam com notificar=False para começar do padrão."""
+        notificar=True já ativa as notificações da reserva (opt-in) e grava a
+        configuração com os destinatários informados — os testes da varredura
+        exercitam o caminho com avisos ligados; os testes do opt-in criam com
+        notificar=False para começar do padrão (interruptor desligado)."""
         dono_id = dono_id or self.ids['criador']
 
         def gravar():
@@ -137,14 +155,47 @@ class NotificationsTestCase(unittest.TestCase):
                     unity_id=self.ids['unity'],
                     title=titulo,
                     date=date.today() + timedelta(days=em_dias),
-                    start_time=time(9, 0), end_time=time(11, 0),
+                    start_time=time(hora, 0),
+                    end_time=time(hora + 2, 0) if hora <= 21 else time(23, 59),
                     status=status,
                     notify_enabled=notificar,
                 )
                 db.session.add(reservation)
+                if notificar:
+                    config = ReservationNotificationConfig(
+                        notify_24h=notify_24h, notify_1h=notify_1h)
+                    db.session.add(config)
+                    config.reservation = reservation
+                    if usuarios:
+                        config.users = [db.session.get(User, self.ids[u])
+                                        for u in usuarios]
+                    if grupos:
+                        config.groups = [db.session.get(NotificationGroup, g)
+                                         for g in grupos]
                 db.session.commit()
                 return reservation.id
         return gravar()
+
+    def _grupo(self, nome='Equipe Apoio', members=('extra',)):
+        def gravar():
+            with self.app.app_context():
+                grupo = NotificationGroup(name=nome, unity_id=self.ids['unity'])
+                grupo.members = [db.session.get(User, self.ids[m]) for m in members]
+                db.session.add(grupo)
+                db.session.commit()
+                return grupo.id
+        return gravar()
+
+    def _silenciar(self, user_id, mute_all=False, categorias=()):
+        def gravar():
+            with self.app.app_context():
+                pref = UserNotificationPref(user_id=user_id, mute_all=mute_all)
+                if categorias:
+                    pref.muted_categories = [db.session.get(RoomCategory, c)
+                                             for c in categorias]
+                db.session.add(pref)
+                db.session.commit()
+        return gravar
 
     def _contar(self, **filtros):
         with self.app.app_context():
@@ -155,212 +206,263 @@ class NotificationsTestCase(unittest.TestCase):
             return sorted(n.user_id for n in Notification.query.all())
 
 
-class TestParseLeadDays(unittest.TestCase):
-    def test_normaliza_e_ordena(self):
-        self.assertEqual(parse_lead_days('1,7,0,7'), [7, 1, 0])
-        self.assertEqual(parse_lead_days(' 3 , 14 '), [14, 3])
-
-    def test_ignora_lixo(self):
-        self.assertEqual(parse_lead_days('7,abc,,1'), [7, 1])
-        self.assertEqual(parse_lead_days(''), [])
-        self.assertEqual(parse_lead_days(None), [])
-
-    def test_aceita_zero_e_recusa_negativo(self):
-        self.assertEqual(parse_lead_days('0'), [0])
-        self.assertEqual(parse_lead_days('-3,5'), [5])
-
-
 class TestVarredura(NotificationsTestCase):
-    def test_cria_para_professor_e_criador_no_marco(self):
-        # Reserva em 5 dias, marcos 7,1,0: só o marco de 7 dias está vencido.
-        self._criar_reserva()
+    """A varredura dispara o marco mais iminente já vencido (24h ou 1h antes
+    do início) para os destinatários configurados na própria reserva."""
+
+    def test_cria_no_marco_de_24h(self):
+        # Reserva em 2 dias às 9h; "agora" é 23h antes do início: o marco de
+        # 24h está vencido e o de 1h ainda não.
+        self._criar_reserva(em_dias=2)
+        agora = datetime.combine(date.today() + timedelta(days=1), time(10, 0))
         with self.app.app_context():
-            stats = varrer_reservas()
+            stats = varrer_reservas(agora=agora)
         self.assertEqual(stats['criadas'], 2)          # professor + criador
         self.assertEqual(stats['existentes'], 0)
-        self.assertEqual(self._contar(milestone='7d'), 2)
-        self.assertEqual(self._contar(milestone='1d'), 0)
-        self.assertEqual(self._contar(milestone='0d'), 0)
+        self.assertEqual(self._contar(milestone='24h'), 2)
+        self.assertEqual(self._contar(milestone='1h'), 0)
         self.assertEqual(self._destinatarios(),
                          sorted([self.ids['professor'], self.ids['criador']]))
+        with self.app.app_context():
+            titulo = Notification.query.first().title
+        self.assertTrue(titulo.startswith('Em 24 horas:'))
+
+    def test_marco_1h_mais_iminente_quando_ambos_vencidos(self):
+        # Reserva amanhã às 9h; "agora" é 8h30 do mesmo dia: 24h e 1h estão
+        # vencidos, mas dispara só o mais iminente (1h) — o de 24h saiu antes
+        # e dispará-lo de novo seria aviso redundante.
+        self._criar_reserva(em_dias=1, notify_1h=True)
+        agora = datetime.combine(date.today() + timedelta(days=1), time(8, 30))
+        with self.app.app_context():
+            varrer_reservas(agora=agora)
+        self.assertEqual(self._contar(milestone='24h'), 0)
+        self.assertEqual(self._contar(milestone='1h'), 2)
+        with self.app.app_context():
+            titulo = Notification.query.first().title
+        self.assertTrue(titulo.startswith('Em 1 hora:'))
 
     def test_idempotente_nao_duplica(self):
-        self._criar_reserva()
+        self._criar_reserva(em_dias=2)
+        agora = datetime.combine(date.today() + timedelta(days=1), time(10, 0))
         with self.app.app_context():
-            varrer_reservas()
-            stats = varrer_reservas()
+            varrer_reservas(agora=agora)
+            stats = varrer_reservas(agora=agora)
         self.assertEqual(stats['criadas'], 0)
         self.assertEqual(stats['existentes'], 2)
         self.assertEqual(self._contar(), 2)
 
-    def test_janela_atrasada_dispara_somente_o_marco_mais_iminente(self):
-        # Reserva amanhã: marcos de 7 e 1 dia já venceram, mas dispara só o
-        # mais iminente (1 dia) — os anteriores sairiam com o mesmo título
-        # ("Amanhã") e seriam avisos redundantes.
-        self._criar_reserva(em_dias=1)
+    def test_reserva_ja_iniciada_nao_avisa(self):
+        self._criar_reserva(em_dias=0, hora=8)
+        agora = datetime.combine(date.today(), time(9, 30))
         with self.app.app_context():
-            varrer_reservas()
-        self.assertEqual(self._contar(milestone='7d'), 0)
-        self.assertEqual(self._contar(milestone='1d'), 2)
-        self.assertEqual(self._contar(milestone='0d'), 0)
+            self.assertEqual(varrer_reservas(agora=agora)['criadas'], 0)
+        self.assertEqual(self._contar(), 0)
 
-    def test_reserva_criada_na_vespera_para_hoje_nao_duplica(self):
-        # Bug reportado: marcos 7,1,0 e reserva criada na véspera para o dia
-        # seguinte. Na véspera, '7d' e '1d' estavam vencidos juntos e saíam na
-        # mesma varredura com título e corpo idênticos ("Amanhã: ...") — o
-        # usuário via notificações duplicadas. Agora sai só o '1d' na véspera
-        # e o '0d' no dia.
-        reservation_id = self._criar_reserva(em_dias=1)
+    def test_sem_configuracao_nao_avisa(self):
+        # Interruptor ligado sem configuração salva (reserva antiga herdada
+        # da migração, por exemplo): nada a disparar até alguém configurar.
+        reservation_id = self._criar_reserva()
         with self.app.app_context():
-            stats = varrer_reservas()
-        self.assertEqual(stats['criadas'], 2)              # professor + criador
-        self.assertEqual(self._contar(milestone='1d'), 2)
-        self.assertEqual(self._contar(milestone='7d'), 0)
+            reservation = db.session.get(Reservation, reservation_id)
+            db.session.delete(reservation.notification_config)
+            db.session.commit()
+        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
+        with self.app.app_context():
+            self.assertEqual(varrer_reservas(agora=agora)['criadas'], 0)
+        self.assertEqual(self._contar(), 0)
 
-        # No dia da reserva entra o aviso "Hoje", sem repetir "Amanhã".
+    def test_marcos_desmarcados_nao_avisa(self):
+        self._criar_reserva(notificar=True, notify_24h=False, notify_1h=False)
+        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
         with self.app.app_context():
-            data = db.session.get(Reservation, reservation_id).date
-            varrer_reservas(hoje=data)
-        self.assertEqual(self._contar(milestone='0d'), 2)
-        self.assertEqual(self._contar(), 4)
-        with self.app.app_context():
-            titulos = {n.title for n in Notification.query.all()}
-        self.assertEqual(titulos,
-                         {'Amanhã: Aula de Teste', 'Hoje: Aula de Teste'})
-
-    def test_reserva_no_dia_avisa_hoje(self):
-        self._criar_reserva(em_dias=0)
-        with self.app.app_context():
-            varrer_reservas()
-        self.assertEqual(self._contar(milestone='0d'), 2)
-        with self.app.app_context():
-            titulo = Notification.query.first().title
-            self.assertTrue(titulo.startswith('Hoje:'))
+            self.assertEqual(varrer_reservas(agora=agora)['criadas'], 0)
+        self.assertEqual(self._contar(), 0)
 
     def test_reserva_cancelada_ou_pendente_nao_avisam(self):
         self._criar_reserva(status='cancelled')
         self._criar_reserva(status='pending', titulo='Outra aula')
+        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
         with self.app.app_context():
-            stats = varrer_reservas()
+            stats = varrer_reservas(agora=agora)
         self.assertEqual(stats['criadas'], 0)
         self.assertEqual(self._contar(), 0)
 
-    def test_config_desativada_nao_avisa(self):
-        self._criar_reserva()
+    def test_grupo_e_usuario_individual_deduplicados(self):
+        grupo_id = self._grupo('Equipe Apoio', members=('extra', 'professor'))
+        # extra entra como usuário individual E pelo grupo; professor só pelo
+        # grupo — cada um recebe UMA notificação.
+        self._criar_reserva(usuarios=('extra',), grupos=[grupo_id])
+        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
         with self.app.app_context():
-            UnityNotificationConfig.query.update({'is_enabled': False})
+            varrer_reservas(agora=agora)
+        self.assertEqual(self._contar(user_id=self.ids['extra'], milestone='24h'), 1)
+        self.assertEqual(self._contar(user_id=self.ids['professor'], milestone='24h'), 1)
+        self.assertEqual(self._contar(), 2)
+
+    def test_usuario_inativo_nao_recebe(self):
+        self._criar_reserva(usuarios=('extra',))
+        with self.app.app_context():
+            User.query.filter_by(id=self.ids['extra']).update({'is_active_user': False})
             db.session.commit()
+        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
         with self.app.app_context():
-            self.assertEqual(varrer_reservas()['criadas'], 0)
+            varrer_reservas(agora=agora)
         self.assertEqual(self._contar(), 0)
 
-    def test_grupo_personalizado_recebe_e_sem_duplicar(self):
-        self._criar_reserva()
+    def test_silenciado_total_nao_recebe(self):
+        # Preferência no perfil: desativar todas — o usuário some dos avisos.
+        self._criar_reserva(usuarios=('extra', 'criador'))
+        self._silenciar(self.ids['extra'], mute_all=True)()
+        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
         with self.app.app_context():
-            grupo = NotificationGroup(name='Equipe Apoio', unity_id=self.ids['unity'])
-            grupo.members = [db.session.get(User, self.ids['extra']),
-                             db.session.get(User, self.ids['professor'])]  # professor também está no grupo
-            db.session.add(grupo)
-            config = db.session.get(UnityNotificationConfig, self.ids['config'])
-            config.groups = [grupo]
-            db.session.commit()
-            varrer_reservas()
-        # extra entra pelo grupo; professor recebe UMA notificação (grupo + fixo)
-        self.assertEqual(self._contar(user_id=self.ids['extra'], milestone='7d'), 1)
-        self.assertEqual(self._contar(user_id=self.ids['professor'], milestone='7d'), 1)
-        self.assertEqual(self._contar(), 3)
+            varrer_reservas(agora=agora)
+        self.assertEqual(self._destinatarios(), [self.ids['criador']])
 
-    def test_aprovadores_recebem_quando_ligado(self):
-        self._criar_reserva()
+    def test_silenciado_por_tipo_de_sala(self):
+        # Silencia apenas o tipo "Sala de Aula" (categoria da sala da reserva):
+        # não recebe este aviso; quem silenciou outro tipo continua recebendo.
+        self._criar_reserva(usuarios=('extra', 'criador'))
+        self._silenciar(self.ids['extra'], categorias=[self.ids['categoria']])()
+        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
         with self.app.app_context():
-            config = db.session.get(UnityNotificationConfig, self.ids['config'])
-            config.notify_approvers = True
-            db.session.commit()
-            varrer_reservas()
-        # gestor tem reservation:approve e está no escopo da unidade
-        self.assertEqual(self._contar(user_id=self.ids['gestor']), 1)
-
-    def test_professor_inativo_nao_recebe(self):
-        self._criar_reserva()
-        with self.app.app_context():
-            User.query.filter_by(id=self.ids['professor']).update({'is_active_user': False})
-            db.session.commit()
-            varrer_reservas()
+            varrer_reservas(agora=agora)
         self.assertEqual(self._destinatarios(), [self.ids['criador']])
 
 
 class TestNotificacoesPorReserva(NotificationsTestCase):
-    """Opt-in por reserva: padrão desativado; o botão no detalhe (dono ou
-    edit_all) ativa/desativa e a varredura só avisa as ativadas."""
+    """Opt-in por reserva no formulário: padrão desativado; criar/editar
+    gravam a configuração (marcos + destinatários) e o detalhe mostra o estado."""
+
+    def _dados_reserva(self, em_dias=5, **extra):
+        dados = {
+            'classroom': self.ids['sala'],
+            'course': self.ids['curso'],
+            'subject': 0,
+            'teacher': self.ids['professor'],
+            'title': 'Aula via Formulário',
+            'description': '',
+            'date': (date.today() + timedelta(days=em_dias)).isoformat(),
+            'start_time': '09:00',
+            'end_time': '11:00',
+        }
+        dados.update(extra)
+        return dados
 
     def test_padrao_desativado_e_varredura_ignora(self):
-        reservation_id = self._criar_reserva(notificar=False)
+        self._login('criador@escola.edu')
+        resposta = self.client.post('/reservations/create',
+                                    data=self._dados_reserva(),
+                                    follow_redirects=True)
+        self.assertEqual(resposta.status_code, 200)
         with self.app.app_context():
-            reservation = db.session.get(Reservation, reservation_id)
+            reservation = Reservation.query.first()
             self.assertFalse(reservation.notify_enabled)
+            self.assertIsNone(reservation.notification_config)
             stats = varrer_reservas()
         self.assertEqual(stats['reservas'], 0)
         self.assertEqual(self._contar(), 0)
 
-    def test_ativar_pelo_detalhe_habilita_os_avisos(self):
+    def test_criar_com_notificacoes_ativadas(self):
+        self._login('criador@escola.edu')
+        resposta = self.client.post('/reservations/create', data=self._dados_reserva(
+            notify_enabled='on', notify_24h='on',
+            notify_users=[str(self.ids['extra'])],
+        ), follow_redirects=True)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('agendada com sucesso', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            reservation = Reservation.query.first()
+            self.assertTrue(reservation.notify_enabled)
+            config = reservation.notification_config
+            self.assertIsNotNone(config)
+            self.assertTrue(config.notify_24h)
+            self.assertFalse(config.notify_1h)
+            self.assertEqual([u.id for u in config.users], [self.ids['extra']])
+            self.assertEqual(config.groups, [])
+        # Avisam só os destinatários escolhidos (extra), no marco de 24h.
+        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
+        with self.app.app_context():
+            varrer_reservas(agora=agora)
+        self.assertEqual(self._destinatarios(), [self.ids['extra']])
+
+    def test_criar_sem_marco_e_recusado(self):
+        self._login('criador@escola.edu')
+        resposta = self.client.post('/reservations/create', data=self._dados_reserva(
+            notify_enabled='on', notify_users=[str(self.ids['extra'])],
+        ), follow_redirects=True)
+        self.assertIn('ao menos um aviso', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertIsNone(Reservation.query.first())
+
+    def test_criar_sem_destinatario_e_recusado(self):
+        self._login('criador@escola.edu')
+        resposta = self.client.post('/reservations/create', data=self._dados_reserva(
+            notify_enabled='on', notify_1h='on',
+        ), follow_redirects=True)
+        self.assertIn('ao menos um destinatário', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertIsNone(Reservation.query.first())
+
+    def test_editar_ativa_atualiza_e_desativa(self):
         reservation_id = self._criar_reserva(notificar=False)
         self._login('criador@escola.edu')
-        resposta = self.client.post(f'/reservations/{reservation_id}/notificacoes',
-                                    follow_redirects=False)
-        self.assertEqual(resposta.status_code, 302)
-        with self.app.app_context():
-            self.assertTrue(db.session.get(Reservation, reservation_id).notify_enabled)
-            varrer_reservas()
-        # professor + criador, no marco de 7 dias
-        self.assertEqual(self._contar(milestone='7d'), 2)
 
-    def test_desativar_para_de_avisar(self):
-        reservation_id = self._criar_reserva()  # criada já ativada
-        self._login('criador@escola.edu')
-        resposta = self.client.post(f'/reservations/{reservation_id}/notificacoes',
+        # Ativa com 1h e um grupo; config nasce na edição.
+        grupo_id = self._grupo()
+        resposta = self.client.post(f'/reservations/{reservation_id}/edit',
+                                    data=self._dados_reserva(
+                                        notify_enabled='on', notify_1h='on',
+                                        notify_groups=[str(grupo_id)],
+                                    ), follow_redirects=True)
+        self.assertIn('atualizada com sucesso', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            reservation = db.session.get(Reservation, reservation_id)
+            self.assertTrue(reservation.notify_enabled)
+            config = reservation.notification_config
+            self.assertTrue(config.notify_1h)
+            self.assertFalse(config.notify_24h)
+            self.assertEqual([g.id for g in config.groups], [grupo_id])
+
+        # Desativa: a configuração é removida.
+        resposta = self.client.post(f'/reservations/{reservation_id}/edit',
+                                    data=self._dados_reserva(),
                                     follow_redirects=True)
-        self.assertIn('desativadas', resposta.get_data(as_text=True))
+        self.assertIn('atualizada com sucesso', resposta.get_data(as_text=True))
         with self.app.app_context():
-            self.assertFalse(db.session.get(Reservation, reservation_id).notify_enabled)
-            self.assertEqual(varrer_reservas()['criadas'], 0)
-        self.assertEqual(self._contar(), 0)
+            reservation = db.session.get(Reservation, reservation_id)
+            self.assertFalse(reservation.notify_enabled)
+            self.assertIsNone(reservation.notification_config)
 
-    def test_detalhe_mostra_botao_nos_dois_estados(self):
-        # gestor é o dono e tem read_own: enxerga o detalhe e o botão
+    def test_detalhe_mostra_estado_e_atalho(self):
         reservation_id = self._criar_reserva(notificar=False,
                                              dono_id=self.ids['gestor'])
         self._login(EMAIL)
         html = self.client.get(f'/reservations/{reservation_id}').get_data(as_text=True)
-        self.assertIn('Ativar notificações', html)
-        self.assertNotIn('Notificações ativadas', html)
+        self.assertIn('Notificações desativadas', html)
+        self.assertIn('Desativadas</span>', html)
 
-        self.client.post(f'/reservations/{reservation_id}/notificacoes')
+        with self.app.app_context():
+            reservation = db.session.get(Reservation, reservation_id)
+            reservation.notify_enabled = True
+            db.session.add(ReservationNotificationConfig(
+                reservation=reservation, notify_24h=True, notify_1h=True))
+            db.session.commit()
         html = self.client.get(f'/reservations/{reservation_id}').get_data(as_text=True)
         self.assertIn('Notificações ativadas', html)
-        self.assertIn('aria-pressed="true"', html)
-
-    def test_usuario_sem_permissao_vira_403(self):
-        reservation_id = self._criar_reserva(notificar=False)
-        self._login('extra@escola.edu')
-        resposta = self.client.post(f'/reservations/{reservation_id}/notificacoes',
-                                    follow_redirects=False)
-        self.assertEqual(resposta.status_code, 403)
-        with self.app.app_context():
-            self.assertFalse(db.session.get(Reservation, reservation_id).notify_enabled)
-
-    def test_reserva_pendente_nao_permite(self):
-        reservation_id = self._criar_reserva(status='pending', notificar=False)
-        self._login('criador@escola.edu')
-        resposta = self.client.post(f'/reservations/{reservation_id}/notificacoes',
-                                    follow_redirects=True)
-        self.assertIn('aprovadas e futuras', resposta.get_data(as_text=True))
-        with self.app.app_context():
-            self.assertFalse(db.session.get(Reservation, reservation_id).notify_enabled)
+        self.assertIn('24 horas antes, 1 hora antes', html)
 
 
 class TestComandoNotifyScan(NotificationsTestCase):
     def test_comando_cria_e_dry_run_nao_grava(self):
-        self._criar_reserva()
+        # Reserva hoje às 23h58: o marco de 24h venceu ontem — a janela aberta
+        # garante o disparo independente da hora em que o comando roda (basta
+        # não estar no último minuto do dia).
+        reservation_id = self._criar_reserva(em_dias=0, hora=23, titulo='Aula Tarde')
+        with self.app.app_context():
+            reservation = db.session.get(Reservation, reservation_id)
+            reservation.start_time = time(23, 58)
+            reservation.end_time = time(23, 59)
+            db.session.commit()
         resultado = self.app.test_cli_runner().invoke(args=['notify-scan', '--dry-run'])
         self.assertEqual(resultado.exit_code, 0, resultado.output)
         self.assertIn('seriam criadas: 2', resultado.output)
@@ -378,42 +480,45 @@ class TestComandoNotifyScan(NotificationsTestCase):
 
 
 class TestPainelAdmin(NotificationsTestCase):
-    def test_config_salva_destinatarios_e_marcos(self):
+    def test_config_salva_grupos_da_sobrecarga(self):
         with self.app.app_context():
-            grupo_proximas = NotificationGroup(name='Próximas', unity_id=self.ids['unity'])
-            grupo_sobrecarga = NotificationGroup(name='Sobrecarga', unity_id=self.ids['unity'])
-            db.session.add_all([grupo_proximas, grupo_sobrecarga])
+            grupo_sobrecarga = NotificationGroup(name='Sobrecarga',
+                                                 unity_id=self.ids['unity'])
+            db.session.add(grupo_sobrecarga)
             db.session.commit()
-            id_proximas, id_sobrecarga = grupo_proximas.id, grupo_sobrecarga.id
+            id_sobrecarga = grupo_sobrecarga.id
 
         resposta = self.client.post('/admin/notificacoes/configuracao', data={
-            'is_enabled': 'on',
-            'lead_days': '3,1',
-            'notify_teacher': 'on',
-            'groups': [str(id_proximas)],
             'overload_groups': [str(id_sobrecarga)],
-            # criador e aprovadores desmarcados (checkbox ausente = False)
         }, follow_redirects=True)
         self.assertEqual(resposta.status_code, 200)
         self.assertIn('salvas', resposta.get_data(as_text=True))
         with self.app.app_context():
-            config = db.session.get(UnityNotificationConfig, self.ids['config'])
-            self.assertEqual(config.lead_days, '3,1')
-            self.assertTrue(config.notify_teacher)
-            self.assertFalse(config.notify_creator)
-            self.assertFalse(config.notify_approvers)
-            # Cada seleção cai no seu campo: reserva próxima × sobrecarga.
-            self.assertEqual([g.name for g in config.groups], ['Próximas'])
+            config = UnityNotificationConfig.query.filter_by(
+                unity_id=self.ids['unity']).first()
+            self.assertIsNotNone(config)
             self.assertEqual([g.name for g in config.overload_groups], ['Sobrecarga'])
 
-    def test_config_rejeita_marcos_invalidos(self):
-        resposta = self.client.post('/admin/notificacoes/configuracao', data={
-            'is_enabled': 'on', 'lead_days': 'abc,',
-        }, follow_redirects=True)
-        self.assertIn(b'ao menos uma anteced', resposta.data)
+    def test_config_rejeita_grupo_de_outra_unidade(self):
         with self.app.app_context():
-            config = db.session.get(UnityNotificationConfig, self.ids['config'])
-            self.assertEqual(config.lead_days, '7,1,0')  # intacto
+            outra_unity = Unity(name='Outra', code='OU')
+            db.session.add(outra_unity)
+            db.session.flush()
+            grupo_alheio = NotificationGroup(name='Alheio', unity_id=outra_unity.id)
+            db.session.add(grupo_alheio)
+            db.session.commit()
+            id_alheio = grupo_alheio.id
+        resposta = self.client.post('/admin/notificacoes/configuracao', data={
+            'overload_groups': [str(id_alheio)],
+        }, follow_redirects=True)
+        html = resposta.get_data(as_text=True)
+        # Rejeitado (erro exibido) e nada salvo.
+        self.assertNotIn('salvas', html)
+        self.assertTrue('válido' in html or 'inválido' in html)
+        with self.app.app_context():
+            config = UnityNotificationConfig.query.filter_by(
+                unity_id=self.ids['unity']).first()
+            self.assertIsNone(config)
 
     def test_config_exige_permissao(self):
         with self.app.app_context():
@@ -460,11 +565,59 @@ class TestPainelAdmin(NotificationsTestCase):
             self.assertIsNone(db.session.get(NotificationGroup, grupo_id))
 
 
+class TestPreferenciasNoPerfil(NotificationsTestCase):
+    """Preferências de notificação no perfil: silenciar tudo ou por tipo de
+    sala — e a varredura as respeita."""
+
+    def test_perfil_mostra_secao(self):
+        self._login('criador@escola.edu')
+        html = self.client.get('/perfil').get_data(as_text=True)
+        self.assertIn('Notificações', html)
+        self.assertIn('Silenciar por tipo de sala', html)
+        self.assertIn('Sala de Aula', html)
+
+    def test_salva_silencio_total_e_por_categoria(self):
+        self._login('criador@escola.edu')
+        resposta = self.client.post('/perfil', data={
+            'full_name': 'Carla Criadora',
+            'notify_mute_all': 'on',
+        }, follow_redirects=True)
+        self.assertIn('atualizado com sucesso', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            pref = db.session.get(UserNotificationPref, self.ids['criador'])
+            self.assertIsNotNone(pref)
+            self.assertTrue(pref.mute_all)
+            self.assertEqual(pref.muted_categories, [])
+
+        # Desmarca o silêncio total e silencia só o laboratório
+        resposta = self.client.post('/perfil', data={
+            'full_name': 'Carla Criadora',
+            'notify_muted_categories': [str(self.ids['lab'])],
+        }, follow_redirects=True)
+        self.assertEqual(resposta.status_code, 200)
+        with self.app.app_context():
+            pref = db.session.get(UserNotificationPref, self.ids['criador'])
+            self.assertFalse(pref.mute_all)
+            self.assertEqual([c.id for c in pref.muted_categories], [self.ids['lab']])
+
+    def test_preferencias_sao_aplicadas_na_varredura(self):
+        self._criar_reserva(usuarios=('extra', 'criador'))
+        self._login('extra@escola.edu')
+        self.client.post('/perfil', data={
+            'full_name': 'Eva Extra',
+            'notify_muted_categories': [str(self.ids['categoria'])],
+        }, follow_redirects=True)
+        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
+        with self.app.app_context():
+            varrer_reservas(agora=agora)
+        self.assertEqual(self._destinatarios(), [self.ids['criador']])
+
+
 class TestCentroNotificacoes(NotificationsTestCase):
-    def _notificar(self, user_id, titulo='Amanhã: Aula de Teste'):
+    def _notificar(self, user_id, titulo='Em 24 horas: Aula de Teste'):
         def gravar():
             with self.app.app_context():
-                notificacao = Notification(user_id=user_id, milestone='1d',
+                notificacao = Notification(user_id=user_id, milestone='24h',
                                            title=titulo, body='S1 · 01/10/2026 · 09:00–11:00',
                                            url='/calendar/?initialDate=2026-10-01')
                 db.session.add(notificacao)
@@ -478,7 +631,7 @@ class TestCentroNotificacoes(NotificationsTestCase):
         resposta = self.client.get('/notificacoes/')
         self.assertEqual(resposta.status_code, 200)
         html = resposta.get_data(as_text=True)
-        self.assertIn('Amanh', html)
+        self.assertIn('Em 24 horas', html)
         self.assertIn('/calendar/?initialDate=2026-10-01', html)
         # não vê notificação de outro usuário
         self.assertNotIn('Outra pessoa', html)
@@ -508,7 +661,7 @@ class TestCentroNotificacoes(NotificationsTestCase):
 
     def test_marcar_todas(self):
         self._notificar(self.ids['criador'])
-        self._notificar(self.ids['criador'], titulo='Hoje: Outra aula')
+        self._notificar(self.ids['criador'], titulo='Em 1 hora: Outra aula')
         self._login('criador@escola.edu')
         resposta = self.client.post('/notificacoes/marcar-todas', follow_redirects=True)
         self.assertEqual(resposta.status_code, 200)
@@ -516,13 +669,13 @@ class TestCentroNotificacoes(NotificationsTestCase):
 
     def test_limpar_lidas_remove_somente_lidas(self):
         lida_id = self._notificar(self.ids['criador'])
-        self._notificar(self.ids['criador'], titulo='Hoje: Outra aula')
+        self._notificar(self.ids['criador'], titulo='Em 1 hora: Outra aula')
         self._login('criador@escola.edu')
         self.client.post(f'/notificacoes/{lida_id}/lida', follow_redirects=False)
 
-        # Botão aparece quando há lidas (contagem global, não só da página)
+        # Botão aparece com a contagem quando há lidas (global, não só da página)
         html = self.client.get('/notificacoes/').get_data(as_text=True)
-        self.assertIn('Limpar lidas', html)
+        self.assertIn('Limpar lidas (1)', html)
 
         resposta = self.client.post('/notificacoes/limpar-lidas', follow_redirects=True)
         self.assertEqual(resposta.status_code, 200)
@@ -531,8 +684,10 @@ class TestCentroNotificacoes(NotificationsTestCase):
             self.assertIsNone(db.session.get(Notification, lida_id))
         self.assertEqual(self._contar(user_id=self.ids['criador']), 1)  # a não lida fica
 
-        # Sem lidas restantes, o botão some da listagem
-        self.assertNotIn('Limpar lidas', self.client.get('/notificacoes/').get_data(as_text=True))
+        # Sem lidas restantes, o botão fica desabilitado e sem contagem
+        html = self.client.get('/notificacoes/').get_data(as_text=True)
+        self.assertIn('outline-danger" disabled', html)
+        self.assertNotIn('Limpar lidas (', html)
 
     def test_limpar_lidas_so_afeta_o_proprio_usuario(self):
         lida_criador = self._notificar(self.ids['criador'])

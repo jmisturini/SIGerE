@@ -18,15 +18,16 @@
                     </button>
                 </form>
                 {% endif %}
-                {% if qtde_lidas %}
+                {# Sempre visível: com contador quando há lidas e desabilitado
+                   quando não há nada a remover (o formulário de limpeza vive
+                   na rota limpar_lidas). #}
                 <form method="POST" action="{{ url_for('notifications.limpar_lidas') }}" class="m-0"
-                      onsubmit="return confirm('Remover as {{ qtde_lidas }} notificação(ões) já lida(s)? Esta ação não pode ser desfeita.');">
+                      {% if qtde_lidas %}onsubmit="return confirm('Remover as {{ qtde_lidas }} notificação(ões) já lida(s)? Esta ação não pode ser desfeita.');"{% endif %}>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-trash me-1"></i> Limpar lidas
+                    <button type="submit" class="btn btn-sm btn-outline-danger" {% if not qtde_lidas %}disabled title="Nenhuma notificação lida para remover"{% endif %}>
+                        <i class="bi bi-trash me-1"></i> Limpar lidas{% if qtde_lidas %} ({{ qtde_lidas }}){% endif %}
                     </button>
                 </form>
-                {% endif %}
             </div>
         </div>
 

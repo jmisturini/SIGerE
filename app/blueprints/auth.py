@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import func
 from urllib.parse import urlparse
-from app.models import User
+from app.models import User, RoomCategory, UserNotificationPref
 from app.forms import LoginForm, ChangePasswordForm, ProfileForm
 from app.extensions import db, limiter
 
@@ -93,9 +93,20 @@ def change_password():
 @bp.route('/perfil', methods=['GET', 'POST'])
 @login_required
 def perfil():
-    """Autoatendimento: o usuário edita o próprio nome, departamento e senha.
-    E-mail (login) e papel só mudam pela administração."""
+    """Autoatendimento: o usuário edita o próprio nome, departamento, senha e
+    as preferências de notificação (silenciar os avisos de atividade próxima
+    — todos, ou apenas os de salas de determinados tipos). E-mail (login) e
+    papel só mudam pela administração."""
     form = ProfileForm(obj=current_user)
+    # Tipos de sala (categorias ativas) para o "silenciar por tipo de sala".
+    form.notify_muted_categories.choices = [
+        (c.id, c.name) for c in
+        RoomCategory.query.filter_by(is_active=True).order_by(RoomCategory.name).all()]
+    if request.method == 'GET':
+        pref = current_user.notification_pref
+        if pref is not None:
+            form.notify_mute_all.data = pref.mute_all
+            form.notify_muted_categories.data = [c.id for c in pref.muted_categories]
     if form.validate_on_submit():
         # Instância fresca do banco (mesmo cuidado da troca de senha)
         user = User.query.filter_by(id=current_user.id).first()
@@ -108,6 +119,17 @@ def perfil():
         if form.password.data:
             user.set_password(form.password.data)
             user.force_password_change = False
+
+        # Preferências de notificação (get-or-create 1:1 com o usuário)
+        pref = user.notification_pref
+        if pref is None:
+            pref = UserNotificationPref(user_id=user.id)
+            db.session.add(pref)
+        pref.mute_all = form.notify_mute_all.data
+        pref.muted_categories = RoomCategory.query.filter(
+            RoomCategory.id.in_(form.notify_muted_categories.data or [0]),
+            RoomCategory.is_active == True).all()  # noqa: E712 — comparação de coluna
+
         db.session.commit()
         db.session.refresh(user)
         flash('Seu perfil foi atualizado com sucesso.', 'success')
