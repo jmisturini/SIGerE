@@ -135,6 +135,14 @@ class ProfileForm(BaseForm):
     current_password = PasswordField('Senha Atual')
     password = PasswordField('Nova Senha', validators=[Optional(), Length(min=8, message='A nova senha deve ter pelo menos 8 caracteres.')])
     confirm_password = PasswordField('Confirmar Nova Senha', validators=[Optional(), EqualTo('password', message='As senhas não coincidem.')])
+    # ── Preferências de notificação (autoatendimento) ────────────────────
+    # Silenciar os avisos de atividade próxima: todos, ou apenas os de salas
+    # de determinados tipos. O aviso de sobrecarga de professor não passa por
+    # aqui. Os choices de notify_muted_categories são definidos pela rota.
+    notify_mute_all = BooleanField(
+        'Desativar todas as notificações de atividade próxima', default=False)
+    notify_muted_categories = SelectMultipleField(
+        'Silenciar por tipo de sala', coerce=int, choices=[], validators=[Optional()])
     submit = SubmitField('Salvar Alterações')
 
     def validate_full_name(self, field):
@@ -290,10 +298,33 @@ class ReservationForm(BaseForm):
     date = DateField('Data', validators=[DataRequired()])
     start_time = TimeField('Horário de Início', validators=[DataRequired()])
     end_time = TimeField('Horário de Término', validators=[DataRequired()])
+    # ── Notificações da reserva (opt-in, padrão desativado) ──────────────
+    # Interruptor + antecedências (24h/1h antes do início) + destinatários
+    # explícitos: usuários individuais e grupos personalizados da unidade.
+    notify_enabled = BooleanField(
+        'Ativar notificações desta reserva', default=False)
+    notify_24h = BooleanField('Avisar 24 horas antes', default=False)
+    notify_1h = BooleanField('Avisar 1 hora antes', default=False)
+    notify_groups = SelectMultipleField('Grupos de notificação', coerce=int,
+                                        choices=[], validators=[Optional()])
+    notify_users = SelectMultipleField('Usuários a avisar', coerce=int,
+                                       choices=[], validators=[Optional()])
     submit = SubmitField('Cadastrar Reserva')
 
     def validate_title(self, field):
         _validar_texto(field, 'Título / Assunto')
+
+    def validate_notify_enabled(self, field):
+        # Com o interruptor ligado, a configuração precisa ter função: ao
+        # menos um marco de antecedência e alguém para receber o aviso.
+        if not field.data:
+            return
+        if not (self.notify_24h.data or self.notify_1h.data):
+            raise ValidationError(
+                'Escolha ao menos um aviso de antecedência: 24 horas ou 1 hora antes.')
+        if not self.notify_groups.data and not self.notify_users.data:
+            raise ValidationError(
+                'Escolha ao menos um destinatário: usuário individual ou grupo.')
 
     def validate_date(self, field):
         if field.data < date.today():
@@ -859,44 +890,15 @@ class FormVtPedido(BaseForm):
 # =============================================================================
 
 class FormNotificacaoConfig(BaseForm):
-    """Configuração por unidade dos avisos de reserva próxima: liga/desliga o
-    módulo, marcos de antecedência (dias antes da reserva) e destinatários
-    fixos (professor, criador e aprovadores). Os grupos personalizados são os
-    campos groups (avisos de reserva próxima) e overload_groups (aviso de
-    sobrecarga de professor), preenchidos pela rota com os grupos da unidade."""
-    is_enabled = BooleanField('Notificar reservas próximas nesta unidade', default=True)
-    lead_days = StringField(
-        'Antecedências — dias antes da reserva',
-        validators=[DataRequired(message='Informe ao menos uma antecedência.'),
-                    Length(max=50)],
-        render_kw={'placeholder': 'ex.: 7, 1, 0'})
-    notify_teacher = BooleanField('Professor designado na reserva', default=True)
-    notify_creator = BooleanField('Criador da reserva', default=True)
-    notify_approvers = BooleanField(
-        'Aprovadores da unidade (quem pode aprovar reservas)', default=False)
-    groups = SelectMultipleField('Avisos de reserva próxima', coerce=int, choices=[])
+    """Configuração do aviso de sobrecarga de professor da unidade: os grupos
+    que recebem o aviso quando uma reserva deixa o docente além do limite
+    diário. O campo overload_groups é preenchido pela rota com os grupos da
+    unidade. Os avisos de atividade próxima são configurados na própria
+    reserva (formulário de criar/editar), não mais aqui."""
     overload_groups = SelectMultipleField(
-        'Aviso de sobrecarga de professor', coerce=int, choices=[])
+        'Grupos que recebem o aviso de sobrecarga de professor', coerce=int,
+        choices=[])
     submit = SubmitField('Salvar configurações')
-
-    def validate_lead_days(self, field):
-        # Valores aceitos pela varredura: inteiros >= 0 (0 = no próprio dia),
-        # sem duplicatas — o limite superior protege a janela da query.
-        from app.services.notifications import parse_lead_days
-        valores = parse_lead_days(field.data)
-        if not valores:
-            raise ValidationError(
-                'Informe ao menos uma antecedência em dias, separada por '
-                'vírgula (ex.: 7,1,0 — 0 avisa no próprio dia).')
-        if any(n > 180 for n in valores):
-            raise ValidationError(
-                'As antecedências devem ser de no máximo 180 dias.')
-        if len(field.data.replace(' ', '').split(',')) != len(valores):
-            raise ValidationError(
-                'Há valores repetidos ou inválidos na lista de antecedências.')
-
-    def validate_groups(self, field):
-        self._validar_grupos_da_unidade(field)
 
     def validate_overload_groups(self, field):
         self._validar_grupos_da_unidade(field)

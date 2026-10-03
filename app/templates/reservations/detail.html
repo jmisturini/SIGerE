@@ -16,20 +16,16 @@
         </span>
     </div>
     <div class="d-flex gap-2 align-items-center">
-        {# Notificações de proximidade: opt-in por reserva (padrão desativado).
-           Dono ou edit_all, e apenas reservas aprovadas e futuras avisam. #}
-        {% set pode_notificar = (reservation.user_id == current_user.id or current_user.has_permission('reservation:edit_all'))
-                                and reservation.status == 'approved' and reservation.date >= now.date() %}
-        {% if pode_notificar %}
-        <form method="POST" action="{{ url_for('reservations.toggle_notificacoes', reservation_id=reservation.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn {{ 'btn-warning' if reservation.notify_enabled else 'btn-outline-secondary' }}"
-                    aria-pressed="{{ 'true' if reservation.notify_enabled else 'false' }}"
-                    title="{{ 'Clique para desativar os avisos desta reserva no sino' if reservation.notify_enabled else 'Receber avisos no sino quando esta reserva se aproximar' }}">
-                <i class="bi {{ 'bi-bell-fill' if reservation.notify_enabled else 'bi-bell-slash' }} me-1"></i>
-                {{ 'Notificações ativadas' if reservation.notify_enabled else 'Ativar notificações' }}
-            </button>
-        </form>
+        {# Notificações por reserva: o interruptor, as antecedências e os
+           destinatários são configurados no formulário de edição — o detalhe
+           mostra o estado e leva até lá. #}
+        {% if reservation.user_id == current_user.id or current_user.has_permission('reservation:edit_all') %}
+        <a href="{{ url_for('reservations.edit', reservation_id=reservation.id) }}"
+           class="btn {{ 'btn-warning' if reservation.notify_enabled else 'btn-outline-secondary' }}"
+           title="Configurar as notificações desta reserva (antecedências e destinatários)">
+            <i class="bi {{ 'bi-bell-fill' if reservation.notify_enabled else 'bi-bell-slash' }} me-1"></i>
+            {{ 'Notificações ativadas' if reservation.notify_enabled else 'Notificações desativadas' }}
+        </a>
         {% endif %}
         <a href="{{ url_for('reservations.my_reservations') if not current_user.has_permission('reservation:read_all') else url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left me-1"></i> Voltar
@@ -58,6 +54,23 @@
                     <tr>
                         <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Professor</th>
                         <td class="border-0 fw-medium">{{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Notificações</th>
+                        <td class="border-0 fw-medium">
+                            {% set cfg_notif = reservation.notification_config %}
+                            {% if reservation.notify_enabled and cfg_notif %}
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle me-1">Ativadas</span>
+                                {% if cfg_notif.marcos_ativos %}{{ cfg_notif.marcos_ativos|join(', ') }}{% endif %}
+                                {% set qtd_destinatarios = cfg_notif.users|length + cfg_notif.groups|length %}
+                                {% if qtd_destinatarios %}
+                                    <span class="text-muted small ms-1">— {{ qtd_destinatarios }}
+                                        destinatário{{ 's' if qtd_destinatarios != 1 }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Desativadas</span>
+                            {% endif %}
+                        </td>
                     </tr>
                 </table>
             </div>
