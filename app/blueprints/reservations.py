@@ -72,13 +72,11 @@ def _courses_for_current_unity():
 def _subjects_for_current_unity():
     return Subject.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Subject.name).all()
 
-def _subject_choices_with_course_map():
-    """Opções do campo Disciplina e o mapa disciplina→curso usado pelo filtro
-    em JavaScript: ao escolher um curso, só aparecem as disciplinas dele."""
+def _subject_choices():
+    """Opções do campo Disciplina: todas as disciplinas ativas da unidade,
+    independentemente do curso selecionado."""
     subjects = _subjects_for_current_unity()
-    choices = [(0, '-- Nenhum --')] + [(s.id, f"{s.name}") for s in subjects]
-    course_map = {s.id: (s.course_id or 0) for s in subjects}
-    return choices, course_map
+    return [(0, '-- Nenhum --')] + [(s.id, f"{s.name}") for s in subjects]
 
 def _titulo_reserva(form):
     """Título final da reserva: o assunto quando preenchido; senão o nome do
@@ -141,7 +139,7 @@ def create():
     classrooms = _classrooms_for_current_unity()
     form.classroom.choices = [(c.id, f"{c.name} ({c.code}) - Cap {c.capacity}") for c in classrooms]
     form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in _courses_for_current_unity()]
-    form.subject.choices, subject_course_map = _subject_choices_with_course_map()
+    form.subject.choices = _subject_choices()
 
     teachers = _teachers_for_current_unity()
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
@@ -153,16 +151,14 @@ def create():
     if form.validate_on_submit():
         if form.date.data < date.today():
             flash('Não é possível reservar uma data no passado.', 'danger')
-            return render_template('reservations/create.html', form=form, classrooms=classrooms,
-                            subject_course_map=subject_course_map)
+            return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
         classroom_id = form.classroom.data
         # Multi-unidade: a sala precisa pertencer à unidade ativa
         classroom = db.session.get(Classroom, classroom_id)
         if not classroom or classroom.unity_id != current_unity_id():
             flash('Sala inválida para a unidade ativa.', 'danger')
-            return render_template('reservations/create.html', form=form, classrooms=classrooms,
-                            subject_course_map=subject_course_map)
+            return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
         # Gravação atômica: checagens e INSERT na mesma seção crítica por
         # (sala, data) — duas requisições simultâneas nunca gravam a mesma
@@ -172,14 +168,12 @@ def create():
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
                 flash(restriction_msg, 'danger')
-                return render_template('reservations/create.html', form=form, classrooms=classrooms,
-                            subject_course_map=subject_course_map)
+                return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
             conflict = check_conflict(classroom_id, form.date.data, form.start_time.data, form.end_time.data)
             if conflict:
                 flash(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})', 'danger')
-                return render_template('reservations/create.html', form=form, classrooms=classrooms,
-                            subject_course_map=subject_course_map)
+                return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
             teacher_id = form.teacher.data if form.teacher.data > 0 else None
             is_teacher_conflict = False
@@ -229,8 +223,7 @@ def create():
         return redirect(url_for('reservations.detail',
                                 reservation_id=reservation.id))
 
-    return render_template('reservations/create.html', form=form, classrooms=classrooms,
-                            subject_course_map=subject_course_map)
+    return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
 # Route to view user's own reservations
 @bp.route('/my')
@@ -412,7 +405,7 @@ def edit(reservation_id):
     classrooms = _classrooms_for_current_unity()
     form.classroom.choices = [(c.id, f"{c.name} ({c.code}) - Cap {c.capacity}") for c in classrooms]
     form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in _courses_for_current_unity()]
-    form.subject.choices, subject_course_map = _subject_choices_with_course_map()
+    form.subject.choices = _subject_choices()
     teachers = _teachers_for_current_unity()
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
 
@@ -433,8 +426,7 @@ def edit(reservation_id):
         classroom = db.session.get(Classroom, classroom_id)
         if not classroom or classroom.unity_id != current_unity_id():
             flash('Sala inválida para a unidade ativa.', 'danger')
-            return render_template('reservations/edit.html', form=form, reservation=reservation,
-                            subject_course_map=subject_course_map)
+            return render_template('reservations/edit.html', form=form, reservation=reservation)
 
         # Mesma seção crítica da criação: revalida restrições e conflitos já
         # enxergando o estado consolidado (edit + approve concorrentes).
@@ -443,15 +435,13 @@ def edit(reservation_id):
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
                 flash(restriction_msg, 'danger')
-                return render_template('reservations/edit.html', form=form, reservation=reservation,
-                            subject_course_map=subject_course_map)
+                return render_template('reservations/edit.html', form=form, reservation=reservation)
 
             conflict = check_conflict(classroom_id, form.date.data, form.start_time.data,
                                       form.end_time.data, exclude_id=reservation.id)
             if conflict:
                 flash(f'Conflito de sala com "{conflict.title}"', 'danger')
-                return render_template('reservations/edit.html', form=form, reservation=reservation,
-                            subject_course_map=subject_course_map)
+                return render_template('reservations/edit.html', form=form, reservation=reservation)
 
             reservation.classroom_id = classroom_id
             reservation.unity_id = classroom.unity_id
@@ -495,8 +485,7 @@ def edit(reservation_id):
             flash('Reserva atualizada com sucesso.', 'success')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
 
-    return render_template('reservations/edit.html', form=form, reservation=reservation,
-                            subject_course_map=subject_course_map)
+    return render_template('reservations/edit.html', form=form, reservation=reservation)
 
 # Route to cancel a reservation
 @bp.route('/<int:reservation_id>/cancel', methods=['POST'])
