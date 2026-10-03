@@ -107,14 +107,10 @@ class TeacherDailyLimitTestCase(unittest.TestCase):
 
             grupo = NotificationGroup(name='Coordenação', unity_id=self.unity.id,
                                       members=[coordenador])
-            grupo_fora = NotificationGroup(name='Somente Próximas', unity_id=self.unity.id,
-                                           members=[diretor])
-            db.session.add_all([grupo, grupo_fora])
-            # Seleção dedicada: só 'grupo' recebe o aviso de sobrecarga;
-            # 'grupo_fora' fica restrito aos avisos de reserva próxima.
+            db.session.add(grupo)
+            # Seleção dedicada: só 'grupo' recebe o aviso de sobrecarga.
             db.session.add(UnityNotificationConfig(
-                unity_id=self.unity.id, is_enabled=True,
-                groups=[grupo_fora], overload_groups=[grupo]))
+                unity_id=self.unity.id, overload_groups=[grupo]))
             db.session.commit()
             self.room_id = room.id
             self.course_id = course.id

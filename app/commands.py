@@ -88,7 +88,7 @@ PERMISSION_DATA = [
     ('kitchen:shopping_export', 'kitchen', 'shopping_export', 'Gerar e exportar a requisição de compra'),
     # Módulo de Notificações de atividades próximas
     ('notification:manage', 'notification', 'manage',
-     'Configurar as notificações da unidade (antecedências e destinatários)'),
+     'Configurar o aviso de sobrecarga de professor da unidade (grupos destinatários)'),
     ('notification:groups', 'notification', 'groups',
      'Gerenciar os grupos personalizados de notificação da unidade'),
     ('system:dashboard', 'system', 'dashboard', 'Acessar painel administrativo'),
@@ -812,13 +812,14 @@ def import_legacy_command(dump_path, force):
 def notify_scan_command(dry_run):
     """Varre as reservas próximas e cria as notificações dos destinatários.
 
-    Para cada unidade com o módulo ativo (Notificações no painel admin),
-    cria o aviso por professor/criador/aprovadores/grupos configurados no
-    marco de antecedência mais iminente já vencido (marcos anteriores ficam
-    absorvidos, para não repetir avisos com o mesmo conteúdo) — apenas das
-    reservas com as notificações ativadas no próprio detalhe (padrão
-    desativado). Idempotente: a constraint de unicidade impede duplicatas,
-    então pode rodar com segurança a cada 15 minutos.
+    Cria os avisos das reservas aprovadas com notificações ativadas (seção
+    Notificações do formulário de reserva): no marco de antecedência mais
+    iminente já vencido (24h ou 1h antes do início), cada destinatário
+    configurado na própria reserva — usuários individuais e grupos — recebe o
+    aviso, salvo quem silenciou as notificações no perfil. Marcos anteriores
+    ficam absorvidos, para não repetir avisos com o mesmo conteúdo.
+    Idempotente: a constraint de unicidade impede duplicatas, então pode rodar
+    com segurança a cada 15 minutos.
 
     Uso: flask --app run notify-scan [--dry-run]
     """
@@ -827,7 +828,6 @@ def notify_scan_command(dry_run):
     stats = varrer_reservas(dry_run=dry_run)
     rotulo = 'seriam criadas' if dry_run else 'criadas'
     click.echo(f"Varredura concluída{' (dry-run)' if dry_run else ''}:")
-    click.echo(f"  Unidades com reservas na janela: {stats['unidades']}")
     click.echo(f"  Reservas avaliadas: {stats['reservas']}")
     click.echo(f"  Notificações {rotulo}: {stats['criadas']}")
     click.echo(f"  Já existentes (sem duplicar): {stats['existentes']}")

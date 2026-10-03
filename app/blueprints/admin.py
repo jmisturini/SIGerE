@@ -1377,12 +1377,13 @@ def delete_api_token(token_id):
     return redirect_back('admin.list_api_tokens')
 
 
-# ================= NOTIFICAÇÕES: CONFIG E GRUPOS (por unidade) ==============
+# ================= NOTIFICAÇÕES: SOBRECARGA E GRUPOS (por unidade) ==========
 #
-# Avisos de reserva próxima: a configuração da unidade define antecedências
-# (marcos em dias) e destinatários fixos; os grupos personalizados reúnem as
-# equipes que devem ser avisadas juntas. Quem cria as notificações de fato é
-# a varredura `flask notify-scan` (systemd timer) — aqui só se configura.
+# Os avisos de reserva próxima são configurados na própria reserva (quem cria
+# escolhe destinatários e antecedências no formulário). Aqui fica só o aviso
+# de sobrecarga de professor (regra de carga docente): os grupos da unidade
+# que recebem o aviso na hora em que a reserva nasce Pendente. O CRUD dos
+# grupos personalizados continua em /notificacoes/grupos.
 
 def _usuarios_escopo_choices():
     """Usuários do escopo da unidade ativa (vinculados + contas globais),
@@ -1397,32 +1398,22 @@ def _usuarios_escopo_choices():
 @login_required
 @require_permission('notification:manage')
 def notificacoes_config():
-    """Configuração da unidade ativa: antecedências e destinatários dos
-    avisos de reserva próxima e do aviso de sobrecarga de professor."""
+    """Aviso de sobrecarga de professor: escolha dos grupos da unidade que
+    recebem o aviso quando uma reserva leva o docente além do limite diário."""
     config = UnityNotificationConfig.query.filter_by(unity_id=current_unity_id()).first()
     form = FormNotificacaoConfig(obj=config)
     grupos_unidade = NotificationGroup.query.filter_by(
         unity_id=current_unity_id()).order_by(NotificationGroup.name).all()
-    form.groups.choices = [(g.id, g.name) for g in grupos_unidade]
     form.overload_groups.choices = [(g.id, g.name) for g in grupos_unidade]
     if request.method == 'GET':
-        # obj=config entrega objetos User/NotificationGroup; o SelectMultiple
+        # obj=config entrega objetos NotificationGroup; o SelectMultiple
         # precisa dos ids crus para pré-selecionar.
-        form.groups.data = [g.id for g in config.groups] if config else []
         form.overload_groups.data = ([g.id for g in config.overload_groups]
                                      if config else [])
     if form.validate_on_submit():
         if config is None:
             config = UnityNotificationConfig(unity_id=current_unity_id())
             db.session.add(config)
-        config.is_enabled = form.is_enabled.data
-        config.lead_days = form.lead_days.data
-        config.notify_teacher = form.notify_teacher.data
-        config.notify_creator = form.notify_creator.data
-        config.notify_approvers = form.notify_approvers.data
-        config.groups = NotificationGroup.query.filter(
-            NotificationGroup.id.in_(form.groups.data),
-            NotificationGroup.unity_id == current_unity_id()).all()
         config.overload_groups = NotificationGroup.query.filter(
             NotificationGroup.id.in_(form.overload_groups.data),
             NotificationGroup.unity_id == current_unity_id()).all()

@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
 from contextlib import ExitStack
-from app.models import Reservation, Classroom, User, Course, Subject, Holiday
+from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
+                        NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm
 from app.extensions import db
 from app.unity_context import current_unity_id
@@ -89,6 +90,41 @@ def _titulo_reserva(form):
 def _classrooms_for_current_unity():
     return Classroom.query.filter_by(unity_id=current_unity_id(), is_active=True).order_by(Classroom.code).all()
 
+def _grupos_notificacao_unidade():
+    return NotificationGroup.query.filter_by(
+        unity_id=current_unity_id()).order_by(NotificationGroup.name).all()
+
+def _preparar_campos_notificacao(form):
+    """Choices dos destinatários da seção Notificações do formulário: grupos
+    personalizados da unidade ativa e usuários ativos do escopo dela."""
+    form.notify_groups.choices = [(g.id, g.name) for g in _grupos_notificacao_unidade()]
+    form.notify_users.choices = [(u.id, u.full_name) for u in User.query.filter(
+        User.is_active_user == True,  # noqa: E712 — comparação de coluna
+        User.escopo_unidade(current_unity_id()),
+    ).order_by(User.full_name).all()]
+
+def _aplicar_config_notificacao(reservation, form):
+    """Grava a configuração de notificações da reserva conforme a seção do
+    formulário. Interruptor desligado remove a configuração existente; ligado,
+    cria/atualiza com os marcos e destinatários escolhidos (grupos limitados
+    aos da unidade da reserva; usuários, apenas contas ativas)."""
+    if not form.notify_enabled.data:
+        if reservation.notification_config is not None:
+            db.session.delete(reservation.notification_config)
+        return
+    config = reservation.notification_config
+    if config is None:
+        config = ReservationNotificationConfig(reservation=reservation)
+        db.session.add(config)
+    config.notify_24h = form.notify_24h.data
+    config.notify_1h = form.notify_1h.data
+    config.groups = NotificationGroup.query.filter(
+        NotificationGroup.id.in_(form.notify_groups.data or [0]),
+        NotificationGroup.unity_id == reservation.unity_id).all()
+    config.users = User.query.filter(
+        User.id.in_(form.notify_users.data or [0]),
+        User.is_active_user == True).all()  # noqa: E712 — comparação de coluna
+
 def _get_reservation_scoped(reservation_id):
     """Carrega a reserva da unidade ativa — reservas de outras unidades dão 404."""
     reservation = db.get_or_404(Reservation, reservation_id)
@@ -144,6 +180,8 @@ def create():
     teachers = _teachers_for_current_unity()
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
 
+    _preparar_campos_notificacao(form)
+
     preselect = request.args.get('classroom_id', type=int)
     if request.method == 'GET' and preselect:
         form.classroom.data = preselect
@@ -197,9 +235,17 @@ def create():
                 description=form.description.data, date=form.date.data,
                 start_time=form.start_time.data, end_time=form.end_time.data,
                 status=status,
-                unity_id=classroom.unity_id
+                unity_id=classroom.unity_id,
+                notify_enabled=form.notify_enabled.data
             )
             db.session.add(reservation)
+            # Notificações por reserva: o interruptor vem da própria seção do
+            # formulário (padrão desativado). Reserva Pendente (conflito de
+            # professor) guarda a configuração, mas a varredura só avisa
+            # aprovadas — ao aprovar, os avisos começam.
+            if form.notify_enabled.data:
+                db.session.flush()
+                _aplicar_config_notificacao(reservation, form)
             if excede_limite_diario:
                 # O aviso referencia a reserva: garante o id antes de criar
                 # as notificações (elas saem no mesmo commit).
@@ -368,27 +414,9 @@ def detail(reservation_id):
                            series_count=series_count, can_share=can_share,
                            share_texts=build_reservation_share_texts(reservation))
 
-# Ativa/desativa as notificações de proximidade da reserva (padrão: desativadas).
-# Dono ou quem tem edit_all — os destinatários continuam sendo os configurados
-# na unidade (professor, criador, aprovadores e grupos).
-@bp.route('/<int:reservation_id>/notificacoes', methods=['POST'])
-@login_required
-@require_permission_or_owner('reservation:edit_all')
-def toggle_notificacoes(reservation_id):
-    reservation = _get_reservation_scoped(reservation_id)
-    # Mesmas condições da varredura: só reserva aprovada e futura avisa.
-    if reservation.status != 'approved' or reservation.date < date.today():
-        flash('Apenas reservas aprovadas e futuras podem ter notificações.', 'warning')
-        return redirect(url_for('reservations.detail', reservation_id=reservation.id))
-    reservation.notify_enabled = not reservation.notify_enabled
-    db.session.commit()
-    if reservation.notify_enabled:
-        flash('Notificações ativadas para esta reserva: os avisos de proximidade '
-              'serão enviados conforme a configuração da unidade.', 'success')
-    else:
-        flash('Notificações desativadas para esta reserva. Avisos já criados '
-              'permanecem no sino.', 'info')
-    return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+# As notificações são configuradas na própria reserva (seção Notificações do
+# formulário de criar/editar: interruptor, antecedências e destinatários). O
+# detalhe apenas mostra o estado e aponta para a edição.
 
 # Route to edit a reservation (Admin or Owner)
 @bp.route('/<int:reservation_id>/edit', methods=['GET', 'POST'])
@@ -409,6 +437,8 @@ def edit(reservation_id):
     teachers = _teachers_for_current_unity()
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
 
+    _preparar_campos_notificacao(form)
+
     if request.method == 'GET':
         form.classroom.data = reservation.classroom_id
         form.course.data = reservation.course_id if reservation.course_id else 0
@@ -419,6 +449,13 @@ def edit(reservation_id):
         form.date.data = reservation.date
         form.start_time.data = reservation.start_time
         form.end_time.data = reservation.end_time
+        config = reservation.notification_config
+        if config is not None:
+            form.notify_enabled.data = reservation.notify_enabled
+            form.notify_24h.data = config.notify_24h
+            form.notify_1h.data = config.notify_1h
+            form.notify_groups.data = [g.id for g in config.groups]
+            form.notify_users.data = [u.id for u in config.users]
 
     if form.validate_on_submit():
         classroom_id = form.classroom.data
@@ -453,6 +490,10 @@ def edit(reservation_id):
             reservation.date = form.date.data
             reservation.start_time = form.start_time.data
             reservation.end_time = form.end_time.data
+            # Notificações por reserva: interruptor, marcos e destinatários
+            # da seção do formulário (desligado remove a configuração).
+            reservation.notify_enabled = form.notify_enabled.data
+            _aplicar_config_notificacao(reservation, form)
 
             # Recheck de docente na edição (a criação já fazia; a edição não):
             # mudar data/horário/professor pode criar sobreposição — a reserva

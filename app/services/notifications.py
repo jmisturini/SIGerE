@@ -1,89 +1,89 @@
 """Varredura de reservas próximas → notificações por destinatário.
 
 Regras do módulo:
-- A configuração por unidade (UnityNotificationConfig) define se o módulo está
-  ativo, os marcos de antecedência (dias antes da data da reserva) e os
-  destinatários: professor designado, criador da reserva, aprovadores da
-  unidade (reservation:approve) e grupos personalizados.
+- A configuração é por reserva (ReservationNotificationConfig, formulário de
+  criar/editar): quem cria a reserva opta por avisar (padrão desativado),
+  escolhe os destinatários — usuários individuais e grupos personalizados da
+  unidade — e os marcos de antecedência: 24h e/ou 1h antes do início.
 - A cada varredura, a reserva dispara o marco mais iminente já vencido
-  (lead >= dias restantes — janela aberta: atraso do timer não pula o aviso
-  mais próximo). Marcos vencidos anteriores ficam absorvidos: dispará-los
-  tardiamente criaria avisos redundantes com o mesmo conteúdo (uma reserva
-  criada na véspera, com marcos 7,1,0, avisaria "Amanhã" duas vezes). A
-  notificação é única por (destinatário, reserva, marco) — constraint no
-  banco — então rodar a varredura de novo não duplica.
-- Só entram reservas approved com data de hoje em diante; pendentes e
-  canceladas não avisam.
-- A reserva precisa ter as notificações ativadas (notify_enabled, botão no
-  detalhe) — o padrão é desativado e quem cria a reserva opta por avisar.
+  (agora >= início − antecedência — janela aberta: atraso do timer não pula
+  o aviso mais próximo). Marcos vencidos anteriores ficam absorvidos:
+  dispará-los tardiamente criaria avisos redundantes. A notificação é única
+  por (destinatário, reserva, marco) — constraint no banco — então rodar a
+  varredura de novo não duplica.
+- Só entram reservas approved que ainda não começaram; pendentes, canceladas
+  e em andamento não avisam.
+- O usuário pode silenciar os avisos no perfil (UserNotificationPref): todos
+  ou apenas os de salas de um tipo (RoomCategory).
+- O aviso de sobrecarga de professor (EVENT_TEACHER_DAILY_LIMIT) é criado no
+  momento da gravação da reserva e não passa por esta varredura nem pelos
+  silenciamentos.
 """
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 
 from app.extensions import db
 from app.models import (Reservation, User, UnityNotificationConfig, Notification,
                         EVENT_RESERVATION_UPCOMING, EVENT_TEACHER_DAILY_LIMIT)
 from app.services.scheduling import count_teacher_reservations
 
-# Marco único da notificação de sobrecarga (não é antecedência em dias):
+# Marco único da notificação de sobrecarga (não é antecedência em horas):
 # uma reserva gera no máximo um aviso deste tipo por destinatário.
 _MILESTONE_SOBRECARGA = 'diario'
 
-
-def parse_lead_days(texto):
-    """CSV de dias ('7,1,0') → lista de ints >= 0 sem duplicatas, maior primeiro.
-
-    Tolerante: ignora partes vazias ou não numéricas (a validação do formulário
-    avisa o operador, mas a varredura nunca quebra por causa do valor salvo)."""
-    valores = []
-    for parte in (texto or '').split(','):
-        parte = parte.strip()
-        if not parte:
-            continue
-        try:
-            n = int(parte)
-        except ValueError:
-            continue
-        if n >= 0 and n not in valores:
-            valores.append(n)
-    return sorted(valores, reverse=True)
+# Marcos de antecedência por horas antes do início da atividade, do maior
+# para o menor: o mais iminente vencido (menor horas) é o que dispara.
+MARCOS_HORAS = ((24, 'Em 24 horas'), (1, 'Em 1 hora'))
 
 
-def rotulo_proximidade(dias_restantes):
-    """Rótulo humano do quanto falta: 'Hoje', 'Amanhã', 'Em N dias'."""
-    if dias_restantes <= 0:
-        return 'Hoje'
-    if dias_restantes == 1:
-        return 'Amanhã'
-    return f'Em {dias_restantes} dias'
+def marcos_da_config(config):
+    """Horas habilitadas na configuração da reserva, maior primeiro."""
+    horas = []
+    if config.notify_24h:
+        horas.append(24)
+    if config.notify_1h:
+        horas.append(1)
+    return horas
+
+
+def rotulo_marco(horas):
+    """Rótulo humano do marco: 'Em 24 horas', 'Em 1 hora'."""
+    return dict(MARCOS_HORAS).get(horas, f'Em {horas} horas')
+
+
+def _silenciado(user, reservation):
+    """Preferências do perfil podem tirar o usuário dos avisos desta reserva:
+    mute_all silencia tudo; senão, silencia se o tipo de sala da reserva
+    (categoria da classroom) estiver na lista de silenciados."""
+    pref = user.notification_pref
+    if pref is None:
+        return False
+    if pref.mute_all:
+        return True
+    categorias = {c.id for c in pref.muted_categories}
+    if not categorias:
+        return False
+    sala = reservation.classroom
+    return sala is not None and sala.category_id in categorias
 
 
 def destinatarios_da_reserva(reservation, config):
     """Usuários que recebem o aviso da reserva, deduplicados por id.
 
-    Professor e criador entram direto; aprovadores são os usuários ativos do
-    escopo da unidade com reservation:approve; grupos trazem os próprios
-    membros. Inativos nunca recebem."""
+    Apenas os destinatários explícitos da configuração: usuários individuais
+    e membros dos grupos selecionados. Inativos nunca recebem; quem silenciou
+    a notificação no perfil (todos ou o tipo de sala desta reserva) é filtrado
+    à parte por _silenciado."""
     destino = {}
 
     def add(user):
         if user is not None and user.is_active_user and user.id not in destino:
             destino[user.id] = user
 
-    if config.notify_teacher:
-        add(reservation.teacher)
-    if config.notify_creator:
-        add(reservation.user)
-    if config.notify_approvers:
-        candidatos = User.query.filter(
-            User.is_active_user == True,  # noqa: E712 — comparação de coluna
-            User.escopo_unidade(reservation.unity_id),
-        ).all()
-        for u in candidatos:
-            if u.has_permission('reservation:approve'):
-                add(u)
+    for user in config.users:
+        add(user)
     for grupo in config.groups:
-        for u in grupo.members:
-            add(u)
+        for user in grupo.members:
+            add(user)
     return list(destino.values())
 
 
@@ -94,76 +94,78 @@ def _notificacao_existente(user_id, reservation_id, milestone):
     ).first()
 
 
-def varrer_reservas(hoje=None, dry_run=False):
+def varrer_reservas(agora=None, dry_run=False):
     """Cria as notificações de reservas próximas que ainda não existem.
 
-    Percorre as configurações ativas, acha as reservas approved dentro da
-    maior janela de antecedência e, no marco mais iminente já vencido, cria o
-    aviso por destinatário (get-or-create pela constraint de unicidade). Com
-    dry_run=True nada é gravado — a contagem mostra o que seria criado.
-    Retorna estatísticas para o log do comando."""
-    hoje = hoje or date.today()
-    stats = {'unidades': 0, 'reservas': 0, 'criadas': 0, 'existentes': 0}
+    Percorre as reservas approved com notificações ativadas e configuração
+    salva, calcula os marcos (24h/1h antes do início) já vencidos e, no mais
+    iminente, cria o aviso por destinatário (get-or-create pela constraint de
+    unicidade), respeitando os silenciamentos do perfil. Com dry_run=True nada
+    é gravado — a contagem mostra o que seria criado. Retorna estatísticas
+    para o log do comando."""
+    agora = agora or datetime.now()
+    stats = {'reservas': 0, 'criadas': 0, 'existentes': 0}
 
-    configs = UnityNotificationConfig.query.filter_by(is_enabled=True).all()
-    for config in configs:
-        leads = parse_lead_days(config.lead_days)
-        if not leads:
+    reservas = Reservation.query.filter(
+        Reservation.status == 'approved',
+        Reservation.notify_enabled == True,  # noqa: E712 — comparação de coluna
+        Reservation.date >= agora.date(),
+    ).all()
+
+    for reservation in reservas:
+        config = reservation.notification_config
+        if config is None:
             continue
-        janela = max(leads)
-        reservas = Reservation.query.filter(
-            Reservation.status == 'approved',
-            Reservation.notify_enabled == True,  # noqa: E712 — comparação de coluna
-            Reservation.unity_id == config.unity_id,
-            Reservation.date >= hoje,
-            Reservation.date <= hoje + timedelta(days=janela),
-        ).all()
-        if not reservas:
+        marcos = marcos_da_config(config)
+        if not marcos:
             continue
-        stats['unidades'] += 1
+        inicio = datetime.combine(reservation.date, reservation.start_time)
+        # A atividade já começou: avisos de antecedência perderam a função.
+        if agora >= inicio:
+            continue
+        # Marcos vencidos: agora >= início − antecedência (janela aberta — se
+        # o timer ficar horas parado, o aviso mais próximo não se perde).
+        # Entre os vencidos dispara só o mais iminente (menor antecedência):
+        # os anteriores foram absorvidos e sairiam com conteúdo redundante.
+        vencidos = [horas for horas in marcos
+                    if agora >= inicio - timedelta(hours=horas)]
+        if not vencidos:
+            continue
+        horas = min(vencidos)
+        stats['reservas'] += 1
 
-        for reservation in reservas:
-            stats['reservas'] += 1
-            destinatarios = destinatarios_da_reserva(reservation, config)
-            if not destinatarios:
-                continue
-            dias_restantes = (reservation.date - hoje).days
-            titulo = (f'{rotulo_proximidade(dias_restantes)}: {reservation.title}')
-            sala = reservation.classroom.code if reservation.classroom else '—'
-            corpo = (f'{sala} · {reservation.date.strftime("%d/%m/%Y")} · '
-                     f'{reservation.start_time.strftime("%H:%M")}–'
-                     f'{reservation.end_time.strftime("%H:%M")}')
-            # Deep link: o criador vai para o detalhe da reserva (sempre pode
-            # vê-la); os demais, para o calendário na data da atividade — a
-            # página aceita ?initialDate= e pré-filtra o dia.
-            if reservation.user_id is not None and any(
-                    u.id == reservation.user_id for u in destinatarios):
-                url = f'/reservations/{reservation.id}'
-            else:
-                url = f'/calendar/?initialDate={reservation.date.isoformat()}'
+        destinatarios = [u for u in destinatarios_da_reserva(reservation, config)
+                         if not _silenciado(u, reservation)]
+        if not destinatarios:
+            continue
 
-            # Marcos vencidos: lead >= dias restantes (janela aberta — se o
-            # timer ficar dias parado, o aviso mais próximo não se perde).
-            # Entre os vencidos dispara só o mais iminente (menor lead): os
-            # anteriores foram absorvidos por ele e sairiam com título e corpo
-            # idênticos — p. ex., reserva criada na véspera com marcos 7,1,0
-            # geraria dois avisos "Amanhã" no mesmo dia.
-            vencidos = [lead for lead in leads if lead >= dias_restantes]
-            if not vencidos:
+        titulo = f'{rotulo_marco(horas)}: {reservation.title}'
+        sala = reservation.classroom.code if reservation.classroom else '—'
+        corpo = (f'{sala} · {reservation.date.strftime("%d/%m/%Y")} · '
+                 f'{reservation.start_time.strftime("%H:%M")}–'
+                 f'{reservation.end_time.strftime("%H:%M")}')
+        # Deep link: o criador vai para o detalhe da reserva (sempre pode
+        # vê-la); os demais, para o calendário na data da atividade — a
+        # página aceita ?initialDate= e pré-filtra o dia.
+        if reservation.user_id is not None and any(
+                u.id == reservation.user_id for u in destinatarios):
+            url = f'/reservations/{reservation.id}'
+        else:
+            url = f'/calendar/?initialDate={reservation.date.isoformat()}'
+
+        milestone = f'{horas}h'
+        for user in destinatarios:
+            if _notificacao_existente(user.id, reservation.id, milestone):
+                stats['existentes'] += 1
                 continue
-            milestone = f'{min(vencidos)}d'
-            for user in destinatarios:
-                if _notificacao_existente(user.id, reservation.id, milestone):
-                    stats['existentes'] += 1
-                    continue
-                if dry_run:
-                    stats['criadas'] += 1
-                    continue
-                db.session.add(Notification(
-                    user_id=user.id, reservation_id=reservation.id,
-                    event_type=EVENT_RESERVATION_UPCOMING, milestone=milestone,
-                    title=titulo, body=corpo, url=url))
+            if dry_run:
                 stats['criadas'] += 1
+                continue
+            db.session.add(Notification(
+                user_id=user.id, reservation_id=reservation.id,
+                event_type=EVENT_RESERVATION_UPCOMING, milestone=milestone,
+                title=titulo, body=corpo, url=url))
+            stats['criadas'] += 1
 
     if not dry_run:
         db.session.commit()
