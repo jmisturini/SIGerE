@@ -62,8 +62,8 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if ep.startswith('schedule.') }}" title="Calendário" href="{{ url_for('schedule.view') }}">
-                        <i class="bi bi-calendar3"></i> <span>Calendário</span>
+                    <a class="nav-link {{ 'active' if ep.startswith('schedule.') }}" title="Agenda" href="{{ url_for('schedule.view') }}">
+                        <i class="bi bi-calendar3"></i> <span>Agenda</span>
                     </a>
                 </li>
 
@@ -125,11 +125,6 @@
                     </a>
                     <div class="collapse {{ 'show' if in_overtime else '' }}" id="menu-hora-extra">
                         <ul class="nav flex-column nav-submenu">
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('payments.list_overtime') }}" title="Consultar H. Extras" href="{{ url_for('payments.list_overtime') }}">
-                                    <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
-                                </a>
-                            </li>
                             {% if current_user.has_permission('payment:create') %}
                             <li class="nav-item">
                                 <a class="nav-link {{ 'active' if ep.startswith('payments.create_overtime') or ep.startswith('payments.edit_overtime') }}" title="Nova Hora Extra" href="{{ url_for('payments.create_overtime') }}">
@@ -137,6 +132,11 @@
                                 </a>
                             </li>
                             {% endif %}
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.list_overtime') }}" title="Consultar H. Extras" href="{{ url_for('payments.list_overtime') }}">
+                                    <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </li>
