@@ -318,7 +318,13 @@ class TeacherOvertimePay(db.Model):
     hourly_value = db.Column(db.Numeric(10, 2), nullable=False) # 10 dígitos no total, 2 decimais
     budget_code = db.Column(db.String(18), nullable=False)
     shift = db.Column(db.String(50), nullable=False) # E.g., 'Matutino', 'Vespertino', 'Noturno'
+    # Dias do lançamento ("10, 17, 25"), todos dentro do mês gravado em
+    # dates_month; lançamentos antigos têm os dias relativos ao month_base.
     multiple_dates = db.Column(db.String(255))
+    # Mês (YYYY-MM) dos dias gravados em multiple_dates — o mês de referência
+    # ou o anterior (janela 20→20). Nulo nos lançamentos antigos: os dias
+    # pertencem então ao month_base.
+    dates_month = db.Column(db.String(7))
     justification = db.Column(db.String(100))
     # Tipo de curso é obrigatório no formulário; nullable no banco apenas para
     # os lançamentos anteriores à existência do campo (exibem "—" nos detalhes).

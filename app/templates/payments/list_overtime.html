@@ -176,6 +176,13 @@
                         <div class="small fw-bold text-uppercase text-muted">Mês Base</div>
                         <div>{{ o.month_base | mes_referencia }}</div>
                     </div>
+                    {% if o.dates_month and o.dates_month != o.month_base %}
+                    {# Dias lançados no mês anterior ao Mês Base (janela 20→20) #}
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Mês das Datas</div>
+                        <div>{{ o.dates_month | mes_referencia }}</div>
+                    </div>
+                    {% endif %}
                     <div class="col-md-6">
                         <div class="small fw-bold text-uppercase text-muted">Tipo de Curso</div>
                         <div>{{ o.course_type.name if o.course_type else '—' }}</div>
