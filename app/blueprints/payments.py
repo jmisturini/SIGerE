@@ -684,16 +684,18 @@ def _planilha_overtime(overtimes, month_base):
 
     for baseline, data in enumerate(overtimes, start=7):
         minutos = decimal_to_minutes(data.weekly_workload) if data.weekly_workload else 0
+        # Ordem dos cabeçalhos do modelo (linha 6): Tipo de Curso logo após o
+        # Nível de Docência, e Observação por último.
         cell_data = [
             (1, data.teacher.full_name),
             (2, data.teaching_level),
-            (3, f'{minutos // 60}h{minutos % 60:02d}'),
-            (4, float(data.hourly_value) if data.hourly_value else 0),
-            (5, data.multiple_dates or ''),
-            (6, data.shift),
-            (7, format_budget_code(data.budget_code)),
-            (8, data.justification or ''),
-            (9, data.course_type.name if data.course_type else '—'),
+            (3, data.course_type.name if data.course_type else '—'),
+            (4, f'{minutos // 60}h{minutos % 60:02d}'),
+            (5, float(data.hourly_value) if data.hourly_value else 0),
+            (6, data.multiple_dates or ''),
+            (7, data.shift),
+            (8, format_budget_code(data.budget_code)),
+            (9, data.justification or ''),
             (10, data.observation or ''),
         ]
 
