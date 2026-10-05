@@ -104,6 +104,11 @@
                                     <i class="bi bi-people"></i> <span>Todas as Reservas</span>
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.relatorio') }}" title="Relatório de Salas e Reservas" href="{{ url_for('reservations.relatorio') }}">
+                                    <i class="bi bi-clipboard-data"></i> <span>Relatório</span>
+                                </a>
+                            </li>
                             {% endif %}
                         </ul>
                     </div>
