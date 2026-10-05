@@ -420,14 +420,27 @@ class PaymentsTestCase(unittest.TestCase):
         response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
         workbook = load_workbook(BytesIO(response.data))
         ws = workbook['Extra NEB']
-        self.assertEqual(ws.cell(row=7, column=3).value, '4h30')
+        self.assertEqual(ws.cell(row=7, column=4).value, '4h30')
+
+    def test_export_ordem_das_colunas_no_modelo(self):
+        # Cabeçalhos do modelo institucional na ordem esperada, com o Tipo de
+        # Curso logo após o Nível de Docência e a Observação no fim.
+        self._add_overtime(self._mes_atual())
+        response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
+        workbook = load_workbook(BytesIO(response.data))
+        ws = workbook['Extra NEB']
+        esperados = ['Nome do Professor', 'Nível de Docência', 'Tipo de Curso',
+                     'Número de Horas', 'Valor H/a', 'Datas', 'Turno',
+                     'Código Orçamentário', 'Justificativa', 'Observação']
+        for coluna, esperado in enumerate(esperados, start=1):
+            self.assertEqual(ws.cell(row=6, column=coluna).value, esperado)
 
     def test_export_inclui_tipo_de_curso_e_observacao(self):
         self._add_overtime(self._mes_atual(), observation='Turma integral')
         response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
         workbook = load_workbook(BytesIO(response.data))
         ws = workbook['Extra NEB']
-        self.assertEqual(ws.cell(row=7, column=9).value, 'Técnico')
+        self.assertEqual(ws.cell(row=7, column=3).value, 'Técnico')
         self.assertEqual(ws.cell(row=7, column=10).value, 'Turma integral')
 
     def test_edit_get_splits_decimal_into_hours_minutes(self):
@@ -525,7 +538,7 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('Professora Teste', names)
         self.assertNotIn('Outro Professor', names)
         # Código Orçamentário sai formatado mesmo para registros antigos
-        self.assertEqual(ws.cell(row=7, column=7).value, '95.00.0123.4')
+        self.assertEqual(ws.cell(row=7, column=8).value, '95.00.0123.4')
 
     # ---------- Fechamento do mês ----------
 
@@ -547,7 +560,7 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('spreadsheetml', response.content_type)
         workbook = load_workbook(BytesIO(response.data))
         ws = workbook['Extra NEB']
-        self.assertEqual(ws.cell(row=7, column=3).value, '4h30')
+        self.assertEqual(ws.cell(row=7, column=4).value, '4h30')
 
         with self.app.app_context():
             closure = db.session.query(OvertimeMonthClosure).one()
