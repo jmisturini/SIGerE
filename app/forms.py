@@ -496,6 +496,8 @@ class FormTeacherOvertimePay(BaseForm):
     hourly_value = StringField('Valor H/a (ex: 15,50)', validators=[DataRequired()])
     budget_code = StringField('Código Orçamentário', validators=[DataRequired()])
     shift = SelectField('Turno', choices=[('Matutino', 'Matutino'), ('Vespertino', 'Vespertino'), ('Noturno', 'Noturno')], validators=[DataRequired()])
+    # Dias gravados sem mês/ano ("10, 17, 25"): todos pertencem ao mês
+    # selecionado no campo Mês, gravado à parte (dates_month) no blueprint.
     multiple_dates = StringField('Múltiplas Datas', validators=[Optional(), Length(max=255)])
     justification = StringField('Justificativa', validators=[Optional(), Length(max=100)])
     observation = TextAreaField('Observação', validators=[Optional(), Length(max=500)])

@@ -28,21 +28,46 @@ BUDGET_CODE_LENGTHS = (9, 14)
 MONTH_NAMES_PT = ('Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro')
 
-# Janela de lançamento da Hora Extra: do dia 20 do mês anterior ao dia 20 do
+# Janela de lançamento da Hora Extra: do dia 21 do mês anterior ao dia 20 do
 # mês corrente, tudo que é lançado conta para o mês corrente; depois do dia
-# 20, conta para o mês seguinte. O Mês Base é derivado do dia do lançamento —
-# não há escolha manual.
+# 20, conta para o mês seguinte. O Mês Base segue essa janela por padrão — o
+# formulário permite antecipar a entrada para o mês seguinte selecionando o
+# próximo mês no Mês de Referência.
 MONTH_WINDOW_DAY = 20
+
+
+def _mes_atual(now=None):
+    """Mês corrente do calendário (YYYY-MM)."""
+    return (now or datetime.now()).strftime('%Y-%m')
+
+
+def _mes_anterior_de(mes):
+    """Mês anterior a um mês dado (YYYY-MM → YYYY-MM)."""
+    ano, mes = int(mes[:4]), int(mes[5:7])
+    mes -= 1
+    if mes < 1:
+        mes, ano = 12, ano - 1
+    return f'{ano:04d}-{mes:02d}'
+
+
+def _mes_anterior(now=None):
+    """Mês anterior do calendário (YYYY-MM)."""
+    return _mes_anterior_de(_mes_atual(now))
+
+
+def _proximo_mes(now=None):
+    """Mês seguinte do calendário (YYYY-MM)."""
+    now = now or datetime.now()
+    mes, ano = now.month + 1, now.year
+    if mes > 12:
+        mes, ano = 1, ano + 1
+    return f'{ano:04d}-{mes:02d}'
 
 
 def _month_base_janela(now=None):
     """Mês de referência do lançamento pela janela 20→20."""
     now = now or datetime.now()
-    if now.day <= MONTH_WINDOW_DAY:
-        return now.strftime('%Y-%m')
-    mes = now.month + 1
-    ano = now.year + (1 if mes > 12 else 0)
-    return f'{ano:04d}-{mes if mes <= 12 else 1:02d}'
+    return _mes_atual(now) if now.day <= MONTH_WINDOW_DAY else _proximo_mes(now)
 
 
 def _rotulo_mes(month_base):
@@ -64,6 +89,50 @@ def _meses_fechados(unity_id):
     """Conjunto dos meses já fechados na unidade (uma consulta por página)."""
     return {c.month_base for c in
             OvertimeMonthClosure.query.filter_by(unity_id=unity_id).all()}
+
+
+def _mes_valido(valor):
+    """Valor em formato de mês (YYYY-MM) ou None."""
+    if valor and re.match(r'^\d{4}-\d{2}$', valor):
+        return valor
+    return None
+
+
+def _opcoes_mes_datas(referencia, extra=None):
+    """Opções do seletor de mês das datas, relativas ao mês de referência
+    escolhido: o mês anterior a ele e ele próprio. Na edição, entra também o
+    mês já gravado no lançamento, quando distinto, para que as datas salvas
+    continuem acessíveis no calendário."""
+    mes_anterior = _mes_anterior_de(referencia)
+    opcoes = [(mes_anterior, _rotulo_mes(mes_anterior)),
+              (referencia, _rotulo_mes(referencia))]
+    if extra and extra not in {valor for valor, _ in opcoes}:
+        opcoes.append((extra, _rotulo_mes(extra)))
+    return opcoes
+
+
+def _mes_datas_salvas(overtime):
+    """Mês (YYYY-MM) ao qual pertencem os dias gravados: o campo dates_month
+    (lançamentos novos) ou, nos antigos, o próprio mês base — datas completas
+    gravadas por uma versão intermediária também são reconhecidas."""
+    if overtime.dates_month:
+        return overtime.dates_month
+    for token in (overtime.multiple_dates or '').split(','):
+        m = re.match(r'^\s*(\d{1,2})/(\d{1,2})/(\d{4})\s*$', token)
+        if m:
+            return f'{m.group(3)}-{int(m.group(2)):02d}'
+    return overtime.month_base
+
+
+def _mes_datas_postado(referencia, extra=None):
+    """Mês das datas selecionado no formulário: aceito apenas quando é o mês
+    de referência, o anterior ou o já gravado (edição). Fora disso grava nulo —
+    a edição então assume o mês base, como nos lançamentos antigos."""
+    permitidos = {_mes_anterior_de(referencia), referencia}
+    if extra:
+        permitidos.add(extra)
+    mes = _mes_valido(request.form.get('dates_month'))
+    return mes if mes and mes in permitidos else None
 
 # ================= HELPER FUNCTIONS =================
 
@@ -115,10 +184,12 @@ def hours_minutes_filter(value):
 
 def _month_options():
     """Meses para a caixa de seleção da consulta: os que já possuem lançamentos
-    na unidade + o mês da janela atual, do mais recente para o mais antigo."""
+    na unidade + o mês atual e o mês da janela, do mais recente para o mais
+    antigo."""
     rows = (TeacherOvertimePay.query.with_entities(TeacherOvertimePay.month_base)
             .filter_by(unity_id=current_unity_id()).distinct().all())
     months = {row[0] for row in rows if row[0]}
+    months.add(_mes_atual())
     months.add(_month_base_janela())
     options = []
     for value in sorted(months, reverse=True):
@@ -162,11 +233,12 @@ def decimal_to_minutes(value):
 @require_permission('payment:read')
 @require_module('finance')
 def list_overtime():
-    # A consulta abre no mês da janela de lançamento (20→20); a caixa de
-    # seleção permite escolher outro mês ou "Todos os meses" (valor vazio).
+    # A consulta abre no mês atual do calendário: é ele que o botão "Fechar
+    # Mês" tranca — os lançamentos do mês seguinte permanecem editáveis. A
+    # caixa de seleção permite escolher outro mês ou "Todos os meses" (vazio).
     filter_month = request.args.get('month_base')
     if filter_month is None:
-        filter_month = _month_base_janela()
+        filter_month = _mes_atual()
     filter_teacher = request.args.get('teacher_filter', type=int)
 
     # CORREÇÃO: a condição anterior era dead-code — @require_permission('payment:read') já garante
@@ -204,13 +276,27 @@ def create_overtime():
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
     form.course_type.choices = _course_type_choices()
 
-    # Mês de referência derivado da janela 20→20 — o formulário não escolhe
-    # mês; o lançamento conta para o mês da janela em que foi feito.
-    month_base = _month_base_janela()
+    # Mês de referência: a janela 20→20 define o padrão (lançamentos entre o
+    # dia 21 do mês anterior e o dia 20 contam para o mês atual; depois disso,
+    # para o próximo). Exceção: selecionar o próximo mês no Mês de Referência
+    # inclui a entrada no próximo mês de pagamento, mesmo antes do dia 20.
+    mes_atual, proximo_mes = _mes_atual(), _proximo_mes()
+    month_base = (proximo_mes if request.form.get('reference_month') == proximo_mes
+                  else _month_base_janela())
+
+    # O campo Mês segue o mês de referência escolhido: oferece o mês anterior
+    # a ele e ele próprio (o JavaScript reconstrói as opções quando a seleção
+    # muda). O mês das datas é gravado para a edição restaurar o calendário.
+    referencia_selecionada = (_mes_valido(request.form.get('reference_month'))
+                              or _month_base_janela())
+    opcoes_datas = _opcoes_mes_datas(referencia_selecionada)
+    mes_datas_selecionada = request.form.get('dates_month')
+    if mes_datas_selecionada not in {valor for valor, _ in opcoes_datas}:
+        mes_datas_selecionada = referencia_selecionada
 
     if form.validate_on_submit():
-        # Fechamento antecipado: se a unidade já fechou o mês da janela,
-        # nenhum lançamento novo pode entrar nele.
+        # Fechamento antecipado: se a unidade já fechou o mês de referência
+        # deste lançamento (janela ou próximo mês selecionado), ele não entra.
         if _mes_fechado(current_unity_id(), month_base):
             flash('Erro: O mês de referência deste lançamento já foi fechado. '
                   'Não é possível lançar em um mês fechado.', 'danger')
@@ -235,7 +321,8 @@ def create_overtime():
             budget_code=format_budget_code(form.budget_code.data), shift=form.shift.data,
             multiple_dates=form.multiple_dates.data, justification=form.justification.data,
             observation=form.observation.data,
-            month_base=month_base, accountable_id=current_user.id
+            month_base=month_base, dates_month=_mes_datas_postado(referencia_selecionada),
+            accountable_id=current_user.id
         )
         db.session.add(overtime)
         db.session.commit()
@@ -243,7 +330,14 @@ def create_overtime():
         return redirect_preserving_args('payments.list_overtime')
 
     return render_template('payments/form_overtime.html', form=form, title='Nova Hora Extra',
-                           month_base=month_base, month_label=_rotulo_mes(month_base))
+                           modo_criacao=True,
+                           opcoes_referencia=[(mes_atual, _rotulo_mes(mes_atual)),
+                                              (proximo_mes, _rotulo_mes(proximo_mes))],
+                           referencia_selecionada=referencia_selecionada,
+                           valor_proximo_mes=proximo_mes,
+                           nomes_meses=MONTH_NAMES_PT,
+                           opcoes_mes_datas=opcoes_datas,
+                           mes_datas_selecionada=mes_datas_selecionada)
 
 @bp.route('/overtime/edit/<int:overtime_id>', methods=['GET', 'POST'])
 @login_required
@@ -261,6 +355,10 @@ def edit_overtime(overtime_id):
     form = FormTeacherOvertimePay(obj=overtime)
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
     form.course_type.choices = _course_type_choices()
+
+    # Mês ao qual pertencem os dias gravados (dates_month, ou o mês base nos
+    # lançamentos antigos): usado no POST e na reexibição do calendário.
+    mes_datas = _mes_datas_salvas(overtime)
 
     if request.method == 'GET':
         # Os relationships overtime.teacher e overtime.course_type (objetos)
@@ -296,16 +394,30 @@ def edit_overtime(overtime_id):
         overtime.multiple_dates = form.multiple_dates.data
         overtime.justification = form.justification.data
         overtime.observation = form.observation.data
-        # O Mês Base não muda na edição: é derivado da janela de lançamento.
+        # O Mês Base não muda na edição. O mês das datas pode ser reescolhido
+        # (mês base ou anterior); sem o campo no POST, preserva o gravado.
+        if 'dates_month' in request.form:
+            overtime.dates_month = _mes_datas_postado(overtime.month_base, extra=mes_datas)
         overtime.accountable_id = current_user.id
 
         db.session.commit()
         flash('Alteração realizada!', 'success')
         return redirect_preserving_args('payments.list_overtime')
 
+    # O Mês Base não muda na edição: é definido no lançamento (janela 20→20 ou
+    # próximo mês selecionado) e apenas exibido. O campo Mês oferece o mês
+    # anterior e o próprio mês base, mais o mês já gravado quando distinto.
+    opcoes_datas = _opcoes_mes_datas(overtime.month_base, extra=mes_datas)
+    mes_datas_selecionada = request.form.get('dates_month')
+    if mes_datas_selecionada not in {valor for valor, _ in opcoes_datas}:
+        mes_datas_selecionada = mes_datas
+
     return render_template('payments/form_overtime.html', form=form, title='Editar Hora Extra',
-                           month_base=overtime.month_base,
-                           month_label=_rotulo_mes(overtime.month_base))
+                           modo_criacao=False,
+                           month_label=_rotulo_mes(overtime.month_base),
+                           nomes_meses=MONTH_NAMES_PT,
+                           opcoes_mes_datas=opcoes_datas,
+                           mes_datas_selecionada=mes_datas_selecionada)
 
 @bp.route('/overtime/delete/<int:overtime_id>', methods=['POST'])
 @login_required
