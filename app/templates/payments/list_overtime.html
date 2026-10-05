@@ -54,14 +54,6 @@
                         <option value="{{ value }}" {{ 'selected' if filter_month == value }}>{{ label }}</option>
                     {% endfor %}
                 </select>
-                <div class="form-text small" id="periodo-hint" aria-live="polite">
-                    {% if periodo_inicio %}
-                    Período de lançamento de <strong>{{ filter_month_label }}</strong>:
-                    <strong>{{ periodo_inicio }}</strong> a <strong>{{ periodo_fim }}</strong> — o que foi lançado nesse intervalo conta para este mês.
-                    {% else %}
-                    Mostrando os lançamentos de todos os períodos.
-                    {% endif %}
-                </div>
             </div>
             <div class="col-md-4">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1">Professor</label>
@@ -90,6 +82,20 @@
         </div>
     </div>
 </form>
+
+{# Caixa separada dos filtros: informa o período de lançamento do mês em
+   vista — o JavaScript a atualiza quando o mês do seletor muda. #}
+<div class="alert alert-secondary d-flex align-items-center gap-2 py-2 px-3 mb-4 small" id="periodo-hint" aria-live="polite" role="alert">
+    <i class="bi bi-calendar-range flex-shrink-0"></i>
+    <div>
+        {% if periodo_inicio %}
+        Período de lançamento de <strong>{{ filter_month_label }}</strong>:
+        <strong>{{ periodo_inicio }}</strong> a <strong>{{ periodo_fim }}</strong> — o que foi lançado nesse intervalo conta para este mês.
+        {% else %}
+        Mostrando os lançamentos de todos os períodos.
+        {% endif %}
+    </div>
+</div>
 
 <div class="card">
     <div class="card-body p-0">
@@ -260,7 +266,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const monthSelect = document.getElementById('month_base');
     const teacherSelect = document.getElementById('teacher_filter');
     const exportBtn = document.getElementById('exportBtn');
-    const periodoHint = document.getElementById('periodo-hint');
+    const periodoBox = document.getElementById('periodo-hint');
     const NOMES_MESES = {{ nomes_meses | tojson }};
 
     // Função para ativar/desativar o botão de exportar
@@ -285,11 +291,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Dica do período visualizado: cada mês de referência reúne o que foi
-    // lançado do dia 21 do mês anterior ao dia 20 dele.
+    // lançado do dia 21 do mês anterior ao dia 20 dele. O texto vive na div
+    // interna da caixa, preservando o ícone.
     function atualizarPeriodo() {
-        if (!periodoHint) return;
+        if (!periodoBox) return;
+        const texto = periodoBox.querySelector('div');
         if (!monthSelect.value) {
-            periodoHint.textContent = 'Mostrando os lançamentos de todos os períodos.';
+            texto.textContent = 'Mostrando os lançamentos de todos os períodos.';
             return;
         }
         const anterior = mesAnteriorDe(monthSelect.value);
@@ -297,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const [ano, mes] = monthSelect.value.split('-').map(Number);
         const periodo = '21/' + String(mesAnterior).padStart(2, '0') + '/' + anoAnterior +
             ' a 20/' + String(mes).padStart(2, '0') + '/' + ano;
-        periodoHint.innerHTML = 'Período de lançamento de <strong>' + rotuloMes(monthSelect.value) +
+        texto.innerHTML = 'Período de lançamento de <strong>' + rotuloMes(monthSelect.value) +
             '</strong>: <strong>' + periodo + '</strong> — o que foi lançado nesse intervalo conta para este mês.';
     }
 
