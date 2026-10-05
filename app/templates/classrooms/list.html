@@ -53,8 +53,11 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md d-flex align-items-end">
-                <div class="d-flex flex-wrap gap-2 w-100">
+            <div class="col-md">
+                {# Rótulo invisível: ocupa a mesma altura dos títulos das outras colunas
+                   para o botão nascer alinhado com os campos, e não com os títulos #}
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1 invisible d-none d-md-inline-block" aria-hidden="true">&nbsp;</label>
+                <div class="d-flex flex-wrap gap-2">
                     <button type="submit" id="filterBtn" class="btn btn-outline-primary flex-fill" disabled>
                         <i class="bi bi-funnel me-1"></i> Filtrar
                     </button>
