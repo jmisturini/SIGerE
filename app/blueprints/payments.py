@@ -70,6 +70,18 @@ def _month_base_janela(now=None):
     return _mes_atual(now) if now.day <= MONTH_WINDOW_DAY else _proximo_mes(now)
 
 
+def _periodo_lancamento(month_base):
+    """Período de lançamento de um mês de referência: o que foi lançado entre
+    o dia 21 do mês anterior e o dia 20 do próprio mês conta para ele. Retorna
+    (início, fim) como datas, ou None na consulta de todos os meses."""
+    if not _mes_valido(month_base):
+        return None
+    anterior = _mes_anterior_de(month_base)
+    inicio = datetime(int(anterior[:4]), int(anterior[5:7]), 21).date()
+    fim = datetime(int(month_base[:4]), int(month_base[5:7]), 20).date()
+    return inicio, fim
+
+
 def _rotulo_mes(month_base):
     """'Novembro/2026' — rótulo legível do mês de referência (YYYY-MM)."""
     try:
@@ -260,12 +272,19 @@ def list_overtime():
         fechamento = OvertimeMonthClosure.query.filter_by(
             unity_id=current_unity_id(), month_base=filter_month).first()
 
+    # Dica da consulta: o período de lançamento do mês visualizado (dia 21 do
+    # mês anterior ao dia 20 do próprio mês).
+    periodo = _periodo_lancamento(filter_month)
+
     return render_template('payments/list_overtime.html', infos=pagination.items, pagination=pagination,
                            list_teachers=list_teachers, month_options=_month_options(),
                            filter_month=filter_month, filter_teacher=filter_teacher,
                            filter_month_label=_rotulo_mes(filter_month),
                            meses_fechados=_meses_fechados(current_unity_id()),
-                           fechamento=fechamento)
+                           fechamento=fechamento,
+                           periodo_inicio=periodo[0].strftime('%d/%m/%Y') if periodo else None,
+                           periodo_fim=periodo[1].strftime('%d/%m/%Y') if periodo else None,
+                           nomes_meses=MONTH_NAMES_PT)
 
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required
