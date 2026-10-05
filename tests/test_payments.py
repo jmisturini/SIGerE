@@ -522,6 +522,26 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('<td class="ps-4 fw-bold">Professora Teste</td>', page)
         self.assertNotIn('<td class="ps-4 fw-bold">Outro Professor</td>', page)
 
+    def test_list_mostra_periodo_de_lancamento(self):
+        # A dica da consulta informa o período do mês visualizado: do dia 21
+        # do mês anterior ao dia 20 do próprio mês.
+        page = self.client.get('/payments/overtime/list?month_base=2024-08').get_data(as_text=True)
+        self.assertIn('Período de lançamento', page)
+        self.assertIn('Agosto/2024', page)
+        self.assertIn('21/07/2024', page)
+        self.assertIn('20/08/2024', page)
+
+    def test_list_periodo_vira_o_ano(self):
+        # Janeiro reúne o que foi lançado do dia 21 de dezembro do ano anterior.
+        page = self.client.get('/payments/overtime/list?month_base=2026-01').get_data(as_text=True)
+        self.assertIn('21/12/2025', page)
+        self.assertIn('20/01/2026', page)
+
+    def test_list_periodo_para_todos_os_meses(self):
+        # Sem mês filtrado, a dica não aponta um período específico.
+        page = self.client.get('/payments/overtime/list?month_base=').get_data(as_text=True)
+        self.assertIn('Mostrando os lançamentos de todos os períodos.', page)
+
     # ---------- Exportação por professor ----------
 
     def test_export_filtered_by_teacher(self):
