@@ -9,6 +9,21 @@
         <h3 class="fw-bold mb-1">Vale Alimentação — Professores</h3>
         <p class="text-muted mb-0">Lançamento de dias trabalhados por professor.</p>
     </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('payments.export_meal_allowance', **request.args.to_dict()) }}"
+           class="btn btn-success" title="Baixar planilha com o total de dias trabalhados por professor">
+            <i class="bi bi-file-excel me-1"></i> Exportar Excel
+        </a>
+        {% if current_user.has_permission('meal:delete') %}
+        <form method="POST" action="{{ url_for('payments.clear_meal_allowance') }}"
+              onsubmit="return confirm('Excluir TODOS os {{ total_entries }} lançamento(s) de Vale Alimentação desta unidade? Esta ação não pode ser desfeita.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger" title="Excluir todos os lançamentos da unidade">
+                <i class="bi bi-trash me-1"></i> Limpar Tudo
+            </button>
+        </form>
+        {% endif %}
+    </div>
 </div>
 
 {% if current_user.has_permission('meal:create') %}

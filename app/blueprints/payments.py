@@ -8,7 +8,7 @@ from app.forms import FormTeacherOvertimePay, FormValeAlimentacao
 from app.extensions import db
 from app.unity_context import current_unity_id
 from datetime import datetime
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Border, Side, Font, Alignment
 from io import BytesIO
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -509,10 +509,14 @@ def _render_meal_allowance(form, teacher_filter=None):
                                 TeacherMealAllowance.id.desc()) \
         .paginate(page=request.args.get('page', 1, type=int),
                   per_page=PAYS_PER_PAGE, error_out=False)
+    # Total da unidade (sem filtro): alimenta a confirmação do "Limpar Tudo".
+    total_entries = TeacherMealAllowance.query \
+        .filter_by(unity_id=current_unity_id()).count()
     return render_template('payments/meal_allowance.html', form=form,
                            entries=pagination.items, pagination=pagination,
                            list_teachers=_teachers_for_current_unity(),
-                           filter_teacher=teacher_filter)
+                           filter_teacher=teacher_filter,
+                           total_entries=total_entries)
 
 
 @bp.route('/meal-allowance', methods=['GET'])
@@ -584,6 +588,67 @@ def delete_meal_allowance(entry_id):
     db.session.commit()
     flash('Lançamento do Vale Alimentação excluído.', 'success')
     return redirect_back('payments.list_meal_allowance')
+
+
+@bp.route('/meal-allowance/clear', methods=['POST'])
+@login_required
+@require_permission('meal:delete')
+@require_module('finance')
+def clear_meal_allowance():
+    """Remove TODOS os lançamentos de Vale Alimentação da unidade atual,
+    independentemente do filtro aplicado na listagem."""
+    qtde = (TeacherMealAllowance.query
+            .filter_by(unity_id=current_unity_id())
+            .delete(synchronize_session=False))
+    db.session.commit()
+    flash(f'{qtde} lançamento(s) do Vale Alimentação removido(s).',
+          'success' if qtde else 'info')
+    return redirect(url_for('payments.list_meal_allowance'))
+
+
+@bp.route('/meal-allowance/export')
+@login_required
+@require_permission('meal:read')
+@require_module('finance')
+def export_meal_allowance():
+    """Exportação simples do Vale Alimentação: uma linha por professor com o
+    total de dias trabalhados (soma dos lançamentos), respeitando o filtro de
+    professor quando ativo."""
+    teacher_id = request.args.get('teacher_filter', type=int)
+    query = TeacherMealAllowance.query.filter_by(unity_id=current_unity_id())
+    if teacher_id:
+        query = query.filter_by(teacher_id=teacher_id)
+    entries = query.all()
+
+    if not entries:
+        flash('Nenhum lançamento de Vale Alimentação para exportar.', 'danger')
+        return redirect(url_for('payments.list_meal_allowance'))
+
+    totais = {}
+    for entry in entries:
+        nome = entry.teacher.full_name
+        totais[nome] = totais.get(nome, 0) + entry.days
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Vale Alimentação'
+    ws.append(['Professor', 'Dias Trabalhados'])
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    for nome in sorted(totais):
+        ws.append([nome, totais[nome]])
+    ws.column_dimensions['A'].width = 40
+    ws.column_dimensions['B'].width = 18
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return current_app.response_class(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition':
+                 'attachment; filename=vale_alimentacao_professores.xlsx'}
+    )
 
 def _planilha_overtime(overtimes, month_base):
     """Monta a planilha no modelo institucional (base_pagamento_extra.xlsx,
