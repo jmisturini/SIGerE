@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 floors[floorName].forEach(event => {
                     const startTime = new Date(event.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
                     const endTime = new Date(event.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
-                    
+
                     html += `
                         <div class="col-md-6 col-xl-4">
                             <a href="${esc(event.url)}" class="text-decoration-none text-reset">
@@ -193,20 +193,19 @@ document.addEventListener('DOMContentLoaded', function() {
                                             <span class="fs-4 fw-bold text-primary"><i class="bi bi-door-closed"></i> ${esc(event.classroom_code)}</span>
                                             <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-clock"></i> ${esc(startTime)} - ${esc(endTime)}</span>
                                         </div>
-                                        <div class="mb-3">
+                                        <div class="mb-2">
+                                            <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
+                                            <p class="mb-0 fs-5 fw-bold text-truncate">${esc(event.course)}</p>
+                                        </div>
+                                        <div class="mb-2">
+                                            <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
+                                            <p class="mb-0 fs-5 fw-bold text-truncate">${esc(event.teacher)}</p>
+                                        </div>
+                                        ${event.title && event.title.trim() ? `
+                                        <div class="mb-0">
                                             <span class="text-muted small text-uppercase fw-bold d-block">Evento</span>
-                                            <p class="mb-0 fs-5 fw-bold text-break">${esc(event.title)}</p>
-                                        </div>
-                                        <div class="row">
-                                            <div class="col-6 mb-2">
-                                                <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
-                                                <p class="mb-0 text-truncate">${esc(event.course)}</p>
-                                            </div>
-                                            <div class="col-6 mb-2">
-                                                <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
-                                                <p class="mb-0 text-truncate">${esc(event.teacher)}</p>
-                                            </div>
-                                        </div>
+                                            <p class="mb-0 small text-break">${esc(event.title)}</p>
+                                        </div>` : ''}
                                     </div>
                                 </div>
                             </a>
