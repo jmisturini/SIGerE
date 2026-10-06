@@ -814,8 +814,8 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 | Papel | Descrição |
 |-------|-----------|
 | **Super Administrador** | Acesso irrestrito a todas as funcionalidades (`*`) |
-| **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis, cozinha e tokens da API |
-| **Analista** | Aprovar reservas, criar/editar lançamentos de pagamento extra e ver os próprios |
+| **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis, cozinha, tokens da API e consulta dos pedidos de VT |
+| **Analista** | Aprovar reservas e criar/editar lançamentos de pagamento extra e do Vale Alimentação |
 | **Gestor** | Todas as permissões de cursos, reservas, pagamentos extras e salas, além de exportações |
 | **Professor** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
 | **Assistente/Logística** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
@@ -838,14 +838,14 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `room:read` / `room:create` / `room:edit` / `room:toggle` | Visualizar / criar / editar / ativar-desativar salas |
 | `reservation:read_all` / `reservation:read_own` | Ver todas / próprias reservas |
 | `reservation:create` | Criar reservas |
-| `reservation:edit_all` / `reservation:edit_own` | Editar todas / próprias reservas |
+| `reservation:edit_all` | Editar todas as reservas (o dono edita a própria mesmo sem esta permissão) |
 | `reservation:delete_all` | Excluir reservas permanentemente |
 | `reservation:cancel_all` / `reservation:cancel_own` | Cancelar todas / próprias reservas |
 | `reservation:approve` | Aprovar reservas pendentes |
 | `course:read` / `course:create` / `course:edit` / `course:toggle` | Visualizar / criar / editar / ativar-desativar cursos e disciplinas |
 | `holiday:read` / `holiday:create` / `holiday:edit` / `holiday:delete` | Visualizar / criar / editar / excluir feriados |
 | `holiday:import` | Importar feriados da BrasilAPI |
-| `payment:read` / `payment:read_own` | Ver todos / próprios pagamentos |
+| `payment:read` | Ver lançamentos de pagamento extra (hora extra) |
 | `payment:create` / `payment:edit` / `payment:delete` | Criar / editar / excluir lançamentos |
 | `payment:export` | Exportar pagamentos |
 | `payment:close_month` | Fechar os lançamentos do mês de Hora Extra (bloqueia edições e baixa a planilha final) |

@@ -40,7 +40,6 @@ PERMISSION_DATA = [
     ('reservation:read_own', 'reservation', 'read_own', 'Ver próprias reservas'),
     ('reservation:create', 'reservation', 'create', 'Criar reservas'),
     ('reservation:edit_all', 'reservation', 'edit_all', 'Editar todas as reservas'),
-    ('reservation:edit_own', 'reservation', 'edit_own', 'Editar próprias reservas'),
     ('reservation:delete_all', 'reservation', 'delete_all', 'Excluir todas as reservas'),
     ('reservation:cancel_own', 'reservation', 'cancel_own', 'Cancelar próprias reservas'),
     ('reservation:cancel_all', 'reservation', 'cancel_all', 'Cancelar todas as reservas'),
@@ -60,7 +59,6 @@ PERMISSION_DATA = [
     ('holiday:delete', 'holiday', 'delete', 'Excluir feriados'),
     ('holiday:import', 'holiday', 'import', 'Importar feriados da API'),
     ('payment:read', 'payment', 'read', 'Ver lançamentos de pagamento extra (hora extra)'),
-    ('payment:read_own', 'payment', 'read_own', 'Ver os próprios lançamentos de pagamento extra'),
     ('payment:create', 'payment', 'create', 'Criar lançamentos de pagamento extra (hora extra)'),
     ('payment:edit', 'payment', 'edit', 'Editar lançamentos de pagamento extra (hora extra)'),
     ('payment:delete', 'payment', 'delete', 'Excluir lançamentos de pagamento extra (hora extra)'),
@@ -126,7 +124,7 @@ ROLES_CONFIG = {
             'api:manage',
             'role:read', 'role:create', 'role:edit', 'role:delete',
             'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export',
-            'vt:empresas', 'vt:config',
+            'vt:read', 'vt:empresas', 'vt:config',
             'notification:manage', 'notification:groups'
         ]
     },
@@ -137,10 +135,10 @@ ROLES_CONFIG = {
             'course:read',
             'course_type:read',
             'reservation:approve', 'reservation:cancel_own',
-            'reservation:create', 'reservation:edit_own', 'reservation:read_own',
+            'reservation:create', 'reservation:read_own',
             'system:export',
             'room:read',
-            'payment:create', 'payment:edit', 'payment:read_own',
+            'payment:create', 'payment:edit',
             'meal:read', 'meal:create', 'meal:edit'
         ]
     },
@@ -151,10 +149,10 @@ ROLES_CONFIG = {
             'course:read', 'course:create', 'course:edit', 'course:toggle',
             'course_type:read', 'course_type:create', 'course_type:edit', 'course_type:toggle',
             'reservation:read_all', 'reservation:read_own',
-            'reservation:create', 'reservation:edit_all', 'reservation:edit_own',
+            'reservation:create', 'reservation:edit_all',
             'reservation:delete_all', 'reservation:cancel_own', 'reservation:cancel_all',
             'reservation:approve',
-            'payment:read', 'payment:read_own', 'payment:create',
+            'payment:read', 'payment:create',
             'payment:edit', 'payment:delete', 'payment:export', 'payment:close_month',
             'meal:read', 'meal:create', 'meal:edit', 'meal:delete',
             'room:read', 'room:create', 'room:edit', 'room:toggle',
@@ -167,7 +165,7 @@ ROLES_CONFIG = {
         'permissions': [
             'course:read',
             'reservation:create', 'reservation:cancel_own',
-            'reservation:edit_own', 'reservation:read_own',
+            'reservation:read_own',
             'system:export',
             'room:read'
         ]
@@ -178,7 +176,7 @@ ROLES_CONFIG = {
         'permissions': [
             'course:read',
             'reservation:cancel_own', 'reservation:create',
-            'reservation:edit_own', 'reservation:read_own',
+            'reservation:read_own',
             'system:export',
             'room:read'
         ]
