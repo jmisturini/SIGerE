@@ -22,3 +22,17 @@ class Config:
     # Localização do totem/portal para o clima (Open-Meteo). Ajuste por env var.
     TOTEM_LATITUDE = float(os.environ.get('TOTEM_LATITUDE', '-23.5505'))
     TOTEM_LONGITUDE = float(os.environ.get('TOTEM_LONGITUDE', '-46.6333'))
+    # Espelho por e-mail das notificações (comando notify-email): HOST vazio
+    # desativa o envio — o sino in-app segue funcionando sem SMTP.
+    MAIL_SMTP_HOST = os.environ.get('MAIL_SMTP_HOST', '')
+    MAIL_SMTP_PORT = int(os.environ.get('MAIL_SMTP_PORT', '587'))
+    MAIL_SMTP_USER = os.environ.get('MAIL_SMTP_USER', '')
+    MAIL_SMTP_PASSWORD = os.environ.get('MAIL_SMTP_PASSWORD', '')
+    MAIL_SMTP_STARTTLS = os.environ.get('MAIL_SMTP_STARTTLS', '1') == '1'
+    MAIL_FROM = os.environ.get('MAIL_FROM', '')
+    # Tentativas de envio por notificação antes de sair da fila do dreno
+    # (falha de SMTP persistente não pode travar a fila para sempre).
+    MAIL_MAX_ATTEMPTS = int(os.environ.get('MAIL_MAX_ATTEMPTS', '10'))
+    # Base para transformar os deep links das notificações em URLs absolutas
+    # nos e-mails (ex.: https://sigere.suaorg.gov.br).
+    BASE_URL = os.environ.get('BASE_URL', 'http://localhost:5000')

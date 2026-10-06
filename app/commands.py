@@ -9,7 +9,7 @@ from app.models import (
     User, Classroom, Reservation, Course, Subject,
     TeacherOvertimePay, Role, Permission, RoomCategory, Unity
 )
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time, timedelta, timezone
 import random
 
 
@@ -823,13 +823,113 @@ def notify_scan_command(dry_run):
 
     Uso: flask --app run notify-scan [--dry-run]
     """
-    from app.services.notifications import varrer_reservas
+    from app.services.notifications import varrer_reservas, varrer_pendentes
 
     stats = varrer_reservas(dry_run=dry_run)
     rotulo = 'seriam criadas' if dry_run else 'criadas'
+    stats_pend = varrer_pendentes(dry_run=dry_run)
     click.echo(f"Varredura concluída{' (dry-run)' if dry_run else ''}:")
     click.echo(f"  Reservas avaliadas: {stats['reservas']}")
     click.echo(f"  Notificações {rotulo}: {stats['criadas']}")
     click.echo(f"  Já existentes (sem duplicar): {stats['existentes']}")
-    if dry_run and stats['criadas']:
+    click.echo(f"  Pendências avaliadas: {stats_pend['reservas']}")
+    click.echo(f"  Lembretes de aprovação {rotulo}: {stats_pend['criadas']}")
+    if dry_run and (stats['criadas'] or stats_pend['criadas']):
         click.echo("Rode sem --dry-run para gravar.")
+
+
+@click.command('notify-email')
+@with_appcontext
+@click.option('--dry-run', is_flag=True,
+              help='Mostra o que seria enviado sem enviar nada.')
+@click.option('--limite', default=200, show_default=True, type=int,
+              help='Máximo de notificações processadas por rodada.')
+def notify_email_command(dry_run, limite):
+    """Envia por e-mail as notificações ainda pendentes (fila pelo sent_at).
+
+    Espelho por e-mail de todas as notificações do sino: cada uma nasce com
+    sent_at nulo e este comando envia e carimba — falha de SMTP continua
+    pendente para a próxima rodada. Exige MAIL_SMTP_HOST e MAIL_FROM
+    configurados; sem eles não faz nada. O usuário desliga o espelho no
+    perfil (UserNotificationPref.email_enabled).
+
+    Uso: flask --app run notify-email [--dry-run] [--limite N]
+    """
+    from app.services.mailer import drenar_fila_email
+
+    try:
+        stats = drenar_fila_email(limite=limite, dry_run=dry_run)
+    except Exception as e:
+        # Erro de conexão/autenticação SMTP: a rodada inteira falhou, nada
+        # foi carimbado — o timer tenta de novo no próximo ciclo.
+        click.echo(click.style(f"❌ Falha de SMTP: {e}", fg="red"))
+        raise SystemExit(1)
+    if stats.get('puladas') == -1:
+        click.echo("Envio por e-mail desativado: defina MAIL_SMTP_HOST e "
+                   "MAIL_FROM para ativar.")
+        return
+    rotulo = 'seriam enviados' if dry_run else 'enviados'
+    click.echo(f"Dreno de e-mail concluído{' (dry-run)' if dry_run else ''}:")
+    click.echo(f"  Notificações pendentes na fila: {stats['pendentes']}")
+    click.echo(f"  E-mails {rotulo}: {stats['emails']} "
+               f"(cobrindo {stats['notificacoes']} notificação(ões))")
+    click.echo(f"  Falhas (contam tentativa, tentam de novo): {stats['falhas']}")
+    click.echo(f"  Puladas (opt-out/inativas): {stats['puladas']}")
+    if stats['excedidas']:
+        click.echo(click.style(
+            f"  ⚠ {stats['excedidas']} notificação(ões) passaram do limite de "
+            f"tentativas e saíram da fila (verifique o SMTP).", fg="yellow"))
+    if dry_run and stats['emails']:
+        click.echo("Rode sem --dry-run para enviar.")
+
+
+@click.command('notify-cleanup')
+@with_appcontext
+@click.option('--dias-lidas', default=90, show_default=True, type=int,
+              help='Apagar notificações lidas há mais de N dias.')
+@click.option('--dias-passadas', default=30, show_default=True, type=int,
+              help='Apagar notificações (lidas ou não) de reservas cuja data '
+                   'foi há mais de N dias.')
+@click.option('--dry-run', is_flag=True,
+              help='Mostra o que seria apagado sem gravar nada.')
+def notify_cleanup_command(dias_lidas, dias_passadas, dry_run):
+    """Apaga notificações antigas para manter a base enxuta.
+
+    Duas regras: notificações lidas há mais de --dias-lidas, e notificações
+    de reservas cuja data foi há mais de --dias-passadas (lidas ou não —
+    aviso de atividade passada não tem mais função). O aviso de exclusão
+    (reservation_id nulo) só sai pela regra das lidas.
+
+    Uso: flask --app run notify-cleanup [--dry-run] [--dias-lidas N]
+         [--dias-passadas N]
+    """
+    from sqlalchemy import exists, select
+
+    from app.models import Notification, Reservation
+
+    corte_lidas = datetime.now(timezone.utc) - timedelta(days=dias_lidas)
+    corte_reservas = date.today() - timedelta(days=dias_passadas)
+
+    # EXISTS correlacionado: mantém o DELETE em tabela única (o JOIN em
+    # DELETE não é portátil — SQLite/PostgreSQL divergem na sintaxe).
+    de_reserva_passada = exists(
+        select(1).where(Notification.reservation_id == Reservation.id,
+                        Reservation.date < corte_reservas))
+
+    def _apagar(criterio):
+        if dry_run:
+            return Notification.query.filter(criterio).count()
+        return (Notification.query.filter(criterio)
+                .delete(synchronize_session=False))
+
+    qtde_lidas = _apagar(Notification.read_at.isnot(None)
+                         & (Notification.read_at < corte_lidas))
+    qtde_passadas = _apagar(de_reserva_passada)
+    if not dry_run:
+        db.session.commit()
+
+    rotulo = 'seriam apagadas' if dry_run else 'apagadas'
+    click.echo(f"Limpeza de notificações concluída{' (dry-run)' if dry_run else ''}:")
+    click.echo(f"  Lidas há mais de {dias_lidas} dias {rotulo}: {qtde_lidas}")
+    click.echo(f"  De reservas passadas há mais de {dias_passadas} dias "
+               f"{rotulo}: {qtde_passadas}")
