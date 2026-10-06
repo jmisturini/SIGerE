@@ -10,12 +10,30 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.30.0'
+APP_VERSION = '1.30.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.30.1',
+        'data': '2026-10-06',
+        'titulo': 'Dica do mês de referência alinhada e Térreo em ordem na agenda',
+        'grupos': [
+            ('Corrigido', [
+                'Cadastro de Hora Extra: a dica ao lado do Mês de Referência fica '
+                'verticalmente centrada com o campo — o rótulo saiu da linha '
+                'centralizada da caixa em destaque e o texto não "flutua" mais acima '
+                'do centro, na criação (mês atual e próximo mês) e na edição.',
+                'Agenda (/calendar): andares cadastrados como "Térreo" aparecem antes '
+                'dos andares numerados mesmo com acento ou caixa diferentes do texto '
+                'exato do mapa ("TERREO", "terreo") — a ordenação normaliza o nome do '
+                'andar antes de consultar a ordem; os demais andares seguem como '
+                'estavam.',
+            ]),
+        ],
+    },
     {
         'versao': '1.30.0',
         'data': '2026-10-03',

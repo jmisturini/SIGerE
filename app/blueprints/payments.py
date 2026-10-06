@@ -8,7 +8,7 @@ from app.forms import FormTeacherOvertimePay, FormValeAlimentacao
 from app.extensions import db
 from app.unity_context import current_unity_id
 from datetime import datetime
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Border, Side, Font, Alignment
 from io import BytesIO
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -28,21 +28,58 @@ BUDGET_CODE_LENGTHS = (9, 14)
 MONTH_NAMES_PT = ('Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro')
 
-# Janela de lançamento da Hora Extra: do dia 20 do mês anterior ao dia 20 do
+# Janela de lançamento da Hora Extra: do dia 21 do mês anterior ao dia 20 do
 # mês corrente, tudo que é lançado conta para o mês corrente; depois do dia
-# 20, conta para o mês seguinte. O Mês Base é derivado do dia do lançamento —
-# não há escolha manual.
+# 20, conta para o mês seguinte. O Mês Base segue essa janela por padrão — o
+# formulário permite antecipar a entrada para o mês seguinte selecionando o
+# próximo mês no Mês de Referência.
 MONTH_WINDOW_DAY = 20
+
+
+def _mes_atual(now=None):
+    """Mês corrente do calendário (YYYY-MM)."""
+    return (now or datetime.now()).strftime('%Y-%m')
+
+
+def _mes_anterior_de(mes):
+    """Mês anterior a um mês dado (YYYY-MM → YYYY-MM)."""
+    ano, mes = int(mes[:4]), int(mes[5:7])
+    mes -= 1
+    if mes < 1:
+        mes, ano = 12, ano - 1
+    return f'{ano:04d}-{mes:02d}'
+
+
+def _mes_anterior(now=None):
+    """Mês anterior do calendário (YYYY-MM)."""
+    return _mes_anterior_de(_mes_atual(now))
+
+
+def _proximo_mes(now=None):
+    """Mês seguinte do calendário (YYYY-MM)."""
+    now = now or datetime.now()
+    mes, ano = now.month + 1, now.year
+    if mes > 12:
+        mes, ano = 1, ano + 1
+    return f'{ano:04d}-{mes:02d}'
 
 
 def _month_base_janela(now=None):
     """Mês de referência do lançamento pela janela 20→20."""
     now = now or datetime.now()
-    if now.day <= MONTH_WINDOW_DAY:
-        return now.strftime('%Y-%m')
-    mes = now.month + 1
-    ano = now.year + (1 if mes > 12 else 0)
-    return f'{ano:04d}-{mes if mes <= 12 else 1:02d}'
+    return _mes_atual(now) if now.day <= MONTH_WINDOW_DAY else _proximo_mes(now)
+
+
+def _periodo_lancamento(month_base):
+    """Período de lançamento de um mês de referência: o que foi lançado entre
+    o dia 21 do mês anterior e o dia 20 do próprio mês conta para ele. Retorna
+    (início, fim) como datas, ou None na consulta de todos os meses."""
+    if not _mes_valido(month_base):
+        return None
+    anterior = _mes_anterior_de(month_base)
+    inicio = datetime(int(anterior[:4]), int(anterior[5:7]), 21).date()
+    fim = datetime(int(month_base[:4]), int(month_base[5:7]), 20).date()
+    return inicio, fim
 
 
 def _rotulo_mes(month_base):
@@ -64,6 +101,50 @@ def _meses_fechados(unity_id):
     """Conjunto dos meses já fechados na unidade (uma consulta por página)."""
     return {c.month_base for c in
             OvertimeMonthClosure.query.filter_by(unity_id=unity_id).all()}
+
+
+def _mes_valido(valor):
+    """Valor em formato de mês (YYYY-MM) ou None."""
+    if valor and re.match(r'^\d{4}-\d{2}$', valor):
+        return valor
+    return None
+
+
+def _opcoes_mes_datas(referencia, extra=None):
+    """Opções do seletor de mês das datas, relativas ao mês de referência
+    escolhido: o mês anterior a ele e ele próprio. Na edição, entra também o
+    mês já gravado no lançamento, quando distinto, para que as datas salvas
+    continuem acessíveis no calendário."""
+    mes_anterior = _mes_anterior_de(referencia)
+    opcoes = [(mes_anterior, _rotulo_mes(mes_anterior)),
+              (referencia, _rotulo_mes(referencia))]
+    if extra and extra not in {valor for valor, _ in opcoes}:
+        opcoes.append((extra, _rotulo_mes(extra)))
+    return opcoes
+
+
+def _mes_datas_salvas(overtime):
+    """Mês (YYYY-MM) ao qual pertencem os dias gravados: o campo dates_month
+    (lançamentos novos) ou, nos antigos, o próprio mês base — datas completas
+    gravadas por uma versão intermediária também são reconhecidas."""
+    if overtime.dates_month:
+        return overtime.dates_month
+    for token in (overtime.multiple_dates or '').split(','):
+        m = re.match(r'^\s*(\d{1,2})/(\d{1,2})/(\d{4})\s*$', token)
+        if m:
+            return f'{m.group(3)}-{int(m.group(2)):02d}'
+    return overtime.month_base
+
+
+def _mes_datas_postado(referencia, extra=None):
+    """Mês das datas selecionado no formulário: aceito apenas quando é o mês
+    de referência, o anterior ou o já gravado (edição). Fora disso grava nulo —
+    a edição então assume o mês base, como nos lançamentos antigos."""
+    permitidos = {_mes_anterior_de(referencia), referencia}
+    if extra:
+        permitidos.add(extra)
+    mes = _mes_valido(request.form.get('dates_month'))
+    return mes if mes and mes in permitidos else None
 
 # ================= HELPER FUNCTIONS =================
 
@@ -115,10 +196,12 @@ def hours_minutes_filter(value):
 
 def _month_options():
     """Meses para a caixa de seleção da consulta: os que já possuem lançamentos
-    na unidade + o mês da janela atual, do mais recente para o mais antigo."""
+    na unidade + o mês atual e o mês da janela, do mais recente para o mais
+    antigo."""
     rows = (TeacherOvertimePay.query.with_entities(TeacherOvertimePay.month_base)
             .filter_by(unity_id=current_unity_id()).distinct().all())
     months = {row[0] for row in rows if row[0]}
+    months.add(_mes_atual())
     months.add(_month_base_janela())
     options = []
     for value in sorted(months, reverse=True):
@@ -162,11 +245,12 @@ def decimal_to_minutes(value):
 @require_permission('payment:read')
 @require_module('finance')
 def list_overtime():
-    # A consulta abre no mês da janela de lançamento (20→20); a caixa de
-    # seleção permite escolher outro mês ou "Todos os meses" (valor vazio).
+    # A consulta abre no mês atual do calendário: é ele que o botão "Fechar
+    # Mês" tranca — os lançamentos do mês seguinte permanecem editáveis. A
+    # caixa de seleção permite escolher outro mês ou "Todos os meses" (vazio).
     filter_month = request.args.get('month_base')
     if filter_month is None:
-        filter_month = _month_base_janela()
+        filter_month = _mes_atual()
     filter_teacher = request.args.get('teacher_filter', type=int)
 
     # CORREÇÃO: a condição anterior era dead-code — @require_permission('payment:read') já garante
@@ -188,12 +272,19 @@ def list_overtime():
         fechamento = OvertimeMonthClosure.query.filter_by(
             unity_id=current_unity_id(), month_base=filter_month).first()
 
+    # Dica da consulta: o período de lançamento do mês visualizado (dia 21 do
+    # mês anterior ao dia 20 do próprio mês).
+    periodo = _periodo_lancamento(filter_month)
+
     return render_template('payments/list_overtime.html', infos=pagination.items, pagination=pagination,
                            list_teachers=list_teachers, month_options=_month_options(),
                            filter_month=filter_month, filter_teacher=filter_teacher,
                            filter_month_label=_rotulo_mes(filter_month),
                            meses_fechados=_meses_fechados(current_unity_id()),
-                           fechamento=fechamento)
+                           fechamento=fechamento,
+                           periodo_inicio=periodo[0].strftime('%d/%m/%Y') if periodo else None,
+                           periodo_fim=periodo[1].strftime('%d/%m/%Y') if periodo else None,
+                           nomes_meses=MONTH_NAMES_PT)
 
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required
@@ -204,13 +295,27 @@ def create_overtime():
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
     form.course_type.choices = _course_type_choices()
 
-    # Mês de referência derivado da janela 20→20 — o formulário não escolhe
-    # mês; o lançamento conta para o mês da janela em que foi feito.
-    month_base = _month_base_janela()
+    # Mês de referência: a janela 20→20 define o padrão (lançamentos entre o
+    # dia 21 do mês anterior e o dia 20 contam para o mês atual; depois disso,
+    # para o próximo). Exceção: selecionar o próximo mês no Mês de Referência
+    # inclui a entrada no próximo mês de pagamento, mesmo antes do dia 20.
+    mes_atual, proximo_mes = _mes_atual(), _proximo_mes()
+    month_base = (proximo_mes if request.form.get('reference_month') == proximo_mes
+                  else _month_base_janela())
+
+    # O campo Mês segue o mês de referência escolhido: oferece o mês anterior
+    # a ele e ele próprio (o JavaScript reconstrói as opções quando a seleção
+    # muda). O mês das datas é gravado para a edição restaurar o calendário.
+    referencia_selecionada = (_mes_valido(request.form.get('reference_month'))
+                              or _month_base_janela())
+    opcoes_datas = _opcoes_mes_datas(referencia_selecionada)
+    mes_datas_selecionada = request.form.get('dates_month')
+    if mes_datas_selecionada not in {valor for valor, _ in opcoes_datas}:
+        mes_datas_selecionada = referencia_selecionada
 
     if form.validate_on_submit():
-        # Fechamento antecipado: se a unidade já fechou o mês da janela,
-        # nenhum lançamento novo pode entrar nele.
+        # Fechamento antecipado: se a unidade já fechou o mês de referência
+        # deste lançamento (janela ou próximo mês selecionado), ele não entra.
         if _mes_fechado(current_unity_id(), month_base):
             flash('Erro: O mês de referência deste lançamento já foi fechado. '
                   'Não é possível lançar em um mês fechado.', 'danger')
@@ -235,7 +340,8 @@ def create_overtime():
             budget_code=format_budget_code(form.budget_code.data), shift=form.shift.data,
             multiple_dates=form.multiple_dates.data, justification=form.justification.data,
             observation=form.observation.data,
-            month_base=month_base, accountable_id=current_user.id
+            month_base=month_base, dates_month=_mes_datas_postado(referencia_selecionada),
+            accountable_id=current_user.id
         )
         db.session.add(overtime)
         db.session.commit()
@@ -243,7 +349,14 @@ def create_overtime():
         return redirect_preserving_args('payments.list_overtime')
 
     return render_template('payments/form_overtime.html', form=form, title='Nova Hora Extra',
-                           month_base=month_base, month_label=_rotulo_mes(month_base))
+                           modo_criacao=True,
+                           opcoes_referencia=[(mes_atual, _rotulo_mes(mes_atual)),
+                                              (proximo_mes, _rotulo_mes(proximo_mes))],
+                           referencia_selecionada=referencia_selecionada,
+                           valor_proximo_mes=proximo_mes,
+                           nomes_meses=MONTH_NAMES_PT,
+                           opcoes_mes_datas=opcoes_datas,
+                           mes_datas_selecionada=mes_datas_selecionada)
 
 @bp.route('/overtime/edit/<int:overtime_id>', methods=['GET', 'POST'])
 @login_required
@@ -261,6 +374,10 @@ def edit_overtime(overtime_id):
     form = FormTeacherOvertimePay(obj=overtime)
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
     form.course_type.choices = _course_type_choices()
+
+    # Mês ao qual pertencem os dias gravados (dates_month, ou o mês base nos
+    # lançamentos antigos): usado no POST e na reexibição do calendário.
+    mes_datas = _mes_datas_salvas(overtime)
 
     if request.method == 'GET':
         # Os relationships overtime.teacher e overtime.course_type (objetos)
@@ -296,16 +413,30 @@ def edit_overtime(overtime_id):
         overtime.multiple_dates = form.multiple_dates.data
         overtime.justification = form.justification.data
         overtime.observation = form.observation.data
-        # O Mês Base não muda na edição: é derivado da janela de lançamento.
+        # O Mês Base não muda na edição. O mês das datas pode ser reescolhido
+        # (mês base ou anterior); sem o campo no POST, preserva o gravado.
+        if 'dates_month' in request.form:
+            overtime.dates_month = _mes_datas_postado(overtime.month_base, extra=mes_datas)
         overtime.accountable_id = current_user.id
 
         db.session.commit()
         flash('Alteração realizada!', 'success')
         return redirect_preserving_args('payments.list_overtime')
 
+    # O Mês Base não muda na edição: é definido no lançamento (janela 20→20 ou
+    # próximo mês selecionado) e apenas exibido. O campo Mês oferece o mês
+    # anterior e o próprio mês base, mais o mês já gravado quando distinto.
+    opcoes_datas = _opcoes_mes_datas(overtime.month_base, extra=mes_datas)
+    mes_datas_selecionada = request.form.get('dates_month')
+    if mes_datas_selecionada not in {valor for valor, _ in opcoes_datas}:
+        mes_datas_selecionada = mes_datas
+
     return render_template('payments/form_overtime.html', form=form, title='Editar Hora Extra',
-                           month_base=overtime.month_base,
-                           month_label=_rotulo_mes(overtime.month_base))
+                           modo_criacao=False,
+                           month_label=_rotulo_mes(overtime.month_base),
+                           nomes_meses=MONTH_NAMES_PT,
+                           opcoes_mes_datas=opcoes_datas,
+                           mes_datas_selecionada=mes_datas_selecionada)
 
 @bp.route('/overtime/delete/<int:overtime_id>', methods=['POST'])
 @login_required
@@ -397,10 +528,14 @@ def _render_meal_allowance(form, teacher_filter=None):
                                 TeacherMealAllowance.id.desc()) \
         .paginate(page=request.args.get('page', 1, type=int),
                   per_page=PAYS_PER_PAGE, error_out=False)
+    # Total da unidade (sem filtro): alimenta a confirmação do "Limpar Tudo".
+    total_entries = TeacherMealAllowance.query \
+        .filter_by(unity_id=current_unity_id()).count()
     return render_template('payments/meal_allowance.html', form=form,
                            entries=pagination.items, pagination=pagination,
                            list_teachers=_teachers_for_current_unity(),
-                           filter_teacher=teacher_filter)
+                           filter_teacher=teacher_filter,
+                           total_entries=total_entries)
 
 
 @bp.route('/meal-allowance', methods=['GET'])
@@ -473,6 +608,67 @@ def delete_meal_allowance(entry_id):
     flash('Lançamento do Vale Alimentação excluído.', 'success')
     return redirect_back('payments.list_meal_allowance')
 
+
+@bp.route('/meal-allowance/clear', methods=['POST'])
+@login_required
+@require_permission('meal:delete')
+@require_module('finance')
+def clear_meal_allowance():
+    """Remove TODOS os lançamentos de Vale Alimentação da unidade atual,
+    independentemente do filtro aplicado na listagem."""
+    qtde = (TeacherMealAllowance.query
+            .filter_by(unity_id=current_unity_id())
+            .delete(synchronize_session=False))
+    db.session.commit()
+    flash(f'{qtde} lançamento(s) do Vale Alimentação removido(s).',
+          'success' if qtde else 'info')
+    return redirect(url_for('payments.list_meal_allowance'))
+
+
+@bp.route('/meal-allowance/export')
+@login_required
+@require_permission('meal:read')
+@require_module('finance')
+def export_meal_allowance():
+    """Exportação simples do Vale Alimentação: uma linha por professor com o
+    total de dias trabalhados (soma dos lançamentos), respeitando o filtro de
+    professor quando ativo."""
+    teacher_id = request.args.get('teacher_filter', type=int)
+    query = TeacherMealAllowance.query.filter_by(unity_id=current_unity_id())
+    if teacher_id:
+        query = query.filter_by(teacher_id=teacher_id)
+    entries = query.all()
+
+    if not entries:
+        flash('Nenhum lançamento de Vale Alimentação para exportar.', 'danger')
+        return redirect(url_for('payments.list_meal_allowance'))
+
+    totais = {}
+    for entry in entries:
+        nome = entry.teacher.full_name
+        totais[nome] = totais.get(nome, 0) + entry.days
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Vale Alimentação'
+    ws.append(['Professor', 'Dias Trabalhados'])
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    for nome in sorted(totais):
+        ws.append([nome, totais[nome]])
+    ws.column_dimensions['A'].width = 40
+    ws.column_dimensions['B'].width = 18
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return current_app.response_class(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition':
+                 'attachment; filename=vale_alimentacao_professores.xlsx'}
+    )
+
 def _planilha_overtime(overtimes, month_base):
     """Monta a planilha no modelo institucional (base_pagamento_extra.xlsx,
     aba Extra NEB). A carga horária sai em hora e minuto inteiros (4h30) —
@@ -507,16 +703,18 @@ def _planilha_overtime(overtimes, month_base):
 
     for baseline, data in enumerate(overtimes, start=7):
         minutos = decimal_to_minutes(data.weekly_workload) if data.weekly_workload else 0
+        # Ordem dos cabeçalhos do modelo (linha 6): Tipo de Curso logo após o
+        # Nível de Docência, e Observação por último.
         cell_data = [
             (1, data.teacher.full_name),
             (2, data.teaching_level),
-            (3, f'{minutos // 60}h{minutos % 60:02d}'),
-            (4, float(data.hourly_value) if data.hourly_value else 0),
-            (5, data.multiple_dates or ''),
-            (6, data.shift),
-            (7, format_budget_code(data.budget_code)),
-            (8, data.justification or ''),
-            (9, data.course_type.name if data.course_type else '—'),
+            (3, data.course_type.name if data.course_type else '—'),
+            (4, f'{minutos // 60}h{minutos % 60:02d}'),
+            (5, float(data.hourly_value) if data.hourly_value else 0),
+            (6, data.multiple_dates or ''),
+            (7, data.shift),
+            (8, format_budget_code(data.budget_code)),
+            (9, data.justification or ''),
             (10, data.observation or ''),
         ]
 

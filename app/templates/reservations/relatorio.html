@@ -1,0 +1,380 @@
+{% extends 'base.html' %}
+{% block title %}Relatório de Salas e Reservas{% endblock %}
+
+{% block content %}
+<style>
+    .rel-kpi .rel-icone {
+        width: 3rem; height: 3rem; border-radius: .75rem;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.4rem; flex-shrink: 0;
+    }
+    .rel-kpi .rel-valor { font-size: 1.7rem; line-height: 1.15; }
+    .rel-grafico { position: relative; height: 260px; }
+    .rel-grafico-alto { position: relative; height: 320px; }
+    @media print {
+        .sidebar, .topbar, .footer, .no-print { display: none !important; }
+        .app-container { display: block !important; }
+        .main-content, .page-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+        body { background: #fff !important; }
+        .card { border: 1px solid #dee2e6 !important; break-inside: avoid; box-shadow: none !important; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+</style>
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-start mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-clipboard-data text-primary me-2"></i>Relatório de Salas e Reservas</h3>
+        <p class="text-muted mb-0">
+            Panorama das reservas da unidade <strong>{{ current_unity.name if current_unity else '—' }}</strong>
+            · período de {{ periodo_label }}
+            · gerado em {{ gerado_em }}
+        </p>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a href="{{ url_for('reservations.all_reservations') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-list-ul me-1"></i> Reservas
+        </a>
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+            <i class="bi bi-printer me-1"></i> Imprimir / PDF
+        </button>
+    </div>
+</div>
+
+{# ── Período do relatório ── #}
+<div class="card mb-4 no-print">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-sm-4 col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Inicial</label>
+                <input type="date" name="start" class="form-control" value="{{ inicio.isoformat() }}">
+            </div>
+            <div class="col-sm-4 col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Final</label>
+                <input type="date" name="end" class="form-control" value="{{ fim.isoformat() }}">
+            </div>
+            <div class="col-sm-4 col-md-3">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i> Atualizar</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('reservations.relatorio') }}" title="Voltar ao mês corrente">
+                    <i class="bi bi-eraser"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if not tem_reservas %}
+<div class="card">
+    <div class="card-body text-center p-5">
+        <i class="bi bi-calendar-x fs-1 text-muted d-block mb-3"></i>
+        <h5 class="mb-1">Nenhuma reserva no período</h5>
+        <p class="text-muted mb-0">
+            Não há reservas (em nenhum status) entre {{ periodo_label }}.
+            Ajuste as datas acima para ampliar o período.
+        </p>
+    </div>
+</div>
+{% else %}
+
+{# ── Indicadores principais ── #}
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-primary-subtle text-primary"><i class="bi bi-calendar-check"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Reservas aprovadas</div>
+                    <div class="rel-valor fw-bold">{{ total_aprovadas }}</div>
+                    <div class="text-muted small">{{ pendentes }} pendente(s) · {{ canceladas }} cancelada(s)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-success-subtle text-success"><i class="bi bi-clock-history"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Horas reservadas</div>
+                    <div class="rel-valor fw-bold">{{ horas_total }}</div>
+                    <div class="text-muted small">em {{ dias_com_atividade }} dia(s) com atividade</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-info-subtle text-info"><i class="bi bi-door-open"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Salas utilizadas</div>
+                    <div class="rel-valor fw-bold">{{ salas_utilizadas }}</div>
+                    <div class="text-muted small">de {{ salas_ativas }} sala(s) ativa(s) na unidade</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-warning-subtle text-warning"><i class="bi bi-person-badge"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Docentes envolvidos</div>
+                    <div class="rel-valor fw-bold">{{ docentes_count }}</div>
+                    <div class="text-muted small">
+                        {% if docentes_count %}
+                            {{ ('%.1f'|format(media_por_docente)).replace('.', ',') }} reserva(s) por docente
+                        {% else %}
+                            nenhuma reserva com docente
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+{% if tem_aprovadas %}
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-pie-chart me-1"></i> Reservas por status</h6>
+                <div class="rel-grafico"><canvas id="grafico-status"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-sun me-1"></i> Reservas por período do dia</h6>
+                <div class="rel-grafico"><canvas id="grafico-periodo"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-calendar-week me-1"></i> Reservas por dia da semana</h6>
+                <div class="rel-grafico"><canvas id="grafico-semana"></canvas></div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-pie-chart me-1"></i> Reservas por status</h6>
+                <div class="rel-grafico"><canvas id="grafico-status"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="alert alert-info mb-0 h-100 d-flex align-items-center">
+            <div>
+                <i class="bi bi-info-circle-fill me-2"></i>
+                Nenhuma reserva <strong>aprovada</strong> no período — o detalhamento de
+                salas, cursos e docentes considera apenas reservas aprovadas.
+            </div>
+        </div>
+    </div>
+{% endif %}
+</div>
+
+{% if tem_aprovadas %}
+{# ── Ocupação por sala ── #}
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-bar-chart-line me-1"></i> Horas reservadas por sala</h6>
+        <div class="rel-grafico-alto"><canvas id="grafico-salas"></canvas></div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-door-open me-1"></i> Ocupação por sala</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Sala</th>
+                        <th class="text-end">Reservas</th>
+                        <th class="text-end">Horas</th>
+                        <th class="text-end" style="width: 30%">Participação nas horas reservadas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for s in tabela_salas %}
+                    <tr>
+                        <td class="fw-semibold"><span class="badge text-bg-primary-subtle text-primary border border-primary-subtle badge-codigo-sala me-1">{{ s.codigo }}</span> {{ s.nome }}</td>
+                        <td class="text-end">{{ s.reservas }}</td>
+                        <td class="text-end">{{ s.horas }}</td>
+                        <td>
+                            <div class="progress" style="height: .5rem">
+                                <div class="progress-bar" style="width: {{ '%.1f'|format(s.percentual) }}%"></div>
+                            </div>
+                            <div class="small text-muted mt-1">{{ ('%.1f'|format(s.percentual)).replace('.', ',') }}%</div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-mortarboard me-1"></i> Reservas por curso</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Curso</th>
+                                <th class="text-end">Reservas</th>
+                                <th class="text-end">Horas</th>
+                                <th class="text-end">Participação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for c in tabela_cursos %}
+                            <tr {{ 'class="text-muted fst-italic"' if c.sem_vinculo }}>
+                                <td>{{ c.nome }}</td>
+                                <td class="text-end">{{ c.reservas }}</td>
+                                <td class="text-end">{{ c.horas }}</td>
+                                <td class="text-end">{{ ('%.1f'|format(c.percentual)).replace('.', ',') }}%</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-person-badge me-1"></i> Carga por docente</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Docente</th>
+                                <th class="text-end">Reservas</th>
+                                <th class="text-end">Horas</th>
+                                <th class="text-end">Participação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for d in tabela_docentes %}
+                            <tr {{ 'class="text-muted fst-italic"' if d.sem_vinculo }}>
+                                <td>{{ d.nome }}</td>
+                                <td class="text-end">{{ d.reservas }}</td>
+                                <td class="text-end">{{ d.horas }}</td>
+                                <td class="text-end">{{ ('%.1f'|format(d.percentual)).replace('.', ',') }}%</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if tem_reservas %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+    // Gráficos do relatório (Chart.js): cores do tema claro/escuro e
+    // valores prontos do servidor.
+    (function () {
+        if (typeof Chart === 'undefined') return;
+        const escuro = document.documentElement.getAttribute('data-theme') === 'dark';
+        Chart.defaults.color = escuro ? '#adb5bd' : '#495057';
+        Chart.defaults.borderColor = escuro ? 'rgba(173,181,189,.15)' : 'rgba(0,0,0,.08)';
+        Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+        // Cor do tema escolhido (data-accent): gráficos primários acompanham.
+        const accent = (getComputedStyle(document.documentElement)
+            .getPropertyValue('--primary-color') || '').trim() || '#0d6efd';
+
+        const opcoesRosca = {
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: { legend: { position: 'bottom' } }
+        };
+
+        new Chart(document.getElementById('grafico-status'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Aprovadas', 'Pendentes', 'Canceladas'],
+                datasets: [{
+                    data: {{ grafico_status | tojson }},
+                    backgroundColor: ['#198754', '#ffc107', '#6c757d'],
+                    borderWidth: 0
+                }]
+            },
+            options: opcoesRosca
+        });
+
+        {% if tem_aprovadas %}
+        new Chart(document.getElementById('grafico-periodo'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Manhã', 'Tarde', 'Noite'],
+                datasets: [{
+                    data: {{ grafico_periodo | tojson }},
+                    backgroundColor: ['#ffc107', '#0d6efd', '#6f42c1'],
+                    borderWidth: 0
+                }]
+            },
+            options: opcoesRosca
+        });
+
+        new Chart(document.getElementById('grafico-semana'), {
+            type: 'bar',
+            data: {
+                labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
+                datasets: [{
+                    label: 'Reservas',
+                    data: {{ grafico_semana | tojson }},
+                    backgroundColor: accent,
+                    borderRadius: 6,
+                    maxBarThickness: 50
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+        });
+
+        new Chart(document.getElementById('grafico-salas'), {
+            type: 'bar',
+            data: {
+                labels: {{ grafico_salas_rotulos | tojson }},
+                datasets: [{
+                    label: 'Horas reservadas',
+                    data: {{ grafico_salas_horas | tojson }},
+                    backgroundColor: accent,
+                    borderRadius: 6,
+                    maxBarThickness: 36
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true } }
+            }
+        });
+        {% endif %}
+    })();
+</script>
+{% endif %}
+{% endblock %}

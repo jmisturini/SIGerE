@@ -165,9 +165,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 floors[floor].push(event);
             });
 
-            // Ordenar andares logicamente
+            // Ordenar andares logicamente. "Térreo" pode ser cadastrado com
+            // caixa ou acento diferentes da chave do mapa; normaliza o nome
+            // para que venha antes dos andares numerados.
             const floorOrder = {"Térreo": 0, "Ground Floor": 0, "1º Andar": 1, "1st Floor": 1, "2º Andar": 2, "2nd Floor": 2, "3º Andar": 3, "3rd Floor": 3, "4º Andar": 4, "4th Floor": 4, "5º Andar": 5, "5th Floor": 5};
-            const sortedFloors = Object.keys(floors).sort((a, b) => (floorOrder[a] || 99) - (floorOrder[b] || 99));
+            const rankFloor = nome => {
+                const n = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                if (n.includes('terreo') || n.includes('ground')) return 0;
+                return floorOrder[nome] || 99;
+            };
+            const sortedFloors = Object.keys(floors).sort((a, b) => rankFloor(a) - rankFloor(b));
 
             sortedFloors.forEach(floorName => {
                 html += `<div class="col-12 mt-3"><h6 class="text-muted border-bottom pb-1 text-uppercase small"><i class="bi bi-layers"></i> ${esc(floorName)}</h6></div>`;
@@ -183,7 +190,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 floors[floorName].forEach(event => {
                     const startTime = new Date(event.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
                     const endTime = new Date(event.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
-                    
+
                     html += `
                         <div class="col-md-6 col-xl-4">
                             <a href="${esc(event.url)}" class="text-decoration-none text-reset">
@@ -193,20 +200,19 @@ document.addEventListener('DOMContentLoaded', function() {
                                             <span class="fs-4 fw-bold text-primary"><i class="bi bi-door-closed"></i> ${esc(event.classroom_code)}</span>
                                             <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-clock"></i> ${esc(startTime)} - ${esc(endTime)}</span>
                                         </div>
-                                        <div class="mb-3">
+                                        <div class="mb-2">
+                                            <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
+                                            <p class="mb-0 fs-5 fw-bold text-truncate">${esc(event.course)}</p>
+                                        </div>
+                                        <div class="mb-2">
+                                            <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
+                                            <p class="mb-0 fs-5 fw-bold text-truncate">${esc(event.teacher)}</p>
+                                        </div>
+                                        ${event.title && event.title.trim() ? `
+                                        <div class="mb-0">
                                             <span class="text-muted small text-uppercase fw-bold d-block">Evento</span>
-                                            <p class="mb-0 fs-5 fw-bold text-break">${esc(event.title)}</p>
-                                        </div>
-                                        <div class="row">
-                                            <div class="col-6 mb-2">
-                                                <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
-                                                <p class="mb-0 text-truncate">${esc(event.course)}</p>
-                                            </div>
-                                            <div class="col-6 mb-2">
-                                                <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
-                                                <p class="mb-0 text-truncate">${esc(event.teacher)}</p>
-                                            </div>
-                                        </div>
+                                            <p class="mb-0 small text-break">${esc(event.title)}</p>
+                                        </div>` : ''}
                                     </div>
                                 </div>
                             </a>

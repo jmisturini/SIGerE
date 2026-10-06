@@ -14,7 +14,45 @@
             <div class="card-body p-4">
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
-                    
+
+                    {# Mês de Referência em destaque no topo: selecionável (mês
+                       atual e próximo) na criação; apenas informado na edição,
+                       pois o mês é definido no lançamento. A dica troca conforme
+                       a seleção. #}
+                    {% set dica_janela = 'Lançamentos feitos entre o dia 21 do mês anterior e o dia 20 do mês atual contam para o mês atual; após o dia 20, contam para o próximo mês.' %}
+                    {% set dica_proximo = 'Esta entrada será incluída no próximo mês de pagamento.' %}
+                    <div class="border border-primary-subtle rounded-3 p-3 mb-4 bg-primary-subtle bg-opacity-10">
+                        {# O rótulo fica em uma linha própria: assim a dica à
+                           direita fica centrada com o campo, e não com o
+                           conjunto rótulo + campo. #}
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-uppercase text-muted mb-0" for="reference_month">
+                                    <i class="bi bi-calendar-event text-primary me-1"></i>Mês de Referência
+                                </label>
+                            </div>
+                            <div class="col-md-5">
+                                {% if modo_criacao %}
+                                <select name="reference_month" id="reference_month" class="form-select fw-bold"
+                                        data-valor-proximo="{{ valor_proximo_mes }}"
+                                        data-dica-padrao="{{ dica_janela }}"
+                                        data-dica-proximo="{{ dica_proximo }}">
+                                    {% for value, label in opcoes_referencia %}
+                                    <option value="{{ value }}" {{ 'selected' if value == referencia_selecionada }}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% else %}
+                                <input class="form-control fw-bold" value="{{ month_label }}" disabled>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-7">
+                                <div class="form-text small mb-0" id="reference-hint" aria-live="polite">
+                                    {% if modo_criacao %}{{ dica_janela }}{% else %}Definido no lançamento — o mês de referência não pode ser alterado na edição.{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         <div class="col-12">
                             {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
@@ -68,13 +106,18 @@
                         </div>
                         
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold text-uppercase text-muted mb-1">Mês de Referência</label>
-                            {# Mês derivado da janela de lançamento (dia 20 do mês
-                               anterior a dia 20 do mês corrente) — não é escolhido
-                               no formulário, apenas informado. #}
-                            <input class="form-control" value="{{ month_label }}" disabled>
-                            <div class="form-text small">Derivado automaticamente: lançamentos entre o dia 20 do mês
-                                anterior e o dia 20 contam para este mês.</div>
+                            <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="dates_month">Mês</label>
+                            {# No lugar do antigo Mês de Referência: define o mês
+                               das datas trabalhadas — o calendário fica limitado
+                               a ele. Oferece o mês anterior ao Mês de Referência
+                               e o próprio; o JavaScript reconstrói as opções
+                               quando a referência muda. #}
+                            <select name="dates_month" id="dates_month" class="form-select">
+                                {% for value, label in opcoes_mes_datas %}
+                                <option value="{{ value }}" {{ 'selected' if value == mes_datas_selecionada }}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text small">Mês das datas trabalhadas; o calendário fica limitado a ele.</div>
                         </div>
 
                         <div class="col-md-6">
@@ -87,7 +130,7 @@
                         <div class="col-12">
                             {{ form.multiple_dates.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
                             {{ form.multiple_dates(class="form-control", placeholder="Clique aqui para abrir o calendário") }}
-                            <div class="form-text small">O calendário se limita ao Mês Base; apenas o dia é gravado, separado por vírgula (ex: 10, 17, 25).</div>
+                            <div class="form-text small">O calendário se limita ao Mês selecionado; apenas os dias são gravados, separados por vírgula (ex: 10, 17, 25).</div>
                         </div>
                         
                         <div class="col-12">
@@ -120,44 +163,70 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Mês de referência vem do servidor (janela 20→20) — trava o calendário
-    // de datas nesse mês.
-    const monthBase = {{ month_base | tojson }};
+    // Mês das datas: define o mês que o calendário oferece — o mês anterior ao
+    // Mês de Referência e o próprio referência. Os dias gravados pertencem a
+    // esse mês ("10, 17, 25").
+    const NOMES_MESES = {{ nomes_meses | tojson }};
+    const datesMonthSelect = document.getElementById('dates_month');
     const datesInput = document.getElementById('multiple_dates');
 
-    // O campo grava apenas os dias ("10, 17, 25") — o mês e o ano vêm do mês
-    // de referência. Registros antigos com a data completa ("17/09/2026" ou
-    // "2026-09-17") são convertidos quando o mês/ano coincide.
-    function diasSalvos(raw, mesBase) {
+    function rotuloMes(mes) {
+        const [ano, m] = mes.split('-').map(Number);
+        return NOMES_MESES[m - 1] + '/' + ano;
+    }
+
+    function mesAnteriorDe(mes) {
+        let [ano, m] = mes.split('-').map(Number);
+        m -= 1;
+        if (m < 1) { m = 12; ano -= 1; }
+        return ano + '-' + String(m).padStart(2, '0');
+    }
+
+    // Reconstrói as opções do campo Mês a partir do mês de referência
+    // escolhido, com o próprio referência pré-selecionado.
+    function reconstruirOpcoesMesDatas(referencia) {
+        if (!datesMonthSelect) return;
+        datesMonthSelect.innerHTML = '';
+        for (const valor of [mesAnteriorDe(referencia), referencia]) {
+            const opcao = document.createElement('option');
+            opcao.value = valor;
+            opcao.textContent = rotuloMes(valor);
+            datesMonthSelect.appendChild(opcao);
+        }
+        datesMonthSelect.value = referencia;
+    }
+
+    // Converte o valor salvo em datas: registros antigos podem ter dias
+    // soltos (relativos ao mês selecionado) ou datas completas legadas.
+    function datasSalvas(raw, mesBase) {
         if (!raw) return [];
         const partes = (mesBase || '').split('-');
-        const ano = Number(partes[0]), mes = Number(partes[1]);
-        const dias = [];
+        const anoPadrao = Number(partes[0]), mesPadrao = Number(partes[1]);
+        const datas = [];
         for (const token of raw.split(',')) {
             const t = token.trim();
             let m;
-            if ((m = t.match(/^(\d{1,2})$/))) {
-                dias.push(Number(m[1]));
-            } else if ((m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)) &&
-                       Number(m[3]) === ano && Number(m[2]) === mes) {
-                dias.push(Number(m[1]));
-            } else if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)) &&
-                       Number(m[1]) === ano && Number(m[2]) === mes) {
-                dias.push(Number(m[3]));
+            if ((m = t.match(/^(\d{1,2})$/)) && anoPadrao && mesPadrao) {
+                datas.push(new Date(anoPadrao, mesPadrao - 1, Number(m[1])));
+            } else if ((m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) {
+                datas.push(new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+            } else if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) {
+                datas.push(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
             }
         }
-        return [...new Set(dias)].filter(d => d >= 1 && d <= 31).sort((a, b) => a - b);
+        // Deduplica por data e descarta valores inválidos
+        const unicas = new Map();
+        for (const d of datas) {
+            if (isNaN(d.getTime())) continue;
+            unicas.set(d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(), d);
+        }
+        return [...unicas.values()].sort((a, b) => a - b);
     }
 
-    // Reconstrói as datas selecionadas a partir dos dias salvos e limpa o
-    // campo: o flatpickr reescreve o valor no formato "só dias".
-    const datasIniciais = [];
-    if (monthBase) {
-        const [ano, mes] = monthBase.split('-').map(Number);
-        for (const dia of diasSalvos(datesInput.value, monthBase)) {
-            datasIniciais.push(new Date(ano, mes - 1, dia));
-        }
-    }
+    // Reconstrói as datas selecionadas e limpa o campo: o flatpickr reescreve
+    // o valor no formato "só dias".
+    const datasIniciais = datasSalvas(datesInput.value,
+                                      datesMonthSelect ? datesMonthSelect.value : null);
     datesInput.value = '';
 
     // Inicializa o calendário Flatpickr
@@ -166,26 +235,45 @@ document.addEventListener('DOMContentLoaded', function() {
         dateFormat: "j",
         locale: "pt",
         disableMobile: "true",
-        defaultDate: datasIniciais,
-        onOpen: function() {
-            syncCalendarMonth();
-        },
-        onChange: function() {
-            // Toda vez que uma data é selecionada ou removida, ajusta a altura
-            setTimeout(autoResize, 50);
-        }
+        defaultDate: datasIniciais
     });
 
-    // Trava o calendário no mês de referência
+    // Trava o calendário no mês selecionado no campo Mês
     function syncCalendarMonth() {
-        if (monthBase) {
-            let [year, month] = monthBase.split('-');
-            let minDate = new Date(year, month - 1, 1);
-            let maxDate = new Date(year, month, 0);
-            fp.set('minDate', minDate);
-            fp.set('maxDate', maxDate);
-            fp.jumpToDate(minDate, true);
-        }
+        if (!datesMonthSelect || !datesMonthSelect.value) return;
+        const [ano, mes] = datesMonthSelect.value.split('-').map(Number);
+        fp.set('minDate', new Date(ano, mes - 1, 1));
+        fp.set('maxDate', new Date(ano, mes, 0));
+        fp.jumpToDate(new Date(ano, mes - 1, 1), true);
+    }
+
+    // Trocar o mês limpa as datas: elas pertencem ao mês selecionado
+    if (datesMonthSelect) {
+        datesMonthSelect.addEventListener('change', function() {
+            fp.clear();
+            syncCalendarMonth();
+        });
+    }
+    syncCalendarMonth();
+
+    // Mês de Referência: a dica troca ao selecionar o próximo mês e o campo
+    // Mês passa a oferecer o mês anterior e o próprio referência — as datas
+    // já escolhidas pertenciam ao mês anterior e são limpas.
+    const refSelect = document.getElementById('reference_month');
+    const refHint = document.getElementById('reference-hint');
+    if (refSelect && refHint) {
+        const atualizarDica = function() {
+            refHint.textContent = refSelect.value === refSelect.dataset.valorProximo
+                ? refSelect.dataset.dicaProximo
+                : refSelect.dataset.dicaPadrao;
+        };
+        refSelect.addEventListener('change', function() {
+            atualizarDica();
+            reconstruirOpcoesMesDatas(refSelect.value);
+            fp.clear();
+            syncCalendarMonth();
+        });
+        atualizarDica();
     }
 
     // Máscara do Código Orçamentário: agrupa os dígitos em 2.2.4.2 (.4) —
@@ -223,9 +311,6 @@ document.addEventListener('DOMContentLoaded', function() {
     workloadHours.addEventListener('input', updateWorkloadHint);
     workloadMinutes.addEventListener('input', updateWorkloadHint);
     updateWorkloadHint();
-
-    // Ajusta o tamanho ao carregar a página (útil se vier de um formulário inválido)
-    autoResize();
 });
 </script>
 {% endblock %}

@@ -8,6 +8,9 @@ e o toggle Financeiro da unidade.
 import os
 import tempfile
 import unittest
+from io import BytesIO
+
+from openpyxl import load_workbook
 
 from app import create_app
 from app.config import Config
@@ -112,6 +115,9 @@ class MealAllowanceTestCase(unittest.TestCase):
         self.assertIn('Nenhum lançamento adicionado', html)
         # item do menu RH no sidebar
         self.assertIn('/payments/meal-allowance', html)
+        # ações do cabeçalho: exportação e limpeza geral
+        self.assertIn('/payments/meal-allowance/export', html)
+        self.assertIn('/payments/meal-allowance/clear', html)
 
     def test_adicionar_lancamento(self):
         response = self._adicionar(days='12')
@@ -248,6 +254,133 @@ class MealAllowanceTestCase(unittest.TestCase):
             db.session.commit()
         self.assertEqual(self.client.get('/payments/meal-allowance').status_code, 403)
         self.assertEqual(self._adicionar().status_code, 403)
+
+    # ---------- Exportação Excel ----------
+
+    def _exportar(self, query='', **kwargs):
+        return self.client.get('/payments/meal-allowance/export' + query, **kwargs)
+
+    def _linhas_planilha(self, response):
+        wb = load_workbook(BytesIO(response.data))
+        return list(wb.active.iter_rows(values_only=True))
+
+    def test_exportar_excel_total_por_professor(self):
+        self._adicionar(teacher=self.professor_id, days='12')
+        self._adicionar(teacher=self.professor_id, days='3')
+        self._adicionar(teacher=self.professor2_id, days='5')
+
+        response = self._exportar()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.mimetype,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        self.assertIn('vale_alimentacao_professores',
+                      response.headers['Content-Disposition'])
+
+        rows = self._linhas_planilha(response)
+        self.assertEqual(rows[0], ('Professor', 'Dias Trabalhados'))
+        dados = {nome: dias for nome, dias in rows[1:]}
+        # Lançamentos do mesmo professor são somados numa linha só.
+        self.assertEqual(dados['Professor Silva'], 15)
+        self.assertEqual(dados['Professora Souza'], 5)
+        self.assertEqual(len(rows), 3)
+
+    def test_exportar_respeita_filtro_por_professor(self):
+        self._adicionar(teacher=self.professor_id, days='12')
+        self._adicionar(teacher=self.professor2_id, days='5')
+
+        response = self._exportar(f'?teacher_filter={self.professor2_id}')
+        rows = self._linhas_planilha(response)
+        self.assertEqual(rows[1], ('Professora Souza', 5))
+        self.assertEqual(len(rows), 2)
+
+    def test_exportar_escopo_unidade(self):
+        self._adicionar(days='12')
+        with self.app.app_context():
+            outra = Unity(name='Outra Unidade', code='OU')
+            db.session.add(outra)
+            db.session.flush()
+            db.session.add(TeacherMealAllowance(
+                teacher_id=self.professor_id, days=5, unity_id=outra.id))
+            db.session.commit()
+
+        rows = self._linhas_planilha(self._exportar())
+        self.assertEqual(rows[1], ('Professor Silva', 12))
+        self.assertEqual(len(rows), 2)
+
+    def test_exportar_sem_lancamentos_redireciona(self):
+        response = self._exportar()
+        self.assertEqual(response.status_code, 302)
+        html = self.client.get('/payments/meal-allowance').get_data(as_text=True)
+        self.assertIn('Nenhum lançamento de Vale Alimentação para exportar', html)
+
+    def test_exportar_sem_permissao_vira_403(self):
+        with self.app.app_context():
+            role = Role.query.filter_by(name='gestor-teste').first()
+            role.permissions = []
+            db.session.commit()
+        self.assertEqual(self._exportar().status_code, 403)
+
+    # ---------- Limpar todos os lançamentos ----------
+
+    def test_limpar_todos_lancamentos(self):
+        self._adicionar(teacher=self.professor_id, days='12')
+        self._adicionar(teacher=self.professor2_id, days='5')
+
+        response = self.client.post('/payments/meal-allowance/clear',
+                                    follow_redirects=True)
+        self.assertIn('2 lançamento(s) do Vale Alimentação removido(s)',
+                      response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(TeacherMealAllowance.query.count(), 0)
+
+    def test_limpar_todos_escopo_unidade(self):
+        self._adicionar(days='12')
+        with self.app.app_context():
+            outra = Unity(name='Outra Unidade', code='OU')
+            db.session.add(outra)
+            db.session.flush()
+            db.session.add(TeacherMealAllowance(
+                teacher_id=self.professor_id, days=5, unity_id=outra.id))
+            db.session.commit()
+            outra_id = outra.id
+
+        self.client.post('/payments/meal-allowance/clear')
+        with self.app.app_context():
+            # Só o lançamento de outra unidade sobrevive.
+            restante = TeacherMealAllowance.query.one()
+            self.assertEqual(restante.unity_id, outra_id)
+
+    def test_limpar_todos_sem_permissao_vira_403(self):
+        self._adicionar(days='12')
+        with self.app.app_context():
+            role = Role.query.filter_by(name='gestor-teste').first()
+            role.permissions = [p for p in role.permissions if p.code == 'meal:read']
+            db.session.commit()
+
+        # meal:read sozinho vê a página, mas não tem o botão nem a rota.
+        html = self.client.get('/payments/meal-allowance').get_data(as_text=True)
+        self.assertNotIn('/payments/meal-allowance/clear', html)
+        self.assertEqual(
+            self.client.post('/payments/meal-allowance/clear').status_code, 403)
+        with self.app.app_context():
+            self.assertEqual(TeacherMealAllowance.query.count(), 1)
+
+    def test_cabecalho_com_lancamentos(self):
+        """Com lançamentos, a confirmação do Limpar Tudo mostra a contagem
+        total da unidade e a exportação herda o filtro de professor ativo."""
+        self._adicionar(teacher=self.professor_id, days='12')
+        self._adicionar(teacher=self.professor2_id, days='5')
+
+        html = self.client.get('/payments/meal-allowance').get_data(as_text=True)
+        self.assertIn('Excluir TODOS os 2 lançamento(s)', html)
+
+        filtrado = self.client.get(
+            f'/payments/meal-allowance?teacher_filter={self.professor2_id}'
+        ).get_data(as_text=True)
+        self.assertIn(
+            f'/payments/meal-allowance/export?teacher_filter={self.professor2_id}',
+            filtrado)
 
 
 if __name__ == '__main__':

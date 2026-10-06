@@ -1,15 +1,21 @@
 """Testes do módulo de Hora Extra (pagamentos).
 
 Cobre as regras atuais do módulo Financeiro:
-- Mês de referência derivado da janela de lançamento (dia 20 do mês anterior
-  a dia 20 do mês corrente) — sem escolha manual de Mês Base;
+- Mês de referência pela janela de lançamento (dia 21 do mês anterior a dia 20
+  do mês corrente conta para o mês atual; depois disso, para o próximo) — e a
+  exceção: selecionar o próximo mês no Mês de Referência inclui a entrada no
+  próximo mês de pagamento;
+- O campo Mês do formulário segue o mês de referência (oferece o mês anterior
+  a ele e o próprio) e limita o calendário; os dias são gravados sem mês/ano,
+  com o mês das datas na coluna dates_month (nulo nos lançamentos antigos,
+  cujos dias pertencem ao mês base);
 - Fechamento do mês (permissão payment:close_month): baixa a planilha final e
-  tranca edição/exclusão dos lançamentos daquele mês — não existe mais o
-  bloqueio de 30 dias nem o de mês anterior;
+  tranca edição/exclusão dos lançamentos daquele mês — lançamentos do mês
+  seguinte permanecem editáveis; a consulta abre no mês atual do calendário;
 - Carga horária exibida e exportada em hora/minuto inteiros (4h30), sem
   conversão para hora decimal;
-- Consulta abre no mês da janela, com caixa de seleção de meses e opção
-  "Todos os meses"; exportação filtrada por professor;
+- Consulta com caixa de seleção de meses e opção "Todos os meses"; exportação
+  filtrada por professor;
 - Máscara do Código Orçamentário (xx.xx.xxxx.x e xx.xx.xxxx.xx.xxxx);
 - Aviso de navegador removido das duas páginas do módulo.
 """
@@ -144,7 +150,7 @@ class PaymentsTestCase(unittest.TestCase):
             'weekly_workload_minutes': '30',
             'hourly_value': '25,50',
             'budget_code': '950001234',
-            'multiple_dates': '10/09/2026',
+            'multiple_dates': '10, 17',
             'justification': 'Substituicao de aula',
             'observation': 'Turma integral',
         }
@@ -159,6 +165,12 @@ class PaymentsTestCase(unittest.TestCase):
         mes = hoje.month + 1
         ano = hoje.year + (1 if mes > 12 else 0)
         return f'{ano:04d}-{1 if mes > 12 else mes:02d}'
+
+    def _mes_anterior(self):
+        hoje = datetime.now()
+        mes = hoje.month - 1
+        ano = hoje.year - (1 if mes < 1 else 0)
+        return f'{ano:04d}-{12 if mes < 1 else mes:02d}'
 
     def _add_overtime(self, month_base, teacher_id=None, budget_code='950001234', created_at=None,
                       weekly_workload=4, course_type_id='SET', observation=None):
@@ -264,11 +276,99 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('Técnico', page)
         self.assertIn('Turma integral', page)
 
-    def test_form_mostra_mes_derivado_e_sem_seletor(self):
+    def test_create_referencia_proximo_mes_anteipa_entrada(self):
+        # Dia 10 (dentro da janela do mês atual): selecionar o próximo mês no
+        # Mês de Referência inclui a entrada no próximo mês de pagamento.
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(
+                                        reference_month=self._mes_seguinte()),
+                                    follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.month_base, self._mes_seguinte())
+
+    def test_create_apos_dia_20_mes_atual_postado_conta_proximo(self):
+        # Depois do dia 20 a janela já aponta para o mês seguinte: selecionar
+        # o mês atual no Mês de Referência não traz a entrada de volta.
+        with patch('app.blueprints.payments.datetime', FixedDatetimeDia25):
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(
+                                            reference_month=self._mes_atual()),
+                                        follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.month_base, self._mes_seguinte())
+
+    def test_form_mostra_mes_referencia_selecionavel(self):
         page = self.client.get('/payments/overtime/create').get_data(as_text=True)
         self.assertIn('Mês de Referência', page)
-        self.assertNotIn('id="month_base_month"', page)
+        self.assertIn('id="reference_month"', page)
+        # Opções: mês atual (selecionado pela janela) e mês seguinte
+        self.assertRegex(page, rf'<option value="{self._mes_atual()}" selected>')
+        self.assertRegex(page, rf'<option value="{self._mes_seguinte()}"')
+        # Dica da janela segue presente no topo do formulário
         self.assertIn('dia 20 do mês', page)
+
+    def test_form_campo_mes_oferece_anterior_e_atual(self):
+        # Com a referência padrão (mês atual pela janela), o campo Mês oferece
+        # o mês anterior e o próprio mês de referência, já selecionado.
+        page = self.client.get('/payments/overtime/create').get_data(as_text=True)
+        self.assertIn('id="dates_month"', page)
+        bloco = re.search(r'<select name="dates_month".*?</select>', page, re.S).group(0)
+        self.assertIn(f'value="{self._mes_anterior()}"', bloco)
+        self.assertIn(f'value="{self._mes_atual()}"', bloco)
+        self.assertRegex(bloco, rf'<option value="{self._mes_atual()}" selected>')
+        self.assertNotIn(self._mes_seguinte(), bloco)
+
+    def test_form_campo_mes_segue_referencia_proximo(self):
+        # Com o próximo mês selecionado no Mês de Referência (POST reexibido
+        # com erro de validação), o campo Mês passa a oferecer o mês atual e o
+        # próximo — não mais o anterior ao mês atual.
+        payload = self._create_payload(teacher='', reference_month=self._mes_seguinte())
+        page = self.client.post('/payments/overtime/create', data=payload).get_data(as_text=True)
+        bloco = re.search(r'<select name="dates_month".*?</select>', page, re.S).group(0)
+        self.assertIn(f'value="{self._mes_atual()}"', bloco)
+        self.assertIn(f'value="{self._mes_seguinte()}"', bloco)
+        self.assertRegex(bloco, rf'<option value="{self._mes_seguinte()}" selected>')
+        self.assertNotIn(self._mes_anterior(), bloco)
+
+    def test_create_grava_mes_das_datas(self):
+        # O mês das datas selecionado é gravado ao lado dos dias: referência no
+        # próximo mês com datas do mês atual (mês anterior à referência).
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(
+                                        reference_month=self._mes_seguinte(),
+                                        dates_month=self._mes_atual(),
+                                        multiple_dates='25, 28'),
+                                    follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.month_base, self._mes_seguinte())
+            self.assertEqual(record.dates_month, self._mes_atual())
+            self.assertEqual(record.multiple_dates, '25, 28')
+
+    def test_create_sem_mes_das_datas_grava_nulo(self):
+        # Sem o campo Mês no POST (JavaScript desligado), o mês das datas fica
+        # nulo e a edição assume os dias no mês base.
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(), follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertIsNone(record.dates_month)
+
+    def test_create_recusa_mes_das_datas_invalido(self):
+        # Mês das datas fora do par (referência e anterior) não é gravado.
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(dates_month='2020-01'),
+                                    follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertIsNone(record.dates_month)
 
     # ---------- Carga horária semanal: hora + minuto, sem decimal ----------
 
@@ -320,14 +420,27 @@ class PaymentsTestCase(unittest.TestCase):
         response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
         workbook = load_workbook(BytesIO(response.data))
         ws = workbook['Extra NEB']
-        self.assertEqual(ws.cell(row=7, column=3).value, '4h30')
+        self.assertEqual(ws.cell(row=7, column=4).value, '4h30')
+
+    def test_export_ordem_das_colunas_no_modelo(self):
+        # Cabeçalhos do modelo institucional na ordem esperada, com o Tipo de
+        # Curso logo após o Nível de Docência e a Observação no fim.
+        self._add_overtime(self._mes_atual())
+        response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
+        workbook = load_workbook(BytesIO(response.data))
+        ws = workbook['Extra NEB']
+        esperados = ['Nome do Professor', 'Nível de Docência', 'Tipo de Curso',
+                     'Número de Horas', 'Valor H/a', 'Datas', 'Turno',
+                     'Código Orçamentário', 'Justificativa', 'Observação']
+        for coluna, esperado in enumerate(esperados, start=1):
+            self.assertEqual(ws.cell(row=6, column=coluna).value, esperado)
 
     def test_export_inclui_tipo_de_curso_e_observacao(self):
         self._add_overtime(self._mes_atual(), observation='Turma integral')
         response = self.client.get(f'/payments/export/overtime?teacher_filter={self.teacher_id}')
         workbook = load_workbook(BytesIO(response.data))
         ws = workbook['Extra NEB']
-        self.assertEqual(ws.cell(row=7, column=9).value, 'Técnico')
+        self.assertEqual(ws.cell(row=7, column=3).value, 'Técnico')
         self.assertEqual(ws.cell(row=7, column=10).value, 'Turma integral')
 
     def test_edit_get_splits_decimal_into_hours_minutes(self):
@@ -398,6 +511,37 @@ class PaymentsTestCase(unittest.TestCase):
         response = self.client.get('/payments/overtime/list?month_base=')
         self.assertIn('95.00.0123.4', response.get_data(as_text=True))
 
+    def test_list_abre_no_mes_atual_do_calendario_apos_dia_20(self):
+        # Depois do dia 20, a consulta abre no mês atual do calendário — não no
+        # mês da janela, que já virou o mês seguinte. É o mês que o Fechar Mês
+        # tranca por padrão.
+        self._add_overtime(self._mes_atual())
+        self._add_overtime(self._mes_seguinte(), teacher_id=self.other_teacher_id)
+        with patch('app.blueprints.payments.datetime', FixedDatetimeDia25):
+            page = self.client.get('/payments/overtime/list').get_data(as_text=True)
+        self.assertIn('<td class="ps-4 fw-bold">Professora Teste</td>', page)
+        self.assertNotIn('<td class="ps-4 fw-bold">Outro Professor</td>', page)
+
+    def test_list_mostra_periodo_de_lancamento(self):
+        # A dica da consulta informa o período do mês visualizado: do dia 21
+        # do mês anterior ao dia 20 do próprio mês.
+        page = self.client.get('/payments/overtime/list?month_base=2024-08').get_data(as_text=True)
+        self.assertIn('Período de lançamento', page)
+        self.assertIn('Agosto/2024', page)
+        self.assertIn('21/07/2024', page)
+        self.assertIn('20/08/2024', page)
+
+    def test_list_periodo_vira_o_ano(self):
+        # Janeiro reúne o que foi lançado do dia 21 de dezembro do ano anterior.
+        page = self.client.get('/payments/overtime/list?month_base=2026-01').get_data(as_text=True)
+        self.assertIn('21/12/2025', page)
+        self.assertIn('20/01/2026', page)
+
+    def test_list_periodo_para_todos_os_meses(self):
+        # Sem mês filtrado, a dica não aponta um período específico.
+        page = self.client.get('/payments/overtime/list?month_base=').get_data(as_text=True)
+        self.assertIn('Mostrando os lançamentos de todos os períodos.', page)
+
     # ---------- Exportação por professor ----------
 
     def test_export_filtered_by_teacher(self):
@@ -414,7 +558,7 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('Professora Teste', names)
         self.assertNotIn('Outro Professor', names)
         # Código Orçamentário sai formatado mesmo para registros antigos
-        self.assertEqual(ws.cell(row=7, column=7).value, '95.00.0123.4')
+        self.assertEqual(ws.cell(row=7, column=8).value, '95.00.0123.4')
 
     # ---------- Fechamento do mês ----------
 
@@ -436,7 +580,7 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('spreadsheetml', response.content_type)
         workbook = load_workbook(BytesIO(response.data))
         ws = workbook['Extra NEB']
-        self.assertEqual(ws.cell(row=7, column=3).value, '4h30')
+        self.assertEqual(ws.cell(row=7, column=4).value, '4h30')
 
         with self.app.app_context():
             closure = db.session.query(OvertimeMonthClosure).one()
@@ -507,6 +651,92 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('bi-lock-fill text-muted', page)
         self.assertNotIn('/payments/overtime/edit/', page)
         self.assertNotIn('/payments/overtime/delete/', page)
+
+    def test_fechar_mes_atual_mantem_proximo_editavel(self):
+        # O fechamento tranca apenas o mês fechado: os lançamentos do mês
+        # seguinte continuam visíveis, editáveis e excluíveis.
+        self._add_overtime(self._mes_atual())
+        proximo_id = self._add_overtime(self._mes_seguinte(),
+                                        teacher_id=self.other_teacher_id)
+
+        response = self.client.post('/payments/overtime/close-month',
+                                    data={'month_base': self._mes_atual()})
+        self.assertEqual(response.status_code, 200)
+
+        page = self.client.get(
+            f'/payments/overtime/list?month_base={self._mes_atual()}').get_data(as_text=True)
+        self.assertIn('bi-lock-fill text-muted', page)
+        self.assertNotIn('/payments/overtime/edit/', page)
+
+        page = self.client.get(
+            f'/payments/overtime/list?month_base={self._mes_seguinte()}').get_data(as_text=True)
+        self.assertNotIn('bi-lock-fill text-muted', page)
+        self.assertIn(f'/payments/overtime/edit/{proximo_id}', page)
+        self.assertIn(f'/payments/overtime/delete/{proximo_id}', page)
+
+        # O backend também permite editar o lançamento do mês seguinte
+        response = self.client.get(f'/payments/overtime/edit/{proximo_id}')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('já foi fechado', response.get_data(as_text=True))
+
+    def test_edit_legado_restaura_datas_no_mes_base(self):
+        # Registro antigo com apenas os dias ("10, 17"): o campo Mês volta no
+        # mês base do lançamento, onde o calendário restaura os dias.
+        record_id = self._add_overtime(self._mes_atual())
+        with self.app.app_context():
+            record = db.session.get(TeacherOvertimePay, record_id)
+            record.multiple_dates = '10, 17'
+            db.session.commit()
+        page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
+        bloco = re.search(r'<select name="dates_month".*?</select>', page, re.S).group(0)
+        self.assertRegex(bloco, rf'<option value="{self._mes_atual()}" selected>')
+
+    def test_edit_mes_das_datas_gravado(self):
+        # Lançamento com mês das datas anterior ao mês base: o campo Mês volta
+        # nele, dentro das opções (mês base e anterior) oferecidas na edição.
+        record_id = self._add_overtime(self._mes_seguinte())
+        with self.app.app_context():
+            record = db.session.get(TeacherOvertimePay, record_id)
+            record.dates_month = self._mes_atual()
+            record.multiple_dates = '25, 28'
+            db.session.commit()
+        page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
+        bloco = re.search(r'<select name="dates_month".*?</select>', page, re.S).group(0)
+        self.assertIn(f'value="{self._mes_atual()}"', bloco)
+        self.assertIn(f'value="{self._mes_seguinte()}"', bloco)
+        self.assertRegex(bloco, rf'<option value="{self._mes_atual()}" selected>')
+
+    def test_edit_datas_completas_legado(self):
+        # Registro gravado por uma versão intermediária com datas completas e
+        # dates_month nulo: o mês vem da própria data ("25/09/2026" → setembro).
+        record_id = self._add_overtime(self._mes_atual())
+        with self.app.app_context():
+            record = db.session.get(TeacherOvertimePay, record_id)
+            record.multiple_dates = '25/09/2026'
+            db.session.commit()
+        page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
+        bloco = re.search(r'<select name="dates_month".*?</select>', page, re.S).group(0)
+        self.assertRegex(bloco, rf'<option value="{self._mes_anterior()}" selected>')
+
+    def test_edit_preserva_mes_das_datas_sem_campo(self):
+        # Editar sem o campo Mês no POST (cliente sem o seletor) mantém o mês
+        # das datas gravado — os dias continuam pertencendo ao mês certo.
+        record_id = self._add_overtime(self._mes_seguinte())
+        with self.app.app_context():
+            record = db.session.get(TeacherOvertimePay, record_id)
+            record.dates_month = self._mes_atual()
+            record.multiple_dates = '25, 28'
+            db.session.commit()
+        response = self.client.post(f'/payments/overtime/edit/{record_id}',
+                                    data=self._create_payload(
+                                        weekly_workload_hours='2',
+                                        weekly_workload_minutes='45'),
+                                    follow_redirects=True)
+        self.assertIn('Alteração realizada', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.get(TeacherOvertimePay, record_id)
+            self.assertEqual(record.dates_month, self._mes_atual())
+            self.assertEqual(record.month_base, self._mes_seguinte())
 
     def test_delete_overtime_preserva_filtros_de_origem(self):
         # Excluir a partir da linha não pode devolver a listagem limpa

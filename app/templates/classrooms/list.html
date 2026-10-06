@@ -8,6 +8,11 @@
         <p class="text-muted mb-0">Encontre a sala ideal para sua atividade.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        {% if current_user.has_permission('reservation:read_all') %}
+        <a class="btn btn-outline-primary" href="{{ url_for('reservations.relatorio') }}" title="Relatório de Salas e Reservas">
+            <i class="bi bi-clipboard-data me-1"></i> Relatório
+        </a>
+        {% endif %}
         <a class="btn btn-outline-secondary" href="{{ url_for('classrooms.export_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
             <i class="bi bi-filetype-pdf me-1"></i> Exportar PDF
         </a>
@@ -53,8 +58,11 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md d-flex align-items-end">
-                <div class="d-flex flex-wrap gap-2 w-100">
+            <div class="col-md">
+                {# Rótulo invisível: ocupa a mesma altura dos títulos das outras colunas
+                   para o botão nascer alinhado com os campos, e não com os títulos #}
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1 invisible d-none d-md-inline-block" aria-hidden="true">&nbsp;</label>
+                <div class="d-flex flex-wrap gap-2">
                     <button type="submit" id="filterBtn" class="btn btn-outline-primary flex-fill" disabled>
                         <i class="bi bi-funnel me-1"></i> Filtrar
                     </button>

@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
 from contextlib import ExitStack
+import calendar
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm
@@ -1058,3 +1059,145 @@ def _selected_series_members(res):
     by_id = {m.id: m for m in members}
     ids = {v for v in request.form.getlist('selected') if str(v).isdigit()}
     return [by_id[int(i)] for i in ids if int(i) in by_id]
+
+
+# ================= RELATÓRIO DE SALAS E RESERVAS =================
+
+DIAS_CURTOS_PT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+
+
+def _duracao_horas(minutos):
+    """Duração legível a partir de minutos: '3h' ou '3h30'."""
+    horas, resto = divmod(int(minutos), 60)
+    return f"{horas}h{resto:02d}" if resto else f"{horas}h"
+
+
+def _minutos_reserva(r):
+    """Duração da reserva em minutos (float)."""
+    return (datetime.combine(r.date, r.end_time)
+            - datetime.combine(r.date, r.start_time)).total_seconds() / 60
+
+
+@bp.route('/relatorio')
+@login_required
+@require_permission('reservation:read_all')
+def relatorio():
+    """Relatório gerencial de Salas e Reservas da unidade ativa: volume de
+    reservas por status, horas reservadas, ocupação por sala, cursos e carga
+    por docente, no período escolhido (padrão: mês corrente). A página tem
+    versão para impressão/PDF (mesmo padrão do relatório de VT)."""
+    hoje = date.today()
+    inicio = _data_iso(request.args.get('start')) or hoje.replace(day=1)
+    fim = _data_iso(request.args.get('end')) or date(
+        hoje.year, hoje.month, calendar.monthrange(hoje.year, hoje.month)[1])
+    if fim < inicio:
+        inicio, fim = fim, inicio
+
+    reservas = (Reservation.query.filter(
+        Reservation.unity_id == current_unity_id(),
+        Reservation.date >= inicio,
+        Reservation.date <= fim,
+    ).order_by(Reservation.date, Reservation.start_time).all())
+
+    aprovadas = [r for r in reservas if r.status == 'approved']
+    pendentes = sum(1 for r in reservas if r.status == 'pending')
+    canceladas = sum(1 for r in reservas if r.status == 'cancelled')
+    minutos_total = sum(_minutos_reserva(r) for r in aprovadas)
+
+    # ── Ocupação por sala (aprovadas) ──
+    por_sala = {}
+    for r in aprovadas:
+        sala = por_sala.setdefault(r.classroom_id, {
+            'codigo': r.classroom.code, 'nome': r.classroom.name,
+            'reservas': 0, 'minutos': 0.0})
+        sala['reservas'] += 1
+        sala['minutos'] += _minutos_reserva(r)
+    salas_utilizadas = len(por_sala)
+    salas_ativas = Classroom.query.filter_by(
+        unity_id=current_unity_id(), is_active=True).count()
+
+    # ── Reservas por curso ──
+    por_curso = {}
+    sem_curso = {'nome': 'Sem curso vinculado', 'reservas': 0, 'minutos': 0.0}
+    for r in aprovadas:
+        destino = (por_curso.setdefault(r.course_id, {
+            'nome': r.course.name, 'reservas': 0, 'minutos': 0.0})
+            if r.course else sem_curso)
+        destino['reservas'] += 1
+        destino['minutos'] += _minutos_reserva(r)
+
+    # ── Carga por docente ──
+    por_docente = {}
+    sem_docente = {'nome': 'Sem docente vinculado', 'reservas': 0, 'minutos': 0.0}
+    for r in aprovadas:
+        destino = (por_docente.setdefault(r.teacher_id, {
+            'nome': r.teacher.full_name, 'reservas': 0, 'minutos': 0.0})
+            if r.teacher else sem_docente)
+        destino['reservas'] += 1
+        destino['minutos'] += _minutos_reserva(r)
+
+    def _com_participacao(grupos, extras=None):
+        """Grupos ordenados por horas desc, com duração formatada e % do total."""
+        itens = sorted(grupos, key=lambda g: g['minutos'], reverse=True)
+        for g in itens:
+            g['horas'] = _duracao_horas(g['minutos'])
+            g['percentual'] = (g['minutos'] * 100 / minutos_total
+                               if minutos_total else 0)
+        if extras is not None and extras['reservas']:
+            extras['sem_vinculo'] = True
+            extras['horas'] = _duracao_horas(extras['minutos'])
+            extras['percentual'] = (extras['minutos'] * 100 / minutos_total
+                                    if minutos_total else 0)
+            itens.append(extras)
+        return itens
+
+    tabela_salas = _com_participacao(list(por_sala.values()))
+    tabela_cursos = _com_participacao(list(por_curso.values()), sem_curso)
+    tabela_docentes = _com_participacao(list(por_docente.values()), sem_docente)
+
+    # ── Distribuições para os gráficos (aprovadas) ──
+    por_semana = [0] * 7
+    por_periodo = {'manha': 0, 'tarde': 0, 'noite': 0}
+    for r in aprovadas:
+        por_semana[r.date.weekday()] += 1
+        if r.start_time < time(12, 0):
+            por_periodo['manha'] += 1
+        elif r.start_time < time(18, 0):
+            por_periodo['tarde'] += 1
+        else:
+            por_periodo['noite'] += 1
+
+    # Top salas do gráfico: código como rótulo curto, horas como número
+    top_salas = sorted(por_sala.values(), key=lambda s: s['minutos'],
+                       reverse=True)[:8]
+
+    docentes_count = len(por_docente)
+    gerado_em = datetime.now().strftime('%d/%m/%Y às %H:%M')
+
+    return render_template('reservations/relatorio.html',
+                           inicio=inicio, fim=fim,
+                           periodo_label=f"{inicio:%d/%m/%Y} a {fim:%d/%m/%Y}",
+                           gerado_em=gerado_em,
+                           total_aprovadas=len(aprovadas),
+                           pendentes=pendentes, canceladas=canceladas,
+                           horas_total=_duracao_horas(minutos_total),
+                           dias_com_atividade=len({r.date for r in aprovadas}),
+                           salas_utilizadas=salas_utilizadas,
+                           salas_ativas=salas_ativas,
+                           docentes_count=docentes_count,
+                           media_por_docente=(len(aprovadas) / docentes_count
+                                              if docentes_count else 0),
+                           tabela_salas=tabela_salas,
+                           tabela_cursos=tabela_cursos,
+                           tabela_docentes=tabela_docentes,
+                           grafico_status=[len(aprovadas), pendentes, canceladas],
+                           grafico_semana=por_semana,
+                           grafico_periodo=[por_periodo['manha'],
+                                            por_periodo['tarde'],
+                                            por_periodo['noite']],
+                           grafico_salas_rotulos=[
+                               f"{s['codigo']} — {s['nome']}" for s in top_salas],
+                           grafico_salas_horas=[round(s['minutos'] / 60, 1)
+                                                for s in top_salas],
+                           tem_reservas=bool(reservas),
+                           tem_aprovadas=bool(aprovadas))
