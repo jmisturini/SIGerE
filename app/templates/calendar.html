@@ -165,9 +165,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 floors[floor].push(event);
             });
 
-            // Ordenar andares logicamente
+            // Ordenar andares logicamente. "Térreo" pode ser cadastrado com
+            // caixa ou acento diferentes da chave do mapa; normaliza o nome
+            // para que venha antes dos andares numerados.
             const floorOrder = {"Térreo": 0, "Ground Floor": 0, "1º Andar": 1, "1st Floor": 1, "2º Andar": 2, "2nd Floor": 2, "3º Andar": 3, "3rd Floor": 3, "4º Andar": 4, "4th Floor": 4, "5º Andar": 5, "5th Floor": 5};
-            const sortedFloors = Object.keys(floors).sort((a, b) => (floorOrder[a] || 99) - (floorOrder[b] || 99));
+            const rankFloor = nome => {
+                const n = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                if (n.includes('terreo') || n.includes('ground')) return 0;
+                return floorOrder[nome] || 99;
+            };
+            const sortedFloors = Object.keys(floors).sort((a, b) => rankFloor(a) - rankFloor(b));
 
             sortedFloors.forEach(floorName => {
                 html += `<div class="col-12 mt-3"><h6 class="text-muted border-bottom pb-1 text-uppercase small"><i class="bi bi-layers"></i> ${esc(floorName)}</h6></div>`;
