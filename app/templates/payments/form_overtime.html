@@ -22,11 +22,16 @@
                     {% set dica_janela = 'Lançamentos feitos entre o dia 21 do mês anterior e o dia 20 do mês atual contam para o mês atual; após o dia 20, contam para o próximo mês.' %}
                     {% set dica_proximo = 'Esta entrada será incluída no próximo mês de pagamento.' %}
                     <div class="border border-primary-subtle rounded-3 p-3 mb-4 bg-primary-subtle bg-opacity-10">
+                        {# O rótulo fica em uma linha própria: assim a dica à
+                           direita fica centrada com o campo, e não com o
+                           conjunto rótulo + campo. #}
                         <div class="row g-2 align-items-center">
-                            <div class="col-md-5">
-                                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="reference_month">
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-uppercase text-muted mb-0" for="reference_month">
                                     <i class="bi bi-calendar-event text-primary me-1"></i>Mês de Referência
                                 </label>
+                            </div>
+                            <div class="col-md-5">
                                 {% if modo_criacao %}
                                 <select name="reference_month" id="reference_month" class="form-select fw-bold"
                                         data-valor-proximo="{{ valor_proximo_mes }}"
