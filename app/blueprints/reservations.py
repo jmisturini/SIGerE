@@ -16,7 +16,9 @@ from app.services.scheduling import (check_conflict, check_schedule_restrictions
                                      teacher_exceeds_daily_limit,
                                      TEACHER_DAILY_RESERVATION_LIMIT,
                                      MAX_REPEAT_RANGE_DAYS)
-from app.services.notifications import notificar_sobrecarga_professor
+from app.services.notifications import (notificar_sobrecarga_professor,
+                                        notificar_mudanca_status,
+                                        notificar_exclusao)
 from app.services.share import build_reservation_share_texts
 
 RESERVATIONS_PER_PAGE = 25
@@ -117,8 +119,11 @@ def _aplicar_config_notificacao(reservation, form):
     if config is None:
         config = ReservationNotificationConfig(reservation=reservation)
         db.session.add(config)
+    config.notify_7d = form.notify_7d.data
     config.notify_24h = form.notify_24h.data
     config.notify_1h = form.notify_1h.data
+    config.notify_dia = form.notify_dia.data
+    config.notify_criador = form.notify_criador.data
     config.groups = NotificationGroup.query.filter(
         NotificationGroup.id.in_(form.notify_groups.data or [0]),
         NotificationGroup.unity_id == reservation.unity_id).all()
@@ -453,8 +458,11 @@ def edit(reservation_id):
         config = reservation.notification_config
         if config is not None:
             form.notify_enabled.data = reservation.notify_enabled
+            form.notify_7d.data = config.notify_7d
             form.notify_24h.data = config.notify_24h
             form.notify_1h.data = config.notify_1h
+            form.notify_dia.data = config.notify_dia
+            form.notify_criador.data = config.notify_criador
             form.notify_groups.data = [g.id for g in config.groups]
             form.notify_users.data = [u.id for u in config.users]
 
@@ -543,7 +551,10 @@ def cancel(reservation_id):
         flash('Não é possível cancelar uma reserva passada.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
 
+    status_anterior = reservation.status
     reservation.status = 'cancelled'
+    # O criador fica sabendo do cancelamento (a menos que tenha sido ele mesmo).
+    notificar_mudanca_status(reservation, status_anterior, ator_id=current_user.id)
     db.session.commit()
     flash('Reserva cancelada.', 'info')
     if current_user.has_permission('reservation:read_all'):
@@ -560,6 +571,9 @@ def delete(reservation_id):
         # Reserva passada é registro do sistema: fica fora da exclusão.
         flash('Reservas passadas servem como registro e não podem ser excluídas.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+    # O criador fica sabendo da exclusão (a menos que tenha sido ele mesmo).
+    # O aviso não referencia a reserva: a FK apagaria em cascata junto.
+    notificar_exclusao(reservation, ator_id=current_user.id)
     db.session.delete(reservation)
     db.session.commit()
     flash('Reserva excluída permanentemente.', 'info')
@@ -589,6 +603,8 @@ def approve(reservation_id):
             reservation.status = 'approved'
             # Auditoria: registra quem aprovou (coluna antes nunca preenchida)
             reservation.reviewed_by = current_user.id
+            # O criador fica sabendo da aprovação (a menos que tenha sido ele mesmo).
+            notificar_mudanca_status(reservation, 'pending', ator_id=current_user.id)
             db.session.commit()
         flash('Reserva aprovada.', 'success')
     return redirect(url_for('reservations.detail', reservation_id=reservation.id))
@@ -1011,6 +1027,9 @@ def series_delete(reservation_id):
         if not current_user.has_permission('reservation:delete_all'):
             abort(403)
         for m in selected:
+            # Aviso de exclusão antes de apagar: a FK da notificação apagaria
+            # em cascata junto com a reserva (ação do próprio criador não avisa).
+            notificar_exclusao(m, ator_id=current_user.id)
             db.session.delete(m)
         db.session.commit()
         flash(f'{len(selected)} reserva(s) da série excluída(s) permanentemente.', 'success')
@@ -1036,7 +1055,11 @@ def series_delete(reservation_id):
         if not is_admin_cancel and m.user_id != current_user.id:
             skipped_other += 1
             continue
+        status_anterior = m.status
         m.status = 'cancelled'
+        # Cada criador de reserva cancelada por outro usuário é avisado;
+        # as do próprio ator saem sem aviso (nada de auto-notificação).
+        notificar_mudanca_status(m, status_anterior, ator_id=current_user.id)
         cancelled += 1
     db.session.commit()
 

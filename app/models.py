@@ -872,6 +872,20 @@ EVENT_RESERVATION_UPCOMING = 'reservation_upcoming'
 # da unidade — criada no momento da gravação, não pela varredura notify-scan.
 EVENT_TEACHER_DAILY_LIMIT = 'teacher_daily_limit'
 
+# Mudança de status da reserva (aprovada/cancelada): aviso criado no momento
+# da ação para o criador da reserva — também fora da varredura notify-scan.
+EVENT_RESERVATION_APPROVED = 'reservation_approved'
+EVENT_RESERVATION_CANCELLED = 'reservation_cancelled'
+
+# Exclusão permanente: aviso ao criador criado no momento da exclusão, com
+# reservation_id nulo — a FK da notificação apaga em cascata junto com a
+# reserva, então o aviso de exclusão não pode referenciá-la.
+EVENT_RESERVATION_DELETED = 'reservation_deleted'
+
+# Lembrete de reserva pendente aguardando aprovação: gerado pela varredura
+# notify-scan para os aprovadores da unidade (24h e 48h após a criação).
+EVENT_RESERVATION_PENDING_REMINDER = 'reservation_pending_reminder'
+
 # Grupos personalizados de destinatários por unidade: a equipe que deve ser
 # avisada junta (ex.: "Coordenação Gastronomia"). A configuração da unidade
 # seleciona quais grupos recebem os avisos.
@@ -957,6 +971,14 @@ class ReservationNotificationConfig(db.Model):
                                nullable=False, unique=True, index=True)
     notify_24h = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     notify_1h = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    # Marco ancorado a um horário fixo do próprio dia da atividade (07:00),
+    # além das antecedências em horas.
+    notify_dia = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    notify_7d = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    # O criador da reserva entra como destinatário dos avisos dela (padrão;
+    # pode desmarcar no formulário).
+    notify_criador = db.Column(db.Boolean, nullable=False, default=True,
+                               server_default='1')
     groups = db.relationship('NotificationGroup', secondary='reservation_notification_groups',
                              lazy='select', order_by='NotificationGroup.name')
     users = db.relationship('User', secondary='reservation_notification_users',
@@ -969,7 +991,9 @@ class ReservationNotificationConfig(db.Model):
     def marcos_ativos(self):
         """Rótulos dos marcos habilitados, na ordem em que aparecem na UI."""
         return [rotulo for rotulo, ativo in
-                (('24 horas antes', self.notify_24h), ('1 hora antes', self.notify_1h))
+                (('7 dias antes', self.notify_7d),
+                 ('24 horas antes', self.notify_24h), ('1 hora antes', self.notify_1h),
+                 ('No dia da atividade (07:00)', self.notify_dia))
                 if ativo]
 
     def __repr__(self):
@@ -985,6 +1009,10 @@ class UserNotificationPref(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'),
                         primary_key=True)
     mute_all = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    # Espelho por e-mail: desligado no perfil, o usuário deixa de receber os
+    # avisos por e-mail (o sino in-app continua inalterado). Padrão ligado.
+    email_enabled = db.Column(db.Boolean, nullable=False, default=True,
+                              server_default='1')
     muted_categories = db.relationship('RoomCategory',
                                        secondary='user_notification_muted_categories',
                                        lazy='select', order_by='RoomCategory.name')
@@ -1031,8 +1059,8 @@ class Notification(db.Model):
                                db.ForeignKey('reservations.id', ondelete='CASCADE'),
                                nullable=True, index=True)
     event_type = db.Column(db.String(40), nullable=False, default=EVENT_RESERVATION_UPCOMING)
-    # Marco que gerou o aviso ('7d', '1d', '0d') — junto com user/reserva/evento
-    # forma a chave de unicidade.
+    # Marco que gerou o aviso ('7d', '24h', '1h', 'dia', 'diario', 'status') —
+    # junto com user/reserva/evento forma a chave de unicidade.
     milestone = db.Column(db.String(10), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     body = db.Column(db.Text)
@@ -1040,6 +1068,11 @@ class Notification(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     read_at = db.Column(db.DateTime)
     sent_at = db.Column(db.DateTime)
+    # Espelho por e-mail: tentativas de envio já feitas. Passado o limite
+    # (MAIL_MAX_ATTEMPTS), a notificação sai da fila do dreno para não
+    # travá-la — falhas de SMTP não são perdidas, só deixam de reprocessar.
+    send_attempts = db.Column(db.Integer, nullable=False, default=0,
+                              server_default='0')
 
     user = db.relationship('User', backref='notifications')
     reservation = db.relationship('Reservation', backref='notifications')

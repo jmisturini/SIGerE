@@ -1026,3 +1026,12 @@ h1, h2, h3, h4, h5, h6 {
     outline-offset: 2px;
     color: var(--primary-color);
 }
+/* ── Sino de notificações: dropdown de preview ─────────────────────────── */
+.notif-lista {
+    max-height: 380px;
+    overflow-y: auto;
+}
+
+.notif-lista .dropdown-item-text + .dropdown-item-text {
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}

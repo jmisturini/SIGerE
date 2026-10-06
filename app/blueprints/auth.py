@@ -107,6 +107,7 @@ def perfil():
         if pref is not None:
             form.notify_mute_all.data = pref.mute_all
             form.notify_muted_categories.data = [c.id for c in pref.muted_categories]
+            form.notify_email.data = pref.email_enabled
     if form.validate_on_submit():
         # Instância fresca do banco (mesmo cuidado da troca de senha)
         user = User.query.filter_by(id=current_user.id).first()
@@ -126,6 +127,7 @@ def perfil():
             pref = UserNotificationPref(user_id=user.id)
             db.session.add(pref)
         pref.mute_all = form.notify_mute_all.data
+        pref.email_enabled = form.notify_email.data
         pref.muted_categories = RoomCategory.query.filter(
             RoomCategory.id.in_(form.notify_muted_categories.data or [0]),
             RoomCategory.is_active == True).all()  # noqa: E712 — comparação de coluna

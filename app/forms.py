@@ -143,6 +143,10 @@ class ProfileForm(BaseForm):
         'Desativar todas as notificações de atividade próxima', default=False)
     notify_muted_categories = SelectMultipleField(
         'Silenciar por tipo de sala', coerce=int, choices=[], validators=[Optional()])
+    # Espelho por e-mail: marcado por padrão; desmarcar para de enviar os
+    # avisos por e-mail (o sino in-app continua).
+    notify_email = BooleanField('Receber notificações também por e-mail',
+                                default=True)
     submit = SubmitField('Salvar Alterações')
 
     def validate_full_name(self, field):
@@ -299,12 +303,17 @@ class ReservationForm(BaseForm):
     start_time = TimeField('Horário de Início', validators=[DataRequired()])
     end_time = TimeField('Horário de Término', validators=[DataRequired()])
     # ── Notificações da reserva (opt-in, padrão desativado) ──────────────
-    # Interruptor + antecedências (24h/1h antes do início) + destinatários
-    # explícitos: usuários individuais e grupos personalizados da unidade.
+    # Interruptor + antecedências (7 dias/24h/1h antes do início e "no dia")
+    # + destinatários explícitos: usuários individuais e grupos personalizados
+    # da unidade, mais o próprio criador (padrão ligado).
     notify_enabled = BooleanField(
         'Ativar notificações desta reserva', default=False)
+    notify_7d = BooleanField('Avisar 7 dias antes', default=False)
     notify_24h = BooleanField('Avisar 24 horas antes', default=False)
     notify_1h = BooleanField('Avisar 1 hora antes', default=False)
+    notify_dia = BooleanField('Avisar no dia da atividade (07:00)', default=False)
+    notify_criador = BooleanField('Avisar também o criador da reserva',
+                                  default=True)
     notify_groups = SelectMultipleField('Grupos de notificação', coerce=int,
                                         choices=[], validators=[Optional()])
     notify_users = SelectMultipleField('Usuários a avisar', coerce=int,
@@ -316,15 +325,19 @@ class ReservationForm(BaseForm):
 
     def validate_notify_enabled(self, field):
         # Com o interruptor ligado, a configuração precisa ter função: ao
-        # menos um marco de antecedência e alguém para receber o aviso.
+        # menos um marco de aviso e alguém para receber (o criador conta).
         if not field.data:
             return
-        if not (self.notify_24h.data or self.notify_1h.data):
+        if not (self.notify_7d.data or self.notify_24h.data
+                or self.notify_1h.data or self.notify_dia.data):
             raise ValidationError(
-                'Escolha ao menos um aviso de antecedência: 24 horas ou 1 hora antes.')
-        if not self.notify_groups.data and not self.notify_users.data:
+                'Escolha ao menos um aviso: 7 dias, 24 horas ou 1 hora antes, '
+                'ou no dia da atividade.')
+        if not (self.notify_groups.data or self.notify_users.data
+                or self.notify_criador.data):
             raise ValidationError(
-                'Escolha ao menos um destinatário: usuário individual ou grupo.')
+                'Escolha ao menos um destinatário: usuário individual, grupo '
+                'ou o próprio criador.')
 
     def validate_date(self, field):
         if field.data < date.today():
