@@ -32,6 +32,17 @@ EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
+def _data_futura(em_dias):
+    """Data futura aceita pelas rotas de reserva: avança enquanto cair em
+    domingo, dia que check_schedule_restrictions recusa — sem isso os testes
+    que enviam formulário falham quando hoje + em_dias é domingo (toda
+    terça-feira, no padrão em_dias=5)."""
+    data = date.today() + timedelta(days=em_dias)
+    while data.weekday() == 6:
+        data += timedelta(days=1)
+    return data
+
+
 class TestConfig(Config):
     SECRET_KEY = 'chave-de-teste-nao-usar-o-valor-dev'
     TESTING = True
@@ -341,7 +352,7 @@ class TestNotificacoesPorReserva(NotificationsTestCase):
             'teacher': self.ids['professor'],
             'title': 'Aula via Formulário',
             'description': '',
-            'date': (date.today() + timedelta(days=em_dias)).isoformat(),
+            'date': _data_futura(em_dias).isoformat(),
             'start_time': '09:00',
             'end_time': '11:00',
         }
@@ -379,8 +390,9 @@ class TestNotificacoesPorReserva(NotificationsTestCase):
             self.assertFalse(config.notify_1h)
             self.assertEqual([u.id for u in config.users], [self.ids['extra']])
             self.assertEqual(config.groups, [])
-        # Avisam só os destinatários escolhidos (extra), no marco de 24h.
-        agora = datetime.combine(date.today() + timedelta(days=4), time(12, 0))
+        # Avisam só os destinatários escolhidos (extra), no marco de 24h —
+        # véspera da reserva, depois da marca (início 09:00) e antes da de 1h.
+        agora = datetime.combine(_data_futura(5) - timedelta(days=1), time(12, 0))
         with self.app.app_context():
             varrer_reservas(agora=agora)
         self.assertEqual(self._destinatarios(), [self.ids['extra']])
