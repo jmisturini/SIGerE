@@ -318,6 +318,9 @@ User=www-data
 Group=www-data
 WorkingDirectory=/var/www/sigere
 EnvironmentFile=/var/www/sigere/.env
+# /run é tmpfs (some no reboot): a pasta do socket precisa ser recriada a cada partida
+RuntimeDirectory=sigere
+RuntimeDirectoryMode=0755
 ExecStart=/var/www/sigere/venv/bin/gunicorn \
     --chdir /var/www/sigere \
     --bind unix:/run/sigere/sigere.sock \
@@ -333,9 +336,8 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-# Socket dir e logs
-sudo mkdir -p /run/sigere
-sudo chown www-data:www-data /run/sigere
+# /run/sigere (socket) é criado pela própria unit — RuntimeDirectory acima;
+# os logs já foram preparados no passo 1
 
 # Ativar e iniciar
 sudo systemctl daemon-reload
@@ -349,6 +351,12 @@ Pontos de ajuste:
   (`nproc` mostra o número de CPUs). `--threads 2` cobre requisições lentas
   simultâneas dentro de cada worker.
 - **Entrypoint:** `run:app` — o `run.py` expõe `app = create_app()` no nível do módulo.
+- **Socket (/run):** o `/run` é tmpfs — a pasta do socket **some a cada reboot**.
+  O `RuntimeDirectory=sigere` da unit cria `/run/sigere` (dono `www-data`)
+  automaticamente a cada partida. Instalações antigas sem a diretiva falham
+  depois de um reboot com `connection to /run/sigere/sigere.sock failed` e
+  `status=1` no journal (sem traceback): adicione a diretiva e rode
+  `daemon-reload`, ou recrie a pasta à mão (`mkdir -p` + `chown www-data`).
 - **Timeout:** 120 s cobre exportações de relatórios maiores; alinhe com o
   `proxy_read_timeout` do Nginx (passo 7).
 - **Reload × restart:** `sudo systemctl reload sigere` recarrega o código
@@ -715,6 +723,7 @@ Para conferir o que a varredura criaria sem gravar nada:
 | Sintoma | Causa provável | Solução |
 |---------|----------------|---------|
 | `502 Bad Gateway` | Gunicorn parado ou socket sem permissão | `sudo systemctl status sigere`; confira `/run/sigere` (`chown www-data`); veja `journalctl -u sigere` |
+| `status=1/FAILURE` no journal **sem traceback** e `connection to /run/sigere/sigere.sock failed` no `error.log` (típico após reboot) | `/run` é tmpfs: a pasta do socket sumiu no reboot e a unit não tem `RuntimeDirectory` | Recrie (`sudo mkdir -p /run/sigere && sudo chown www-data:www-data /run/sigere`) e adicione `RuntimeDirectory=sigere` à unit (passo 6) + `daemon-reload` |
 | `PermissionError` no `.env` ao rodar `flask db upgrade`/`seed-admin` | Comando executado como `www-data` (o `.env` é `600`, do seu usuário) ou variáveis não exportadas | Rode como o seu usuário: `set -a; source .env; set +a` antes do comando (passo 5) |
 | `limits...ConfigurationError: 'redis' prerequisite not available` no boot | `RATELIMIT_STORAGE_URI` aponta para Redis sem o pacote Python `redis` instalado (requirements antigo) | `venv/bin/pip install -r requirements.txt` — o cliente `redis` entrou no arquivo |
 | A aplicação não inicia: `RuntimeError: SECRET_KEY não configurada` | `.env` sem a chave ou `EnvironmentFile` apontando errado | Gere a chave (passo 4), confirme o caminho do `.env` na unit e `daemon-reload` |
