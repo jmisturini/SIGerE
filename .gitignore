@@ -41,3 +41,4 @@ backups/
 
 # Capturas dos testes de GUI (artefatos locais)
 gui-test-screenshots/
+/.zcode
