@@ -311,6 +311,29 @@ class PaymentsTestCase(unittest.TestCase):
         # Dica da janela segue presente no topo do formulário
         self.assertIn('dia 20 do mês', page)
 
+    def _opcoes_do_select(self, page, select_id):
+        """Pares (valor, selecionado?) das opções de um select da página."""
+        trecho = re.search(rf'id="{select_id}"[^>]*>(.*?)</select>', page, re.S)
+        self.assertIsNotNone(trecho, f'select {select_id} não encontrado na página')
+        return re.findall(r'<option value="([^"]+)"( selected)?\s*>', trecho.group(1))
+
+    def test_create_erro_de_validacao_mantem_par_do_mes_seguinte(self):
+        # POST com erro de validação (Valor H/a vazio): a página volta com o
+        # Mês de Referência (próximo mês) preservado e o campo Mês oferecendo
+        # o par dele — e não as opções do mês da janela. É desse par que o
+        # JavaScript parte ao realinhar o campo Mês num recarregamento (F5).
+        seguinte, atual = self._mes_seguinte(), self._mes_atual()
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(
+                                        reference_month=seguinte, hourly_value=''))
+        self.assertEqual(response.status_code, 200)  # re-render, sem redirect
+        page = response.get_data(as_text=True)
+        referencia = self._opcoes_do_select(page, 'reference_month')
+        self.assertEqual([v for v, sel in referencia if sel], [seguinte])
+        datas = self._opcoes_do_select(page, 'dates_month')
+        self.assertEqual([v for v, _ in datas], [atual, seguinte])
+        self.assertEqual([v for v, sel in datas if sel], [seguinte])
+
     def test_form_campo_mes_oferece_anterior_e_atual(self):
         # Com a referência padrão (mês atual pela janela), o campo Mês oferece
         # o mês anterior e o próprio mês de referência, já selecionado.
@@ -413,6 +436,27 @@ class PaymentsTestCase(unittest.TestCase):
                                                               weekly_workload_minutes='0'),
                                     follow_redirects=True)
         self.assertIn('Carga Horária Semanal deve ser maior que 0', response.get_data(as_text=True))
+
+    def test_create_minutos_em_branco_contam_como_zero(self):
+        # Só a hora preenchida é aceita: minuto vazio vale 0 (4h → 4.00) —
+        # não é mais rejeitado como carga inválida.
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(weekly_workload_minutes=''),
+                                    follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.weekly_workload, Decimal('4.00'))
+
+    def test_create_carga_totalmente_em_branco_rejeitada(self):
+        # Hora e minuto vazios: total 0 continua rejeitado.
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(weekly_workload_hours='',
+                                                              weekly_workload_minutes=''),
+                                    follow_redirects=True)
+        self.assertIn('Carga Horária Semanal deve ser maior que 0', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.query(TeacherOvertimePay).count(), 0)
 
     def test_export_writes_hours_and_minutes(self):
         # A planilha recebe hora e minutos inteiros (4h30) — sem decimal
