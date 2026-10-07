@@ -162,6 +162,10 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
         # Reservas sem curso/docente ganham linha própria identificada
         self.assertIn('Sem curso vinculado', page)
         self.assertIn('Sem docente vinculado', page)
+        # Quadro da relação professor–curso vem com o par do período
+        self.assertIn('Relação professor', page)
+        self.assertNotIn(
+            'Nenhuma reserva aprovada no período tem professor e curso', page)
         # A reserva do mês que vem não entra no período padrão
         _, fim = self._hoje_e_fim_do_mes()
         self.assertIn(f'value="{fim.isoformat()}"', page)
@@ -205,11 +209,65 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
                 title='So Pendente', date=date(2020, 2, 10),
                 start_time=time(22, 0), end_time=time(23, 0), status='pending'))
             db.session.commit()
+
         page = self.client.get(
             '/reservations/relatorio?start=2020-02-01&end=2020-02-28'
         ).get_data(as_text=True)
         self.assertIn('Nenhuma reserva <strong>aprovada</strong> no período', page)
         self.assertIn('Reservas por status', page)
+
+    # ---------- relação professor–curso ----------
+
+    def _quadro_professor_curso(self, page):
+        """Trecho da página do quadro Relação professor–curso (até o rodapé)."""
+        inicio = page.find('Relação professor')
+        self.assertNotEqual(inicio, -1, 'Quadro Relação professor–curso ausente')
+        return page[inicio:]
+
+    def test_relacao_mostra_apenas_pares_com_docente_e_curso(self):
+        # Docente sem curso e curso sem docente não formam par no quadro
+        with self.app.app_context():
+            unity = Unity.query.filter_by(code='UT').first()
+            sala = Classroom.query.filter_by(code='S1', unity_id=unity.id).first()
+            gestor = User.query.filter_by(email=EMAIL).first()
+            ana = User.query.filter_by(email='ana@escola.edu').first()
+            curso = Course.query.filter_by(code='CA1', unity_id=unity.id).first()
+            db.session.add(Reservation(
+                user_id=gestor.id, classroom_id=sala.id, unity_id=unity.id,
+                title='Docente Sem Curso', date=date.today(), start_time=time(9, 0),
+                end_time=time(10, 0), status='approved', teacher_id=ana.id))
+            db.session.add(Reservation(
+                user_id=gestor.id, classroom_id=sala.id, unity_id=unity.id,
+                title='Curso Sem Docente', date=date.today(), start_time=time(11, 0),
+                end_time=time(12, 0), status='approved', course_id=curso.id))
+            db.session.commit()
+
+        page = self.client.get('/reservations/relatorio').get_data(as_text=True)
+        quadro = self._quadro_professor_curso(page)
+        # O par formado na preparação (Ana + Curso A) está no quadro…
+        self.assertIn('Ana Souza', quadro)
+        self.assertIn('Curso A', quadro)
+        # …e cada docente aparece uma única vez: os pares incompletos ficam fora
+        self.assertEqual(quadro.count('Ana Souza'), 1)
+
+    def test_relacao_vazia_exibe_nota_explicativa(self):
+        # Aprovada sem docente e sem curso: quadro existe, mas sem pares
+        with self.app.app_context():
+            unity = Unity.query.filter_by(code='UT').first()
+            sala = Classroom.query.filter_by(code='S1', unity_id=unity.id).first()
+            gestor = User.query.filter_by(email=EMAIL).first()
+            db.session.add(Reservation(
+                user_id=gestor.id, classroom_id=sala.id, unity_id=unity.id,
+                title='Sem Vínculos', date=date(2020, 3, 5), start_time=time(8, 0),
+                end_time=time(9, 0), status='approved'))
+            db.session.commit()
+
+        page = self.client.get(
+            '/reservations/relatorio?start=2020-03-01&end=2020-03-31'
+        ).get_data(as_text=True)
+        self._quadro_professor_curso(page)
+        self.assertIn(
+            'Nenhuma reserva aprovada no período tem professor e curso', page)
 
     # ---------- atalhos nas páginas ----------
 
