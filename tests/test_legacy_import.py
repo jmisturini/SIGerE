@@ -273,5 +273,101 @@ class LegacyImportUserProfileRuleTestCase(unittest.TestCase):
             self.assertTrue(fernanda.is_teacher)
 
 
+class LegacyImportHoraExtraFechamentoTestCase(unittest.TestCase):
+    """Meses de referência anteriores ao mês base atual (janela 20→20) já
+    entram bloqueados na importação — o acervo do legado é histórico. Mês
+    futuro e month_base fora do formato não são bloqueados, e mês repetido
+    em vários lançamentos gera um único fechamento."""
+
+    DUMP = (
+        "-- phpMyAdmin SQL Dump\n"
+        "-- --------------------------------------------------------\n"
+        "--\n-- Table structure for table `authenticator_teachersuser`\n--\n\n"
+        "CREATE TABLE `authenticator_teachersuser` (`registration` int NOT NULL,\n"
+        " `email` varchar(100), `first_name` varchar(50), `last_name` varchar(50),\n"
+        " `username` varchar(50), `is_active` int, `unit_id` int,\n"
+        " `password` varchar(200), `date_joined` datetime);\n"
+        "--\n-- Dumping data for table `authenticator_teachersuser`\n--\n\n"
+        "INSERT INTO `authenticator_teachersuser` (`registration`, `email`,\n"
+        " `first_name`, `last_name`, `username`, `is_active`, `unit_id`,\n"
+        " `password`, `date_joined`) VALUES\n"
+        "(400, 'fernanda@senac.br', 'Fernanda', 'Pura', 'fernanda', 1, 1, 'lixo', '2023-05-10 10:00:00');\n"
+        "-- --------------------------------------------------------\n"
+        "--\n-- Table structure for table `teaching_level`\n--\n\n"
+        "CREATE TABLE `teaching_level` (`id` int NOT NULL, `level` varchar(50));\n"
+        "--\n-- Dumping data for table `teaching_level`\n--\n\n"
+        "INSERT INTO `teaching_level` (`id`, `level`) VALUES\n"
+        "(1, 'Graduação');\n"
+        "-- --------------------------------------------------------\n"
+        "--\n-- Table structure for table `shifts`\n--\n\n"
+        "CREATE TABLE `shifts` (`id` int NOT NULL, `shift` varchar(50));\n"
+        "--\n-- Dumping data for table `shifts`\n--\n\n"
+        "INSERT INTO `shifts` (`id`, `shift`) VALUES\n"
+        "(1, 'Matutino'),\n"
+        "(2, 'Noturno');\n"
+        "-- --------------------------------------------------------\n"
+        "--\n-- Table structure for table `teacher_overtime_pay`\n--\n\n"
+        "CREATE TABLE `teacher_overtime_pay` (`id` int NOT NULL, `teacher_id` int,\n"
+        " `accountable_id` int, `teaching_level_id` int, `weekly_workload` int,\n"
+        " `hourly_value` varchar(20), `budget_code` varchar(50), `shift_id` int,\n"
+        " `multiple_dates` varchar(255), `justification` varchar(255),\n"
+        " `month_base` varchar(7), `created_at` datetime);\n"
+        "--\n-- Dumping data for table `teacher_overtime_pay`\n--\n\n"
+        "INSERT INTO `teacher_overtime_pay` (`id`, `teacher_id`, `accountable_id`,\n"
+        " `teaching_level_id`, `weekly_workload`, `hourly_value`, `budget_code`,\n"
+        " `shift_id`, `multiple_dates`, `justification`, `month_base`, `created_at`) VALUES\n"
+        "(1, 400, NULL, 1, 20, '45.00', 'PROJ-A', 1, '10/03/2025, 17/03/2025', 'Aula extra', '2025-03', '2025-04-02 10:00:00'),\n"
+        "(2, 400, NULL, 1, 20, '45.00', 'PROJ-A', 2, '09/12/2024', 'Reposição', '2024-12', '2025-01-05 10:00:00'),\n"
+        "(3, 400, NULL, 1, 20, '45.00', 'PROJ-B', 1, '11/03/2025', 'Banco de horas', '2025-03', '2025-04-03 10:00:00'),\n"
+        "(4, 400, NULL, 1, 20, '45.00', 'PROJ-C', 1, '05/01/2099', 'Lançamento futuro', '2099-01', '2025-04-03 10:00:00'),\n"
+        "(5, 400, NULL, 1, 20, '45.00', NULL, 1, NULL, NULL, '', NULL);\n"
+    )
+
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        TestConfig.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + self.db_path.replace('\\', '/')
+        self.app = create_app(TestConfig)
+        with self.app.app_context():
+            db.create_all()
+            db.session.commit()
+        fd, self.dump_path = tempfile.mkstemp(suffix='.sql')
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(self.DUMP)
+
+    def tearDown(self):
+        with self.app.app_context():
+            db.session.remove()
+            db.engine.dispose()
+        for suffix in ('', '-wal', '-shm'):
+            path = self.db_path + suffix
+            if os.path.exists(path):
+                os.remove(path)
+        os.remove(self.dump_path)
+
+    def test_meses_anteriores_ao_mes_base_ja_vem_bloqueados(self):
+        from app.legacy_import import TARGET_UNITY_CODE, import_legacy
+        from app.models import OvertimeMonthClosure, TeacherOvertimePay, Unity
+        with self.app.app_context():
+            import_legacy(self.dump_path, force=True)
+        with self.app.app_context():
+            unity = Unity.query.filter_by(code=TARGET_UNITY_CODE).first()
+            closures = OvertimeMonthClosure.query.all()
+            # meses passados bloqueados; repetição de 2025-03 vira um só
+            self.assertEqual({c.month_base for c in closures},
+                             {'2025-03', '2024-12'})
+            for c in closures:
+                self.assertEqual(c.unity_id, unity.id)
+                self.assertIsNone(c.closed_by_id)  # fechado pela migração
+                self.assertIsNotNone(c.closed_at)
+            # mês futuro e month_base inválido seguem sem fechamento
+            self.assertEqual(TeacherOvertimePay.query.filter_by(
+                month_base='2099-01').count(), 1)
+            self.assertIsNone(OvertimeMonthClosure.query.filter_by(
+                month_base='2099-01').first())
+            self.assertIsNone(OvertimeMonthClosure.query.filter_by(
+                month_base='').first())
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -196,6 +196,25 @@ document.addEventListener('DOMContentLoaded', function() {
         datesMonthSelect.value = referencia;
     }
 
+    // Recarregar a página restaura a última seleção do Mês de Referência sem
+    // disparar o evento change: as opções do campo Mês podem ter ficado as do
+    // mês renderizado pelo servidor (ex.: mês atual) enquanto o referência
+    // restaurado é o próximo mês. Antes de montar o calendário, realinha as
+    // opções ao referência atual — preservando o mês das datas quando ele
+    // continua sendo um par válido (anterior e próprio referência).
+    const refSelect = document.getElementById('reference_month');
+    if (refSelect && datesMonthSelect && refSelect.value) {
+        const parEsperado = [mesAnteriorDe(refSelect.value), refSelect.value].sort().join();
+        const opcoesRenderizadas = [...datesMonthSelect.options].map(o => o.value).sort().join();
+        if (parEsperado !== opcoesRenderizadas) {
+            const escolhido = datesMonthSelect.value;
+            reconstruirOpcoesMesDatas(refSelect.value);
+            if ([...datesMonthSelect.options].some(o => o.value === escolhido)) {
+                datesMonthSelect.value = escolhido;
+            }
+        }
+    }
+
     // Converte o valor salvo em datas: registros antigos podem ter dias
     // soltos (relativos ao mês selecionado) ou datas completas legadas.
     function datasSalvas(raw, mesBase) {
@@ -259,7 +278,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mês de Referência: a dica troca ao selecionar o próximo mês e o campo
     // Mês passa a oferecer o mês anterior e o próprio referência — as datas
     // já escolhidas pertenciam ao mês anterior e são limpas.
-    const refSelect = document.getElementById('reference_month');
     const refHint = document.getElementById('reference-hint');
     if (refSelect && refHint) {
         const atualizarDica = function() {
@@ -292,15 +310,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Carga Horária Semanal: a dica mostra o formato gravado/exibido —
-    // hora e minutos inteiros (4h30), sem conversão para decimal.
+    // hora e minutos inteiros (4h30), sem conversão para decimal. Minutos em
+    // branco contam como 0: com só a hora preenchida a dica mostra 4h00.
     const workloadHours = document.getElementById('weekly_workload_hours');
     const workloadMinutes = document.getElementById('weekly_workload_minutes');
     const workloadHint = document.getElementById('workload-hint');
 
     function updateWorkloadHint() {
         const horas = parseInt(workloadHours.value, 10) || 0;
-        const minutos = parseInt(workloadMinutes.value, 10);
-        if (isNaN(minutos) || minutos < 0 || minutos > 59 || (horas === 0 && minutos === 0)) {
+        const minutos = parseInt(workloadMinutes.value, 10) || 0;
+        if (minutos < 0 || minutos > 59 || (horas === 0 && minutos === 0)) {
             workloadHint.textContent = '';
             return;
         }

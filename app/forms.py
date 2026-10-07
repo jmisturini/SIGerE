@@ -520,12 +520,12 @@ class FormTeacherOvertimePay(BaseForm):
 
     def workload_decimal(self):
         """Hora + minuto informados convertidos para hora decimal com 2 casas
-        (arredondamento comercial: 4h20 → 4.33). None quando algum campo não
-        é um número válido — a rota decide o que fazer com isso."""
-        if self.weekly_workload_hours.data is None or self.weekly_workload_minutes.data is None:
-            return None
-        total = (Decimal(self.weekly_workload_hours.data)
-                 + Decimal(self.weekly_workload_minutes.data) / Decimal(60))
+        (arredondamento comercial: 4h20 → 4.33). Campo deixado em branco conta
+        como zero — minutos vazios mantêm a hora cheia (4h → 4.00); os dois
+        vazios dão 0 e a rota exige um total maior que 0."""
+        horas = Decimal(self.weekly_workload_hours.data or 0)
+        minutos = Decimal(self.weekly_workload_minutes.data or 0)
+        total = horas + minutos / Decimal(60)
         return total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def validate_justification(self, field):
