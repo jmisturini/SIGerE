@@ -10,12 +10,61 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.30.1'
+APP_VERSION = '1.31.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.31.0',
+        'data': '2026-10-07',
+        'titulo': 'Menu Relatórios com relatório geral e personalizado e notificações ampliadas',
+        'grupos': [
+            ('Adicionado', [
+                'Menu próprio "Relatórios" na barra lateral, logo depois da Agenda, '
+                'com dois submenus: Relatório Geral e Relatório Personalizado. O '
+                'endereço do relatório mudou para /relatorios/geral — a URL antiga '
+                'continua funcionando e redireciona preservando os filtros.',
+                'Relatório Geral de Salas e Reservas: indicadores do período (reservas '
+                'aprovadas, horas reservadas, salas utilizadas e docentes envolvidos), '
+                'gráficos (status, período do dia, dia da semana e horas por sala), '
+                'ocupação por sala com participação percentual, reservas por curso, '
+                'carga por docente e o quadro "Professores e cursos" com duas abas — '
+                'professores por curso e cursos por professor, com as horas que cada '
+                'um contribuiu. Botão Imprimir/PDF na própria página.',
+                'Relatório Personalizado: monte a relação de reservas combinando '
+                'período, status, sala, professor, curso, disciplina, período do dia '
+                '(manhã/tarde/noite), busca no título, ordenação e agrupamento por '
+                'data, sala, professor, curso, disciplina ou sem agrupamento — com '
+                'faixas de grupo com totais, KPIs do filtro e impressão/PDF em '
+                'paisagem.',
+                'Notificações com marcos de aviso por instante de gatilho: "no dia" '
+                '(07:00 da data), 7 dias, 24 horas e 1 hora antes do início — o mais '
+                'iminente vencido dispara e os anteriores ficam absorvidos. O criador '
+                'da reserva passa a receber avisos de mudança de status (aprovada/'
+                'cancelada), de exclusão e lembretes de reserva pendente aguardando '
+                'aprovação (24h/48h) para os aprovadores da unidade.',
+                'Espelho das notificações por e-mail: um serviço drena a fila com '
+                'assunto de resumo quando há vários avisos, respeitando o opt-out '
+                '"Receber notificações também por e-mail" no perfil; falhas de SMTP '
+                'contam tentativas até o limite configurável e comandos notify-email '
+                'e notify-cleanup cuidam do envio e da limpeza dos avisos antigos.',
+                'Sino de notificações vira dropdown: preview das 8 últimas avisos '
+                'buscado a cada abertura, destaque das não lidas, marcar como lida '
+                'com um clique, rodapé "Marcar todas como lidas" e contador de não '
+                'lidas também no título da aba.',
+            ]),
+            ('Alterado', [
+                'Permissões: aposentadas as permissões obsoletas payment:read_own e '
+                'reservation:edit_own (o sync remove os vínculos em bancos já '
+                'existentes) e o papel Administrador ganha vt:read — quem configura '
+                'o módulo Vale-Transporte também abre a tela operacional de pedidos.',
+                'docs/permissoes.md passa a ser gerado automaticamente por '
+                'docs/gerar_permissoes.py a partir do catálogo de permissões e papéis.',
+            ]),
+        ],
+    },
     {
         'versao': '1.30.1',
         'data': '2026-10-06',
