@@ -30,7 +30,7 @@ responsabilidade). Ao final, imprime um relatório com as contagens.
 | `matters` | `subjects` | Código gerado `M{id:4}`. No legado matéria não pertence a curso — o vínculo fica na reserva. |
 | `class_control` | `reservations` | 22.394 registros. `reservation` → data; turno (`shifts`) → janela 07–12 / 12–18 / 18–22 (padrão idêntico aos horários gravados no `auditorium_control`). Título = “Curso · Matéria”. |
 | `auditorium_control` | `reservations` na sala Auditório | 529 registros, com horários explícitos do legado. |
-| `teacher_overtime_pay` | `teacher_overtime_pay` | 724 lançamentos; professor resolvido por matrícula. |
+| `teacher_overtime_pay` | `teacher_overtime_pay` + `overtime_month_closures` | 724 lançamentos; professor resolvido por matrícula. Meses de referência **anteriores ao mês base atual** (janela 20→20) já entram **bloqueados** — o acervo importado é histórico e nasce somente leitura (fechamento sem usuário responsável). |
 | `contracts`, `levels`, `status_user_base`, `teacher_base_pay(+_course)`, `teacher_additive_payment(+_course)` | — | Sem equivalente no SIGERE; apenas contados no relatório. |
 | Resto (`django_*`, `auth_*`, `axes_*`, sessões, logs) | — | Infraestrutura Django, descartada. |
 

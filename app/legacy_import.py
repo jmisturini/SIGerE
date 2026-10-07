@@ -22,8 +22,11 @@ Decisões de mapeamento documentadas (ver docs/migracao-legado.md):
 - `auditorium_control` vira Reservation na sala sintética "Auditório".
 - Status legado 1 → approved; 2 → cancelled (hipótese: cancelado/nao ocorrido).
   O status numérico original fica em review_note para re-mapeamento via SQL.
-- `teacher_overtime_pay` vira TeacherOvertimePay. Tabelas de pagamento base/
-  aditivo não têm equivalente no SIGERE e são apenas contadas no relatório.
+- `teacher_overtime_pay` vira TeacherOvertimePay. Meses de referência
+  anteriores ao mês base atual (janela 20→20) já entram bloqueados
+  (OvertimeMonthClosure, sem usuário responsável): o acervo importado é
+  histórico e nasce somente leitura. Tabelas de pagamento base/aditivo
+  não têm equivalente no SIGERE e são apenas contadas no relatório.
 """
 import re
 from datetime import date, datetime, time, timezone
@@ -32,8 +35,9 @@ import click
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import (Classroom, Course, Reservation, RoomCategory, Role,
-                        Subject, TeacherOvertimePay, Unity, User)
+from app.models import (Classroom, Course, OvertimeMonthClosure, Reservation,
+                        RoomCategory, Role, Subject, TeacherOvertimePay,
+                        Unity, User)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Parser do dump phpMyAdmin (estrutura regular: INSERT INTO `t` (...) VALUES
@@ -574,12 +578,14 @@ def import_legacy(dump_path, force=False):
     shifts_name = {r["id"]: r["shift"] for r in read_dump_table(content, "shifts")}
     ot_rows = read_dump_table(content, "teacher_overtime_pay")
     skipped_ot = 0
+    meses_ot = set()
     for r in ot_rows:
         teacher = users_by_reg.get(int(r["teacher_id"])) if r["teacher_id"] else None
         if teacher is None:
             skipped_ot += 1
             continue
         account = users_by_old.get(("cu", r["accountable_id"]))
+        meses_ot.add(r["month_base"])
         db.session.add(TeacherOvertimePay(
             teacher_id=teacher.id,
             unity_id=teacher.primary_unity_id,
@@ -596,6 +602,24 @@ def import_legacy(dump_path, force=False):
         ))
     counts["hora_extra"] = len(ot_rows) - skipped_ot
     report.append(f"Lançamentos de hora extra importados: {counts['hora_extra']} (ignorados: {skipped_ot})")
+
+    # Meses de referência anteriores ao mês base atual (janela 20→20) já
+    # entram bloqueados: o acervo do legado é histórico e no SIGERE esses
+    # lançamentos nascem somente leitura, como se o mês tivesse sido fechado
+    # pela unidade — sem usuário responsável (foi a migração que fechou).
+    from app.blueprints.payments import _mes_valido, _month_base_janela
+    mes_base_atual = _month_base_janela()
+    ja_fechados = {c.month_base for c in
+                   OvertimeMonthClosure.query.filter_by(unity_id=unity.id)}
+    meses_bloqueados = sorted(
+        mes for mes in (_mes_valido(m) for m in meses_ot)
+        if mes and mes < mes_base_atual and mes not in ja_fechados)
+    for mes in meses_bloqueados:
+        db.session.add(OvertimeMonthClosure(unity_id=unity.id, month_base=mes))
+    counts["meses_fechados"] = len(meses_bloqueados)
+    if meses_bloqueados:
+        report.append(f"Meses anteriores ao mês base ({mes_base_atual}) "
+                      f"importados já bloqueados: {', '.join(meses_bloqueados)}")
 
     # ── Sem equivalente no SIGERE (apenas relatado) ──────────────────────
     for label, table in [("pagamentos base", "teacher_base_pay"),
