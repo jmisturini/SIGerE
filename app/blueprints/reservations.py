@@ -1178,21 +1178,46 @@ def relatorio():
     tabela_cursos = _com_participacao(list(por_curso.values()), sem_curso)
     tabela_docentes = _com_participacao(list(por_docente.values()), sem_docente)
 
-    # ── Relação professor–curso: pares docente + curso nas aprovadas ──
-    professor_curso = {}
+    # ── Professores por curso: horas de cada docente no total do curso ──
+    # Cursos com ao menos um docente nas aprovadas; as horas do curso sem
+    # docente vinculado entram como linha de restos quando existirem.
+    professores_por_curso = {}
     for r in aprovadas:
-        if not r.teacher_id or not r.course_id:
+        if not r.course_id:
             continue
-        par = professor_curso.setdefault((r.teacher_id, r.course_id), {
-            'docente': r.teacher.full_name, 'curso': r.course.name,
-            'reservas': 0, 'minutos': 0.0})
-        par['reservas'] += 1
-        par['minutos'] += _minutos_reserva(r)
-    tabela_professor_curso = sorted(
-        professor_curso.values(),
-        key=lambda p: (p['docente'], -p['minutos']))
-    for par in tabela_professor_curso:
-        par['horas'] = _duracao_horas(par['minutos'])
+        grupo = professores_por_curso.setdefault(r.course_id, {
+            'curso': r.course.name, 'minutos': 0.0,
+            'docentes': {}, 'sem_docente': {'reservas': 0, 'minutos': 0.0}})
+        grupo['minutos'] += _minutos_reserva(r)
+        if r.teacher_id:
+            docente = grupo['docentes'].setdefault(r.teacher_id, {
+                'nome': r.teacher.full_name, 'reservas': 0, 'minutos': 0.0})
+            docente['reservas'] += 1
+            docente['minutos'] += _minutos_reserva(r)
+        else:
+            grupo['sem_docente']['reservas'] += 1
+            grupo['sem_docente']['minutos'] += _minutos_reserva(r)
+
+    professores_por_curso = [
+        {'curso': g['curso'], 'docentes': sorted(
+            g['docentes'].values(), key=lambda d: -d['minutos']),
+         'sem_docente': g['sem_docente'] if g['sem_docente']['reservas'] else None,
+         'minutos': g['minutos']}
+        for g in sorted(professores_por_curso.values(),
+                        key=lambda g: g['curso'])
+        if g['docentes']]
+    for grupo in professores_por_curso:
+        grupo['horas'] = _duracao_horas(grupo['minutos'])
+        for docente in grupo['docentes']:
+            docente['horas'] = _duracao_horas(docente['minutos'])
+            docente['percentual'] = (docente['minutos'] * 100 / grupo['minutos']
+                                     if grupo['minutos'] else 0)
+        if grupo['sem_docente']:
+            grupo['sem_docente']['horas'] = _duracao_horas(
+                grupo['sem_docente']['minutos'])
+            grupo['sem_docente']['percentual'] = (
+                grupo['sem_docente']['minutos'] * 100 / grupo['minutos']
+                if grupo['minutos'] else 0)
 
     # ── Distribuições para os gráficos (aprovadas) ──
     por_semana = [0] * 7
@@ -1229,7 +1254,7 @@ def relatorio():
                            tabela_salas=tabela_salas,
                            tabela_cursos=tabela_cursos,
                            tabela_docentes=tabela_docentes,
-                           tabela_professor_curso=tabela_professor_curso,
+                           professores_por_curso=professores_por_curso,
                            grafico_status=[len(aprovadas), pendentes, canceladas],
                            grafico_semana=por_semana,
                            grafico_periodo=[por_periodo['manha'],

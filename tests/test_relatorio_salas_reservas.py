@@ -162,8 +162,8 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
         # Reservas sem curso/docente ganham linha própria identificada
         self.assertIn('Sem curso vinculado', page)
         self.assertIn('Sem docente vinculado', page)
-        # Quadro da relação professor–curso vem com o par do período
-        self.assertIn('Relação professor', page)
+        # Quadro Professores por curso vem com o grupo do período
+        self.assertIn('Professores por curso', page)
         self.assertNotIn(
             'Nenhuma reserva aprovada no período tem professor e curso', page)
         # A reserva do mês que vem não entra no período padrão
@@ -216,16 +216,17 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
         self.assertIn('Nenhuma reserva <strong>aprovada</strong> no período', page)
         self.assertIn('Reservas por status', page)
 
-    # ---------- relação professor–curso ----------
+    # ---------- professores por curso ----------
 
-    def _quadro_professor_curso(self, page):
-        """Trecho da página do quadro Relação professor–curso (até o rodapé)."""
-        inicio = page.find('Relação professor')
-        self.assertNotEqual(inicio, -1, 'Quadro Relação professor–curso ausente')
+    def _quadro_professores_curso(self, page):
+        """Trecho da página do quadro Professores por curso (até o rodapé)."""
+        inicio = page.find('Professores por curso')
+        self.assertNotEqual(inicio, -1, 'Quadro Professores por curso ausente')
         return page[inicio:]
 
-    def test_relacao_mostra_apenas_pares_com_docente_e_curso(self):
-        # Docente sem curso e curso sem docente não formam par no quadro
+    def test_quadro_agrupa_docentes_por_curso_com_participacao(self):
+        # Docente sem curso não entra no quadro; curso sem docente vira
+        # linha de restos dentro do grupo do curso
         with self.app.app_context():
             unity = Unity.query.filter_by(code='UT').first()
             sala = Classroom.query.filter_by(code='S1', unity_id=unity.id).first()
@@ -243,15 +244,18 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
             db.session.commit()
 
         page = self.client.get('/reservations/relatorio').get_data(as_text=True)
-        quadro = self._quadro_professor_curso(page)
-        # O par formado na preparação (Ana + Curso A) está no quadro…
-        self.assertIn('Ana Souza', quadro)
+        quadro = self._quadro_professores_curso(page)
+        # O grupo do curso soma as 2h aprovadas dele (1h da Ana + 1h sem docente)
         self.assertIn('Curso A', quadro)
-        # …e cada docente aparece uma única vez: os pares incompletos ficam fora
+        self.assertIn('>2h<', quadro)
+        self.assertIn('Ana Souza', quadro)
+        # Docente aparece uma única vez: reserva sem curso não cria grupo
         self.assertEqual(quadro.count('Ana Souza'), 1)
+        # As horas sem docente entram como linha de restos do grupo
+        self.assertIn('Sem docente vinculado', quadro)
 
-    def test_relacao_vazia_exibe_nota_explicativa(self):
-        # Aprovada sem docente e sem curso: quadro existe, mas sem pares
+    def test_quadro_vazio_exibe_nota_explicativa(self):
+        # Aprovada sem docente e sem curso: quadro existe, mas sem grupos
         with self.app.app_context():
             unity = Unity.query.filter_by(code='UT').first()
             sala = Classroom.query.filter_by(code='S1', unity_id=unity.id).first()
@@ -265,7 +269,7 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
         page = self.client.get(
             '/reservations/relatorio?start=2020-03-01&end=2020-03-31'
         ).get_data(as_text=True)
-        self._quadro_professor_curso(page)
+        self._quadro_professores_curso(page)
         self.assertIn(
             'Nenhuma reserva aprovada no período tem professor e curso', page)
 
