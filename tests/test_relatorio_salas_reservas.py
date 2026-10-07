@@ -1,4 +1,4 @@
-"""Testes do Relatório de Salas e Reservas (/reservations/relatorio):
+"""Testes do Relatório de Salas e Reservas (/relatorios):
 período padrão (mês corrente) e por start/end, KPIs e tabelas por status,
 sala, curso e docente, acesso restrito a reservation:read_all e botões de
 atalho nas páginas de Salas e Todas as Reservas.
@@ -98,6 +98,9 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
             self._criar_reserva(self.sala_s1, 'Futura', mes_que_vem, time(8, 0),
                                 time(9, 0))
 
+            # ids fixados dentro do contexto (objetos ficam detached depois)
+            self.ids = {'sala_s1': self.sala_s1.id, 'sala_s2': self.sala_s2.id}
+
         self._login()
 
     def _criar_reserva(self, room, title, when, inicio, fim, status='approved',
@@ -137,20 +140,30 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
     def test_exige_permissao_read_all(self):
         self.client.get('/logout')
         self._login('ana@escola.edu', PASSWORD)
-        response = self.client.get('/reservations/relatorio')
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.client.get('/relatorios/geral').status_code, 403)
+        self.assertEqual(
+            self.client.get('/relatorios/personalizado').status_code, 403)
+
+    def test_url_antiga_do_relatorio_redireciona(self):
+        response = self.client.get('/reservations/relatorio?start=2026-01-01')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/relatorios', response.headers['Location'])
+        # Seguindo o redirect, o Relatório Geral responde normalmente
+        page = self.client.get(
+            '/reservations/relatorio', follow_redirects=True).get_data(as_text=True)
+        self.assertIn('Relatório Geral de Salas e Reservas', page)
 
     def test_gestor_acessa_e_pagina_renderiza(self):
-        response = self.client.get('/reservations/relatorio')
+        response = self.client.get('/relatorios/geral')
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
-        self.assertIn('Relatório de Salas e Reservas', page)
+        self.assertIn('Relatório Geral de Salas e Reservas', page)
         self.assertIn('Imprimir / PDF', page)
 
     # ---------- período e conteúdo ----------
 
     def test_padrao_mes_corrente_exclui_mes_que_vem(self):
-        page = self.client.get('/reservations/relatorio').get_data(as_text=True)
+        page = self.client.get('/relatorios/geral').get_data(as_text=True)
         # Duas aprovadas de 1h no mês corrente: KPI de horas mostra 2h
         self.assertIn('>2h<', page)
         self.assertIn('Reservas aprovadas', page)
@@ -180,7 +193,7 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
         fim = date(mes_que_vem.year, mes_que_vem.month,
                    calendar.monthrange(mes_que_vem.year, mes_que_vem.month)[1])
         page = self.client.get(
-            f'/reservations/relatorio?start={hoje.isoformat()}'
+            f'/relatorios/geral?start={hoje.isoformat()}'
             f'&end={fim.isoformat()}').get_data(as_text=True)
         # Com a reserva futura, o KPI de horas sobe de 2h para 3h
         self.assertIn('>3h<', page)
@@ -188,13 +201,13 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
     def test_datas_invalidas_cai_no_padrao(self):
         # Datas inválidas voltam ao mês corrente (padrão), sem erro
         page = self.client.get(
-            '/reservations/relatorio?start=banana&end=42').get_data(as_text=True)
+            '/relatorios/geral?start=banana&end=42').get_data(as_text=True)
         _, fim = self._hoje_e_fim_do_mes()
         self.assertIn(f'value="{fim.isoformat()}"', page)
 
     def test_periodo_sem_reservas_mostra_estado_vazio(self):
         page = self.client.get(
-            '/reservations/relatorio?start=2020-01-01&end=2020-01-31'
+            '/relatorios/geral?start=2020-01-01&end=2020-01-31'
         ).get_data(as_text=True)
         self.assertIn('Nenhuma reserva no período', page)
 
@@ -212,7 +225,7 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
             db.session.commit()
 
         page = self.client.get(
-            '/reservations/relatorio?start=2020-02-01&end=2020-02-28'
+            '/relatorios/geral?start=2020-02-01&end=2020-02-28'
         ).get_data(as_text=True)
         self.assertIn('Nenhuma reserva <strong>aprovada</strong> no período', page)
         self.assertIn('Reservas por status', page)
@@ -244,7 +257,7 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
                 end_time=time(12, 0), status='approved', course_id=curso.id))
             db.session.commit()
 
-        page = self.client.get('/reservations/relatorio').get_data(as_text=True)
+        page = self.client.get('/relatorios/geral').get_data(as_text=True)
         quadro = self._quadro_professores_curso(page)
         # Aba "por curso": o grupo do curso soma as 2h aprovadas dele
         # (1h da Ana + 1h sem docente)
@@ -270,25 +283,102 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
             db.session.commit()
 
         page = self.client.get(
-            '/reservations/relatorio?start=2020-03-01&end=2020-03-31'
+            '/relatorios/geral?start=2020-03-01&end=2020-03-31'
         ).get_data(as_text=True)
         self._quadro_professores_curso(page)
         self.assertIn(
             'Nenhuma reserva aprovada no período tem professor e curso', page)
 
+    # ---------- relatório personalizado ----------
+
+    def test_personalizado_renderiza_formulario_e_dados(self):
+        page = self.client.get('/relatorios/personalizado').get_data(as_text=True)
+        self.assertIn('Relatório Personalizado', page)
+        self.assertIn('Gerar Relatório', page)
+        self.assertIn('Agrupar por', page)
+        self.assertIn('Buscar no título', page)
+        # Padrão (mês corrente) inclui todos os status
+        self.assertIn('Aula S1', page)
+        self.assertIn('Pendente S2', page)
+        self.assertIn('Cancelada S2', page)
+
+    def test_personalizado_filtro_status(self):
+        page = self.client.get(
+            '/relatorios/personalizado?status_approved=1').get_data(as_text=True)
+        self.assertIn('Aula S1', page)
+        self.assertNotIn('Pendente S2', page)
+        self.assertNotIn('Cancelada S2', page)
+
+    def test_personalizado_filtro_sala(self):
+        page = self.client.get(
+            f"/relatorios/personalizado?room_id={self.ids['sala_s2']}"
+        ).get_data(as_text=True)
+        self.assertIn('Pendente S2', page)
+        self.assertIn('Cancelada S2', page)
+        self.assertNotIn('Aula S1', page)
+
+    def test_personalizado_busca_no_titulo(self):
+        page = self.client.get(
+            '/relatorios/personalizado?texto=Pendente').get_data(as_text=True)
+        self.assertIn('Pendente S2', page)
+        self.assertNotIn('Aula S1', page)
+        self.assertNotIn('Cancelada S2', page)
+
+    def test_personalizado_agrupamento_por_professor(self):
+        page = self.client.get(
+            '/relatorios/personalizado?agrupar=professor'
+        ).get_data(as_text=True)
+        # Faixa do docente do período e grupo das reservas sem professor
+        self.assertIn('Ana Souza', page)
+        self.assertIn('Sem professor', page)
+        # Datas não são mais faixas: os títulos continuam como linhas
+        self.assertIn('Aula S1', page)
+
+    def test_personalizado_periodo_sem_reservas(self):
+        page = self.client.get(
+            '/relatorios/personalizado?start=2020-01-01&end=2020-01-31'
+        ).get_data(as_text=True)
+        self.assertIn('Nenhuma reserva com esses filtros', page)
+
+    def test_personalizado_agrupado_por_data_ordena_cronologicamente(self):
+        # Duas datas isoladas: a faixa de 10/02 vem antes da de 20/02 no
+        # padrão crescente, e troca de lugar com a ordem decrescente
+        with self.app.app_context():
+            unity = Unity.query.filter_by(code='UT').first()
+            sala = Classroom.query.filter_by(code='S1', unity_id=unity.id).first()
+            gestor = User.query.filter_by(email=EMAIL).first()
+            db.session.add(Reservation(
+                user_id=gestor.id, classroom_id=sala.id, unity_id=unity.id,
+                title='Dia 10', date=date(2020, 2, 10), start_time=time(8, 0),
+                end_time=time(9, 0), status='approved'))
+            db.session.add(Reservation(
+                user_id=gestor.id, classroom_id=sala.id, unity_id=unity.id,
+                title='Dia 20', date=date(2020, 2, 20), start_time=time(8, 0),
+                end_time=time(9, 0), status='approved'))
+            db.session.commit()
+
+        page = self.client.get(
+            '/relatorios/personalizado?start=2020-02-01&end=2020-02-28'
+        ).get_data(as_text=True)
+        self.assertLess(page.find('10/02/2020'), page.find('20/02/2020'))
+        page = self.client.get(
+            '/relatorios/personalizado?start=2020-02-01&end=2020-02-28&ordem=desc'
+        ).get_data(as_text=True)
+        self.assertGreater(page.find('10/02/2020'), page.find('20/02/2020'))
+
     # ---------- atalhos nas páginas ----------
 
     def test_botao_relatorio_aparece_para_gestor(self):
         page = self.client.get('/reservations/all').get_data(as_text=True)
-        self.assertIn('/reservations/relatorio', page)
+        self.assertIn('/relatorios', page)
         page = self.client.get('/classrooms/').get_data(as_text=True)
-        self.assertIn('/reservations/relatorio', page)
+        self.assertIn('/relatorios', page)
 
     def test_botao_relatorio_nao_aparece_sem_permissao(self):
         self.client.get('/logout')
         self._login('ana@escola.edu', PASSWORD)
         page = self.client.get('/classrooms/').get_data(as_text=True)
-        self.assertNotIn('/reservations/relatorio', page)
+        self.assertNotIn('/relatorios', page)
 
 
 if __name__ == '__main__':

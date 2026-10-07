@@ -67,6 +67,32 @@
                     </a>
                 </li>
 
+                {# Relatórios: seção própria (fora de Salas e Reservas), com o relatório
+                   geral e o personalizado — acesso ligado à leitura gerencial #}
+                {% if current_user.has_permission('reservation:read_all') %}
+                {% set in_relatorios = ep.startswith('relatorios.') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_relatorios else '' }}" title="Relatórios" data-bs-toggle="collapse" href="#menu-relatorios" role="button" aria-expanded="{{ 'true' if in_relatorios else 'false' }}" aria-controls="menu-relatorios">
+                        <i class="bi bi-clipboard-data"></i> <span>Relatórios</span>
+                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
+                    </a>
+                    <div class="collapse {{ 'show' if in_relatorios else '' }}" id="menu-relatorios">
+                        <ul class="nav flex-column nav-submenu">
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep == 'relatorios.geral' }}" title="Relatório Geral" href="{{ url_for('relatorios.geral') }}">
+                                    <i class="bi bi-graph-up"></i> <span>Relatório Geral</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep == 'relatorios.personalizado' }}" title="Relatório Personalizado" href="{{ url_for('relatorios.personalizado') }}">
+                                    <i class="bi bi-sliders"></i> <span>Relatório Personalizado</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 <li class="nav-section">Salas e Reservas</li>
                 {# Salas inclui a gestão administrativa (admin/rooms, categorias) e as telas públicas #}
                 {% set in_salas = ep.startswith('classrooms') or ep.startswith('admin.rooms') or ep.startswith('admin.categories') %}
@@ -102,11 +128,6 @@
                             <li class="nav-item">
                                 <a class="nav-link {{ 'active' if ep.startswith('reservations.all') }}" title="Todas as Reservas" href="{{ url_for('reservations.all_reservations') }}">
                                     <i class="bi bi-people"></i> <span>Todas as Reservas</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.relatorio') }}" title="Relatório de Salas e Reservas" href="{{ url_for('reservations.relatorio') }}">
-                                    <i class="bi bi-clipboard-data"></i> <span>Relatório</span>
                                 </a>
                             </li>
                             {% endif %}

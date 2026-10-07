@@ -65,11 +65,13 @@ def create_app(config_class=Config):
     from app.blueprints.kitchen import bp as kitchen_bp
     from app.blueprints.api import bp as api_bp
     from app.blueprints.notifications import bp as notifications_bp
+    from app.blueprints.relatorios import bp as relatorios_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(classrooms_bp)
     app.register_blueprint(reservations_bp)
+    app.register_blueprint(relatorios_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(totem_bp)
     app.register_blueprint(schedule_bp)
