@@ -1,25 +1,11 @@
 {% extends 'base.html' %}
-{% block title %}Relatório de Salas e Reservas{% endblock %}
+{% block title %}Relatório Geral de Salas e Reservas{% endblock %}
 
 {% block content %}
+{% include 'relatorios/_estilos.html' %}
 <style>
-    .rel-kpi .rel-icone {
-        width: 3rem; height: 3rem; border-radius: .75rem;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 1.4rem; flex-shrink: 0;
-    }
-    .rel-kpi .rel-valor { font-size: 1.7rem; line-height: 1.15; }
-    .rel-grafico { position: relative; height: 260px; }
-    .rel-grafico-alto { position: relative; height: 320px; }
+    {# Professores e cursos: regras exclusivas das abas na impressão #}
     @media print {
-        .sidebar, .topbar, .footer, .no-print { display: none !important; }
-        .app-container { display: block !important; }
-        .main-content, .page-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
-        body { background: #fff !important; }
-        .card { border: 1px solid #dee2e6 !important; break-inside: avoid; box-shadow: none !important; }
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        {# Professores e cursos: as abas não fazem sentido no papel — os dois
-           quadros saim impressos, um após o outro (títulos internos d-print) #}
         .tab-content > .tab-pane { display: block !important; opacity: 1 !important; }
         .tab-content { margin-bottom: -1rem; }
         .tab-content > .tab-pane + .tab-pane { margin-top: 1.5rem; }
@@ -28,7 +14,7 @@
 
 <div class="page-header d-flex flex-wrap justify-content-between align-items-start mb-4 gap-2">
     <div>
-        <h3 class="fw-bold mb-1"><i class="bi bi-clipboard-data text-primary me-2"></i>Relatório de Salas e Reservas</h3>
+        <h3 class="fw-bold mb-1"><i class="bi bi-clipboard-data text-primary me-2"></i>Relatório Geral de Salas e Reservas</h3>
         <p class="text-muted mb-0">
             Panorama das reservas da unidade <strong>{{ current_unity.name if current_unity else '—' }}</strong>
             · período de {{ periodo_label }}
@@ -59,7 +45,7 @@
             </div>
             <div class="col-sm-4 col-md-3">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i> Atualizar</button>
-                <a class="btn btn-outline-secondary" href="{{ url_for('reservations.relatorio') }}" title="Voltar ao mês corrente">
+                <a class="btn btn-outline-secondary" href="{{ url_for('relatorios.geral') }}" title="Voltar ao mês corrente">
                     <i class="bi bi-eraser"></i>
                 </a>
             </div>
