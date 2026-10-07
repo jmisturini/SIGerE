@@ -283,29 +283,48 @@
     </div>
 </div>
 
-{# ── Relação professor–curso ── #}
+{# ── Professores por curso ── #}
 <div class="card mt-3">
     <div class="card-body">
-        <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-person-vcard me-1"></i> Relação professor–curso</h6>
-        {% if tabela_professor_curso %}
+        <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-person-vcard me-1"></i> Professores por curso</h6>
+        {% if professores_por_curso %}
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0">
                 <thead>
                     <tr>
                         <th>Professor</th>
-                        <th>Curso</th>
                         <th class="text-end">Reservas</th>
                         <th class="text-end">Horas</th>
+                        <th class="text-end" style="width: 28%">Participação no total do curso</th>
                     </tr>
                 </thead>
                 <tbody>
-                {% for p in tabela_professor_curso %}
-                    <tr>
-                        <td class="fw-semibold">{{ p.docente }}</td>
-                        <td>{{ p.curso }}</td>
-                        <td class="text-end">{{ p.reservas }}</td>
-                        <td class="text-end">{{ p.horas }}</td>
+                {% for grupo in professores_por_curso %}
+                    <tr class="table-light">
+                        <td colspan="3" class="fw-bold">{{ grupo.curso }}</td>
+                        <td class="text-end fw-bold">{{ grupo.horas }}</td>
                     </tr>
+                    {% for d in grupo.docentes %}
+                    <tr>
+                        <td class="fw-semibold ps-3">{{ d.nome }}</td>
+                        <td class="text-end">{{ d.reservas }}</td>
+                        <td class="text-end">{{ d.horas }}</td>
+                        <td>
+                            <div class="progress" style="height: .5rem">
+                                <div class="progress-bar" style="width: {{ '%.1f'|format(d.percentual) }}%"></div>
+                            </div>
+                            <div class="small text-muted mt-1">{{ ('%.1f'|format(d.percentual)).replace('.', ',') }}%</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if grupo.sem_docente %}
+                    <tr class="text-muted fst-italic">
+                        <td class="ps-3">Sem docente vinculado</td>
+                        <td class="text-end">{{ grupo.sem_docente.reservas }}</td>
+                        <td class="text-end">{{ grupo.sem_docente.horas }}</td>
+                        <td class="text-end">{{ ('%.1f'|format(grupo.sem_docente.percentual)).replace('.', ',') }}%</td>
+                    </tr>
+                    {% endif %}
                 {% endfor %}
                 </tbody>
             </table>
