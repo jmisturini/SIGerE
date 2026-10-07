@@ -1178,6 +1178,22 @@ def relatorio():
     tabela_cursos = _com_participacao(list(por_curso.values()), sem_curso)
     tabela_docentes = _com_participacao(list(por_docente.values()), sem_docente)
 
+    # ── Relação professor–curso: pares docente + curso nas aprovadas ──
+    professor_curso = {}
+    for r in aprovadas:
+        if not r.teacher_id or not r.course_id:
+            continue
+        par = professor_curso.setdefault((r.teacher_id, r.course_id), {
+            'docente': r.teacher.full_name, 'curso': r.course.name,
+            'reservas': 0, 'minutos': 0.0})
+        par['reservas'] += 1
+        par['minutos'] += _minutos_reserva(r)
+    tabela_professor_curso = sorted(
+        professor_curso.values(),
+        key=lambda p: (p['docente'], -p['minutos']))
+    for par in tabela_professor_curso:
+        par['horas'] = _duracao_horas(par['minutos'])
+
     # ── Distribuições para os gráficos (aprovadas) ──
     por_semana = [0] * 7
     por_periodo = {'manha': 0, 'tarde': 0, 'noite': 0}
@@ -1213,6 +1229,7 @@ def relatorio():
                            tabela_salas=tabela_salas,
                            tabela_cursos=tabela_cursos,
                            tabela_docentes=tabela_docentes,
+                           tabela_professor_curso=tabela_professor_curso,
                            grafico_status=[len(aprovadas), pendentes, canceladas],
                            grafico_semana=por_semana,
                            grafico_periodo=[por_periodo['manha'],

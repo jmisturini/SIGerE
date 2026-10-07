@@ -282,6 +282,42 @@
         </div>
     </div>
 </div>
+
+{# ── Relação professor–curso ── #}
+<div class="card mt-3">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-person-vcard me-1"></i> Relação professor–curso</h6>
+        {% if tabela_professor_curso %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Professor</th>
+                        <th>Curso</th>
+                        <th class="text-end">Reservas</th>
+                        <th class="text-end">Horas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for p in tabela_professor_curso %}
+                    <tr>
+                        <td class="fw-semibold">{{ p.docente }}</td>
+                        <td>{{ p.curso }}</td>
+                        <td class="text-end">{{ p.reservas }}</td>
+                        <td class="text-end">{{ p.horas }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            Nenhuma reserva aprovada no período tem professor e curso vinculados ao mesmo tempo.
+        </p>
+        {% endif %}
+    </div>
+</div>
 {% endif %}
 {% endif %}
 {% endblock %}
