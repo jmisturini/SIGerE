@@ -18,6 +18,11 @@
         body { background: #fff !important; }
         .card { border: 1px solid #dee2e6 !important; break-inside: avoid; box-shadow: none !important; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        {# Professores e cursos: as abas não fazem sentido no papel — os dois
+           quadros saim impressos, um após o outro (títulos internos d-print) #}
+        .tab-content > .tab-pane { display: block !important; opacity: 1 !important; }
+        .tab-content { margin-bottom: -1rem; }
+        .tab-content > .tab-pane + .tab-pane { margin-top: 1.5rem; }
     }
 </style>
 
@@ -283,58 +288,126 @@
     </div>
 </div>
 
-{# ── Professores por curso ── #}
+{# ── Professores e cursos (duas abas: por curso e por professor) ── #}
 <div class="card mt-3">
     <div class="card-body">
-        <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-person-vcard me-1"></i> Professores por curso</h6>
-        {% if professores_por_curso %}
-        <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Professor</th>
-                        <th class="text-end">Reservas</th>
-                        <th class="text-end">Horas</th>
-                        <th class="text-end" style="width: 28%">Participação no total do curso</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for grupo in professores_por_curso %}
-                    <tr class="table-light">
-                        <td colspan="3" class="fw-bold">{{ grupo.curso }}</td>
-                        <td class="text-end fw-bold">{{ grupo.horas }}</td>
-                    </tr>
-                    {% for d in grupo.docentes %}
-                    <tr>
-                        <td class="fw-semibold ps-3">{{ d.nome }}</td>
-                        <td class="text-end">{{ d.reservas }}</td>
-                        <td class="text-end">{{ d.horas }}</td>
-                        <td>
-                            <div class="progress" style="height: .5rem">
-                                <div class="progress-bar" style="width: {{ '%.1f'|format(d.percentual) }}%"></div>
-                            </div>
-                            <div class="small text-muted mt-1">{{ ('%.1f'|format(d.percentual)).replace('.', ',') }}%</div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    {% if grupo.sem_docente %}
-                    <tr class="text-muted fst-italic">
-                        <td class="ps-3">Sem docente vinculado</td>
-                        <td class="text-end">{{ grupo.sem_docente.reservas }}</td>
-                        <td class="text-end">{{ grupo.sem_docente.horas }}</td>
-                        <td class="text-end">{{ ('%.1f'|format(grupo.sem_docente.percentual)).replace('.', ',') }}%</td>
-                    </tr>
-                    {% endif %}
-                {% endfor %}
-                </tbody>
-            </table>
+        <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-person-vcard me-1"></i> Professores e cursos</h6>
+
+        <ul class="nav nav-tabs mb-3 no-print" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#aba-por-curso" type="button" role="tab" aria-selected="true">Professores por curso</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#aba-por-docente" type="button" role="tab" aria-selected="false">Cursos por professor</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="aba-por-curso" role="tabpanel">
+                {# Título só aparece na impressão/PDF, no lugar das abas ocultas #}
+                <h6 class="text-muted text-uppercase small fw-bold mb-3 d-none d-print-block">Professores por curso</h6>
+                {% if professores_por_curso %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Professor</th>
+                                <th class="text-end">Reservas</th>
+                                <th class="text-end">Horas</th>
+                                <th class="text-end" style="width: 28%">Participação no total do curso</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for grupo in professores_por_curso %}
+                            <tr class="table-light">
+                                <td colspan="3" class="fw-bold">{{ grupo.curso }}</td>
+                                <td class="text-end fw-bold">{{ grupo.horas }}</td>
+                            </tr>
+                            {% for d in grupo.docentes %}
+                            <tr>
+                                <td class="fw-semibold ps-3">{{ d.nome }}</td>
+                                <td class="text-end">{{ d.reservas }}</td>
+                                <td class="text-end">{{ d.horas }}</td>
+                                <td>
+                                    <div class="progress" style="height: .5rem">
+                                        <div class="progress-bar" style="width: {{ '%.1f'|format(d.percentual) }}%"></div>
+                                    </div>
+                                    <div class="small text-muted mt-1">{{ ('%.1f'|format(d.percentual)).replace('.', ',') }}%</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if grupo.sem_docente %}
+                            <tr class="text-muted fst-italic">
+                                <td class="ps-3">Sem docente vinculado</td>
+                                <td class="text-end">{{ grupo.sem_docente.reservas }}</td>
+                                <td class="text-end">{{ grupo.sem_docente.horas }}</td>
+                                <td class="text-end">{{ ('%.1f'|format(grupo.sem_docente.percentual)).replace('.', ',') }}%</td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Nenhuma reserva aprovada no período tem professor e curso vinculados ao mesmo tempo.
+                </p>
+                {% endif %}
+            </div>
+
+            <div class="tab-pane fade" id="aba-por-docente" role="tabpanel">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3 d-none d-print-block">Cursos por professor</h6>
+                {% if cursos_por_docente %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Curso</th>
+                                <th class="text-end">Reservas</th>
+                                <th class="text-end">Horas</th>
+                                <th class="text-end" style="width: 28%">Participação na carga total do professor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for grupo in cursos_por_docente %}
+                            <tr class="table-light">
+                                <td colspan="3" class="fw-bold">{{ grupo.docente }}</td>
+                                <td class="text-end fw-bold">{{ grupo.horas }}</td>
+                            </tr>
+                            {% for c in grupo.cursos %}
+                            <tr>
+                                <td class="ps-3">{{ c.nome }}</td>
+                                <td class="text-end">{{ c.reservas }}</td>
+                                <td class="text-end">{{ c.horas }}</td>
+                                <td>
+                                    <div class="progress" style="height: .5rem">
+                                        <div class="progress-bar" style="width: {{ '%.1f'|format(c.percentual) }}%"></div>
+                                    </div>
+                                    <div class="small text-muted mt-1">{{ ('%.1f'|format(c.percentual)).replace('.', ',') }}%</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if grupo.sem_curso %}
+                            <tr class="text-muted fst-italic">
+                                <td class="ps-3">Sem curso vinculado</td>
+                                <td class="text-end">{{ grupo.sem_curso.reservas }}</td>
+                                <td class="text-end">{{ grupo.sem_curso.horas }}</td>
+                                <td class="text-end">{{ ('%.1f'|format(grupo.sem_curso.percentual)).replace('.', ',') }}%</td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Nenhuma reserva aprovada no período tem professor e curso vinculados ao mesmo tempo.
+                </p>
+                {% endif %}
+            </div>
         </div>
-        {% else %}
-        <p class="text-muted small mb-0">
-            <i class="bi bi-info-circle me-1"></i>
-            Nenhuma reserva aprovada no período tem professor e curso vinculados ao mesmo tempo.
-        </p>
-        {% endif %}
     </div>
 </div>
 {% endif %}

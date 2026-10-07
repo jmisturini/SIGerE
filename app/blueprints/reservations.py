@@ -1219,6 +1219,48 @@ def relatorio():
                 grupo['sem_docente']['minutos'] * 100 / grupo['minutos']
                 if grupo['minutos'] else 0)
 
+    # ── Cursos por professor: horas de cada curso na carga do docente ──
+    # Espelho do quadro anterior: professores com ao menos um curso nas
+    # aprovadas; horas do docente sem curso entram como linha de restos.
+    cursos_por_docente = {}
+    for r in aprovadas:
+        if not r.teacher_id:
+            continue
+        grupo = cursos_por_docente.setdefault(r.teacher_id, {
+            'docente': r.teacher.full_name, 'minutos': 0.0,
+            'cursos': {}, 'sem_curso': {'reservas': 0, 'minutos': 0.0}})
+        grupo['minutos'] += _minutos_reserva(r)
+        if r.course_id:
+            curso = grupo['cursos'].setdefault(r.course_id, {
+                'nome': r.course.name, 'reservas': 0, 'minutos': 0.0})
+            curso['reservas'] += 1
+            curso['minutos'] += _minutos_reserva(r)
+        else:
+            grupo['sem_curso']['reservas'] += 1
+            grupo['sem_curso']['minutos'] += _minutos_reserva(r)
+
+    cursos_por_docente = [
+        {'docente': g['docente'],
+         'cursos': sorted(g['cursos'].values(),
+                          key=lambda c: (-c['minutos'], c['nome'])),
+         'sem_curso': g['sem_curso'] if g['sem_curso']['reservas'] else None,
+         'minutos': g['minutos']}
+        for g in sorted(cursos_por_docente.values(),
+                        key=lambda g: g['docente'])
+        if g['cursos']]
+    for grupo in cursos_por_docente:
+        grupo['horas'] = _duracao_horas(grupo['minutos'])
+        for curso in grupo['cursos']:
+            curso['horas'] = _duracao_horas(curso['minutos'])
+            curso['percentual'] = (curso['minutos'] * 100 / grupo['minutos']
+                                   if grupo['minutos'] else 0)
+        if grupo['sem_curso']:
+            grupo['sem_curso']['horas'] = _duracao_horas(
+                grupo['sem_curso']['minutos'])
+            grupo['sem_curso']['percentual'] = (
+                grupo['sem_curso']['minutos'] * 100 / grupo['minutos']
+                if grupo['minutos'] else 0)
+
     # ── Distribuições para os gráficos (aprovadas) ──
     por_semana = [0] * 7
     por_periodo = {'manha': 0, 'tarde': 0, 'noite': 0}
@@ -1255,6 +1297,7 @@ def relatorio():
                            tabela_cursos=tabela_cursos,
                            tabela_docentes=tabela_docentes,
                            professores_por_curso=professores_por_curso,
+                           cursos_por_docente=cursos_por_docente,
                            grafico_status=[len(aprovadas), pendentes, canceladas],
                            grafico_semana=por_semana,
                            grafico_periodo=[por_periodo['manha'],
