@@ -162,8 +162,9 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
         # Reservas sem curso/docente ganham linha própria identificada
         self.assertIn('Sem curso vinculado', page)
         self.assertIn('Sem docente vinculado', page)
-        # Quadro Professores por curso vem com o grupo do período
+        # Quadro Professores e cursos vem com as duas abas do período
         self.assertIn('Professores por curso', page)
+        self.assertIn('Cursos por professor', page)
         self.assertNotIn(
             'Nenhuma reserva aprovada no período tem professor e curso', page)
         # A reserva do mês que vem não entra no período padrão
@@ -245,14 +246,16 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
 
         page = self.client.get('/reservations/relatorio').get_data(as_text=True)
         quadro = self._quadro_professores_curso(page)
-        # O grupo do curso soma as 2h aprovadas dele (1h da Ana + 1h sem docente)
+        # Aba "por curso": o grupo do curso soma as 2h aprovadas dele
+        # (1h da Ana + 1h sem docente)
         self.assertIn('Curso A', quadro)
         self.assertIn('>2h<', quadro)
-        self.assertIn('Ana Souza', quadro)
-        # Docente aparece uma única vez: reserva sem curso não cria grupo
-        self.assertEqual(quadro.count('Ana Souza'), 1)
-        # As horas sem docente entram como linha de restos do grupo
         self.assertIn('Sem docente vinculado', quadro)
+        # Aba "por professor": a carga da Ana soma 2h (1h no Curso A +
+        # 1h sem curso), com o resto como linha identificada
+        self.assertIn('Sem curso vinculado', quadro)
+        # A Ana aparece nas duas abas: linha do curso e grupo próprio
+        self.assertEqual(quadro.count('Ana Souza'), 2)
 
     def test_quadro_vazio_exibe_nota_explicativa(self):
         # Aprovada sem docente e sem curso: quadro existe, mas sem grupos
