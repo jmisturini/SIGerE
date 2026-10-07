@@ -47,6 +47,28 @@ def api_nao_lidas():
     return jsonify({'count': contar_nao_lidas(current_user.id)})
 
 
+QTDE_RECENTES = 8
+
+
+@bp.route('/api/recentes')
+@login_required
+def api_recentes():
+    """Preview do sino (dropdown do topbar): não lidas + últimas notificações.
+    Leve, escopado ao próprio usuário — o conteúdo é buscado a cada abertura
+    do dropdown, não no carregamento da página."""
+    itens = (Notification.query.filter_by(user_id=current_user.id)
+             .order_by(Notification.created_at.desc(), Notification.id.desc())
+             .limit(QTDE_RECENTES).all())
+    return jsonify({
+        'count': contar_nao_lidas(current_user.id),
+        'itens': [{'id': n.id, 'titulo': n.title,
+                   'corpo': (n.body or '')[:120], 'url': n.url,
+                   'lida': n.is_read,
+                   'criado_em': n.created_at.isoformat() if n.created_at else None}
+                  for n in itens],
+    })
+
+
 @bp.route('/<int:notification_id>/lida', methods=['POST'])
 @login_required
 def marcar_lida(notification_id):
@@ -56,6 +78,9 @@ def marcar_lida(notification_id):
     if notificacao.read_at is None:
         notificacao.read_at = datetime.now(timezone.utc)
         db.session.commit()
+    # Chamado por fetch (dropdown do sino): JSON em vez de redirect.
+    if request.headers.get('X-Requested-With') == 'fetch':
+        return jsonify({'ok': True, 'count': contar_nao_lidas(current_user.id)})
     return redirect(request.referrer or url_for('notifications.lista'))
 
 
@@ -66,6 +91,9 @@ def marcar_todas():
             .filter_by(user_id=current_user.id, read_at=None)
             .update({'read_at': datetime.now(timezone.utc)}))
     db.session.commit()
+    # Chamado por fetch (rodapé do dropdown do sino): JSON em vez de redirect.
+    if request.headers.get('X-Requested-With') == 'fetch':
+        return jsonify({'ok': True, 'count': 0})
     flash(f'{qtde} notificação(ões) marcada(s) como lida(s).', 'success'
           if qtde else 'info')
     return redirect(url_for('notifications.lista'))

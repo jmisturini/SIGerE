@@ -1,0 +1,20 @@
+<style>
+    {# Estilos compartilhados dos relatórios: cartões de indicadores e versão
+       para impressão/PDF (sidebar/topbar ocultos, cartões sem sombra) #}
+    .rel-kpi .rel-icone {
+        width: 3rem; height: 3rem; border-radius: .75rem;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.4rem; flex-shrink: 0;
+    }
+    .rel-kpi .rel-valor { font-size: 1.7rem; line-height: 1.15; }
+    .rel-grafico { position: relative; height: 260px; }
+    .rel-grafico-alto { position: relative; height: 320px; }
+    @media print {
+        .sidebar, .topbar, .footer, .no-print { display: none !important; }
+        .app-container { display: block !important; }
+        .main-content, .page-content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+        body { background: #fff !important; }
+        .card { border: 1px solid #dee2e6 !important; break-inside: avoid; box-shadow: none !important; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+</style>

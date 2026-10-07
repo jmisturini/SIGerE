@@ -52,6 +52,13 @@
                             (ex.: laboratórios). Segure Ctrl (ou toque e arraste no celular) para selecionar vários.</div>
                     </div>
 
+                    <div class="form-check form-switch mb-3">
+                        {{ form.notify_email(class="form-check-input", role="switch", id="notify_email_switch") }}
+                        {{ form.notify_email.label(class="form-check-label fw-medium", for="notify_email_switch") }}
+                        <div class="form-text small">Espelho por e-mail dos avisos do sino — inclui sobrecarga
+                            de professor e mudanças de status das suas reservas. Não afeta o sino no sistema.</div>
+                    </div>
+
                     <hr class="my-4">
                     <h6 class="text-muted text-uppercase small fw-bold mb-3">
                         <i class="bi bi-key me-1"></i> Trocar senha (opcional)

@@ -210,6 +210,17 @@ BACKUP_S3_ENDPOINT=""
 BACKUP_S3_REGION=""
 AWS_ACCESS_KEY_ID=""
 AWS_SECRET_ACCESS_KEY=""
+
+# Espelho por e-mail das notificações (opcional — comando notify-email;
+# HOST/FROM vazios = envio desativado, o sino in-app segue normal)
+MAIL_SMTP_HOST=""
+MAIL_SMTP_PORT="587"
+MAIL_SMTP_USER=""
+MAIL_SMTP_PASSWORD=""
+MAIL_FROM=""
+# Tentativas de envio por notificação antes de sair da fila (padrão 10)
+MAIL_MAX_ATTEMPTS="10"
+BASE_URL="https://sigere.suaorg.gov.br"
 ```
 
 Gerar a `SECRET_KEY`:
@@ -227,6 +238,10 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
 | `BACKUP_S3_BUCKET` | Opcional | Bucket compatível com a API S3 para o `flask --app run backup` enviar os snapshots; ausente/vazio = backup apenas local |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Com o bucket | Credenciais do bucket (AWS S3, Backblaze B2, Cloudflare R2, Wasabi, MinIO, Google Cloud Storage via chaves HMAC) |
 | `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` | Opcional | Pasta local dos backups (padrão `backups/`) e dias de retenção (padrão `14`) — valem para a pasta e para o bucket |
+| `MAIL_SMTP_HOST` / `MAIL_FROM` | Opcional | Espelho por e-mail das notificações (`flask --app run notify-email`): servidor SMTP e remetente. Ausentes/vazios = envio por e-mail desativado (o sino in-app segue normal) |
+| `MAIL_SMTP_PORT` / `MAIL_SMTP_USER` / `MAIL_SMTP_PASSWORD` / `MAIL_SMTP_STARTTLS` | Com o SMTP | Porta (padrão `587`), credenciais e STARTTLS (padrão `1`) do servidor de e-mail |
+| `MAIL_MAX_ATTEMPTS` | Opcional | Tentativas de envio por notificação antes de sair da fila do espelho de e-mail (padrão `10`) |
+| `BASE_URL` | Com o SMTP | URL pública do sistema (ex.: `https://sigere.suaorg.gov.br`) — compõe os links absolutos dos e-mails |
 
 Restrinja a leitura do arquivo:
 
@@ -550,7 +565,14 @@ User=SEU_USUARIO
 WorkingDirectory=/var/www/sigere
 EnvironmentFile=/var/www/sigere/.env
 ExecStart=/var/www/sigere/venv/bin/flask --app run backup
+ExecStart=/var/www/sigere/venv/bin/flask --app run notify-cleanup
 ```
+
+O segundo `ExecStart` aproveita o mesmo disparo diário para a limpeza de
+notificações antigas: lidas há mais de 90 dias e avisos de reservas cuja data
+foi há mais de 30 dias (ajustável com `--dias-lidas`/`--dias-passadas`). Sem
+ele, a tabela `notifications` cresce indefinidamente. Para testar:
+`flask --app run notify-cleanup --dry-run`.
 
 E `/etc/systemd/system/sigere-backup.timer`:
 
@@ -631,7 +653,7 @@ Crie `/etc/systemd/system/sigere-notify.service` (mesmo usuário do backup):
 
 ```ini
 [Unit]
-Description=Varredura de reservas próximas do SIGerE
+Description=Varredura de reservas próximas e espelho por e-mail do SIGerE
 After=network-online.target postgresql.service
 
 [Service]
@@ -640,7 +662,16 @@ User=SEU_USUARIO
 WorkingDirectory=/var/www/sigere
 EnvironmentFile=/var/www/sigere/.env
 ExecStart=/var/www/sigere/venv/bin/flask --app run notify-scan
+ExecStart=/var/www/sigere/venv/bin/flask --app run notify-email
 ```
+
+O segundo `ExecStart` drena a fila de e-mail (espelho por e-mail das
+notificações do sino). Sem `MAIL_SMTP_HOST`/`MAIL_FROM` no `.env`, ele apenas
+registra que está desativado — o resto do sistema segue funcionando. O envio é
+um **digest por destinatário**: as notificações de um mesmo usuário numa
+rodada saem num único e-mail. Falhas de SMTP contam tentativas
+(`MAIL_MAX_ATTEMPTS`, padrão 10) e, esgotadas, a notificação sai da fila.
+Para testar sem enviar nada: `flask --app run notify-email --dry-run`.
 
 E `/etc/systemd/system/sigere-notify.timer` (a cada 15 minutos — a precisão
 do aviso “no próprio dia” depende dessa frequência):

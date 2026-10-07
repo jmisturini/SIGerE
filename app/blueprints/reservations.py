@@ -1,7 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
 from contextlib import ExitStack
-import calendar
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm
@@ -16,7 +15,9 @@ from app.services.scheduling import (check_conflict, check_schedule_restrictions
                                      teacher_exceeds_daily_limit,
                                      TEACHER_DAILY_RESERVATION_LIMIT,
                                      MAX_REPEAT_RANGE_DAYS)
-from app.services.notifications import notificar_sobrecarga_professor
+from app.services.notifications import (notificar_sobrecarga_professor,
+                                        notificar_mudanca_status,
+                                        notificar_exclusao)
 from app.services.share import build_reservation_share_texts
 
 RESERVATIONS_PER_PAGE = 25
@@ -117,8 +118,11 @@ def _aplicar_config_notificacao(reservation, form):
     if config is None:
         config = ReservationNotificationConfig(reservation=reservation)
         db.session.add(config)
+    config.notify_7d = form.notify_7d.data
     config.notify_24h = form.notify_24h.data
     config.notify_1h = form.notify_1h.data
+    config.notify_dia = form.notify_dia.data
+    config.notify_criador = form.notify_criador.data
     config.groups = NotificationGroup.query.filter(
         NotificationGroup.id.in_(form.notify_groups.data or [0]),
         NotificationGroup.unity_id == reservation.unity_id).all()
@@ -453,8 +457,11 @@ def edit(reservation_id):
         config = reservation.notification_config
         if config is not None:
             form.notify_enabled.data = reservation.notify_enabled
+            form.notify_7d.data = config.notify_7d
             form.notify_24h.data = config.notify_24h
             form.notify_1h.data = config.notify_1h
+            form.notify_dia.data = config.notify_dia
+            form.notify_criador.data = config.notify_criador
             form.notify_groups.data = [g.id for g in config.groups]
             form.notify_users.data = [u.id for u in config.users]
 
@@ -543,7 +550,10 @@ def cancel(reservation_id):
         flash('Não é possível cancelar uma reserva passada.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
 
+    status_anterior = reservation.status
     reservation.status = 'cancelled'
+    # O criador fica sabendo do cancelamento (a menos que tenha sido ele mesmo).
+    notificar_mudanca_status(reservation, status_anterior, ator_id=current_user.id)
     db.session.commit()
     flash('Reserva cancelada.', 'info')
     if current_user.has_permission('reservation:read_all'):
@@ -560,6 +570,9 @@ def delete(reservation_id):
         # Reserva passada é registro do sistema: fica fora da exclusão.
         flash('Reservas passadas servem como registro e não podem ser excluídas.', 'warning')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+    # O criador fica sabendo da exclusão (a menos que tenha sido ele mesmo).
+    # O aviso não referencia a reserva: a FK apagaria em cascata junto.
+    notificar_exclusao(reservation, ator_id=current_user.id)
     db.session.delete(reservation)
     db.session.commit()
     flash('Reserva excluída permanentemente.', 'info')
@@ -589,6 +602,8 @@ def approve(reservation_id):
             reservation.status = 'approved'
             # Auditoria: registra quem aprovou (coluna antes nunca preenchida)
             reservation.reviewed_by = current_user.id
+            # O criador fica sabendo da aprovação (a menos que tenha sido ele mesmo).
+            notificar_mudanca_status(reservation, 'pending', ator_id=current_user.id)
             db.session.commit()
         flash('Reserva aprovada.', 'success')
     return redirect(url_for('reservations.detail', reservation_id=reservation.id))
@@ -1011,6 +1026,9 @@ def series_delete(reservation_id):
         if not current_user.has_permission('reservation:delete_all'):
             abort(403)
         for m in selected:
+            # Aviso de exclusão antes de apagar: a FK da notificação apagaria
+            # em cascata junto com a reserva (ação do próprio criador não avisa).
+            notificar_exclusao(m, ator_id=current_user.id)
             db.session.delete(m)
         db.session.commit()
         flash(f'{len(selected)} reserva(s) da série excluída(s) permanentemente.', 'success')
@@ -1036,7 +1054,11 @@ def series_delete(reservation_id):
         if not is_admin_cancel and m.user_id != current_user.id:
             skipped_other += 1
             continue
+        status_anterior = m.status
         m.status = 'cancelled'
+        # Cada criador de reserva cancelada por outro usuário é avisado;
+        # as do próprio ator saem sem aviso (nada de auto-notificação).
+        notificar_mudanca_status(m, status_anterior, ator_id=current_user.id)
         cancelled += 1
     db.session.commit()
 
@@ -1061,143 +1083,11 @@ def _selected_series_members(res):
     return [by_id[int(i)] for i in ids if int(i) in by_id]
 
 
-# ================= RELATÓRIO DE SALAS E RESERVAS =================
 
-DIAS_CURTOS_PT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-
-
-def _duracao_horas(minutos):
-    """Duração legível a partir de minutos: '3h' ou '3h30'."""
-    horas, resto = divmod(int(minutos), 60)
-    return f"{horas}h{resto:02d}" if resto else f"{horas}h"
-
-
-def _minutos_reserva(r):
-    """Duração da reserva em minutos (float)."""
-    return (datetime.combine(r.date, r.end_time)
-            - datetime.combine(r.date, r.start_time)).total_seconds() / 60
-
-
+# O relatório de Salas e Reservas ganhou blueprint próprio (app/blueprints/
+# relatorios.py) e menu próprio após a Agenda. A URL antiga continua viva.
 @bp.route('/relatorio')
 @login_required
-@require_permission('reservation:read_all')
-def relatorio():
-    """Relatório gerencial de Salas e Reservas da unidade ativa: volume de
-    reservas por status, horas reservadas, ocupação por sala, cursos e carga
-    por docente, no período escolhido (padrão: mês corrente). A página tem
-    versão para impressão/PDF (mesmo padrão do relatório de VT)."""
-    hoje = date.today()
-    inicio = _data_iso(request.args.get('start')) or hoje.replace(day=1)
-    fim = _data_iso(request.args.get('end')) or date(
-        hoje.year, hoje.month, calendar.monthrange(hoje.year, hoje.month)[1])
-    if fim < inicio:
-        inicio, fim = fim, inicio
-
-    reservas = (Reservation.query.filter(
-        Reservation.unity_id == current_unity_id(),
-        Reservation.date >= inicio,
-        Reservation.date <= fim,
-    ).order_by(Reservation.date, Reservation.start_time).all())
-
-    aprovadas = [r for r in reservas if r.status == 'approved']
-    pendentes = sum(1 for r in reservas if r.status == 'pending')
-    canceladas = sum(1 for r in reservas if r.status == 'cancelled')
-    minutos_total = sum(_minutos_reserva(r) for r in aprovadas)
-
-    # ── Ocupação por sala (aprovadas) ──
-    por_sala = {}
-    for r in aprovadas:
-        sala = por_sala.setdefault(r.classroom_id, {
-            'codigo': r.classroom.code, 'nome': r.classroom.name,
-            'reservas': 0, 'minutos': 0.0})
-        sala['reservas'] += 1
-        sala['minutos'] += _minutos_reserva(r)
-    salas_utilizadas = len(por_sala)
-    salas_ativas = Classroom.query.filter_by(
-        unity_id=current_unity_id(), is_active=True).count()
-
-    # ── Reservas por curso ──
-    por_curso = {}
-    sem_curso = {'nome': 'Sem curso vinculado', 'reservas': 0, 'minutos': 0.0}
-    for r in aprovadas:
-        destino = (por_curso.setdefault(r.course_id, {
-            'nome': r.course.name, 'reservas': 0, 'minutos': 0.0})
-            if r.course else sem_curso)
-        destino['reservas'] += 1
-        destino['minutos'] += _minutos_reserva(r)
-
-    # ── Carga por docente ──
-    por_docente = {}
-    sem_docente = {'nome': 'Sem docente vinculado', 'reservas': 0, 'minutos': 0.0}
-    for r in aprovadas:
-        destino = (por_docente.setdefault(r.teacher_id, {
-            'nome': r.teacher.full_name, 'reservas': 0, 'minutos': 0.0})
-            if r.teacher else sem_docente)
-        destino['reservas'] += 1
-        destino['minutos'] += _minutos_reserva(r)
-
-    def _com_participacao(grupos, extras=None):
-        """Grupos ordenados por horas desc, com duração formatada e % do total."""
-        itens = sorted(grupos, key=lambda g: g['minutos'], reverse=True)
-        for g in itens:
-            g['horas'] = _duracao_horas(g['minutos'])
-            g['percentual'] = (g['minutos'] * 100 / minutos_total
-                               if minutos_total else 0)
-        if extras is not None and extras['reservas']:
-            extras['sem_vinculo'] = True
-            extras['horas'] = _duracao_horas(extras['minutos'])
-            extras['percentual'] = (extras['minutos'] * 100 / minutos_total
-                                    if minutos_total else 0)
-            itens.append(extras)
-        return itens
-
-    tabela_salas = _com_participacao(list(por_sala.values()))
-    tabela_cursos = _com_participacao(list(por_curso.values()), sem_curso)
-    tabela_docentes = _com_participacao(list(por_docente.values()), sem_docente)
-
-    # ── Distribuições para os gráficos (aprovadas) ──
-    por_semana = [0] * 7
-    por_periodo = {'manha': 0, 'tarde': 0, 'noite': 0}
-    for r in aprovadas:
-        por_semana[r.date.weekday()] += 1
-        if r.start_time < time(12, 0):
-            por_periodo['manha'] += 1
-        elif r.start_time < time(18, 0):
-            por_periodo['tarde'] += 1
-        else:
-            por_periodo['noite'] += 1
-
-    # Top salas do gráfico: código como rótulo curto, horas como número
-    top_salas = sorted(por_sala.values(), key=lambda s: s['minutos'],
-                       reverse=True)[:8]
-
-    docentes_count = len(por_docente)
-    gerado_em = datetime.now().strftime('%d/%m/%Y às %H:%M')
-
-    return render_template('reservations/relatorio.html',
-                           inicio=inicio, fim=fim,
-                           periodo_label=f"{inicio:%d/%m/%Y} a {fim:%d/%m/%Y}",
-                           gerado_em=gerado_em,
-                           total_aprovadas=len(aprovadas),
-                           pendentes=pendentes, canceladas=canceladas,
-                           horas_total=_duracao_horas(minutos_total),
-                           dias_com_atividade=len({r.date for r in aprovadas}),
-                           salas_utilizadas=salas_utilizadas,
-                           salas_ativas=salas_ativas,
-                           docentes_count=docentes_count,
-                           media_por_docente=(len(aprovadas) / docentes_count
-                                              if docentes_count else 0),
-                           tabela_salas=tabela_salas,
-                           tabela_cursos=tabela_cursos,
-                           tabela_docentes=tabela_docentes,
-                           grafico_status=[len(aprovadas), pendentes, canceladas],
-                           grafico_semana=por_semana,
-                           grafico_periodo=[por_periodo['manha'],
-                                            por_periodo['tarde'],
-                                            por_periodo['noite']],
-                           grafico_salas_rotulos=[
-                               f"{s['codigo']} — {s['nome']}" for s in top_salas],
-                           grafico_salas_horas=[round(s['minutos'] / 60, 1)
-                                                for s in top_salas],
-                           tem_reservas=bool(reservas),
-                           tem_aprovadas=bool(aprovadas))
+def relatorio_redirecionar():
+    """Encaminha a URL antiga do relatório para o Relatório Geral."""
+    return redirect(url_for('relatorios.geral', **request.args))

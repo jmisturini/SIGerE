@@ -65,11 +65,13 @@ def create_app(config_class=Config):
     from app.blueprints.kitchen import bp as kitchen_bp
     from app.blueprints.api import bp as api_bp
     from app.blueprints.notifications import bp as notifications_bp
+    from app.blueprints.relatorios import bp as relatorios_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(classrooms_bp)
     app.register_blueprint(reservations_bp)
+    app.register_blueprint(relatorios_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(totem_bp)
     app.register_blueprint(schedule_bp)
@@ -83,7 +85,8 @@ def create_app(config_class=Config):
     # ── Register CLI commands ──
     from app.commands import (seed_command, seed_admin_command,
                               sync_permissions_command, seed_unidades_command,
-                              import_legacy_command, notify_scan_command)
+                              import_legacy_command, notify_scan_command,
+                              notify_email_command, notify_cleanup_command)
     from app.seed_demo import seed_demo_command
     from app.backup import backup_command
     app.cli.add_command(seed_command)
@@ -94,6 +97,8 @@ def create_app(config_class=Config):
     app.cli.add_command(import_legacy_command)
     app.cli.add_command(backup_command)
     app.cli.add_command(notify_scan_command)
+    app.cli.add_command(notify_email_command)
+    app.cli.add_command(notify_cleanup_command)
 
     # Custom Error Handlers
     @app.errorhandler(403)

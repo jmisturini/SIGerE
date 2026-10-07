@@ -158,10 +158,19 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - API JSON (`/calendar/api/events`) com intervalo de datas obrigatório e filtros combináveis
 - Adaptação automática ao tema claro/escuro
 
+### 📊 Relatórios (`/relatorios`)
+Menu próprio na barra lateral, logo depois da Agenda, com as duas visões (acesso ligado a `reservation:read_all`); ambos com botão **Imprimir / PDF** na própria página:
+- **Relatório Geral (`/relatorios/geral`):** panorama gerencial das reservas da unidade no período escolhido (padrão: mês corrente) — indicadores (reservas aprovadas, horas reservadas, salas utilizadas, docentes envolvidos), gráficos (status, período do dia, dia da semana, horas por sala), ocupação por sala com participação percentual, reservas por curso, carga por docente e o quadro **"Professores e cursos"** com duas abas: *Professores por curso* (total do curso e horas de cada professor) e *Cursos por professor* (carga total do professor e quanto cada curso contribuiu)
+- **Relatório Personalizado (`/relatorios/personalizado`):** monte a própria relação de reservas combinando **período** (datas), **status** (aprovadas/pendentes/canceladas), **sala**, **professor**, **curso**, **disciplina**, **período do dia** (manhã/tarde/noite), **busca no título**, **ordenação** (crescente/decrescente) e **agrupamento** por data, sala, professor, curso, disciplina ou sem agrupamento — faixas de grupo com contagem e horas somadas, KPIs do filtro (reservas, horas, salas e professores diferentes) e descrição dos filtros aplicados sob o título; impressão em paisagem
+- A URL antiga `/reservations/relatorio` continua viva e redireciona para o Relatório Geral preservando os filtros
+
 ### 🔔 Notificações
-- **Sino na barra superior** com contador de não lidas (atualizado sozinho a cada minuto) e tela de notificações com **Marcar como lida**, **Marcar todas como lidas** e **Limpar lidas** (com confirmação); cada aviso leva ao detalhe da reserva ou ao calendário no dia da atividade
-- **Opt-in por reserva:** botão **"Ativar notificações"** no detalhe de reservas aprovadas e futuras (dono ou quem edita qualquer reserva); desativar interrompe os próximos avisos sem apagar os já criados
-- **Configuração por unidade** (Painel Admin): interruptor geral, antecedências em dias (ex.: `7, 1, 0`), destinatários fixos (professor, criador, aprovadores) e **Grupos de Notificação** com membros personalizados
+- **Sino na barra superior** como dropdown: preview das 8 últimas notificações buscado a cada abertura (com destaque das não lidas), clique marca como lida e navega, rodapé **"Marcar todas como lidas"**, contador de não lidas atualizado sozinho a cada minuto e também no título da aba; tela de notificações com **Marcar como lida**, **Marcar todas como lidas** e **Limpar lidas** (com confirmação)
+- **Marcos de aviso por instante de gatilho:** "no dia" (07:00 da data), 7 dias, 24 horas e 1 hora antes do início — o mais iminente vencido dispara e os anteriores ficam absorvidos; o criador da reserva é destinatário por padrão (desmarcável no formulário)
+- **Avisos de mudança de status:** criador recebe aviso quando a reserva é aprovada ou cancelada (ação do próprio criador não avisa) e quando a reserva é excluída permanentemente (individual ou em série); **lembretes de pendência:** aprovadores da unidade são avisados de reservas pendentes 24h/48h após a criação
+- **Espelho por e-mail:** a fila de e-mails é drenada com assunto de resumo quando há vários avisos; opt-out **"Receber notificações também por e-mail"** no perfil, limite de tentativas configurável (`MAIL_MAX_ATTEMPTS`, padrão 10) e comandos `notify-email` (com `--dry-run`) e `notify-cleanup` (apaga lidas há mais de 90 dias e avisos de reservas passadas há mais de 30)
+- **Opt-in por reserva:** seção **"Notificações"** nos formulários de criar/editar reserva ativa os marcos e define os destinatários — usuários individuais e **Grupos de Notificação** cadastrados no painel
+- **Configuração por unidade** (Painel Admin): interruptor geral, antecedências em dias e destinatários fixos
 - **Varredura agendada:** comando idempotente `flask --app run notify-scan` (systemd timer a cada 15 minutos em produção; `--dry-run` para prévia)
 
 ### 💰 Financeiro
@@ -814,8 +823,8 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 | Papel | Descrição |
 |-------|-----------|
 | **Super Administrador** | Acesso irrestrito a todas as funcionalidades (`*`) |
-| **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis, cozinha e tokens da API |
-| **Analista** | Aprovar reservas, criar/editar lançamentos de pagamento extra e ver os próprios |
+| **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis, cozinha, tokens da API e consulta dos pedidos de VT |
+| **Analista** | Aprovar reservas e criar/editar lançamentos de pagamento extra e do Vale Alimentação |
 | **Gestor** | Todas as permissões de cursos, reservas, pagamentos extras e salas, além de exportações |
 | **Professor** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
 | **Assistente/Logística** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
@@ -838,14 +847,14 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `room:read` / `room:create` / `room:edit` / `room:toggle` | Visualizar / criar / editar / ativar-desativar salas |
 | `reservation:read_all` / `reservation:read_own` | Ver todas / próprias reservas |
 | `reservation:create` | Criar reservas |
-| `reservation:edit_all` / `reservation:edit_own` | Editar todas / próprias reservas |
+| `reservation:edit_all` | Editar todas as reservas (o dono edita a própria mesmo sem esta permissão) |
 | `reservation:delete_all` | Excluir reservas permanentemente |
 | `reservation:cancel_all` / `reservation:cancel_own` | Cancelar todas / próprias reservas |
 | `reservation:approve` | Aprovar reservas pendentes |
 | `course:read` / `course:create` / `course:edit` / `course:toggle` | Visualizar / criar / editar / ativar-desativar cursos e disciplinas |
 | `holiday:read` / `holiday:create` / `holiday:edit` / `holiday:delete` | Visualizar / criar / editar / excluir feriados |
 | `holiday:import` | Importar feriados da BrasilAPI |
-| `payment:read` / `payment:read_own` | Ver todos / próprios pagamentos |
+| `payment:read` | Ver lançamentos de pagamento extra (hora extra) |
 | `payment:create` / `payment:edit` / `payment:delete` | Criar / editar / excluir lançamentos |
 | `payment:export` | Exportar pagamentos |
 | `payment:close_month` | Fechar os lançamentos do mês de Hora Extra (bloqueia edições e baixa a planilha final) |

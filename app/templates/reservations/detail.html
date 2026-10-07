@@ -63,9 +63,9 @@
                                 <span class="badge text-bg-success-subtle text-success border border-success-subtle me-1">Ativadas</span>
                                 {% if cfg_notif.marcos_ativos %}{{ cfg_notif.marcos_ativos|join(', ') }}{% endif %}
                                 {% set qtd_destinatarios = cfg_notif.users|length + cfg_notif.groups|length %}
-                                {% if qtd_destinatarios %}
-                                    <span class="text-muted small ms-1">— {{ qtd_destinatarios }}
-                                        destinatário{{ 's' if qtd_destinatarios != 1 }}</span>
+                                {% set sufixo_criador = ' + o criador' if cfg_notif.notify_criador else '' %}
+                                {% if qtd_destinatarios or cfg_notif.notify_criador %}
+                                    <span class="text-muted small ms-1">— {{ qtd_destinatarios }} destinatário{{ 's' if qtd_destinatarios != 1 }}{{ sufixo_criador }}</span>
                                 {% endif %}
                             {% else %}
                                 <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Desativadas</span>

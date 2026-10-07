@@ -82,6 +82,10 @@
                         <label class="form-label small fw-bold text-uppercase text-muted mb-1">Avisar antes da atividade</label>
                         <div class="d-flex flex-wrap gap-4 mb-3">
                             <div class="form-check">
+                                {{ form.notify_7d(class="form-check-input", id="notify_7d_check") }}
+                                {{ form.notify_7d.label(class="form-check-label", for="notify_7d_check") }}
+                            </div>
+                            <div class="form-check">
                                 {{ form.notify_24h(class="form-check-input", id="notify_24h_check") }}
                                 {{ form.notify_24h.label(class="form-check-label", for="notify_24h_check") }}
                             </div>
@@ -89,6 +93,15 @@
                                 {{ form.notify_1h(class="form-check-input", id="notify_1h_check") }}
                                 {{ form.notify_1h.label(class="form-check-label", for="notify_1h_check") }}
                             </div>
+                            <div class="form-check">
+                                {{ form.notify_dia(class="form-check-input", id="notify_dia_check") }}
+                                {{ form.notify_dia.label(class="form-check-label", for="notify_dia_check") }}
+                            </div>
+                        </div>
+                        <div class="form-check mb-3">
+                            {{ form.notify_criador(class="form-check-input", id="notify_criador_check") }}
+                            {{ form.notify_criador.label(class="form-check-label", for="notify_criador_check") }}
+                            <div class="form-text">Você recebe os mesmos avisos dos destinatários escolhidos.</div>
                         </div>
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">

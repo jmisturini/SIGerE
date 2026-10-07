@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% block title %}Relatório Personalizado de Salas e Reservas{% endblock %}
+
+{% block content %}
+{% include 'relatorios/_estilos.html' %}
+<style>
+    @media print {
+        {# Tabela larga: a impressão do relatório personalizado sai em paisagem #}
+        @page { size: A4 landscape; }
+    }
+</style>
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-start mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-sliders text-primary me-2"></i>Relatório Personalizado</h3>
+        <p class="text-muted mb-0">
+            Unidade <strong>{{ current_unity.name if current_unity else '—' }}</strong>
+            · {{ meta_filtros }}
+            · gerado em {{ gerado_em }}
+        </p>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a href="{{ url_for('relatorios.geral') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-clipboard-data me-1"></i> Relatório Geral
+        </a>
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+            <i class="bi bi-printer me-1"></i> Imprimir / PDF
+        </button>
+    </div>
+</div>
+
+{# ── Filtros: monte seu próprio relatório ── #}
+<div class="card mb-4 no-print">
+    <div class="card-body">
+        <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-funnel me-1"></i> Filtros</h6>
+        <form method="GET" class="row g-3">
+            <div class="col-sm-4 col-lg-2">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Inicial</label>
+                <input type="date" name="start" class="form-control" value="{{ inicio.isoformat() }}">
+            </div>
+            <div class="col-sm-4 col-lg-2">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Final</label>
+                <input type="date" name="end" class="form-control" value="{{ fim.isoformat() }}">
+            </div>
+            <div class="col-sm-4 col-lg-2">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Ordenação</label>
+                <select name="ordem" class="form-select">
+                    <option value="asc" {{ 'selected' if ordem == 'asc' }}>Crescente (antiga primeiro)</option>
+                    <option value="desc" {{ 'selected' if ordem == 'desc' }}>Decrescente (recente primeiro)</option>
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Status</label>
+                <div class="d-flex flex-wrap gap-3 pt-2" role="group" aria-label="Status">
+                    {% for valor, rotulo in [('approved', 'Aprovadas'), ('pending', 'Pendentes'), ('cancelled', 'Canceladas')] %}
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" name="status_{{ valor }}"
+                               id="status_{{ valor }}" value="1"
+                               {{ 'checked' if valor in statuses or not statuses }}>
+                        <label class="form-check-label" for="status_{{ valor }}">{{ rotulo }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="form-text">Nada marcado inclui todos os status.</div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Período do dia</label>
+                <div class="d-flex flex-wrap gap-3 pt-2" role="group" aria-label="Período do dia">
+                    {% for valor, rotulo in [('morning', 'Manhã'), ('afternoon', 'Tarde'), ('night', 'Noite')] %}
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" name="periodo_{{ valor }}"
+                               id="periodo_{{ valor }}" value="1"
+                               {{ 'checked' if valor in periodos }}>
+                        <label class="form-check-label" for="periodo_{{ valor }}">{{ rotulo }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="form-text">Nada marcado inclui o dia inteiro.</div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Sala</label>
+                <select name="room_id" class="form-select">
+                    <option value="">Todas</option>
+                    {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('room_id') == c.id|string }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Professor</label>
+                <select name="teacher_id" class="form-select">
+                    <option value="">Todos</option>
+                    {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('teacher_id') == t.id|string }}>{{ t.full_name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Curso</label>
+                <select name="course_id" class="form-select">
+                    <option value="">Todos</option>
+                    {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('course_id') == c.id|string }}>{{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Disciplina</label>
+                <select name="subject_id" class="form-select">
+                    <option value="">Todas</option>
+                    {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if request.args.get('subject_id') == s.id|string }}>{{ s.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Agrupar por</label>
+                <select name="agrupar" class="form-select">
+                    {% for valor, rotulo in [('data', 'Data'), ('sala', 'Sala'), ('professor', 'Professor'), ('curso', 'Curso'), ('disciplina', 'Disciplina'), ('nenhum', 'Sem agrupamento')] %}
+                    <option value="{{ valor }}" {{ 'selected' if agrupar == valor }}>{{ rotulo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-lg-4">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Buscar no título</label>
+                <input type="text" name="texto" class="form-control" value="{{ texto }}" placeholder="Ex.: laboratório, formatura…">
+            </div>
+            <div class="col-12 d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Gerar Relatório</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('relatorios.personalizado') }}">
+                    <i class="bi bi-eraser me-1"></i> Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ── Indicadores do filtro atual ── #}
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-primary-subtle text-primary"><i class="bi bi-calendar-check"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Reservas no filtro</div>
+                    <div class="rel-valor fw-bold">{{ kpi_reservas }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-success-subtle text-success"><i class="bi bi-clock-history"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Horas somadas</div>
+                    <div class="rel-valor fw-bold">{{ kpi_horas }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-info-subtle text-info"><i class="bi bi-door-open"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Salas diferentes</div>
+                    <div class="rel-valor fw-bold">{{ kpi_salas }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100 rel-kpi">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rel-icone bg-warning-subtle text-warning"><i class="bi bi-person-badge"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Professores diferentes</div>
+                    <div class="rel-valor fw-bold">{{ kpi_docentes }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Relação de reservas do filtro ── #}
+<div class="card">
+    <div class="card-body">
+        {% if tem_reservas %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Data</th><th>Horário</th><th>Sala</th><th>Título</th>
+                        <th>Professor</th><th>Curso</th><th>Disciplina</th><th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for grupo in grupos %}
+                    {% if grupo.titulo %}
+                    <tr class="table-light">
+                        <td colspan="6" class="fw-bold">{{ grupo.titulo }}</td>
+                        <td class="text-end fw-bold">{{ grupo.contagem }} reserva(s)</td>
+                        <td class="text-end fw-bold">{{ grupo.horas }}</td>
+                    </tr>
+                    {% endif %}
+                    {% for r in grupo.reservas %}
+                    <tr>
+                        <td class="text-nowrap fw-bold">{{ r.date.strftime('%d/%m/%Y') }}</td>
+                        <td class="text-nowrap">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
+                        <td><span class="badge text-bg-primary-subtle text-primary border border-primary-subtle badge-codigo-sala">{{ r.classroom.code }}</span></td>
+                        <td>{{ r.title }}</td>
+                        <td>{{ r.teacher.full_name if r.teacher else '-' }}</td>
+                        <td>{{ r.course.name if r.course else '-' }}</td>
+                        <td>{{ r.subject.name if r.subject else '-' }}</td>
+                        <td>
+                            {% if r.status == 'approved' %}
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Aprovada</span>
+                            {% elif r.status == 'pending' %}
+                                <span class="badge text-bg-warning-subtle text-warning border border-warning-subtle">Pendente</span>
+                            {% else %}
+                                <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Cancelada</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted p-5">
+            <i class="bi bi-funnel fs-1 d-block mb-2"></i>
+            <h5 class="mb-1">Nenhuma reserva com esses filtros</h5>
+            <p class="small mb-0">Ajuste os filtros acima para montar o relatório desejado.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
