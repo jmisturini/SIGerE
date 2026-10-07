@@ -10,12 +10,39 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.31.0'
+APP_VERSION = '1.31.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.31.1',
+        'data': '2026-10-07',
+        'titulo': 'Importação legada nasce fechada e Hora Extra tolera minutos em branco',
+        'grupos': [
+            ('Corrigido', [
+                'Importação do sistema legado: os lançamentos de hora extra com mês de '
+                'referência anterior ao mês base atual (janela 20→20) já entram '
+                'bloqueados, como se a unidade tivesse fechado o mês — o acervo '
+                'importado é histórico e nasce somente leitura, sem usuário '
+                'responsável (o fechamento é feito pela própria migração).',
+                'Cadastro de Hora Extra: minutos deixados em branco contam como zero — '
+                '"4h" sem minuto não perde mais a carga horária (fica 4,00); com os '
+                'dois campos vazios o total é zero e a validação pede um valor maior '
+                'que zero.',
+                'Cadastro de Hora Extra: ao reabrir o formulário com erro de validação, '
+                'o campo Mês volta selecionado com o mês de referência escolhido em vez '
+                'de recair no mês corrente.',
+                'Implantação: a unit do systemd do guia de produção declara '
+                'RuntimeDirectory=sigere — o /run é tmpfs e a pasta do socket sumia no '
+                'reboot, derrubando o serviço com status 1 e sem traceback no journal '
+                '(o erro só aparecia no error.log do Gunicorn); troubleshooting e '
+                'pontos de ajuste trazem o caminho de correção para instalações '
+                'existentes.',
+            ]),
+        ],
+    },
     {
         'versao': '1.31.0',
         'data': '2026-10-07',
