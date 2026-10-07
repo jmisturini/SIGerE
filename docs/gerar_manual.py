@@ -364,7 +364,7 @@ BLOCOS = [
     ]),
     ('h2', '2.3 Esqueci minha senha'),
     ('p', 'O sistema não envia e-mails de recuperação automática. Solicite ao <b>administrador</b> '
-          'um <b>reset de senha</b> (seção 13.2): ele gera uma senha temporária que deve ser '
+          'um <b>reset de senha</b> (seção 14.2): ele gera uma senha temporária que deve ser '
           'trocada no próximo login, conforme a seção 2.2.'),
     ('h2', '2.4 Meu Perfil'),
     ('p', 'No menu do usuário (canto superior direito, com o seu nome), acesse <b>Meu Perfil</b> '
@@ -383,10 +383,11 @@ BLOCOS = [
     ('h2', '2.6 Conhecendo a tela principal'),
     ('p', 'Após o login, o cabeçalho superior e o menu lateral organizam todo o sistema:'),
     ('ul', [
-        '<b>Menu lateral</b> — agrupado em <b>Geral</b> (Painel, Calendário), <b>Salas e '
-        'Reservas</b> (Salas; submenu Reservas com Nova Reserva, Minhas Reservas e Todas as '
-        'Reservas), <b>Financeiro</b> (Hora Extra), <b>RH</b> (Vale Transporte e Vale '
-        'Alimentação) e <b>Cozinha</b> '
+        '<b>Menu lateral</b> — agrupado em <b>Geral</b> (Painel, Agenda), <b>Relatórios</b> '
+        '(Relatório Geral e Relatório Personalizado), <b>Salas e Reservas</b> (Salas; '
+        'submenu Reservas com Nova Reserva, Minhas Reservas e Todas as Reservas), '
+        '<b>Financeiro</b> (Hora Extra), <b>RH</b> (Vale Transporte e Vale Alimentação) '
+        'e <b>Cozinha</b> '
         '(Ficha Técnica, Preparações, Compras). Os grupos Financeiro, RH e Cozinha só aparecem '
         'para quem tem permissão e quando o módulo está ativado na unidade;',
         '<b>Botão de contrair menu</b> — no topo da barra lateral, alterna entre o modo '
@@ -395,7 +396,7 @@ BLOCOS = [
         'a mais de uma unidade — e administradores — veem o botão <b>Trocar</b> ao lado '
         '(seção 3.3);',
         '<b>Notificações</b> — o sino na barra superior mostra o contador de avisos não lidos e '
-        'abre a tela de notificações (seção 7);',
+        'abre o dropdown com as últimas notificações (seção 8);',
         '<b>Painel Admin</b> — atalho em forma de engrenagem, visível para administradores;',
         '<b>Aparência</b> — um único seletor (ícone de paleta) reúne o tema claro/escuro e a '
         'cor da interface (Azul Senac padrão, Verde, Roxo, Laranja ou Grafite); a escolha fica '
@@ -440,10 +441,10 @@ BLOCOS = [
           'permissão efetiva é a soma dos dois. O adicional padrão é o <b>Módulo Cozinha</b>, '
           'que libera Ficha Técnica, Preparações e Compras para quem mantém o papel original '
           '(por exemplo, um professor de gastronomia). A atribuição é feita pelo administrador '
-          'na tela de usuários (seção 13.2).'),
+          'na tela de usuários (seção 14.2).'),
     ('h2', '3.3 Multi-unidade: alternar a unidade ativa'),
     ('p', 'Todo usuário está vinculado a uma ou mais unidades, definidas pelo administrador no '
-          'cadastro (seção 13.2). Quem tem um único vínculo fica fixado nele; quem tem vários '
+          'cadastro (seção 14.2). Quem tem um único vínculo fica fixado nele; quem tem vários '
           'vínculos — ou é super administrador — alterna a unidade ativa pelo botão '
           '<b>Trocar</b>, ao lado do nome da unidade no topo da tela:'),
     ('ol', [
@@ -503,7 +504,7 @@ BLOCOS = [
         'visual do SIGerE, com indicadores (salas listadas, capacidade total, salas com '
         'computadores e prédios) e a tabela completa;',
         '<b>Adicionar Sala</b> — abertura do cadastro de sala (somente com permissão; '
-        'seção 13.3).',
+        'seção 14.3).',
     ]),
     ('h2', '5.2 Detalhes da sala'),
     ('p', 'Clique em <b>Detalhes</b> no cartão da sala para ver o tipo, a descrição e a tabela '
@@ -567,7 +568,7 @@ BLOCOS = [
      ['Regra', 'Efeito'],
      [
          ['Domingos', 'Reservas bloqueadas em qualquer horário.'],
-         ['Feriados', 'Reservas bloqueadas nos feriados cadastrados da unidade (seção 13.6).'],
+         ['Feriados', 'Reservas bloqueadas nos feriados cadastrados da unidade (seção 14.6).'],
          ['Sábados', 'Permitidos apenas pela manhã e tarde: início e término até as 18h00.'],
          ['Datas passadas', 'Não é possível reservar no passado; no dia corrente, o horário de '
           'início não pode já ter passado.'],
@@ -577,7 +578,7 @@ BLOCOS = [
           'no mesmo horário, a reserva é criada como Pendente para avaliação do administrador.'],
          ['Carga do professor', 'Mais de 2 reservas ativas do mesmo professor no mesmo dia: a '
           'reserva é criada como Pendente e os grupos selecionados para o aviso de sobrecarga '
-          '(seção 13.10) recebem um aviso para avaliar.'],
+          '(seção 14.10) recebem um aviso para avaliar.'],
          ['Reservas passadas', 'Viram registro histórico somente leitura: não podem ser '
           'editadas, canceladas nem excluídas.'],
      ],
@@ -664,7 +665,7 @@ BLOCOS = [
     ]),
     ('p', 'Se a repetição deixa o professor com mais de 2 reservas no mesmo dia, a reserva '
           'daquele dia nasce <b>Pendente</b> (em vez de Aprovada) e os grupos selecionados para '
-          'o aviso de sobrecarga (seção 13.10) são avisados na hora.'),
+          'o aviso de sobrecarga (seção 14.10) são avisados na hora.'),
     ('p', 'Todas as reservas criadas ficam vinculadas na mesma série e podem ser gerenciadas em '
           'lote.'),
     ('h2', '6.8 Gerenciar uma série'),
@@ -694,44 +695,111 @@ BLOCOS = [
           'para levar o texto a qualquer outro aplicativo. Nenhum envio é feito pelo servidor — '
           'quem envia é o próprio usuário.'),
 
-    # ================================================================ 7 (novo)
-    ('h1', '7. Notificações'),
-    ('p', 'O sistema avisa no próprio sino — sem e-mail — quando uma atividade reservada se '
-          'aproxima da data. Este capítulo descreve o lado de quem recebe os avisos; a '
-          'configuração por unidade (destinatários, antecedências e grupos) está na '
-          'seção 13.10.'),
-    ('h2', '7.1 O sino e a tela de notificações'),
-    ('p', 'O sino na barra superior exibe um contador vermelho com as notificações não lidas, '
-          'atualizado automaticamente a cada minuto. Ao clicar nele, abre-se a tela '
-          '<b>Notificações</b>, com os avisos mais recentes primeiro (50 por página):'),
+    # ================================================================ 7
+    # ================================================================ 7
+    ('h1', '7. Relatórios'),
+    ('p', 'O menu <b>Relatórios</b>, logo depois da Agenda, concentra as duas visões '
+          'gerenciais das reservas da unidade — o <b>Relatório Geral</b>, pronto para '
+          'apresentação, e o <b>Relatório Personalizado</b>, em que você monta a própria '
+          'relação de dados. Ambos têm o botão <b>Imprimir / PDF</b> na própria página, que '
+          'abre o diálogo de impressão do navegador já preparado (menu e barra superior saem '
+          'fora da folha). O acesso acompanha a permissão de ver todas as reservas.'),
+    ('h2', '7.1 Relatório Geral'),
+    ('p', 'O <b>Relatório Geral</b> apresenta o panorama das reservas da unidade no período '
+          'escolhido (padrão: mês corrente; ajuste pelas datas <b>Data Inicial</b> e <b>Data '
+          'Final</b> e clique em <b>Atualizar</b>):'),
     ('ul', [
-        'Cada aviso traz o título — <b>Hoje:</b>, <b>Amanhã:</b> ou <b>Em N dias:</b> seguidos '
-        'do assunto da reserva —, a sala, a data e o horário da atividade e a data em que foi '
-        'criado;',
-        'Ao clicar no aviso, o criador da reserva vai ao detalhe dela; os demais destinatários '
-        'vão ao calendário, já posicionado no dia da atividade;',
-        '<b>Lida</b> — marca aquele aviso como lido;',
-        '<b>Marcar todas como lidas</b> — marca todos os avisos da página de uma vez;',
-        '<b>Limpar lidas</b> — remove permanentemente todos os avisos já lidos, após '
-        'confirmação (a ação não pode ser desfeita).',
+        '<b>Indicadores</b> — reservas aprovadas (com pendentes e canceladas), horas '
+        'reservadas, salas utilizadas de quantas estão ativas e docentes envolvidos;',
+        '<b>Gráficos</b> — reservas por status, por período do dia, por dia da semana e '
+        'horas reservadas por sala;',
+        '<b>Ocupação por sala</b> — reservas, horas e a participação de cada sala nas horas '
+        'reservadas do período;',
+        '<b>Reservas por curso</b> e <b>Carga por docente</b> — totais com participação '
+        'percentual; reservas sem curso ou sem professor aparecem como linha própria.',
     ]),
-    ('nota', 'Avisos já lidos continuam na lista até serem removidos com <b>Limpar lidas</b> — '
-             'marcar como lida não apaga nada.'),
-    ('h2', '7.2 Ativar os avisos de uma reserva'),
-    ('p', 'Os avisos de atividade próxima são <b>opt-in por reserva</b>: nascem desativados e '
-          'ninguém é notificado até que alguém os ative. No detalhe de uma reserva aprovada e '
-          'futura, o dono (ou quem tem permissão de editar qualquer reserva) clica em '
-          '<b>Ativar notificações</b>; o botão passa a exibir <b>Notificações ativadas</b> e um '
-          'novo clique desliga os avisos.'),
-    ('p', 'Ativada a reserva, o aviso chega ao sino nos marcos definidos pela unidade (ex.: '
-          '7 dias antes, 1 dia antes e no próprio dia) para os destinatários configurados: '
-          'professor designado, criador da reserva, aprovadores da unidade e grupos de '
-          'notificação (seção 13.10).'),
-    ('importante', 'Desativar as notificações de uma reserva não apaga os avisos já criados no '
-                   'sino — apenas interrompe os próximos.'),
+    ('h2', '7.2 Professores e cursos'),
+    ('p', 'Na base da página, o quadro <b>Professores e cursos</b> relaciona cursos e '
+          'docentes em duas abas: <b>Professores por curso</b> — cada curso com o total de '
+          'horas do período e, abaixo, cada professor que ministrou nele com as horas que '
+          'contribuiu e a participação no total do curso — e <b>Cursos por professor</b>, a '
+          'visão invertida — cada professor com a carga total dele e, abaixo, quanto cada '
+          'curso contribuiu para ela.'),
+    ('h2', '7.3 Relatório Personalizado'),
+    ('p', 'No <b>Relatório Personalizado</b> você monta a própria relação de reservas '
+          'combinando os filtros e clicando em <b>Gerar Relatório</b>:'),
+    ('ul', [
+        '<b>Período</b> (datas inicial e final) e <b>ordenação</b> (crescente ou '
+        'decrescente);',
+        '<b>Status</b> — aprovadas, pendentes e/ou canceladas; nada marcado inclui todos;',
+        '<b>Sala</b>, <b>Professor</b>, <b>Curso</b> e <b>Disciplina</b> — restrições '
+        'individuais;',
+        '<b>Período do dia</b> — manhã, tarde e/ou noite; nada marcado inclui o dia '
+        'inteiro;',
+        '<b>Buscar no título</b> — texto livre no assunto da reserva;',
+        '<b>Agrupar por</b> — data, sala, professor, curso, disciplina ou sem agrupamento; '
+        'cada grupo vira uma faixa na tabela com a contagem de reservas e as horas '
+        'somadas.',
+    ]),
+    ('p', 'O resultado traz os indicadores do filtro (reservas, horas somadas, salas e '
+          'professores diferentes) e a relação completa das reservas com data, horário, '
+          'sala, título, professor, curso, disciplina e status; a descrição dos filtros '
+          'aplicados fica sob o título da página. Por ser uma tabela larga, a impressão sai '
+          'em paisagem.'),
+    ('nota', 'Quem usava o link antigo do relatório (/reservations/relatorio) é levado '
+             'automaticamente ao Relatório Geral, com os filtros preservados.'),
 
     # ================================================================ 8
-    ('h1', '8. Calendário de reservas'),
+    ('h1', '8. Notificações'),
+    ('p', 'O sistema avisa no próprio sino — e, opcionalmente, por e-mail — sobre atividades '
+          'reservadas, mudanças no status das reservas e pendências aguardando aprovação. '
+          'Este capítulo descreve o lado de quem recebe os avisos; a configuração por unidade '
+          '(destinatários, antecedências e grupos) está na seção 14.10.'),
+    ('h2', '8.1 O sino e a tela de notificações'),
+    ('p', 'O sino na barra superior exibe um contador vermelho com as notificações não lidas, '
+          'atualizado automaticamente a cada minuto — o número aparece também no título da aba '
+          'do navegador. Ao clicar no sino, abre-se um dropdown com as 8 notificações mais '
+          'recentes, destacando as não lidas; clicar num aviso o marca como lido e abre o '
+          'destino (o detalhe da reserva para o criador; o calendário no dia da atividade para '
+          'os demais destinatários). No rodapé do dropdown fica <b>Marcar todas como lidas</b>.'),
+    ('p', 'A opção <b>Ver todas</b> abre a tela <b>Notificações</b>, com os avisos mais '
+          'recentes primeiro (50 por página) e as ações <b>Marcar como lida</b>, <b>Marcar '
+          'todas como lidas</b> e <b>Limpar lidas</b> — esta remove permanentemente os avisos '
+          'já lidos, após confirmação (a ação não pode ser desfeita).'),
+    ('nota', 'Avisos já lidos continuam na lista até serem removidos com <b>Limpar lidas</b> — '
+             'marcar como lida não apaga nada. Notificações lidas há mais de 90 dias saem '
+             'automaticamente na limpeza periódica do sistema.'),
+    ('h2', '8.2 Quem recebe avisos e quando'),
+    ('p', 'Os avisos de atividade próxima são <b>opt-in por reserva</b>: nascem desativados e '
+          'ninguém é notificado até que alguém os configure na seção <b>Notificações</b> do '
+          'formulário de criar ou editar a reserva — escolhendo os marcos de aviso e os '
+          'destinatários (usuários individuais e grupos de notificação). O criador da reserva '
+          'entra como destinatário por padrão e pode ser desmarcado.'),
+    ('ul', [
+        '<b>Marcos de aviso</b> — no dia da atividade (às 07:00), 7 dias antes, 24 horas '
+        'antes e 1 hora antes do início; o mais iminente vencido dispara o aviso e os '
+        'anteriores ficam absorvidos;',
+        '<b>Mudança de status</b> — o criador é avisado quando a reserva dele é aprovada ou '
+        'cancelada (a ação feita por ele mesmo não gera aviso) e quando ela é excluída '
+        'permanentemente;',
+        '<b>Lembretes de pendência</b> — os aprovadores da unidade são avisados de reservas '
+        'pendentes aguardando aprovação, 24 e 48 horas após a criação.',
+    ]),
+    ('p', 'Os avisos chegam aos destinatários nos marcos definidos para a reserva, '
+          'respeitada a configuração da unidade (professor designado, criador, aprovadores e '
+          'grupos de notificação — seção 14.10).'),
+    ('importante', 'Desativar as notificações de uma reserva não apaga os avisos já criados no '
+                   'sino — apenas interrompe os próximos.'),
+    ('h2', '8.3 Notificações por e-mail'),
+    ('p', 'Além do sino, o usuário pode receber os avisos também por e-mail: o interruptor '
+          '<b>Receber notificações também por e-mail</b> fica no <b>Meu Perfil</b> (seção '
+          '2.4) e vem ativado por padrão. Vários avisos na mesma rodada chegam em um único '
+          'e-mail com assunto de resumo e link para o sistema; a limpeza periódica também '
+          'remove avisos de reservas passadas há mais de 30 dias. A configuração do servidor '
+          'de e-mail é feita na implantação (docs/implantacao-producao.md).'),
+
+    # ================================================================ 9
+    ('h1', '9. Calendário de reservas'),
     ('p', 'O <b>Calendário</b> (menu Geral) exibe as reservas aprovadas da unidade em cartões '
           'agrupados por data e por andar. Ao abrir, ele carrega automaticamente as reservas de '
           'hoje no período atual.'),
@@ -746,18 +814,18 @@ BLOCOS = [
     ('p', 'Cada cartão mostra código da sala, horário, título, curso e professor, com a cor da '
           'categoria da sala; ao clicar, o detalhe da reserva é aberto.'),
 
-    # ================================================================ 9
-    ('h1', '9. Portal público e totem digital'),
+    # ================================================================ 10
+    ('h1', '10. Portal público e totem digital'),
     ('p', 'As páginas desta seção não exigem login e servem a alunos, visitantes e TVs de '
           'corredor. Quando a instituição tem mais de uma unidade ativa, as páginas públicas '
           'exibem um seletor de unidade (também aceito na própria URL, pelo parâmetro '
           '<b>?unity=</b>). A unidade escolhida — pela lista ou pela detecção de unidade '
           'próxima — fica memorizada na sessão do visitante: navegar entre as páginas pelo menu '
           'não reseta a seleção.'),
-    ('h2', '9.1 Página inicial pública'),
+    ('h2', '10.1 Página inicial pública'),
     ('p', 'A home pública apresenta três atalhos: <b>Buscar Minha Aula</b>, <b>Cronograma de '
           'Aulas</b> e <b>Entrar</b> (login). Quem já está logado é levado direto ao painel.'),
-    ('h2', '9.2 Cronograma do dia'),
+    ('h2', '10.2 Cronograma do dia'),
     ('p', 'A página <b>Cronograma</b> lista as aulas aprovadas da data escolhida em três '
           'colunas: <b>Manhã</b>, <b>Tarde</b> e <b>Noite</b> (a aula entra no período em que '
           'começa). Cada item mostra horário, código da sala, título, curso, disciplina e '
@@ -767,18 +835,18 @@ BLOCOS = [
     ('p', 'No celular, uma barra fixa de atalhos <b>Manhã / Tarde / Noite</b> — com a contagem '
           'de aulas de cada período — fica presa abaixo do topo enquanto a página rola, levando '
           'direto ao período desejado.'),
-    ('h2', '9.3 Buscar minha aula'),
+    ('h2', '10.3 Buscar minha aula'),
     ('p', 'Em <b>Buscar Minha Aula</b>, o aluno informa o que procura (título da aula, curso, '
           'disciplina, professor ou código da sala) e a data. O resultado lista as aulas '
           'aprovadas correspondentes ao dia informado, com os mesmos dados do cronograma.'),
-    ('h2', '9.4 Buscar salas e professores'),
+    ('h2', '10.4 Buscar salas e professores'),
     ('p', 'A busca geral (<b>Buscar Salas e Professores</b>) tem dois modos:'),
     ('ul', [
         '<b>Sala</b> — pesquisa por nome ou código; o resultado traz nome, código, prédio, '
         'andar e capacidade;',
         '<b>Professor</b> — pesquisa por nome; o resultado traz nome, departamento e matrícula.',
     ]),
-    ('h2', '9.5 Totem digital (TV de corredor)'),
+    ('h2', '10.5 Totem digital (TV de corredor)'),
     ('p', 'O <b>Totem</b> é um painel de ocupação de salas para TVs, acessível pelo endereço do '
           'totem de cada unidade (formato <b>/totem/?unity=ID</b>). Não há interação: a tela se '
           'atualiza sozinha a cada 5 minutos.'),
@@ -802,15 +870,15 @@ BLOCOS = [
     ('p', 'Sem atividade em andamento, o totem exibe “Nenhuma atividade em andamento no '
           'momento”.'),
 
-    # ================================================================ 10
-    ('h1', '10. Financeiro — Hora Extra'),
+    # ================================================================ 11
+    ('h1', '11. Financeiro — Hora Extra'),
     ('p', 'O módulo <b>Hora Extra</b> (menu Financeiro) registra as horas extras docentes para '
           'pagamento. A listagem traz <b>Professor</b>, <b>Mês de Referência</b>, <b>Nível</b>, '
           '<b>Dias Selecionados</b>, <b>Turno</b>, <b>Código Orçamentário</b>, <b>Horas</b> '
           '(em horas e minutos, ex.: 4h30) e <b>Valor hora/aula</b>, com 25 registros por '
           'página. O ícone de olho abre o resumo completo do lançamento, incluindo a '
           '<b>Data do Lançamento</b>.'),
-    ('h2', '10.1 Consultar lançamentos'),
+    ('h2', '11.1 Consultar lançamentos'),
     ('ul', [
         '<b>Mês de Referência</b> — a consulta abre no mês da janela de lançamento; a lista '
         'também oferece “Todos os meses” e os meses já lançados;',
@@ -818,7 +886,7 @@ BLOCOS = [
         '<b>Filtrar</b> aplica a combinação; <b>Limpar</b> volta ao mês da janela;',
         'Lançamentos de um mês <b>fechado</b> exibem um cadeado com o aviso correspondente.',
     ]),
-    ('h2', '10.2 Lançar uma hora extra'),
+    ('h2', '11.2 Lançar uma hora extra'),
     ('p', 'Clique em <b>Nova Hora Extra</b> e preencha:'),
     ('table',
      ['Campo', 'Obrigatório', 'Preenchimento'],
@@ -849,21 +917,21 @@ BLOCOS = [
         'Não há bloqueio por prazo: enquanto o mês <b>não for fechado</b>, seus lançamentos '
         'podem ser editados e excluídos livremente.',
     ]),
-    ('h2', '10.3 Exportar a planilha'),
+    ('h2', '11.3 Exportar a planilha'),
     ('p', 'Com pelo menos o <b>Mês de Referência</b> ou o <b>Professor</b> selecionado, clique em '
           '<b>Exportar</b>. O arquivo Excel gerado (<b>overtime_export.xlsx</b>) preenche o '
           'modelo institucional da folha de pagamento de hora extra com os lançamentos '
           'filtrados: professor, nível, carga em <b>hora e minutos inteiros</b> (4h30), valor, '
           'datas, turno, código orçamentário e justificativa.'),
-    ('h2', '10.4 Fechar o mês'),
+    ('h2', '11.4 Fechar o mês'),
     ('p', 'Com a permissão apropriada, o botão <b>Fechar Mês</b> encerra os lançamentos do mês '
           'em consulta: grava o fechamento, <b>bloqueia a edição e a exclusão</b> de todos os '
           'lançamentos daquele mês (que passam a exibir cadeado) e <b>baixa a planilha final</b> '
           'do mês na hora. O fechamento é por unidade e fica registrado com data e responsável; '
           'mês fechado não reabre e a consulta do mês exibe o aviso de somente leitura.'),
 
-    # ================================================================ 11
-    ('h1', '11. RH — Vale-Transporte'),
+    # ================================================================ 12
+    ('h1', '12. RH — Vale-Transporte'),
     ('p', 'O módulo <b>Vale-Transporte</b> (menu RH) coleta, a cada mês, a intenção de uso do VT '
           'de cada colaborador e gera as planilhas de pagamento. O fluxo tem duas pontas:'),
     ('ul', [
@@ -875,7 +943,7 @@ BLOCOS = [
     ('atencao', 'Antes de divulgar o formulário, o administrador precisa cadastrar as '
                 '<b>Empresas de Ônibus</b> com as tarifas vigentes e definir as '
                 '<b>Configurações do Pedido</b> (seção 11.6).'),
-    ('h2', '11.1 Colaborador: preencher o pedido de VT'),
+    ('h2', '12.1 Colaborador: preencher o pedido de VT'),
     ('p', 'O RH divulga o link do formulário público da unidade (o botão <b>Copiar link do '
           'formulário</b> em Pedidos VT gera o link pronto). A página indica a unidade e, quando '
           'configurada, a data limite — após o prazo, o formulário aparece encerrado.'),
@@ -893,7 +961,7 @@ BLOCOS = [
         'o RH configurou os números padrão;',
         'Clique em <b>Enviar pedido</b>. A confirmação é exibida na tela.',
     ]),
-    ('h2', '11.2 RH: acompanhar os pedidos'),
+    ('h2', '12.2 RH: acompanhar os pedidos'),
     ('p', 'A tela <b>Pedidos VT</b> lista as respostas recebidas pela unidade, com data, '
           'colaborador (nome e matrícula), e-mail, se é optante, vínculo, empresas selecionadas '
           '(com tarifa e trajeto ao passar o mouse), total de passes e valor total.'),
@@ -907,12 +975,12 @@ BLOCOS = [
         '<b>Editar</b> (lápis) — corrige qualquer campo do pedido (seção 11.3);',
         '<b>Excluir</b> (lixeira) — remove um pedido inválido, após confirmação.',
     ]),
-    ('h2', '11.3 RH: corrigir um pedido'),
+    ('h2', '12.3 RH: corrigir um pedido'),
     ('p', 'Em <b>Editar pedido</b>, o RH ajusta a identificação (e-mail, nome, matrícula, deseja '
           'VT), o vínculo e os dados de cada empresa (empresa, tarifa, trajeto e número de '
           'vales). Os totais de passes e de reais são recalculados automaticamente. Clique em '
           '<b>Salvar alterações</b> para gravar.'),
-    ('h2', '11.4 RH: exportar a planilha de pagamento'),
+    ('h2', '12.4 RH: exportar a planilha de pagamento'),
     ('p', 'O cartão <b>Exportar planilha de pagamento</b> gera o arquivo Excel do mês, '
           'preenchendo o modelo institucional com <b>Matrícula</b>, <b>Nome</b> e <b>Valor '
           'Total</b> de cada colaborador:'),
@@ -925,7 +993,7 @@ BLOCOS = [
     ]),
     ('atencao', 'O modelo institucional suporta até 72 linhas por arquivo. Acima disso, apenas '
                 'as 72 primeiras em ordem alfabética são exportadas e o sistema alerta.'),
-    ('h2', '11.5 RH: relatório do período'),
+    ('h2', '12.5 RH: relatório do período'),
     ('p', 'A tela <b>Relatório</b> consolida o ciclo do VT da unidade, com botão '
           '<b>Imprimir / PDF</b>:'),
     ('ul', [
@@ -938,7 +1006,7 @@ BLOCOS = [
         '<b>Conferência do RH</b> — total de colaboradores identificados, maior pedido '
         'individual e alertas de e-mails ou matrículas repetidas.',
     ]),
-    ('h2', '11.6 Administração: empresas, tarifas e configurações'),
+    ('h2', '12.6 Administração: empresas, tarifas e configurações'),
     ('p', 'Dois cadastros no Painel Admin sustentam o formulário público:'),
     ('ul', [
         '<b>Empresas de Ônibus</b> — cadastre o nome da empresa e se ela aparece no formulário '
@@ -949,7 +1017,7 @@ BLOCOS = [
         'para Ida e Volta (usados pelo botão “Usar valor base” do formulário) e a data de '
         'fechamento, que encerra automaticamente o preenchimento na data limite.',
     ]),
-    ('h2', '11.7 Vale Alimentação — Professores'),
+    ('h2', '12.7 Vale Alimentação — Professores'),
     ('p', 'No menu <b>RH &gt; Vale Alimentação</b> fica o lançamento simples de dias trabalhados '
           'docentes. Selecione o <b>Professor</b>, informe os <b>Dias Trabalhados</b> (de 1 a '
           '999) e clique em <b>Adicionar</b> — o registro entra na listagem logo abaixo, com a '
@@ -961,13 +1029,13 @@ BLOCOS = [
           'Cada unidade vê apenas os seus lançamentos, e quem tem acesso de consulta, mas não '
           'de lançamento, vê somente a listagem.'),
 
-    # ================================================================ 12
-    ('h1', '12. Cozinha'),
+    # ================================================================ 13
+    ('h1', '13. Cozinha'),
     ('p', 'O módulo <b>Cozinha</b> digitaliza as fichas técnicas operacionais e automatiza a '
           'requisição de compra. O caminho típico é: enviar a ficha (.docx), salvar como '
           'preparação, ajustar porções e ingredientes e, antes da aula, gerar a requisição de '
           'compra.'),
-    ('h2', '12.1 Enviar fichas técnicas (.docx)'),
+    ('h2', '13.1 Enviar fichas técnicas (.docx)'),
     ('ol', [
         'Acesse <b>Cozinha &gt; Ficha Técnica</b>;',
         'Selecione um ou vários arquivos .docx no campo de envio e clique em <b>Ler arquivos</b>;',
@@ -981,19 +1049,19 @@ BLOCOS = [
     ]),
     ('p', 'As fichas salvas ficam listadas com a data, o autor e o botão <b>Baixar .docx</b>; a '
           'exclusão de uma ficha remove também a preparação gerada por ela (com confirmação).'),
-    ('h2', '12.2 Criar a ficha manualmente'),
+    ('h2', '13.2 Criar a ficha manualmente'),
     ('p', 'O botão <b>Criar Ficha Técnica</b> abre o mesmo modelo para preenchimento manual: '
           'identificação (nome da preparação, equipamentos, utensílios, tempo de preparo e '
           'rendimento), ingredientes em linhas dinâmicas (ingrediente, especificações, '
           'quantidade e unidade) e modo de preparo com notas técnicas (observações, alergênicos '
           'e referências). Clique em <b>Salvar Ficha Técnica</b> para gerar a preparação.'),
-    ('h2', '12.3 Consultar preparações'),
+    ('h2', '13.3 Consultar preparações'),
     ('p', 'Em <b>Preparações</b>, as receitas salvas aparecem em <b>Cards</b> ou em <b>Lista</b> '
           '(a preferência fica salva no navegador), com busca por nome. A visualização completa '
           'traz equipamentos, utensílios, tempo, rendimento, ingredientes por sub-preparação '
           '(com especificação, quantidade e unidade), modo de preparo, alergênicos, '
           'observações, referências e o acesso à ficha de origem (.docx).'),
-    ('h2', '12.4 Recalcular quantidades por porções'),
+    ('h2', '13.4 Recalcular quantidades por porções'),
     ('p', 'Quando o rendimento da ficha traz um número de porções, a tela de preparação oferece '
           'o recálculo proporcional. A base é o menor número informado — “4 a 6 porções” '
           'usa 4.'),
@@ -1004,7 +1072,7 @@ BLOCOS = [
         'compra usam os novos valores (um selo indica a escala salva);',
         'Para voltar ao rendimento original da ficha, use <b>Restaurar originais</b>.',
     ]),
-    ('h2', '12.5 Editar preparação e ingredientes'),
+    ('h2', '13.5 Editar preparação e ingredientes'),
     ('ul', [
         '<b>Editar preparação</b> — ajusta nome, equipamentos, utensílios, tempo, rendimento, '
         'modo de preparo e notas técnicas;',
@@ -1014,7 +1082,7 @@ BLOCOS = [
         'requisição de compra;',
         '<b>Excluir</b> — remove a preparação e a ficha de origem (com confirmação).',
     ]),
-    ('h2', '12.6 Gerar a requisição de compra'),
+    ('h2', '13.6 Gerar a requisição de compra'),
     ('ol', [
         'Acesse <b>Cozinha &gt; Compras</b> e marque as preparações da aula (há o atalho '
         '<b>Selecionar todas</b>);',
@@ -1031,17 +1099,17 @@ BLOCOS = [
           'Gastronomia” com os dados da aula e a lista de produtos; a coluna OBSERVAÇÃO sai em '
           'branco para preenchimento posterior.'),
 
-    # ================================================================ 13
-    ('h1', '13. Administração'),
+    # ================================================================ 14
+    ('h1', '14. Administração'),
     ('p', 'O <b>Painel Admin</b> (engrenagem no topo) concentra os cadastros do sistema. A '
           'página inicial do painel apresenta cartões-atalho com contadores e o acesso a cada '
           'seção descrita a seguir.'),
-    ('h2', '13.1 Checklist de configuração inicial'),
+    ('h2', '14.1 Checklist de configuração inicial'),
     ('p', 'Na primeira implantação, o super administrador vê um checklist de 8 passos: unidade, '
           'categorias, salas, professores, funcionários, cursos, disciplinas e feriados. Cada '
           'item mostra o andamento, leva direto ao cadastro correspondente pelo botão '
           '<b>Cadastrar</b> e some da lista quando concluído.'),
-    ('h2', '13.2 Usuários'),
+    ('h2', '14.2 Usuários'),
     ('p', 'Em <b>Usuários</b> estão os cadastros de professores e funcionários, com busca por '
           'nome, filtro por tipo, ordenação (papel, nome, matrícula ou status) e a opção de '
           'exibir contas desativadas.'),
@@ -1073,7 +1141,7 @@ BLOCOS = [
         '<b>Resetar senha</b> (chave) — gera uma senha temporária exibida uma única vez na '
         'tela: copie e entregue ao usuário, que deverá trocá-la no próximo login.',
     ]),
-    ('h2', '13.3 Salas'),
+    ('h2', '14.3 Salas'),
     ('p', 'O cadastro de salas fica no Painel Admin (a consulta foi descrita na seção 5). Em '
           '<b>Adicionar Sala / Editar</b>:'),
     ('ul', [
@@ -1087,7 +1155,7 @@ BLOCOS = [
     ]),
     ('p', 'Na listagem, o botão de alternância ativa/desativa a sala sem excluir o histórico de '
           'reservas.'),
-    ('h2', '13.4 Categorias de sala'),
+    ('h2', '14.4 Categorias de sala'),
     ('p', 'As categorias definem os tipos de sala e alimentam automaticamente o totem, o painel '
           'e os filtros — criar uma categoria nova já faz ela aparecer nas telas. Campos do '
           'cadastro:'),
@@ -1102,7 +1170,7 @@ BLOCOS = [
         '7 dias”;',
         '<b>Ativo</b> — categorias inativas deixam de aparecer nas telas.',
     ]),
-    ('h2', '13.5 Cursos e disciplinas'),
+    ('h2', '14.5 Cursos e disciplinas'),
     ('p', 'Cursos e disciplinas compõem a estrutura acadêmica usada nas reservas. Ambos têm '
           'cadastro com nome (obrigatório), código (obrigatório e único na unidade), descrição e '
           'indicador ativo. As listagens têm o botão <b>Mostrar/Esconder inativos</b>, como na '
@@ -1110,7 +1178,7 @@ BLOCOS = [
           '<b>Pertence ao Curso</b> vincula a disciplina a um curso — na reserva, ao escolher o '
           'curso, apenas as disciplinas dele são ofertadas; disciplinas sem curso aparecem '
           'sempre.'),
-    ('h2', '13.6 Feriados'),
+    ('h2', '14.6 Feriados'),
     ('p', 'Feriados cadastrados bloqueiam reservas na unidade. A tela oferece dois caminhos:'),
     ('ul', [
         '<b>Importar da BrasilAPI</b> — informe o <b>Ano</b> e clique em <b>Buscar e '
@@ -1120,7 +1188,7 @@ BLOCOS = [
         'pontuais), com o indicador <b>Ativo</b> (Bloquear Reservas).',
     ]),
     ('p', 'Na listagem, cada feriado pode ser editado ou excluído (com confirmação).'),
-    ('h2', '13.7 Papéis e permissões'),
+    ('h2', '14.7 Papéis e permissões'),
     ('p', 'Em <b>Papéis</b> estão os perfis de acesso (seção 3). Papéis do sistema podem ser '
           'inspecionados; papéis customizados podem ser criados e editados com qualquer '
           'combinação de permissões, organizadas por módulo (reservas, salas, cursos, feriados, '
@@ -1131,7 +1199,7 @@ BLOCOS = [
         'Um papel com usuários vinculados não pode ser excluído — migre os usuários primeiro;',
         'A permissão universal (*) é exclusiva do super administrador.',
     ]),
-    ('h2', '13.8 Unidades educacionais'),
+    ('h2', '14.8 Unidades educacionais'),
     ('p', 'Em <b>Unidades</b> ficam os campi/sedes do sistema. Cadastro: <b>Nome</b>, '
           '<b>Código Curto</b> (2 a 20 letras/números), <b>Endereço</b> e <b>Telefone</b> '
           '(opcionais) e o bloco <b>Clima no Totem</b>: use a busca de endereço para localizar a '
@@ -1148,7 +1216,7 @@ BLOCOS = [
     ]),
     ('atencao', 'A unidade em que você está operando não pode ser desativada. Troque de unidade '
                 'antes.'),
-    ('h2', '13.9 Tokens da API'),
+    ('h2', '14.9 Tokens da API'),
     ('p', 'Aplicativos externos (como quadros de sala na porta) consomem a API de reservas '
           '(seção 14). Em <b>Tokens da API</b>:'),
     ('ol', [
@@ -1160,7 +1228,7 @@ BLOCOS = [
         'Na listagem, acompanhe o <b>Último uso</b> e a validade; <b>Revogue</b> para cortar o '
         'acesso de imediato (pode ser reativado) ou <b>Exclua</b> permanentemente.',
     ]),
-    ('h2', '13.10 Notificações — configuração por unidade'),
+    ('h2', '14.10 Notificações — configuração por unidade'),
     ('p', 'O cartão <b>Notificações</b> do Painel Admin abre a configuração da unidade ativa. A '
           'varredura que gera os avisos roda automaticamente no servidor e avisa quando uma '
           'reserva aprovada com notificações ativadas se aproxima da data (seção 7):'),
@@ -1179,20 +1247,20 @@ BLOCOS = [
         'enviado a ninguém.',
     ]),
     ('p', 'Clique em <b>Salvar configurações</b> para gravar.'),
-    ('h2', '13.11 Grupos de notificação'),
+    ('h2', '14.11 Grupos de notificação'),
     ('p', 'O cartão <b>Grupos de Notificação</b> reúne as pessoas que devem ser avisadas juntas '
           '— por exemplo, a coordenação de um curso. Em <b>Novo grupo</b>, informe o <b>Nome do '
           'grupo</b> (único na unidade) e selecione os <b>Membros do grupo</b> entre os '
           'usuários ativos; <b>Salvar grupo</b> grava.'),
     ('ul', [
         'Os grupos criados aparecem na configuração de notificações da unidade '
-        '(seção 13.10);',
+        '(seção 14.10);',
         'Excluir um grupo (com confirmação) não remove os avisos já criados, mas as '
         'configurações que o selecionam deixam de avisá-lo.',
     ]),
 
-    # ================================================================ 14
-    ('h1', '14. Integração — API de reservas'),
+    # ================================================================ 15
+    ('h1', '15. Integração — API de reservas'),
     ('p', 'A API de reservas permite que aplicativos externos consultem a ocupação das salas. '
           'Endereços disponíveis (todos apenas de leitura):'),
     ('table',
@@ -1219,9 +1287,9 @@ BLOCOS = [
           '<b>page/per_page</b>. O limite de uso é de 120 consultas por minuto por endereço IP. '
           'A documentação completa, com exemplos, está no guia “API de Reservas” do projeto.'),
 
-    # ================================================================ 15
-    ('h1', '15. Mensagens e solução de problemas'),
-    ('h2', '15.1 Mensagens mais comuns'),
+    # ================================================================ 16
+    ('h1', '16. Mensagens e solução de problemas'),
+    ('h2', '16.1 Mensagens mais comuns'),
     ('table',
      ['Mensagem', 'Significado e o que fazer'],
      [
@@ -1256,7 +1324,7 @@ BLOCOS = [
      ],
      [205, 278],
      'Tabela 7 — Mensagens frequentes do sistema e providências.'),
-    ('h2', '15.2 Perguntas frequentes'),
+    ('h2', '16.2 Perguntas frequentes'),
     ('ul', [
         '<b>Minha reserva não aparece no totem, no portal nem no calendário público. Por quê?</b>',
         'Apenas reservas aprovadas são exibidas publicamente. Verifique se a reserva está '
@@ -1276,7 +1344,7 @@ BLOCOS = [
         '<b>Não recebi aviso de uma reserva que está próxima. Por quê?</b>',
         'Os avisos são opt-in: alguém com acesso à reserva precisa ter clicado em <b>Ativar '
         'notificações</b> no detalhe dela (seção 7.2), e a configuração da unidade define quem '
-        'recebe e com que antecedência (seção 13.10);',
+        'recebe e com que antecedência (seção 14.10);',
         '<b>O menu Financeiro, RH ou Cozinha desapareceu.</b>',
         'Os módulos podem ter sido desligados para a sua unidade (seção 13.8). Contate o '
         'administrador;',

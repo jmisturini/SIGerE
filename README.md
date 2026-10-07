@@ -158,10 +158,19 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - API JSON (`/calendar/api/events`) com intervalo de datas obrigatório e filtros combináveis
 - Adaptação automática ao tema claro/escuro
 
+### 📊 Relatórios (`/relatorios`)
+Menu próprio na barra lateral, logo depois da Agenda, com as duas visões (acesso ligado a `reservation:read_all`); ambos com botão **Imprimir / PDF** na própria página:
+- **Relatório Geral (`/relatorios/geral`):** panorama gerencial das reservas da unidade no período escolhido (padrão: mês corrente) — indicadores (reservas aprovadas, horas reservadas, salas utilizadas, docentes envolvidos), gráficos (status, período do dia, dia da semana, horas por sala), ocupação por sala com participação percentual, reservas por curso, carga por docente e o quadro **"Professores e cursos"** com duas abas: *Professores por curso* (total do curso e horas de cada professor) e *Cursos por professor* (carga total do professor e quanto cada curso contribuiu)
+- **Relatório Personalizado (`/relatorios/personalizado`):** monte a própria relação de reservas combinando **período** (datas), **status** (aprovadas/pendentes/canceladas), **sala**, **professor**, **curso**, **disciplina**, **período do dia** (manhã/tarde/noite), **busca no título**, **ordenação** (crescente/decrescente) e **agrupamento** por data, sala, professor, curso, disciplina ou sem agrupamento — faixas de grupo com contagem e horas somadas, KPIs do filtro (reservas, horas, salas e professores diferentes) e descrição dos filtros aplicados sob o título; impressão em paisagem
+- A URL antiga `/reservations/relatorio` continua viva e redireciona para o Relatório Geral preservando os filtros
+
 ### 🔔 Notificações
-- **Sino na barra superior** com contador de não lidas (atualizado sozinho a cada minuto) e tela de notificações com **Marcar como lida**, **Marcar todas como lidas** e **Limpar lidas** (com confirmação); cada aviso leva ao detalhe da reserva ou ao calendário no dia da atividade
-- **Opt-in por reserva:** botão **"Ativar notificações"** no detalhe de reservas aprovadas e futuras (dono ou quem edita qualquer reserva); desativar interrompe os próximos avisos sem apagar os já criados
-- **Configuração por unidade** (Painel Admin): interruptor geral, antecedências em dias (ex.: `7, 1, 0`), destinatários fixos (professor, criador, aprovadores) e **Grupos de Notificação** com membros personalizados
+- **Sino na barra superior** como dropdown: preview das 8 últimas notificações buscado a cada abertura (com destaque das não lidas), clique marca como lida e navega, rodapé **"Marcar todas como lidas"**, contador de não lidas atualizado sozinho a cada minuto e também no título da aba; tela de notificações com **Marcar como lida**, **Marcar todas como lidas** e **Limpar lidas** (com confirmação)
+- **Marcos de aviso por instante de gatilho:** "no dia" (07:00 da data), 7 dias, 24 horas e 1 hora antes do início — o mais iminente vencido dispara e os anteriores ficam absorvidos; o criador da reserva é destinatário por padrão (desmarcável no formulário)
+- **Avisos de mudança de status:** criador recebe aviso quando a reserva é aprovada ou cancelada (ação do próprio criador não avisa) e quando a reserva é excluída permanentemente (individual ou em série); **lembretes de pendência:** aprovadores da unidade são avisados de reservas pendentes 24h/48h após a criação
+- **Espelho por e-mail:** a fila de e-mails é drenada com assunto de resumo quando há vários avisos; opt-out **"Receber notificações também por e-mail"** no perfil, limite de tentativas configurável (`MAIL_MAX_ATTEMPTS`, padrão 10) e comandos `notify-email` (com `--dry-run`) e `notify-cleanup` (apaga lidas há mais de 90 dias e avisos de reservas passadas há mais de 30)
+- **Opt-in por reserva:** seção **"Notificações"** nos formulários de criar/editar reserva ativa os marcos e define os destinatários — usuários individuais e **Grupos de Notificação** cadastrados no painel
+- **Configuração por unidade** (Painel Admin): interruptor geral, antecedências em dias e destinatários fixos
 - **Varredura agendada:** comando idempotente `flask --app run notify-scan` (systemd timer a cada 15 minutos em produção; `--dry-run` para prévia)
 
 ### 💰 Financeiro
