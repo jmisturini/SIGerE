@@ -568,10 +568,14 @@ class CourseTypeForm(BaseForm):
 
 class FormValeAlimentacao(BaseForm):
     """Lançamento simples do Vale Alimentação de Professores (RH): escolhe o
-    professor e informa os dias trabalhados — o cadastro é só a contagem,
-    sem mês base nem valores (os choices do professor vêm da rota)."""
+    professor, o mês de referência e informa os dias trabalhados — o cadastro
+    é só a contagem, sem valores (os choices vêm da rota)."""
     teacher = SelectField('Professor', coerce=int,
                           validators=[DataRequired(message='Selecione o professor.')])
+    # Mês de referência (YYYY-MM): sem valor no POST cai no mês corrente, e
+    # a edição restaura o mês gravado no lançamento.
+    month_base = SelectField('Mês de Referência', coerce=str,
+                             default=lambda: datetime.now().strftime('%Y-%m'))
     days = IntegerField('Dias Trabalhados', validators=[
         # InputRequired (não DataRequired): 0 tem input e deve cair na
         # validação de faixa ("entre 1 e 999"), não na de campo vazio.
