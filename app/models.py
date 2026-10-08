@@ -385,6 +385,9 @@ class TeacherMealAllowance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
+    # Mês de referência do lançamento (YYYY-MM), como em TeacherOvertimePay.
+    # Nulo nos lançamentos anteriores à coluna — exibidos como "—".
+    month_base = db.Column(db.String(7))
     days = db.Column(db.Integer, nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

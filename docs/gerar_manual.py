@@ -1018,16 +1018,25 @@ BLOCOS = [
         'fechamento, que encerra automaticamente o preenchimento na data limite.',
     ]),
     ('h2', '12.7 Vale Alimentação — Professores'),
-    ('p', 'No menu <b>RH &gt; Vale Alimentação</b> fica o lançamento simples de dias trabalhados '
-          'docentes. Selecione o <b>Professor</b>, informe os <b>Dias Trabalhados</b> (de 1 a '
-          '999) e clique em <b>Adicionar</b> — o registro entra na listagem logo abaixo, com a '
-          'data do lançamento. A caixa de <b>filtro</b> acima da listagem restringe os registros '
-          'a um professor. O botão <b>Detalhes</b> (olho) abre as informações completas do '
-          'lançamento: professor, dias, data e o responsável pelo lançamento. Com permissão de '
-          'edição, o botão <b>Editar</b> (lápis) abre o lançamento para correção, e com '
-          'permissão de exclusão o botão <b>Excluir</b> (lixeira) o remove com confirmação. '
-          'Cada unidade vê apenas os seus lançamentos, e quem tem acesso de consulta, mas não '
-          'de lançamento, vê somente a listagem.'),
+    ('p', 'No menu <b>RH &gt; Vale Alimentação</b> fica o lançamento de dias trabalhados '
+          'docentes, organizado por <b>mês de referência</b>. Selecione o <b>Professor</b>, o '
+          '<b>Mês de Referência</b> (o mês corrente vem selecionado) e informe os <b>Dias '
+          'Trabalhados</b> (de 1 a 999); clique em <b>Adicionar</b> — o registro entra na '
+          'listagem logo abaixo, com o mês e a data do lançamento. Lançamentos anteriores à '
+          'coluna de mês aparecem com “—”.'),
+    ('p', 'A caixa <b>Importar dos Agendamentos</b> preenche a listagem automaticamente: '
+          'escolha o mês e clique em <b>Listar Professores</b> — o sistema cria um lançamento '
+          'para cada professor com agendamento aprovado no mês, com a quantidade de dias '
+          'distintos de aula (duas aulas no mesmo dia contam uma vez). Quem já possui '
+          'lançamento no mês é mantido como está, então repetir o clique não duplica. A caixa '
+          'de <b>filtro</b> acima da listagem restringe os registros por professor e por mês — '
+          'a <b>Exportação</b> respeita os filtros ativos. O botão <b>Detalhes</b> (olho) abre '
+          'as informações completas do lançamento: professor, mês, dias, data e o responsável '
+          'pelo lançamento. Com permissão de edição, o botão <b>Editar</b> (lápis) abre o '
+          'lançamento para correção — inclusive do mês —, e com permissão de exclusão o botão '
+          '<b>Excluir</b> (lixeira) o remove com confirmação. Cada unidade vê apenas os seus '
+          'lançamentos, e quem tem acesso de consulta, mas não de lançamento, vê somente a '
+          'listagem.'),
 
     # ================================================================ 13
     ('h1', '13. Cozinha'),
