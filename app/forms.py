@@ -616,21 +616,50 @@ class RoleForm(BaseForm):
 # ROOM CATEGORY FORM
 # =============================================================================
 
-# Sugestões de ícones Bootstrap Icons oferecidas no cadastro — o campo aceita
-# qualquer classe "bi-*"; a lista curada apenas poupa o admin de decorar nomes.
+# Ícones Bootstrap Icons oferecidos no cadastro — a lista é curada para o
+# admin não precisar decorar nomes de classes (e evitar ícones inexistentes).
+# Só acrescente aqui ícones que existem na versão 1.13.2 carregada no
+# base.html (conferível no CSS da fonte em cdn.jsdelivr.net).
 ROOM_CATEGORY_ICONS = [
     ('bi-tag', 'Padrão (etiqueta)'),
     ('bi-door-closed', 'Sala de aula'),
+    ('bi-door-open', 'Espaço de passagem'),
     ('bi-buildings', 'Auditório'),
+    ('bi-building', 'Prédio / bloco'),
     ('bi-cup-hot', 'Cozinha'),
+    ('bi-egg-fried', 'Refeitório / cantina'),
     ('bi-pc-display', 'Laboratório de informática'),
+    ('bi-keyboard', 'Laboratório de digitação'),
     ('bi-heart-pulse', 'Laboratório de saúde'),
-    ('bi-volleyball', 'Quadra de esportes'),
+    ('bi-beaker', 'Laboratório de ciências'),
+    ('bi-flask', 'Laboratório de química'),
+    ('bi-trophy', 'Quadra de esportes'),
     ('bi-book', 'Biblioteca'),
+    ('bi-mortarboard', 'Sala de estudos'),
     ('bi-bus-front', 'Van / transporte'),
     ('bi-tools', 'Oficina'),
+    ('bi-gear', 'Mecânica'),
+    ('bi-lightning-charge', 'Elétrica'),
     ('bi-music-note', 'Música'),
+    ('bi-mic', 'Estúdio de áudio / podcast'),
+    ('bi-camera-reels', 'Estúdio de vídeo'),
     ('bi-people', 'Reunião / evento'),
+    ('bi-easel', 'Apresentação / treinamento'),
+    ('bi-projector', 'Sala multimídia'),
+    ('bi-palette', 'Arte / desenho'),
+    ('bi-scissors', 'Corte e costura'),
+    ('bi-robot', 'Robótica / makerspace'),
+    ('bi-puzzle', 'Sala de jogos'),
+    ('bi-house-door', 'Espaço de convivência'),
+    ('bi-tree', 'Área externa'),
+    ('bi-flower1', 'Jardinagem / horta'),
+    ('bi-box-seam', 'Almoxarifado'),
+    ('bi-archive', 'Arquivo'),
+    ('bi-printer', 'Gráfica'),
+    ('bi-universal-access', 'Sala de recursos / acessibilidade'),
+    ('bi-person-vcard', 'Recepção / atendimento'),
+    ('bi-shop', 'Loja escola / prática de vendas'),
+    ('bi-cash-coin', 'Prática comercial'),
 ]
 
 
@@ -644,15 +673,7 @@ class RoomCategoryForm(BaseForm):
     color = StringField('Cor de destaque',
                         render_kw={'type': 'color'},
                         validators=[Optional(), Length(max=7)])
-    # Texto livre: qualquer classe do Bootstrap Icons é aceita — a lista
-    # ROOM_CATEGORY_ICONS é apenas sugestão (datalist no formulário).
-    icon = StringField(
-        'Ícone',
-        validators=[Optional(), Length(max=50)],
-        filters=[lambda value: value.strip() if value else value],
-        render_kw={'list': 'icon_suggestions',
-                   'placeholder': 'ex: bi-door-closed',
-                   'spellcheck': 'false'})
+    icon = SelectField('Ícone', choices=ROOM_CATEGORY_ICONS, validators=[Optional()])
     totem_window = SelectField(
         'Janela exibida no Totem',
         choices=[
@@ -685,13 +706,6 @@ class RoomCategoryForm(BaseForm):
     def validate_color(self, field):
         if field.data and not re.match(r'^#[0-9a-fA-F]{6}$', field.data):
             raise ValidationError('A cor deve estar no formato hexadecimal #rrggbb.')
-
-    def validate_icon(self, field):
-        # O valor entra em class="bi ..." nos templates — aceita apenas o
-        # formato de classe do Bootstrap Icons (minúsculas, dígitos e hífens).
-        if field.data and not re.match(r'^bi-[a-z0-9]+(-[a-z0-9]+)*$', field.data):
-            raise ValidationError(
-                'Use uma classe do Bootstrap Icons (ex: bi-door-open).')
 
 
 

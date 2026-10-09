@@ -46,15 +46,10 @@
                                 </div>
                                 <div class="col-auto">
                                     <div class="input-group">
-                                        {{ form.icon(class="form-control", id="category_icon", **{"aria-label": "Ícone da categoria"}) }}
+                                        {{ form.icon(class="form-select", id="category_icon", **{"aria-label": "Ícone da categoria"}) }}
                                         <span class="input-group-text"><i id="icon-preview" class="bi bi-tag fs-5"></i></span>
                                     </div>
-                                    <datalist id="icon_suggestions">
-                                        {% for value, label in icon_choices %}
-                                        <option value="{{ value }}">{{ label }}</option>
-                                        {% endfor %}
-                                    </datalist>
-                                    <div class="form-text small">Ícone do Bootstrap Icons exibido junto ao nome — digite qualquer classe (ex.: bi-flower1) ou escolha uma sugestão.</div>
+                                    <div class="form-text small">Ícone exibido junto ao nome.</div>
                                 </div>
                                 <div class="col-md-5">
                                     {{ form.totem_window(class="form-select") }}
@@ -87,11 +82,9 @@
 
 {% block scripts %}
 <script>
-// Pré-visualização do ícone enquanto o admin digita; vazio volta ao padrão.
-const iconPreview = document.getElementById('icon-preview');
-document.getElementById('category_icon').addEventListener('input', function () {
-    const value = this.value.trim();
-    iconPreview.className = value ? 'bi ' + value + ' fs-5' : 'bi bi-tag fs-5';
+// Pré-visualização do ícone escolhido, para o admin ver o resultado antes de salvar.
+document.getElementById('category_icon').addEventListener('change', function () {
+    document.getElementById('icon-preview').className = 'bi ' + this.value + ' fs-5';
 });
 </script>
 {% endblock %}

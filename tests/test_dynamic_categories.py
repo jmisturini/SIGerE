@@ -51,7 +51,7 @@ class DynamicCategoriesTestCase(unittest.TestCase):
             # Categoria customizada, como a quadra: nasce direto no cadastro,
             # sem nenhum código de tela conhecendo o seu identificador.
             self.quadra = RoomCategory(name='Quadra de Esportes', code='sports_court',
-                                       color='#198754', icon='bi-volleyball')
+                                       color='#198754', icon='bi-trophy')
             self.sem_estilo = RoomCategory(name='Biblioteca', code='library')
             db.session.add_all([self.quadra, self.sem_estilo])
             db.session.flush()
@@ -130,7 +130,7 @@ class DynamicCategoriesTestCase(unittest.TestCase):
         page = resp.data.decode('utf-8')
         self.assertIn('Quadra de Esportes', page)
         self.assertIn('Aula de Vôlei', page)
-        self.assertIn('bi-volleyball', page)
+        self.assertIn('bi-trophy', page)
         self.assertIn('#198754', page)
 
     def test_totem_ignora_categoria_sem_espaco_na_unidade(self):
@@ -186,7 +186,7 @@ class DynamicCategoriesTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         page = resp.data.decode('utf-8')
         self.assertIn('Agenda de Quadra de Esportes', page)
-        self.assertIn('bi-volleyball', page)
+        self.assertIn('bi-trophy', page)
 
     # ── Formulário ───────────────────────────────────────────────────────
 
@@ -206,7 +206,7 @@ class DynamicCategoriesTestCase(unittest.TestCase):
         with self.app.app_context():
             form = RoomCategoryForm(formdata=MultiDict({
                 'name': 'Quadra de Areia', 'code': 'beach_court',
-                'color': '#198754', 'icon': 'bi-volleyball',
+                'color': '#198754', 'icon': 'bi-trophy',
                 'totem_window': 'week',
             }))
             self.assertTrue(form.validate(), form.errors)

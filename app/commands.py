@@ -628,7 +628,7 @@ def _seed_demo_data():
         RoomCategory(name="Laboratório de Saúde", code="health_lab", abbr="LS",
                      color="#dc3545", icon="bi-heart-pulse"),
         RoomCategory(name="Quadra de Esportes", code="sports_court", abbr="QE",
-                     color="#198754", icon="bi-volleyball")
+                     color="#198754", icon="bi-trophy")
     ]
     db.session.add_all(categories)
     db.session.flush()
