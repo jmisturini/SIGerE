@@ -12,7 +12,7 @@ from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permiss
                         VtEmpresaValor, ROLE_POR_PERFIL, NotificationGroup,
                         UnityNotificationConfig, CourseType)
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
-                   RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
+                   RoomCategoryForm, ROOM_CATEGORY_ICONS, UnityForm, FormVtEmpresa, FormVtConfig,
                    FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm)
 from app.extensions import db
 from sqlalchemy import func
@@ -891,7 +891,8 @@ def create_category():
         db.session.commit()
         flash('Categoria criada com sucesso.', 'success')
         return redirect(url_for('admin.list_categories'))
-    return render_template('admin/category_form.html', form=form, title='Criar Categoria')
+    return render_template('admin/category_form.html', form=form, title='Criar Categoria',
+                           icon_choices=ROOM_CATEGORY_ICONS)
 
 @bp.route('/categories/<int:cat_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -910,7 +911,8 @@ def edit_category(cat_id):
         db.session.commit()
         flash('Categoria atualizada.', 'success')
         return redirect(url_for('admin.list_categories'))
-    return render_template('admin/category_form.html', form=form, title='Editar Categoria')
+    return render_template('admin/category_form.html', form=form, title='Editar Categoria',
+                           icon_choices=ROOM_CATEGORY_ICONS)
 
 @bp.route('/categories/<int:cat_id>/toggle', methods=['POST'])
 @login_required
