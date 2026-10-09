@@ -616,8 +616,8 @@ class RoleForm(BaseForm):
 # ROOM CATEGORY FORM
 # =============================================================================
 
-# Ícones Bootstrap Icons oferecidos no cadastro — a lista é curada para o
-# admin não precisar decorar nomes de classes (e evitar ícones inexistentes).
+# Sugestões de ícones Bootstrap Icons oferecidas no cadastro — o campo aceita
+# qualquer classe "bi-*"; a lista curada apenas poupa o admin de decorar nomes.
 ROOM_CATEGORY_ICONS = [
     ('bi-tag', 'Padrão (etiqueta)'),
     ('bi-door-closed', 'Sala de aula'),
@@ -644,7 +644,15 @@ class RoomCategoryForm(BaseForm):
     color = StringField('Cor de destaque',
                         render_kw={'type': 'color'},
                         validators=[Optional(), Length(max=7)])
-    icon = SelectField('Ícone', choices=ROOM_CATEGORY_ICONS, validators=[Optional()])
+    # Texto livre: qualquer classe do Bootstrap Icons é aceita — a lista
+    # ROOM_CATEGORY_ICONS é apenas sugestão (datalist no formulário).
+    icon = StringField(
+        'Ícone',
+        validators=[Optional(), Length(max=50)],
+        filters=[lambda value: value.strip() if value else value],
+        render_kw={'list': 'icon_suggestions',
+                   'placeholder': 'ex: bi-door-closed',
+                   'spellcheck': 'false'})
     totem_window = SelectField(
         'Janela exibida no Totem',
         choices=[
@@ -677,6 +685,13 @@ class RoomCategoryForm(BaseForm):
     def validate_color(self, field):
         if field.data and not re.match(r'^#[0-9a-fA-F]{6}$', field.data):
             raise ValidationError('A cor deve estar no formato hexadecimal #rrggbb.')
+
+    def validate_icon(self, field):
+        # O valor entra em class="bi ..." nos templates — aceita apenas o
+        # formato de classe do Bootstrap Icons (minúsculas, dígitos e hífens).
+        if field.data and not re.match(r'^bi-[a-z0-9]+(-[a-z0-9]+)*$', field.data):
+            raise ValidationError(
+                'Use uma classe do Bootstrap Icons (ex: bi-door-open).')
 
 
 
