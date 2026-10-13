@@ -10,12 +10,31 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.31.1'
+APP_VERSION = '1.32.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.32.0',
+        'data': '2026-10-13',
+        'titulo': 'Exportação das aulas do calendário em PDF',
+        'grupos': [
+            ('Adicionado', [
+                'Botão "Exportar PDF" na página do Calendário: baixa as aulas do '
+                'período com os filtros aplicados na tela (datas, período do dia, '
+                'sala, professor, curso e disciplina) na identidade visual dos '
+                'relatórios — faixa de marca com a unidade, linha com o período e '
+                'os filtros escolhidos, indicadores em cartões (aulas, horas de '
+                'aula, dias com aula e salas diferentes) e tabela agrupada dia a '
+                'dia, com faixas de data e as aulas já ocorridas em cinza riscado. '
+                'O botão aparece para quem tem a permissão de exportar dados '
+                '(system:export) e o arquivo sai com o período no nome '
+                '(aulas_INICIO_a_FIM.pdf).',
+            ]),
+        ],
+    },
     {
         'versao': '1.31.1',
         'data': '2026-10-07',
