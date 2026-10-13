@@ -155,6 +155,7 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - Filtros combináveis por data, sala, professor, curso, disciplina e período (manhã/tarde/noite)
 - Resultados em cartões agrupados por data e andar (térreo → andares superiores)
 - Cada cartão leva ao detalhe da reserva, com a cor da categoria da sala
+- **Exportar PDF:** baixa as aulas do período com os filtros atuais na identidade visual dos relatórios — indicadores em cartões, tabela agrupada por dia e aulas já ocorridas em cinza riscado; visível para quem tem `system:export`
 - API JSON (`/calendar/api/events`) com intervalo de datas obrigatório e filtros combináveis
 - Adaptação automática ao tema claro/escuro
 
@@ -599,6 +600,7 @@ Administradores com permissão `unity:switch` (ou `*`) veem o **seletor de unida
 
 - **Salas:** `/classrooms/export_pdf` (PDF)
 - **Disponibilidade mensal:** `/classrooms/<id>/export_availability` (PDF)
+- **Aulas do calendário:** `/calendar/export_pdf` (PDF, com os filtros da tela: datas, período, sala, professor, curso e disciplina)
 - **Horas extras:** `/payments/export/overtime` (Excel)
 - **Vale Transporte:** `/vt/pedidos/exportar-pagamento?group=tecnico|professores` (Excel, modelo `planilha_base_vt.xlsx`; sem `group`, exporta todos os grupos)
 - **Requisição de compra:** `/kitchen/compras/export` (Excel, via seleção de preparações)
@@ -640,7 +642,7 @@ SIGerE/
     │   ├── admin.py           # Painel admin (usuários, salas, categorias, cursos, feriados, papéis, unidades)
     │   ├── classrooms.py      # Salas: listagem, detalhes, disponibilidade e exportação
     │   ├── reservations.py    # Reservas: CRUD, aprovações, repetição, séries e conflitos
-    │   ├── schedule.py        # Calendário de reservas + API JSON de eventos
+    │   ├── schedule.py        # Calendário de reservas, API JSON de eventos e exportação em PDF
     │   ├── totem.py           # Display de quiosque para TVs
     │   ├── public.py          # Portal público (home, cronograma, busca de aula, busca geral)
     │   ├── api.py             # API REST de leitura de reservas para apps externos (/api/v1)

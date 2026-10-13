@@ -36,8 +36,8 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 # ---------------------------------------------------------------- constantes
 
-VERSAO = '1.25.0'
-DATA_CAPA = 'Setembro de 2026'
+VERSAO = '1.32.0'
+DATA_CAPA = 'Outubro de 2026'
 
 PAGINA_W, PAGINA_H = A4
 MARGEM = 56.0
@@ -809,10 +809,18 @@ BLOCOS = [
         '<b>Período</b> — Todos, Manhã, Tarde ou Noite;',
         '<b>Sala</b>, <b>Professor</b>, <b>Curso</b> e <b>Disciplina</b> — restringem o '
         'resultado;',
-        '<b>Aplicar Filtros</b> executa a consulta; <b>Limpar</b> remove os critérios.',
+        '<b>Aplicar Filtros</b> executa a consulta; <b>Limpar</b> remove os critérios;',
+        '<b>Exportar PDF</b> — baixa em PDF as aulas dos filtros atuais; quem não tem a '
+        'permissão de exportar dados não vê o botão.',
     ]),
     ('p', 'Cada cartão mostra código da sala, horário, título, curso e professor, com a cor da '
           'categoria da sala; ao clicar, o detalhe da reserva é aberto.'),
+    ('p', 'O botão <b>Exportar PDF</b> gera o arquivo <b>aulas_INÍCIO_a_FIM.pdf</b> (ex.: '
+          'aulas_2026-10-01_a_2026-10-31.pdf) na identidade visual dos relatórios: faixa de '
+          'marca com a unidade e a hora de emissão, período e filtros aplicados sob o título, '
+          'indicadores em cartões (aulas, horas de aula, dias com aula e salas diferentes) e '
+          'tabela agrupada dia a dia, com faixas de data e as aulas já ocorridas em cinza '
+          'riscado.'),
 
     # ================================================================ 10
     ('h1', '10. Portal público e totem digital'),
@@ -823,8 +831,16 @@ BLOCOS = [
           'próxima — fica memorizada na sessão do visitante: navegar entre as páginas pelo menu '
           'não reseta a seleção.'),
     ('h2', '10.1 Página inicial pública'),
-    ('p', 'A home pública apresenta três atalhos: <b>Buscar Minha Aula</b>, <b>Cronograma de '
-          'Aulas</b> e <b>Entrar</b> (login). Quem já está logado é levado direto ao painel.'),
+    ('p', 'A home pública funciona na própria página, em cards: o card de <b>Buscar Minha '
+          'Aula</b> traz o formulário completo (termo, data e unidade) e leva direto ao '
+          'resultado; o card do <b>Cronograma</b> mostra a prévia das próximas aulas do dia, '
+          'com o selo <b>Agora</b> nas aulas em andamento, o seletor de unidade e o botão '
+          '<b>Ver dia completo</b>; e o card <b>Entrar no sistema</b> traz o formulário de '
+          'login completo (e-mail e senha, com mostrar/ocultar), sem página separada. Quem já '
+          'está logado é levado direto ao painel.'),
+    ('p', 'No topo, a faixa <b>Agora no campus</b> resume o período corrente (manhã, tarde ou '
+          'noite): quantas aulas estão em andamento e qual é a próxima, com horário, sala e '
+          'atalho para o cronograma completo.'),
     ('h2', '10.2 Cronograma do dia'),
     ('p', 'A página <b>Cronograma</b> lista as aulas aprovadas da data escolhida em três '
           'colunas: <b>Manhã</b>, <b>Tarde</b> e <b>Noite</b> (a aula entra no período em que '
@@ -893,6 +909,8 @@ BLOCOS = [
      [
          ['Professor', 'Sim', 'Docente da unidade ativa.'],
          ['Nível de Ensino', 'Sim', 'Técnico, Superior, FIC, FIC I, FIC II ou FIC III.'],
+         ['Tipo de Curso', 'Sim', 'Escolhido no catálogo de Tipos de Curso do Painel Admin '
+          '(seção 14.5).'],
          ['Carga Horária Semanal', 'Sim', 'Informada e exibida em horas e minutos inteiros '
           '(ex.: 4h30) — em toda a tela e na planilha.'],
          ['Valor H/a', 'Sim', 'Valor da hora/aula em reais, aceitando vírgula ou ponto decimal '
@@ -905,6 +923,8 @@ BLOCOS = [
          ['Múltiplas Datas', 'Não', 'Calendário de seleção múltipla limitado ao mês de '
           'referência; apenas os dias são gravados (ex.: 10, 17, 25).'],
          ['Justificativa', 'Não', 'Texto curto (até 100 caracteres).'],
+         ['Observação', 'Não', 'Texto livre (até 500 caracteres); sai na planilha de '
+          'exportação.'],
      ],
      [118, 68, 297],
      'Tabela 5 — Campos do lançamento de Hora Extra.'),
@@ -1179,7 +1199,7 @@ BLOCOS = [
         '7 dias”;',
         '<b>Ativo</b> — categorias inativas deixam de aparecer nas telas.',
     ]),
-    ('h2', '14.5 Cursos e disciplinas'),
+    ('h2', '14.5 Cursos, disciplinas e tipos de curso'),
     ('p', 'Cursos e disciplinas compõem a estrutura acadêmica usada nas reservas. Ambos têm '
           'cadastro com nome (obrigatório), código (obrigatório e único na unidade), descrição e '
           'indicador ativo. As listagens têm o botão <b>Mostrar/Esconder inativos</b>, como na '
@@ -1187,6 +1207,9 @@ BLOCOS = [
           '<b>Pertence ao Curso</b> vincula a disciplina a um curso — na reserva, ao escolher o '
           'curso, apenas as disciplinas dele são ofertadas; disciplinas sem curso aparecem '
           'sempre.'),
+    ('p', 'No mesmo bloco acadêmico, o catálogo de <b>Tipos de Curso</b> — acessado pelo card '
+          'do Painel Admin — mantém os tipos oferecidos no campo obrigatório do lançamento de '
+          'Hora Extra (seção 11.2): cadastro com nome (até 60 caracteres) e indicador ativo.'),
     ('h2', '14.6 Feriados'),
     ('p', 'Feriados cadastrados bloqueiam reservas na unidade. A tela oferece dois caminhos:'),
     ('ul', [
