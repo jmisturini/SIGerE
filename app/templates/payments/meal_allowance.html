@@ -32,12 +32,17 @@
         <form method="POST" action="{{ url_for('payments.add_meal_allowance', **request.args.to_dict()) }}" novalidate>
             {{ form.hidden_tag() }}
             <div class="row g-3 align-items-end">
-                <div class="col-md-7">
+                <div class="col-md-6">
                     {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                     {{ form.teacher(class="form-select") }}
                     {% for err in form.teacher.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    {{ form.month_base.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.month_base(class="form-select") }}
+                    {% for err in form.month_base.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-md-2">
                     {{ form.days.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                     {{ form.days(class="form-control", min=1, placeholder="Ex.: 12") }}
                     {% for err in form.days.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
@@ -49,12 +54,43 @@
         </form>
     </div>
 </div>
+
+<div class="card mb-4">
+    <div class="card-body p-4">
+        <h6 class="fw-bold text-uppercase text-muted mb-3">
+            <i class="bi bi-calendar-week me-1"></i> Importar dos Agendamentos
+        </h6>
+        <form method="POST" action="{{ url_for('payments.import_meal_allowance') }}"
+              class="row g-3 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-8">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="month">Mês dos Agendamentos</label>
+                <select id="month" name="month" class="form-select">
+                    {% for valor, rotulo in meses_agendamentos %}
+                        <option value="{{ valor }}" {{ 'selected' if valor == mes_importacao }}>{{ rotulo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-grid">
+                <button type="submit" class="btn btn-primary"
+                        title="Criar um lançamento para cada professor com aula agendada no mês">
+                    <i class="bi bi-people me-1"></i> Listar Professores
+                </button>
+            </div>
+        </form>
+        <p class="text-muted small mt-3 mb-0">
+            Cria um lançamento para cada professor com agendamento aprovado no mês,
+            com a quantidade de dias distintos de aula. Quem já possui lançamento
+            no mês é mantido como está.
+        </p>
+    </div>
+</div>
 {% endif %}
 
 <form method="GET" class="card mb-4">
     <div class="card-body">
         <div class="row g-3 align-items-end">
-            <div class="col-md-8">
+            <div class="col-md-6">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="teacher_filter">Professor</label>
                 <select id="teacher_filter" name="teacher_filter" class="form-select">
                     <option value="">Todos os Professores</option>
@@ -63,7 +99,16 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-4 d-flex gap-2">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="month_filter">Mês</label>
+                <select id="month_filter" name="month_base" class="form-select">
+                    <option value="">Todos os Meses</option>
+                    {% for valor, rotulo in meses_opcoes %}
+                        <option value="{{ valor }}" {{ 'selected' if filter_month == valor }}>{{ rotulo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
                 <button type="submit" class="btn btn-outline-primary flex-grow-1">
                     <i class="bi bi-funnel me-1"></i> Filtrar
                 </button>
@@ -85,6 +130,7 @@
                 <thead>
                     <tr>
                         <th class="ps-4">Professor</th>
+                        <th>Mês</th>
                         <th>Dias Trabalhados</th>
                         <th>Lançado em</th>
                         <th class="text-end pe-4">Ações</th>
@@ -94,6 +140,7 @@
                 {% for e in entries %}
                     <tr id="meal-{{ e.id }}">
                         <td class="ps-4 fw-bold">{{ e.teacher.full_name }}</td>
+                        <td>{{ e.month_base | mes_rotulo }}</td>
                         <td>{{ e.days }} dia{{ 's' if e.days > 1 }}</td>
                         <td>{{ e.created_at | horario_local }}</td>
                         <td class="text-end pe-4 text-nowrap">
@@ -120,9 +167,9 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="4" class="text-center text-muted p-5">
+                        <td colspan="5" class="text-center text-muted p-5">
                             <i class="bi bi-basket2 fs-2 d-block mb-2"></i>
-                            <h5 class="mb-1">{{ 'Nenhum lançamento para o professor filtrado' if filter_teacher else 'Nenhum lançamento adicionado' }}</h5>
+                            <h5 class="mb-1">{{ 'Nenhum lançamento para os filtros aplicados' if filter_teacher or filter_month else 'Nenhum lançamento adicionado' }}</h5>
                             <p class="small mb-0">Use o formulário acima para lançar os dias trabalhados de um professor.</p>
                         </td>
                     </tr>
@@ -146,6 +193,10 @@
                     <div class="col-md-6">
                         <div class="small fw-bold text-uppercase text-muted">Professor</div>
                         <div class="fw-semibold">{{ e.teacher.full_name }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Mês de Referência</div>
+                        <div>{{ e.month_base | mes_rotulo }}</div>
                     </div>
                     <div class="col-md-6">
                         <div class="small fw-bold text-uppercase text-muted">Dias Trabalhados</div>

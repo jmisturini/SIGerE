@@ -8,6 +8,7 @@ e o toggle Financeiro da unidade.
 import os
 import tempfile
 import unittest
+from datetime import date, datetime, time
 from io import BytesIO
 
 from openpyxl import load_workbook
@@ -15,7 +16,8 @@ from openpyxl import load_workbook
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.models import (Permission, Role, TeacherMealAllowance, Unity, User)
+from app.models import (Classroom, Permission, Reservation, Role,
+                        RoomCategory, TeacherMealAllowance, Unity, User)
 
 EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
@@ -75,7 +77,19 @@ class MealAllowanceTestCase(unittest.TestCase):
             )
             self.professor2.set_password(PASSWORD)
             db.session.add_all([self.professor, self.professor2])
+            db.session.flush()
+
+            # Sala para as reservas usadas nos testes de importação.
+            categoria = RoomCategory(name='Sala de Aula', code='SA')
+            db.session.add(categoria)
+            db.session.flush()
+            sala = Classroom(name='Sala 101', code='S101', capacity=30,
+                             category_id=categoria.id,
+                             unity_id=self.unity.id, is_active=True)
+            db.session.add(sala)
             db.session.commit()
+            self.gestor_id = gestor.id
+            self.sala_id = sala.id
             self.unity_id = self.unity.id
             self.professor_id = self.professor.id
             self.professor2_id = self.professor2.id
@@ -93,16 +107,29 @@ class MealAllowanceTestCase(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
-    def _adicionar(self, teacher=None, days='12'):
+    def _adicionar(self, teacher=None, days='12', mes=None):
+        data = {'teacher': str(self.professor_id if teacher is None
+                               else teacher),
+                'days': days}
+        if mes is not None:
+            data['month_base'] = mes
         return self.client.post('/payments/meal-allowance/add',
-                                data={'teacher': str(self.professor_id if teacher is None
-                                                     else teacher),
-                                      'days': days},
-                                follow_redirects=True)
+                                data=data, follow_redirects=True)
 
     def _id_unico(self):
         with self.app.app_context():
             return TeacherMealAllowance.query.one().id
+
+    def _reserva(self, teacher_id, dia, mes=9, status='approved'):
+        return Reservation(
+            user_id=self.gestor_id, classroom_id=self.sala_id,
+            title=f'Aula {teacher_id}-{dia}', date=date(2026, mes, dia),
+            start_time=time(8, 0), end_time=time(10, 0),
+            status=status, unity_id=self.unity_id, teacher_id=teacher_id)
+
+    def _importar(self, month='2026-09'):
+        return self.client.post('/payments/meal-allowance/import',
+                                data={'month': month}, follow_redirects=True)
 
     def test_pagina_mostra_form_listagem_e_menu(self):
         response = self.client.get('/payments/meal-allowance')
@@ -145,16 +172,19 @@ class MealAllowanceTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('Editar Lançamento', response.get_data(as_text=True))
         self.assertIn('value="12"', response.get_data(as_text=True))
+        self.assertIn('Mês de Referência', response.get_data(as_text=True))
 
         response = self.client.post(f'/payments/meal-allowance/{entry_id}/edit',
                                     data={'teacher': str(self.professor2_id),
+                                          'month_base': '2026-11',
                                           'days': '20'},
                                     follow_redirects=True)
         self.assertIn('Alteração realizada', response.get_data(as_text=True))
         with self.app.app_context():
             lancamento = db.session.get(TeacherMealAllowance, entry_id)
-            self.assertEqual((lancamento.teacher_id, lancamento.days),
-                             (self.professor2_id, 20))
+            self.assertEqual((lancamento.teacher_id, lancamento.days,
+                              lancamento.month_base),
+                             (self.professor2_id, 20, '2026-11'))
 
     def test_excluir_lancamento(self):
         self._adicionar(days='12')
@@ -381,6 +411,198 @@ class MealAllowanceTestCase(unittest.TestCase):
         self.assertIn(
             f'/payments/meal-allowance/export?teacher_filter={self.professor2_id}',
             filtrado)
+
+    # ---------- Importar dos Agendamentos ----------
+
+    def test_caixa_importacao_na_pagina(self):
+        html = self.client.get('/payments/meal-allowance').get_data(as_text=True)
+        self.assertIn('Listar Professores', html)
+        self.assertIn('/payments/meal-allowance/import', html)
+        self.assertIn('Mês dos Agendamentos', html)
+        # Mês corrente vem selecionado por padrão mesmo sem reservas.
+        agora = datetime.now()
+        self.assertIn(f'value="{agora:%Y-%m}" selected', html)
+
+    def test_caixa_importacao_sem_permissao_de_criacao(self):
+        with self.app.app_context():
+            role = Role.query.filter_by(name='gestor-teste').first()
+            role.permissions = [p for p in role.permissions if p.code == 'meal:read']
+            db.session.commit()
+        html = self.client.get('/payments/meal-allowance').get_data(as_text=True)
+        self.assertNotIn('/payments/meal-allowance/import', html)
+
+    def test_importar_professores_dos_agendamentos(self):
+        with self.app.app_context():
+            db.session.add_all([
+                # Silva: 3 datas distintas no mês + 1 cancelada (ignorada).
+                self._reserva(self.professor_id, 10),
+                self._reserva(self.professor_id, 11),
+                self._reserva(self.professor_id, 12),
+                self._reserva(self.professor_id, 13, status='cancelled'),
+                # Souza: 2 reservas no mesmo dia contam 1 dia + 1 pendente (ignorada).
+                self._reserva(self.professor2_id, 10),
+                self._reserva(self.professor2_id, 10),
+                self._reserva(self.professor2_id, 14, status='pending'),
+            ])
+            db.session.commit()
+
+        response = self._importar()
+        html = response.get_data(as_text=True)
+        self.assertIn('2 lançamento(s) criado(s) a partir dos agendamentos de '
+                      'Setembro/2026', html)
+        self.assertIn('Professor Silva', html)
+        self.assertIn('3 dias', html)
+        self.assertIn('Professora Souza', html)
+        self.assertIn('1 dia<', html)  # singular, sem 's'
+        with self.app.app_context():
+            lancamentos = {l.teacher_id: l.days
+                           for l in TeacherMealAllowance.query.all()}
+            self.assertEqual(lancamentos[self.professor_id], 3)
+            self.assertEqual(lancamentos[self.professor2_id], 1)
+
+    def test_importar_nao_duplica_lancamentos(self):
+        with self.app.app_context():
+            db.session.add(self._reserva(self.professor_id, 10))
+            db.session.commit()
+        self._importar()
+        response = self._importar()
+        html = response.get_data(as_text=True)
+        self.assertIn('já possuíam lançamento no mês e foram mantidos: Professor Silva',
+                      html)
+        with self.app.app_context():
+            self.assertEqual(TeacherMealAllowance.query.count(), 1)
+
+    def test_importar_grava_mes_e_aceita_outro_mes(self):
+        """O lançamento fica no mês importado; importar outro mês cria
+        lançamento novo para o mesmo professor, sem duplicar o primeiro."""
+        with self.app.app_context():
+            db.session.add_all([
+                self._reserva(self.professor_id, 10, mes=9),
+                self._reserva(self.professor_id, 15, mes=10),
+            ])
+            db.session.commit()
+        self._importar(month='2026-09')
+        self._importar(month='2026-10')
+        with self.app.app_context():
+            por_mes = {l.month_base: l.days
+                       for l in TeacherMealAllowance.query.all()}
+            self.assertEqual(por_mes, {'2026-09': 1, '2026-10': 1})
+
+    def test_importar_sem_agendamentos_no_mes(self):
+        response = self._importar(month='2026-01')
+        html = response.get_data(as_text=True)
+        self.assertIn('Nenhum professor com agendamento aprovado em '
+                      'Janeiro/2026', html)
+        with self.app.app_context():
+            self.assertEqual(TeacherMealAllowance.query.count(), 0)
+
+    def test_importar_escopo_unidade(self):
+        with self.app.app_context():
+            outra = Unity(name='Outra Unidade', code='OU')
+            db.session.add(outra)
+            db.session.flush()
+            categoria = RoomCategory.query.first()
+            sala = Classroom(name='Sala Norte', code='N201', capacity=20,
+                             category_id=categoria.id, unity_id=outra.id,
+                             is_active=True)
+            db.session.add(sala)
+            db.session.flush()
+            db.session.add(Reservation(
+                user_id=self.gestor_id, classroom_id=sala.id,
+                title='Aula em outra unidade', date=date(2026, 9, 10),
+                start_time=time(8, 0), end_time=time(10, 0),
+                status='approved', unity_id=outra.id,
+                teacher_id=self.professor_id))
+            db.session.commit()
+
+        response = self._importar()
+        self.assertIn('Nenhum professor com agendamento aprovado',
+                      response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(TeacherMealAllowance.query.count(), 0)
+
+    def test_importar_mes_invalido(self):
+        response = self._importar(month='banana')
+        self.assertIn('Selecione um mês válido',
+                      response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(TeacherMealAllowance.query.count(), 0)
+
+    def test_importar_sem_permissao_vira_403(self):
+        with self.app.app_context():
+            role = Role.query.filter_by(name='gestor-teste').first()
+            role.permissions = [p for p in role.permissions if p.code == 'meal:read']
+            db.session.commit()
+        self.assertEqual(self._importar().status_code, 403)
+
+    def test_importar_modulo_financeiro_desligado_vira_403(self):
+        with self.app.app_context():
+            unity = db.session.get(Unity, self.unity_id)
+            unity.finance_enabled = False
+            db.session.commit()
+        self.assertEqual(self._importar().status_code, 403)
+
+    def test_seletor_lista_meses_com_reservas(self):
+        with self.app.app_context():
+            db.session.add(self._reserva(self.professor_id, 10, mes=3))
+            db.session.commit()
+        html = self.client.get('/payments/meal-allowance').get_data(as_text=True)
+        self.assertIn('value="2026-03"', html)
+        self.assertIn('Março/2026', html)
+
+    # ---------- Mês de referência ----------
+
+    def test_adicionar_com_mes_de_referencia(self):
+        response = self._adicionar(days='12', mes='2026-08')
+        html = response.get_data(as_text=True)
+        self.assertIn('12 dia(s) trabalhados em Agosto/2026', html)
+        with self.app.app_context():
+            self.assertEqual(TeacherMealAllowance.query.one().month_base,
+                             '2026-08')
+        self.assertIn('Agosto/2026',
+                      self.client.get('/payments/meal-allowance').get_data(as_text=True))
+
+    def test_adicionar_sem_mes_usa_mes_corrente(self):
+        agora = datetime.now()
+        self._adicionar(days='5')
+        with self.app.app_context():
+            self.assertEqual(TeacherMealAllowance.query.one().month_base,
+                             f'{agora:%Y-%m}')
+
+    def test_lancamento_legado_sem_mes_exibe_traco(self):
+        """Lançamentos anteriores à coluna (month_base nulo) continuam na
+        listagem, com o mês exibido como '—'."""
+        with self.app.app_context():
+            db.session.add(TeacherMealAllowance(
+                teacher_id=self.professor_id, days=4,
+                unity_id=self.unity_id, created_by_id=self.gestor_id))
+            db.session.commit()
+        html = self.client.get('/payments/meal-allowance').get_data(as_text=True)
+        self.assertIn('4 dias', html)
+        self.assertIn('<td>—</td>', html)
+
+    def test_filtro_por_mes(self):
+        self._adicionar(teacher=self.professor_id, days='12', mes='2026-08')
+        self._adicionar(teacher=self.professor_id, days='5', mes='2026-09')
+
+        html = self.client.get('/payments/meal-allowance').get_data(as_text=True)
+        self.assertIn('12 dias', html)
+        self.assertIn('5 dias', html)
+        self.assertIn('Todos os Meses', html)
+
+        filtrado = self.client.get(
+            '/payments/meal-allowance?month_base=2026-08').get_data(as_text=True)
+        self.assertIn('12 dias', filtrado)
+        self.assertNotIn('5 dias', filtrado)
+        self.assertIn('<option value="2026-08" selected>', filtrado)
+
+    def test_exportar_respeita_filtro_por_mes(self):
+        self._adicionar(teacher=self.professor_id, days='12', mes='2026-08')
+        self._adicionar(teacher=self.professor_id, days='5', mes='2026-09')
+
+        rows = self._linhas_planilha(self._exportar('?month_base=2026-09'))
+        self.assertEqual(rows[1], ('Professor Silva', 5))
+        self.assertEqual(len(rows), 2)
 
 
 if __name__ == '__main__':

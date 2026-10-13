@@ -53,6 +53,11 @@
             <div class="col-12 mt-3 d-flex flex-wrap gap-2">
                 <button type="button" id="applyFilters" class="btn btn-primary" disabled><i class="bi bi-search"></i> Aplicar Filtros</button>
                 <button type="button" id="clearFilters" class="btn btn-outline-secondary"><i class="bi bi-eraser"></i> Limpar</button>
+                {% if current_user.has_permission('system:export') %}
+                <button type="button" id="exportPdf" class="btn btn-outline-primary" title="Baixa em PDF as aulas do período e filtros atuais">
+                    <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                </button>
+                {% endif %}
             </div>
         </form>
     </div>
@@ -100,28 +105,32 @@ document.addEventListener('DOMContentLoaded', function() {
         { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
     ));
 
-    // Fetch data from API
-    function fetchData() {
-        let url = '{{ url_for("schedule.events") }}';
-        let params = new URLSearchParams();
-        const initDate = initDateInput.value;
-        const finDate = finDateInput.value;
-        if (initDate) params.append('initialDate', initDate);
-        if (finDate) params.append('finalDate', finDate);
+    // Monta os parâmetros a partir dos filtros do formulário — fonte única
+    // da consulta da API e do PDF exportado
+    function buildParams() {
+        const params = new URLSearchParams();
         const period = periodSelect.value;
         const room = roomSelect.value;
         const teacher = teacherSelect.value;
         const course = courseSelect.value;
         const subject = subjectSelect.value;
+        if (initDateInput.value) params.append('initialDate', initDateInput.value);
+        if (finDateInput.value) params.append('finalDate', finDateInput.value);
         if (period) params.append('period', period);
         if (room) params.append('room_id', room);
         if (teacher) params.append('teacher_id', teacher);
         if (course) params.append('course_id', course);
         if (subject) params.append('subject_id', subject);
+        return params;
+    }
+
+    // Fetch data from API
+    function fetchData() {
+        let url = '{{ url_for("schedule.events") }}';
 
         container.innerHTML = '<div class="text-center text-muted p-5"><div class="spinner-border"></div><p class="mt-2">Carregando...</p></div>';
 
-        fetch(`${url}?${params.toString()}`)
+        fetch(`${url}?${buildParams().toString()}`)
             .then(response => response.json())
             .then(data => renderCards(data))
             .catch(error => { container.innerHTML = '<div class="alert alert-danger text-center p-5">Erro ao carregar os dados.</div>'; });
@@ -232,6 +241,15 @@ document.addEventListener('DOMContentLoaded', function() {
         element.addEventListener('change', updateFilterBtn);
     });
     applyBtn.addEventListener('click', fetchData);
+    const exportBtn = document.getElementById('exportPdf');
+    if (exportBtn) {
+        // Baixa o PDF dos filtros atuais (Content-Disposition: attachment não
+        // navega para fora da página)
+        exportBtn.addEventListener('click', function() {
+            const url = '{{ url_for("schedule.export_pdf") }}';
+            window.location.href = `${url}?${buildParams().toString()}`;
+        });
+    }
     clearBtn.addEventListener('click', function() {
         initDateInput.value = ''; finDateInput.value = ''; periodSelect.value = ''; roomSelect.value = ''; teacherSelect.value = ''; courseSelect.value = ''; subjectSelect.value = '';
         updateFilterBtn();

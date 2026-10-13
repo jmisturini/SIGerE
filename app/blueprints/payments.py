@@ -2,7 +2,8 @@ import os
 import re
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
-from app.models import (User, TeacherOvertimePay, TeacherMealAllowance,
+from sqlalchemy import func
+from app.models import (User, Reservation, TeacherOvertimePay, TeacherMealAllowance,
                         OvertimeMonthClosure, CourseType)
 from app.forms import FormTeacherOvertimePay, FormValeAlimentacao
 from app.extensions import db
@@ -192,6 +193,13 @@ def hours_minutes_filter(value):
         return '—'
     horas, minutos = divmod(decimal_to_minutes(value), 60)
     return f'{horas}h' + (f'{minutos:02d}' if minutos else '')
+
+
+@bp.app_template_filter('mes_rotulo')
+def mes_rotulo_filter(value):
+    """Rótulo legível do mês de referência (YYYY-MM) nas listagens — nulo
+    (lançamentos anteriores à coluna) vira '—'."""
+    return _rotulo_mes(value)
 
 
 def _month_options():
@@ -505,6 +513,49 @@ def _meal_choices():
     return [(t.id, t.full_name) for t in _teachers_for_current_unity()]
 
 
+def _meses_janela():
+    """Janela fixa dos seletores do formulário e do filtro: os 12 meses
+    anteriores, o mês corrente e o seguinte — garante meses vizinhos
+    selecionáveis ao corrigir o mês de um lançamento na edição."""
+    meses = [_proximo_mes()]
+    mes = _mes_atual()
+    for _ in range(13):
+        meses.append(mes)
+        mes = _mes_anterior_de(mes)
+    return meses
+
+
+def _meses_opcoes(unity_id):
+    """Opções do seletor de mês do formulário e do filtro: a janela fixa
+    (12 anteriores + corrente + seguinte) mais os meses que já têm
+    lançamentos na unidade, do mais recente para o mais antigo."""
+    meses = set(_meses_janela())
+    lancamentos = (db.session.query(TeacherMealAllowance.month_base)
+                   .filter(TeacherMealAllowance.unity_id == unity_id,
+                           TeacherMealAllowance.month_base.isnot(None))
+                   .distinct().all())
+    meses.update(row[0] for row in lancamentos)
+    return [(valor, _rotulo_mes(valor)) for valor in sorted(meses, reverse=True)]
+
+
+def _meses_agendamentos(unity_id):
+    """Opções do seletor de mês da importação: meses que têm reservas na
+    unidade (do mais recente para o mais antigo, no máximo 24 voltando do
+    mais recente) mais o mês corrente."""
+    meses = {_mes_atual()}
+    limites = (db.session.query(func.min(Reservation.date), func.max(Reservation.date))
+               .filter(Reservation.unity_id == unity_id).first())
+    if limites and limites[0]:
+        mes, mes_mais_antigo = (limites[1].strftime('%Y-%m'),
+                                limites[0].strftime('%Y-%m'))
+        for _ in range(24):
+            meses.add(mes)
+            if mes <= mes_mais_antigo:
+                break
+            mes = _mes_anterior_de(mes)
+    return [(valor, _rotulo_mes(valor)) for valor in sorted(meses, reverse=True)]
+
+
 def _course_type_choices():
     """Tipos de curso ativos (catálogo do Painel Admin) para o dropdown."""
     return [(ct.id, ct.name) for ct in
@@ -518,12 +569,14 @@ def _get_meal_scoped(entry_id):
     return entry
 
 
-def _render_meal_allowance(form, teacher_filter=None):
+def _render_meal_allowance(form, teacher_filter=None, month_filter=None):
     """Página completa do módulo (formulário + filtro + listagem) — usada no
     GET e no re-render do POST com erro de validação."""
     query = TeacherMealAllowance.query.filter_by(unity_id=current_unity_id())
     if teacher_filter:
         query = query.filter_by(teacher_id=teacher_filter)
+    if month_filter:
+        query = query.filter_by(month_base=month_filter)
     pagination = query.order_by(TeacherMealAllowance.created_at.desc(),
                                 TeacherMealAllowance.id.desc()) \
         .paginate(page=request.args.get('page', 1, type=int),
@@ -535,7 +588,11 @@ def _render_meal_allowance(form, teacher_filter=None):
                            entries=pagination.items, pagination=pagination,
                            list_teachers=_teachers_for_current_unity(),
                            filter_teacher=teacher_filter,
-                           total_entries=total_entries)
+                           filter_month=month_filter,
+                           total_entries=total_entries,
+                           meses_opcoes=_meses_opcoes(current_unity_id()),
+                           meses_agendamentos=_meses_agendamentos(current_unity_id()),
+                           mes_importacao=_mes_atual())
 
 
 @bp.route('/meal-allowance', methods=['GET'])
@@ -544,11 +601,14 @@ def _render_meal_allowance(form, teacher_filter=None):
 @require_module('finance')
 def list_meal_allowance():
     """Vale Alimentação - Professores: formulário de lançamento em cima e a
-    listagem (com filtro por professor) abaixo, na mesma página."""
+    listagem (com filtro por professor e por mês) abaixo, na mesma página."""
     form = FormValeAlimentacao()
     form.teacher.choices = _meal_choices()
+    form.month_base.choices = _meses_opcoes(current_unity_id())
     return _render_meal_allowance(
-        form, teacher_filter=request.args.get('teacher_filter', type=int))
+        form,
+        teacher_filter=request.args.get('teacher_filter', type=int),
+        month_filter=_mes_valido(request.args.get('month_base')))
 
 
 @bp.route('/meal-allowance/add', methods=['POST'])
@@ -558,19 +618,84 @@ def list_meal_allowance():
 def add_meal_allowance():
     form = FormValeAlimentacao()
     form.teacher.choices = _meal_choices()
+    form.month_base.choices = _meses_opcoes(current_unity_id())
     if form.validate_on_submit():
         professor = db.session.get(User, form.teacher.data)
         db.session.add(TeacherMealAllowance(
-            teacher_id=form.teacher.data, days=form.days.data,
+            teacher_id=form.teacher.data, month_base=form.month_base.data,
+            days=form.days.data,
             unity_id=current_unity_id(), created_by_id=current_user.id))
         db.session.commit()
         flash(f'Lançamento adicionado: {professor.full_name} — '
-              f'{form.days.data} dia(s) trabalhados.', 'success')
+              f'{form.days.data} dia(s) trabalhados em '
+              f'{_rotulo_mes(form.month_base.data)}.', 'success')
         # Mantém o filtro ativo: quem lançou filtrando por um professor
         # continua vendo a lista dele.
         return redirect_preserving_args('payments.list_meal_allowance')
     return _render_meal_allowance(
-        form, teacher_filter=request.args.get('teacher_filter', type=int))
+        form,
+        teacher_filter=request.args.get('teacher_filter', type=int),
+        month_filter=_mes_valido(request.args.get('month_base')))
+
+
+@bp.route('/meal-allowance/import', methods=['POST'])
+@login_required
+@require_permission('meal:create')
+@require_module('finance')
+def import_meal_allowance():
+    """Listar Professores dos Agendamentos: cria um lançamento de Vale
+    Alimentação para cada professor com agendamento aprovado no mês
+    selecionado — days = quantidade de datas distintas com aula (duas aulas
+    no mesmo dia contam uma vez). O lançamento fica no mês escolhido e quem
+    já possui lançamento nesse mês é mantido como está, então clicar de novo
+    não duplica; outros meses continuam livres para importar."""
+    mes = _mes_valido(request.form.get('month'))
+    if not mes:
+        flash('Erro: Selecione um mês válido para listar os professores.', 'danger')
+        return redirect(url_for('payments.list_meal_allowance'))
+
+    unity_id = current_unity_id()
+    ano, num = int(mes[:4]), int(mes[5:7])
+    inicio = datetime(ano, num, 1).date()
+    inicio_proximo = datetime(ano + (num == 12), (num % 12) + 1, 1).date()
+
+    linhas = (db.session.query(Reservation.teacher_id, User.full_name,
+                               func.count(func.distinct(Reservation.date)))
+              .join(User, User.id == Reservation.teacher_id)
+              .filter(Reservation.unity_id == unity_id,
+                      Reservation.status == 'approved',
+                      Reservation.teacher_id.isnot(None),
+                      Reservation.date >= inicio,
+                      Reservation.date < inicio_proximo)
+              .group_by(Reservation.teacher_id, User.full_name)
+              .order_by(User.full_name)
+              .all())
+    if not linhas:
+        flash(f'Nenhum professor com agendamento aprovado em {_rotulo_mes(mes)}.', 'info')
+        return redirect(url_for('payments.list_meal_allowance'))
+
+    existentes = {tid for (tid,) in db.session.query(TeacherMealAllowance.teacher_id)
+                  .filter_by(unity_id=unity_id, month_base=mes).all()}
+    criados, ignorados = 0, []
+    for teacher_id, nome, dias in linhas:
+        if teacher_id in existentes:
+            ignorados.append(nome)
+            continue
+        db.session.add(TeacherMealAllowance(
+            teacher_id=teacher_id, month_base=mes, days=int(dias),
+            unity_id=unity_id, created_by_id=current_user.id))
+        criados += 1
+    db.session.commit()
+
+    if criados:
+        flash(f'{criados} lançamento(s) criado(s) a partir dos agendamentos de '
+              f'{_rotulo_mes(mes)}.', 'success')
+    if ignorados:
+        flash(f'{len(ignorados)} professor(es) já possuíam lançamento no mês e '
+              f'foram mantidos: {", ".join(ignorados)}.', 'info')
+    # Sem o filtro de professor: a importação é em lote e o operador precisa
+    # ver todos os lançamentos criados.
+    return redirect(url_for('payments.list_meal_allowance', month_base=mes))
 
 
 @bp.route('/meal-allowance/<int:entry_id>/edit', methods=['GET', 'POST'])
@@ -581,14 +706,19 @@ def edit_meal_allowance(entry_id):
     entry = _get_meal_scoped(entry_id)
     form = FormValeAlimentacao(obj=entry)
     form.teacher.choices = _meal_choices()
+    form.month_base.choices = _meses_opcoes(entry.unity_id or current_unity_id())
 
     if request.method == 'GET':
         # O relationship entry.teacher (objeto User) tem o mesmo nome do
         # campo: restaura a seleção pelo id, como na edição de Hora Extra.
         form.teacher.data = entry.teacher_id
+        # Lançamentos antigos não têm mês gravado: o formulário sugere o
+        # corrente, e salvar grava.
+        form.month_base.data = entry.month_base or _mes_atual()
 
     if form.validate_on_submit():
         entry.teacher_id = form.teacher.data
+        entry.month_base = form.month_base.data
         entry.days = form.days.data
         db.session.commit()
         flash('Alteração realizada!', 'success')
@@ -631,12 +761,15 @@ def clear_meal_allowance():
 @require_module('finance')
 def export_meal_allowance():
     """Exportação simples do Vale Alimentação: uma linha por professor com o
-    total de dias trabalhados (soma dos lançamentos), respeitando o filtro de
-    professor quando ativo."""
+    total de dias trabalhados (soma dos lançamentos), respeitando os filtros
+    de professor e de mês quando ativos."""
     teacher_id = request.args.get('teacher_filter', type=int)
+    month_base = _mes_valido(request.args.get('month_base'))
     query = TeacherMealAllowance.query.filter_by(unity_id=current_unity_id())
     if teacher_id:
         query = query.filter_by(teacher_id=teacher_id)
+    if month_base:
+        query = query.filter_by(month_base=month_base)
     entries = query.all()
 
     if not entries:

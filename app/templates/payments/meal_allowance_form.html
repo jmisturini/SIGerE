@@ -25,6 +25,11 @@
                             {% for err in form.teacher.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-12">
+                            {{ form.month_base.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.month_base(class="form-select") }}
+                            {% for err in form.month_base.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        <div class="col-12">
                             {{ form.days.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
                             {{ form.days(class="form-control", min=1) }}
                             {% for err in form.days.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}

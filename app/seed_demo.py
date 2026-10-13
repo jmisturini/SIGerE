@@ -234,7 +234,7 @@ def _seed_categorias_demo():
         dict(name='Laboratório de Saúde', code='health_lab', abbr='LS',
              color='#dc3545', icon='bi-heart-pulse'),
         dict(name='Quadra de Esportes', code='sports_court', abbr='QE',
-             color='#198754', icon='bi-volleyball'),
+             color='#198754', icon='bi-trophy'),
         dict(name='Sala de Reunião', code='meeting_room', abbr='SR',
              color='#6f42c1', icon='bi-people'),
     ]

@@ -568,10 +568,14 @@ class CourseTypeForm(BaseForm):
 
 class FormValeAlimentacao(BaseForm):
     """Lançamento simples do Vale Alimentação de Professores (RH): escolhe o
-    professor e informa os dias trabalhados — o cadastro é só a contagem,
-    sem mês base nem valores (os choices do professor vêm da rota)."""
+    professor, o mês de referência e informa os dias trabalhados — o cadastro
+    é só a contagem, sem valores (os choices vêm da rota)."""
     teacher = SelectField('Professor', coerce=int,
                           validators=[DataRequired(message='Selecione o professor.')])
+    # Mês de referência (YYYY-MM): sem valor no POST cai no mês corrente, e
+    # a edição restaura o mês gravado no lançamento.
+    month_base = SelectField('Mês de Referência', coerce=str,
+                             default=lambda: datetime.now().strftime('%Y-%m'))
     days = IntegerField('Dias Trabalhados', validators=[
         # InputRequired (não DataRequired): 0 tem input e deve cair na
         # validação de faixa ("entre 1 e 999"), não na de campo vazio.
@@ -614,19 +618,48 @@ class RoleForm(BaseForm):
 
 # Ícones Bootstrap Icons oferecidos no cadastro — a lista é curada para o
 # admin não precisar decorar nomes de classes (e evitar ícones inexistentes).
+# Só acrescente aqui ícones que existem na versão 1.13.2 carregada no
+# base.html (conferível no CSS da fonte em cdn.jsdelivr.net).
 ROOM_CATEGORY_ICONS = [
     ('bi-tag', 'Padrão (etiqueta)'),
     ('bi-door-closed', 'Sala de aula'),
+    ('bi-door-open', 'Espaço de passagem'),
     ('bi-buildings', 'Auditório'),
+    ('bi-building', 'Prédio / bloco'),
     ('bi-cup-hot', 'Cozinha'),
+    ('bi-egg-fried', 'Refeitório / cantina'),
     ('bi-pc-display', 'Laboratório de informática'),
+    ('bi-keyboard', 'Laboratório de digitação'),
     ('bi-heart-pulse', 'Laboratório de saúde'),
-    ('bi-volleyball', 'Quadra de esportes'),
+    ('bi-beaker', 'Laboratório de ciências'),
+    ('bi-flask', 'Laboratório de química'),
+    ('bi-trophy', 'Quadra de esportes'),
     ('bi-book', 'Biblioteca'),
+    ('bi-mortarboard', 'Sala de estudos'),
     ('bi-bus-front', 'Van / transporte'),
     ('bi-tools', 'Oficina'),
+    ('bi-gear', 'Mecânica'),
+    ('bi-lightning-charge', 'Elétrica'),
     ('bi-music-note', 'Música'),
+    ('bi-mic', 'Estúdio de áudio / podcast'),
+    ('bi-camera-reels', 'Estúdio de vídeo'),
     ('bi-people', 'Reunião / evento'),
+    ('bi-easel', 'Apresentação / treinamento'),
+    ('bi-projector', 'Sala multimídia'),
+    ('bi-palette', 'Arte / desenho'),
+    ('bi-scissors', 'Corte e costura'),
+    ('bi-robot', 'Robótica / makerspace'),
+    ('bi-puzzle', 'Sala de jogos'),
+    ('bi-house-door', 'Espaço de convivência'),
+    ('bi-tree', 'Área externa'),
+    ('bi-flower1', 'Jardinagem / horta'),
+    ('bi-box-seam', 'Almoxarifado'),
+    ('bi-archive', 'Arquivo'),
+    ('bi-printer', 'Gráfica'),
+    ('bi-universal-access', 'Sala de recursos / acessibilidade'),
+    ('bi-person-vcard', 'Recepção / atendimento'),
+    ('bi-shop', 'Loja escola / prática de vendas'),
+    ('bi-cash-coin', 'Prática comercial'),
 ]
 
 
