@@ -147,8 +147,21 @@ def quantity_format(value):
 @require_permission('kitchen:read')
 @require_module('kitchen')
 def sheets():
-    sheets_list = TechnicalSheet.query.filter_by(unity_id=current_unity_id()) \
-        .order_by(TechnicalSheet.uploaded_at.desc()).all()
+    sheets_list = TechnicalSheet.query.filter_by(unity_id=current_unity_id()).all()
+    # Ordenação escolhida no filtro da página (padrão: envio mais recente);
+    # fichas sem preparação vinculada vão para o fim na ordem por preparação.
+    ordem = request.args.get('ordem', 'recentes')
+    if ordem == 'antigas':
+        sheets_list.sort(key=lambda s: (s.uploaded_at or datetime.min))
+    elif ordem == 'arquivo':
+        sheets_list.sort(key=lambda s: (s.original_filename or '').lower())
+    elif ordem == 'preparacao':
+        sheets_list.sort(key=lambda s: (s.recipe is None,
+                                        s.recipe.name.lower() if s.recipe else '',
+                                        (s.original_filename or '').lower()))
+    else:
+        ordem = 'recentes'
+        sheets_list.sort(key=lambda s: (s.uploaded_at or datetime.min), reverse=True)
     pending = [s for s in sheets_list if s.status == 'pending']
     errored = [s for s in sheets_list if s.status == 'error']
     saved = [s for s in sheets_list if s.status == 'saved']
@@ -156,7 +169,8 @@ def sheets():
     can_delete = current_user.has_permission('kitchen:sheet_delete')
     return render_template('kitchen/sheets.html', sheets=sheets_list,
                            pending=pending, errored=errored, saved=saved,
-                           can_manage=can_manage, can_delete=can_delete)
+                           can_manage=can_manage, can_delete=can_delete,
+                           ordem=ordem)
 
 
 @bp.route('/fichas/criar', methods=['GET', 'POST'])
@@ -387,9 +401,23 @@ def preparations():
     search = (request.args.get('q') or '').strip()
     if search:
         query = query.filter(KitchenRecipe.name.ilike(f'%{search}%'))
-    recipes = query.order_by(KitchenRecipe.created_at.desc()).all()
+    recipes = query.all()
+    # Ordenação escolhida no filtro da página (padrão: criação recente);
+    # contagens de preparações/ingredientes são propriedades em Python.
+    ordem = request.args.get('ordem', 'recentes')
+    if ordem == 'nome':
+        recipes.sort(key=lambda r: r.name.lower())
+    elif ordem == 'nome_desc':
+        recipes.sort(key=lambda r: r.name.lower(), reverse=True)
+    elif ordem == 'preparacoes':
+        recipes.sort(key=lambda r: (-len(r.preparations), r.name.lower()))
+    elif ordem == 'ingredientes':
+        recipes.sort(key=lambda r: (-r.ingredient_count, r.name.lower()))
+    else:
+        ordem = 'recentes'
+        recipes.sort(key=lambda r: (r.created_at or datetime.min), reverse=True)
     return render_template('kitchen/preparations.html', recipes=recipes,
-                           search=search)
+                           search=search, ordem=ordem)
 
 
 @bp.route('/preparacoes/<int:recipe_id>')

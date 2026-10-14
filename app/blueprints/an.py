@@ -24,6 +24,7 @@ from xml.etree import ElementTree as ET
 from flask import (Blueprint, abort, current_app, flash, redirect,
                    render_template, request, send_file, url_for)
 from openpyxl import load_workbook
+from sqlalchemy import func
 
 from app.extensions import db
 from flask_login import current_user, login_required
@@ -187,8 +188,30 @@ def _render_registros(form, month_filter=None):
     query = TeacherNightShiftPay.query.filter_by(unity_id=current_unity_id())
     if month_filter:
         query = query.filter_by(month_base=month_filter)
-    pagination = query.order_by(TeacherNightShiftPay.created_at.desc(),
-                                TeacherNightShiftPay.id.desc()) \
+    # Ordenação escolhida no filtro da página (padrão: lançamento recente);
+    # a matrícula é texto — ordena por tamanho antes do valor (20 antes de 100).
+    ordem = request.args.get('ordem', 'recentes')
+    if ordem == 'antigas':
+        query = query.order_by(TeacherNightShiftPay.created_at,
+                               TeacherNightShiftPay.id)
+    elif ordem == 'professor':
+        query = query.order_by(TeacherNightShiftPay.full_name,
+                               TeacherNightShiftPay.month_base)
+    elif ordem == 'matricula':
+        query = query.order_by(func.length(TeacherNightShiftPay.registration),
+                               TeacherNightShiftPay.registration,
+                               TeacherNightShiftPay.full_name)
+    elif ordem == 'mes':
+        query = query.order_by(TeacherNightShiftPay.month_base,
+                               TeacherNightShiftPay.full_name)
+    elif ordem == 'mes_desc':
+        query = query.order_by(TeacherNightShiftPay.month_base.desc(),
+                               TeacherNightShiftPay.full_name)
+    else:
+        ordem = 'recentes'
+        query = query.order_by(TeacherNightShiftPay.created_at.desc(),
+                               TeacherNightShiftPay.id.desc())
+    pagination = query \
         .paginate(page=request.args.get('page', 1, type=int),
                   per_page=REGISTROS_PER_PAGE, error_out=False)
     # Total da unidade (sem filtro): alimenta a confirmação do "Limpar Tudo".
@@ -197,6 +220,7 @@ def _render_registros(form, month_filter=None):
     return render_template('an/registros.html', form=form,
                            registros=pagination.items, pagination=pagination,
                            filter_month=month_filter,
+                           ordem=ordem,
                            meses_opcoes=_meses_opcoes(current_unity_id()),
                            mes_corrente=_mes_atual(),
                            total_registros=total_registros,

@@ -16,9 +16,11 @@
 </div>
 
 <ul class="nav nav-tabs mb-4">
+    {% set args_aba = request.args.to_dict() %}
     {% for s in ['all', 'approved', 'pending', 'cancelled'] %}
     <li class="nav-item">
-        <a class="nav-link {{ 'active' if current_status == s }}" href="{{ url_for('reservations.my_reservations', status=s) }}">
+        {% set _ = args_aba.update({'status': s}) %}
+        <a class="nav-link {{ 'active' if current_status == s }}" href="{{ url_for('reservations.my_reservations', **args_aba) }}">
             {% if s == 'all' %}Todas
             {% elif s == 'approved' %}Aprovadas
             {% elif s == 'pending' %}Pendentes
@@ -28,6 +30,19 @@
     </li>
     {% endfor %}
 </ul>
+
+<!-- Ordenação (aplica-se às duas listas) -->
+<form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <input type="hidden" name="status" value="{{ current_status }}">
+    <label class="form-label small fw-bold text-muted mb-0" for="ordem-minhas">Ordenar por</label>
+    <select name="ordem" id="ordem-minhas" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        <option value="data_desc" {{ 'selected' if ordem == 'data_desc' }}>Data (mais recentes)</option>
+        <option value="data_asc" {{ 'selected' if ordem == 'data_asc' }}>Data (mais antigas)</option>
+        <option value="sala" {{ 'selected' if ordem == 'sala' }}>Sala</option>
+        <option value="titulo" {{ 'selected' if ordem == 'titulo' }}>Título</option>
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Ordenar</button></noscript>
+</form>
 
 <!-- Reservas Atuais e Futuras -->
 <div class="card mb-4">

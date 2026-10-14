@@ -700,6 +700,12 @@ h1, h2, h3, h4, h5, h6 {
     color: inherit;
 }
 
+/* Cabeçalhos clicáveis das tabelas ordenáveis (js/tabela-ordenavel.js) */
+.th-ordenavel {
+    cursor: pointer;
+    user-select: none;
+}
+
 [data-theme="dark"] .table > :not(caption) > * > * {
     background-color: transparent;
     border-color: rgba(255,255,255,0.1);

@@ -61,6 +61,19 @@
     </div>
 </div>
 
+<form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <label class="form-label small fw-bold text-muted mb-0" for="ordem-token">Ordenar por</label>
+    <select name="ordem" id="ordem-token" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Criação (mais recentes)</option>
+        <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
+        <option value="nome_desc" {{ 'selected' if ordem == 'nome_desc' }}>Nome (Z–A)</option>
+        <option value="expiracao" {{ 'selected' if ordem == 'expiracao' }}>Expiração (próximos primeiro)</option>
+        <option value="ultimo_uso" {{ 'selected' if ordem == 'ultimo_uso' }}>Último uso (recentes primeiro)</option>
+        <option value="status" {{ 'selected' if ordem == 'status' }}>Status (ativos primeiro)</option>
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Ordenar</button></noscript>
+</form>
+
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
