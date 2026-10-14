@@ -42,7 +42,7 @@ class Unity(db.Model):
         {'code': MODULE_KITCHEN, 'label': 'Cozinha', 'attr': 'kitchen_enabled',
          'description': 'Fichas técnicas, preparações e requisição de compras'},
         {'code': MODULE_FINANCE, 'label': 'Financeiro', 'attr': 'finance_enabled',
-         'description': 'Hora extra, vale alimentação e vale transporte'},
+         'description': 'Hora extra, adicional noturno, vale alimentação e vale transporte'},
     )
 
     classrooms = db.relationship('Classroom', backref='unity', lazy=True)
@@ -397,6 +397,57 @@ class TeacherMealAllowance(db.Model):
 
     def __repr__(self):
         return f'<TeacherMealAllowance {self.teacher_id} +{self.days}d>'
+
+
+# Lançamento do Adicional Noturno de Professores (RH): uma linha por
+# professor no mês de referência, espelhando as colunas da planilha
+# "Adicional Noturno Professores" — o professor é digitado à mão (matrícula
+# + nome), sem vínculo com o cadastro de usuários. A exportação preenche o
+# modelo planilha_base_an.xlsx nos critérios do gerador original
+# (adicional "Sim" com minutos > 0, ordenado pelo código da unidade).
+class TeacherNightShiftPay(db.Model):
+    __tablename__ = 'teacher_night_shift_pay'
+    id = db.Column(db.Integer, primary_key=True)
+    unity_id = db.Column(db.Integer, db.ForeignKey('unities.id'), nullable=True, index=True)
+    # Mês de referência do lançamento (YYYY-MM), como em TeacherOvertimePay.
+    month_base = db.Column(db.String(7), nullable=False)
+    registration = db.Column(db.String(20), nullable=False)          # A: Matrícula
+    full_name = db.Column(db.String(255), nullable=False)            # B: Professor
+    # "Adicional Noturno" (Sim/Não) da planilha: só "Sim" com minutos > 0
+    # entra na planilha de pagamento.
+    entitled = db.Column(db.Boolean, nullable=False, default=False)
+    # C: Horas/Aula do professor no mês (ex.: 58.91) — base do valor do
+    # adicional no modelo (coluna C, "h/a").
+    class_hours = db.Column(db.Numeric(7, 2))
+    # E: Adicional Noturno (Minutos) — os minutos decimais usados na planilha
+    # são derivados daqui (decimal_minutes).
+    night_minutes = db.Column(db.Integer)
+    # I: Unidade — código UO do Senac SC (2=Florianópolis, 3=Joinville…),
+    # gravado na coluna K ("UO Lotação") do modelo.
+    uo_code = db.Column(db.Integer)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+    # Critérios do gerador original: adicional "Sim" com minutos maiores que
+    # zero (a matrícula é obrigatória no formulário).
+    @property
+    def is_exportable(self):
+        return self.entitled and bool(self.night_minutes)
+
+    @property
+    def decimal_minutes(self):
+        """Minutos decimais do gerador: a planilha de origem converte o tempo
+        noturno em h/m (hora×100+minuto) e devolve para minutos na base
+        decimal ((h×100+m)×60/100) — 2h40 (160 min) → 144; 0h40 → 24."""
+        minutes = int(self.night_minutes or 0)
+        return round((minutes // 60) * 60 + (minutes % 60) * 0.6, 2)
+
+    def __repr__(self):
+        return f'<TeacherNightShiftPay {self.registration} +{self.night_minutes}min>'
+
 
 # Registro do módulo Vale Transporte (Financeiro): uma linha por colaborador,
 # espelhando todas as colunas da aba "Vale Transporte" do Pedido de Compra

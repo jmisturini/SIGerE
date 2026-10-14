@@ -140,6 +140,7 @@
                 {% set in_meal = request.endpoint and 'meal_allowance' in request.endpoint %}
                 {% set in_overtime = request.endpoint and request.endpoint.startswith('payments.') and not in_meal %}
                 {% set in_vt = request.endpoint and request.endpoint.startswith('vt.') %}
+                {% set in_an = request.endpoint and request.endpoint.startswith('an.') %}
                 {# O Financeiro concentra o Pagamento Extra (payment:*). #}
                 {# O módulo Financeiro pode ser desligado por unidade (edição da unidade) — o toggle governa também o Vale-Transporte, no RH. #}
                 {% if unity_module_enabled('finance') and current_user.has_permission('payment:read') %}
@@ -168,8 +169,8 @@
                 </li>
                 {% endif %}
 
-                {# RH: Vale-Transporte (vt:*) e Vale Alimentação (meal:*) — seguem sob o módulo Financeiro da unidade #}
-                {% if unity_module_enabled('finance') and (current_user.has_permission('vt:read') or current_user.has_permission('meal:read')) %}
+                {# RH: Vale-Transporte (vt:*), Vale Alimentação (meal:*) e Adicional Noturno (an:*) — seguem sob o módulo Financeiro da unidade #}
+                {% if unity_module_enabled('finance') and (current_user.has_permission('vt:read') or current_user.has_permission('meal:read') or current_user.has_permission('an:read')) %}
                 <li class="nav-section">RH</li>
                 {% endif %}
                 {% if unity_module_enabled('finance') and current_user.has_permission('vt:read') %}
@@ -198,6 +199,13 @@
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if in_meal else '' }}" title="Vale Alimentação - Professores" href="{{ url_for('payments.list_meal_allowance') }}">
                         <i class="bi bi-basket2"></i> <span>Vale Alimentação</span>
+                    </a>
+                </li>
+                {% endif %}
+                {% if unity_module_enabled('finance') and current_user.has_permission('an:read') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_an else '' }}" title="Adicional Noturno - Professores" href="{{ url_for('an.registros') }}">
+                        <i class="bi bi-moon-stars"></i> <span>Adicional Noturno</span>
                     </a>
                 </li>
                 {% endif %}
