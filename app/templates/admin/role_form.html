@@ -32,18 +32,20 @@
                         </div>
                     </div>
 
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                        <h6 class="fw-bold mb-0"><i class="bi bi-key text-primary me-1"></i> Permissões</h6>
-                        <span class="text-muted small">
-                            <strong id="perm-total-selecionadas">0</strong> de {{ ns.total }} permissões selecionadas
-                        </span>
-                        <button type="button" id="perm-limpar-todas" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-x-circle me-1"></i> Limpar todas
-                        </button>
-                    </div>
-                    {% for err in form.permissions.errors %}<div class="text-danger small mt-1 mb-2">{{ err }}</div>{% endfor %}
-
-                    <div class="accordion" id="gradePermissoes">
+                    <div class="caixa-permissoes mt-3">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-3">
+                            <h6 class="fw-bold fs-5 mb-0">
+                                <i class="bi bi-key text-primary me-2"></i> Permissões
+                            </h6>
+                            <span class="text-muted small">
+                                <strong id="perm-total-selecionadas">0</strong> de {{ ns.total }} permissões selecionadas
+                            </span>
+                            <button type="button" id="perm-limpar-todas" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-x-circle me-1"></i> Limpar todas
+                            </button>
+                        </div>
+                        {% for err in form.permissions.errors %}<div class="text-danger small mt-1 mb-2 px-3">{{ err }}</div>{% endfor %}
+                        <div class="accordion" id="gradePermissoes">
                         {% for rotulo, perms, modulo_unidade in grupos_permissoes %}
                         {% set modulo_desligado = modulo_unidade and not unity_module_enabled(modulo_unidade) %}
                         {% set qtd_marcadas = perms | selectattr('id', 'in', ids_marcadas) | list | length %}
@@ -95,6 +97,7 @@
                             </div>
                         </div>
                         {% endfor %}
+                        </div>
                     </div>
 
                     <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
@@ -110,20 +113,36 @@
 
 {% block scripts %}
 <style>
+    /* Caixa que destaca a grade de permissões do restante do formulário:
+       superfície no tom do fundo da página (não do card) + borda própria. */
+    .caixa-permissoes {
+        background: var(--body-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+    }
     /* O acordeão do Bootstrap usa --bs-body-bg (branco fixo), que destoa do
-       tema claro/escuro do app — alinhado aos mesmos tokens dos .card. */
+       tema claro/escuro do app — dentro da caixa ele fica transparente e
+       usa as variáveis de texto/borda dos .card. */
     #gradePermissoes {
-        --bs-accordion-bg: var(--topbar-bg);
+        --bs-accordion-bg: transparent;
         --bs-accordion-color: var(--text-color);
         --bs-accordion-border-color: var(--border-color);
-        --bs-accordion-btn-bg: var(--topbar-bg);
+        --bs-accordion-btn-bg: transparent;
         --bs-accordion-btn-color: var(--text-color);
-        --bs-accordion-active-bg: var(--topbar-bg);
+        --bs-accordion-active-bg: transparent;
         --bs-accordion-active-color: var(--text-color);
         --bs-accordion-btn-focus-box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.2);
     }
     [data-theme="dark"] #gradePermissoes .accordion-button::after {
         filter: invert(1) grayscale(1);
+    }
+    /* Título de cada módulo com mais presença: sobe o "small" (0.875em) do
+       rótulo para um corpo próximo do texto normal e abre o espaçamento —
+       o span mantém as classes exatas que os testes verificam. */
+    #gradePermissoes .accordion-button .text-uppercase {
+        font-size: 1rem;
+        letter-spacing: 0.04em;
     }
     /* Badges de contagem por módulo: sutil quando vazio, destaque quando há
        permissões marcadas — permite bater o olho e ver o que o papel já tem. */
