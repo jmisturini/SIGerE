@@ -82,13 +82,13 @@
     {% if rows %}
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0" data-ordenavel>
                 <thead class="table-light">
                 <tr>
                     <th class="ps-4">PRODUTO</th>
                     <th class="text-center" style="width: 120px;">QUANTIDADE</th>
                     <th class="text-center" style="width: 110px;">UNIDADE</th>
-                    <th class="text-center" style="width: 110px;">DETALHES</th>
+                    <th class="text-center" style="width: 110px;" data-nao-ordenavel>DETALHES</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -148,6 +148,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/tabela-ordenavel.js') }}"></script>
 <script>
     // Dados do relatório (nome, total e quebra por preparação de cada linha),
     // serializados pelo servidor na ordem das linhas da tabela.
