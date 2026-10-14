@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session
 from flask_login import current_user
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from app.models import User, Classroom, Reservation, Course, Subject, Unity
 from app.unity_context import current_unity_id
 from app.forms import LoginForm
@@ -191,6 +191,7 @@ def daily_schedule():
 def search():
     query = request.args.get('q', '')
     search_type = request.args.get('type', 'classroom')
+    ordem = request.args.get('ordem', '')
 
     results_rooms = []
     results_teachers = []
@@ -205,7 +206,23 @@ def search():
             ]
             if uid is not None:
                 room_filter.append(Classroom.unity_id == uid)
-            results_rooms = Classroom.query.filter(*room_filter).order_by(Classroom.code).all()
+            # Ordenação escolhida no formulário (padrão: código, como antes)
+            if ordem not in ('codigo', 'nome', 'nome_desc', 'capacidade', 'predio'):
+                ordem = 'codigo'
+            room_query = Classroom.query.filter(*room_filter)
+            if ordem == 'nome':
+                room_query = room_query.order_by(Classroom.name)
+            elif ordem == 'nome_desc':
+                room_query = room_query.order_by(Classroom.name.desc())
+            elif ordem == 'capacidade':
+                room_query = room_query.order_by(Classroom.capacity.desc(),
+                                                 Classroom.code)
+            elif ordem == 'predio':
+                room_query = room_query.order_by(Classroom.building,
+                                                 Classroom.floor, Classroom.code)
+            else:
+                room_query = room_query.order_by(Classroom.code)
+            results_rooms = room_query.all()
 
         elif search_type == 'teacher':
             # Busca professores ativos (escopo por unidade quando determinável)
@@ -217,12 +234,30 @@ def search():
             ]
             if uid is not None:
                 teacher_filter.append(User.escopo_unidade(uid))
-            results_teachers = User.query.filter(*teacher_filter).order_by(User.full_name).all()
+            if ordem not in ('professor_nome', 'professor_nome_desc',
+                             'matricula', 'departamento'):
+                ordem = 'professor_nome'
+            teacher_query = User.query.filter(*teacher_filter)
+            if ordem == 'professor_nome_desc':
+                teacher_query = teacher_query.order_by(User.full_name.desc())
+            elif ordem == 'matricula':
+                # matrícula é texto — ordena por tamanho antes do valor
+                # (50 antes de 100), como no adicional noturno
+                teacher_query = teacher_query.order_by(
+                    func.length(User.registration), User.registration,
+                    User.full_name)
+            elif ordem == 'departamento':
+                teacher_query = teacher_query.order_by(User.department,
+                                                       User.full_name)
+            else:
+                teacher_query = teacher_query.order_by(User.full_name)
+            results_teachers = teacher_query.all()
 
     return render_template(
         'search.html',
         query=query,
         search_type=search_type,
         results_rooms=results_rooms,
-        results_teachers=results_teachers
+        results_teachers=results_teachers,
+        ordem=ordem
     )

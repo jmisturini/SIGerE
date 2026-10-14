@@ -586,6 +586,54 @@ class FormValeAlimentacao(BaseForm):
 
 
 # =============================================================================
+# ADICIONAL NOTURNO - PROFESSORES FORM (RH)
+# =============================================================================
+
+class FormAdicionalNoturno(BaseForm):
+    """Lançamento do Adicional Noturno de Professores (RH): espelha as
+    colunas da planilha "Adicional Noturno Professores" — adicional
+    (Sim/Não), horas/aula, minutos noturnos e unidade (código UO). O
+    professor vem do select do cadastro (a matrícula é auto-preenchida pela
+    página) ou da opção "Outro", com digitação manual de nome e matrícula —
+    por isso os dois campos são opcionais aqui e resolvidos na rota
+    (_resolver_professor). Os choices do mês e do professor vêm da rota."""
+    month_base = SelectField('Mês de Referência', coerce=str,
+                             default=lambda: datetime.now().strftime('%Y-%m'))
+    teacher = SelectField('Professor', coerce=str, validators=[Optional()])
+    # Usados apenas na opção "Outro (digitar)" do select de professor; a
+    # matrícula é auto-preenchida pela página quando um professor do cadastro
+    # é selecionado (e o servidor prefere sempre a do cadastro). Obrigatoria
+    # é resolvida na rota (_resolver_professor), não aqui.
+    full_name = StringField('Nome do Professor', validators=[
+        Optional(), Length(max=255)])
+    registration = StringField('Matrícula', validators=[
+        Optional(), Length(max=20)])
+    entitled = SelectField('Adicional Noturno', coerce=str,
+                           choices=[('Sim', 'Sim'), ('Não', 'Não')],
+                           validators=[DataRequired()])
+    # Horas/Aula da planilha (ex.: 58,91) — aceita vírgula ou ponto decimal,
+    # como o Valor H/a da Hora Extra; o exemplo fica na dica do campo.
+    class_hours = StringField('Horas/Aula', validators=[
+        Optional(), Length(max=10)])
+    night_minutes = IntegerField('Minutos Noturnos', validators=[
+        InputRequired(message='Informe os minutos noturnos.'),
+        NumberRange(min=0, max=1440,
+                    message='Os minutos devem estar entre 0 e 1440.')])
+    # Código UO do Senac SC gravado na coluna K do modelo ("UO Lotação").
+    uo_code = IntegerField('Unidade (código UO)', validators=[
+        InputRequired(message='Informe o código da unidade (UO).'),
+        NumberRange(min=1, max=999,
+                    message='O código da unidade deve estar entre 1 e 999.')])
+    submit = SubmitField('Adicionar')
+
+    def validate_class_hours(self, field):
+        # Aceita formatos: 58,91 | 58.91 | 58 | vazio
+        if field.data and not re.match(r'^\d{1,4}([,.]\d{1,2})?$', field.data.strip()):
+            raise ValidationError(
+                'Formato inválido. Use números com vírgula ou ponto decimal (ex: 58,91).')
+
+
+# =============================================================================
 # ROLE FORM
 # =============================================================================
 

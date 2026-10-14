@@ -611,8 +611,21 @@ def toggle_subject(subject_id):
 @login_required
 @require_permission('holiday:read')
 def list_holidays():
-    holidays = Holiday.query.filter_by(unity_id=current_unity_id()).order_by(Holiday.date).all()
-    return render_template('admin/holidays.html', holidays=holidays)
+    holidays = Holiday.query.filter_by(unity_id=current_unity_id()).all()
+    # Ordenação escolhida no filtro da página (padrão: data mais próxima)
+    ordem = request.args.get('ordem', 'data')
+    if ordem == 'data_desc':
+        holidays.sort(key=lambda h: (h.date, h.name.lower()), reverse=True)
+    elif ordem == 'nome':
+        holidays.sort(key=lambda h: h.name.lower())
+    elif ordem == 'nome_desc':
+        holidays.sort(key=lambda h: h.name.lower(), reverse=True)
+    elif ordem == 'status':
+        holidays.sort(key=lambda h: (not h.is_active, h.date))
+    else:
+        ordem = 'data'
+        holidays.sort(key=lambda h: (h.date, h.name.lower()))
+    return render_template('admin/holidays.html', holidays=holidays, ordem=ordem)
 
 @bp.route('/holidays/create', methods=['GET', 'POST'])
 @login_required
@@ -694,11 +707,13 @@ def import_holidays():
 # ================= ROLE MANAGEMENT =================
 
 # Rótulos amigáveis dos módulos de permissão (agrupamento da tela de papéis).
-# O Financeiro tem dois grupos de permissões separados (Pagamento Extra e
-# Vale-Transporte) para que papéis distintos possam cobrir cada área.
+# O Financeiro tem grupos de permissões separados (Pagamento Extra,
+# Vale-Transporte, Vale Alimentação e Adicional Noturno) para que papéis
+# distintos possam cobrir cada área.
 MODULO_LABELS = {
-    'api': 'API', 'course': 'Cursos', 'course_type': 'Tipos de Curso',
-    'holiday': 'Feriados', 'kitchen': 'Cozinha', 'meal': 'Vale Alimentação',
+    'an': 'Adicional Noturno', 'api': 'API', 'course': 'Cursos',
+    'course_type': 'Tipos de Curso', 'holiday': 'Feriados',
+    'kitchen': 'Cozinha', 'meal': 'Vale Alimentação',
     'notification': 'Notificações', 'payment': 'Pagamento Extra',
     'reservation': 'Reservas', 'role': 'Papéis', 'room': 'Salas',
     'system': 'Sistema', 'unity': 'Unidades', 'user': 'Usuários',
@@ -708,8 +723,10 @@ MODULO_LABELS = {
 # Módulos de permissão que dependem de um módulo ligável por unidade:
 # mapeiam o módulo da permissão para o código do módulo na Unity. Grupos
 # fora deste mapa não dependem de módulo (o aviso contextual nunca aparece).
-# Pagamento Extra e Vale-Transporte são áreas do módulo Financeiro.
+# Pagamento Extra, Vale-Transporte e Adicional Noturno são áreas do módulo
+# Financeiro.
 MODULO_PERMISSAO_PARA_MODULO_UNIDADE = {
+    'an': Unity.MODULE_FINANCE,
     'kitchen': Unity.MODULE_KITCHEN,
     'payment': Unity.MODULE_FINANCE,
     'vt': Unity.MODULE_FINANCE,
@@ -928,8 +945,17 @@ def toggle_category(cat_id):
 @login_required
 @require_permission('course_type:read')
 def list_course_types():
-    tipos = CourseType.query.order_by(CourseType.name).all()
-    return render_template('admin/course_types.html', tipos=tipos)
+    tipos = CourseType.query.all()
+    # Ordenação escolhida no filtro da página (padrão: nome)
+    ordem = request.args.get('ordem', 'nome')
+    if ordem == 'nome_desc':
+        tipos.sort(key=lambda t: t.name.lower(), reverse=True)
+    elif ordem == 'status':
+        tipos.sort(key=lambda t: (not t.is_active, t.name.lower()))
+    else:
+        ordem = 'nome'
+        tipos.sort(key=lambda t: t.name.lower())
+    return render_template('admin/course_types.html', tipos=tipos, ordem=ordem)
 
 @bp.route('/course-types/create', methods=['GET', 'POST'])
 @login_required
@@ -1193,10 +1219,17 @@ def vt_configuracao():
 @login_required
 @require_permission('vt:empresas')
 def list_vt_empresas():
-    empresas = (VtEmpresa.query
-                .filter_by(unity_id=current_unity_id())
-                .order_by(VtEmpresa.nome).all())
-    return render_template('admin/vt_empresas.html', empresas=empresas)
+    empresas = VtEmpresa.query.filter_by(unity_id=current_unity_id()).all()
+    # Ordenação escolhida no filtro da página (padrão: nome)
+    ordem = request.args.get('ordem', 'nome')
+    if ordem == 'nome_desc':
+        empresas.sort(key=lambda e: e.nome.lower(), reverse=True)
+    elif ordem == 'status':
+        empresas.sort(key=lambda e: (not e.is_active, e.nome.lower()))
+    else:
+        ordem = 'nome'
+        empresas.sort(key=lambda e: e.nome.lower())
+    return render_template('admin/vt_empresas.html', empresas=empresas, ordem=ordem)
 
 
 def _linhas_tarifa_do_post():
@@ -1312,7 +1345,31 @@ def _token_hash(raw):
 @login_required
 @require_permission('api:manage')
 def list_api_tokens():
-    tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
+    tokens = ApiToken.query.all()
+    # Ordenação escolhida no filtro da página (padrão: criação mais recente);
+    # sem expiração/último uso vai para o fim da respectiva ordem.
+    ordem = request.args.get('ordem', 'recentes')
+
+    def _status_rank(t):
+        if not t.is_active:
+            return 2
+        if t.is_expired:
+            return 1
+        return 0
+
+    if ordem == 'nome':
+        tokens.sort(key=lambda t: t.name.lower())
+    elif ordem == 'nome_desc':
+        tokens.sort(key=lambda t: t.name.lower(), reverse=True)
+    elif ordem == 'expiracao':
+        tokens.sort(key=lambda t: t.expires_at or datetime.max)
+    elif ordem == 'ultimo_uso':
+        tokens.sort(key=lambda t: t.last_used_at or datetime.min, reverse=True)
+    elif ordem == 'status':
+        tokens.sort(key=lambda t: (_status_rank(t), t.name.lower()))
+    else:
+        ordem = 'recentes'
+        tokens.sort(key=lambda t: (t.created_at or datetime.min), reverse=True)
     # O token recém-gerado chega pela sessão (padrão PRG) e é consumido aqui:
     # exibido uma única vez — recarregar a página não reexibe o valor nem
     # cria novo token.
@@ -1320,7 +1377,7 @@ def list_api_tokens():
     new_token_name = session.pop('new_api_token_name', None)
     return render_template('admin/api_tokens.html', tokens=tokens,
                            durations=TOKEN_DURATIONS, new_token=new_token,
-                           new_token_name=new_token_name)
+                           new_token_name=new_token_name, ordem=ordem)
 
 
 @bp.route('/api-tokens/create', methods=['POST'])
@@ -1430,8 +1487,18 @@ def notificacoes_config():
 def notificacoes_grupos():
     """Grupos personalizados de destinatários da unidade ativa."""
     grupos = NotificationGroup.query.filter_by(
-        unity_id=current_unity_id()).order_by(NotificationGroup.name).all()
-    return render_template('admin/notificacoes_grupos.html', grupos=grupos)
+        unity_id=current_unity_id()).all()
+    # Ordenação escolhida no filtro da página (padrão: nome)
+    ordem = request.args.get('ordem', 'nome')
+    if ordem == 'nome_desc':
+        grupos.sort(key=lambda g: g.name.lower(), reverse=True)
+    elif ordem == 'membros':
+        grupos.sort(key=lambda g: (-len(g.members), g.name.lower()))
+    else:
+        ordem = 'nome'
+        grupos.sort(key=lambda g: g.name.lower())
+    return render_template('admin/notificacoes_grupos.html', grupos=grupos,
+                           ordem=ordem)
 
 
 @bp.route('/notificacoes/grupos/nova', methods=['GET', 'POST'])

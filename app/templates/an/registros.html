@@ -1,0 +1,346 @@
+{% extends 'base.html' %}
+{% from '_pagination.html' import render_pagination %}
+{% block title %}Adicional Noturno - Professores{% endblock %}
+
+{% block content %}
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Adicional Noturno — Professores</h3>
+        <p class="text-muted mb-0">Lançamento da planilha "Adicional Noturno Professores" e exportação da planilha de pagamento.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('an.exportar', **request.args.to_dict()) }}"
+           class="btn btn-success" title="Baixar a planilha de pagamento com quem tem adicional Sim e minutos maiores que 0">
+            <i class="bi bi-file-excel me-1"></i> Exportar Planilha
+        </a>
+        {% if current_user.has_permission('an:delete') %}
+        <form method="POST" action="{{ url_for('an.excluir_todos') }}"
+              onsubmit="return confirm('Excluir TODOS os {{ total_registros }} lançamento(s) de Adicional Noturno desta unidade? Esta ação não pode ser desfeita.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger" title="Excluir todos os lançamentos da unidade">
+                <i class="bi bi-trash me-1"></i> Limpar Tudo
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{% if current_user.has_permission('an:create') %}
+<div class="card mb-4">
+    <div class="card-body p-4">
+        <h6 class="fw-bold text-uppercase text-muted mb-3">
+            <i class="bi bi-plus-circle me-1"></i> Novo Lançamento
+        </h6>
+        <form method="POST" action="{{ url_for('an.adicionar', **request.args.to_dict()) }}" novalidate>
+            {{ form.hidden_tag() }}
+            <div class="row g-3">
+                <div class="col-md-3">
+                    {{ form.month_base.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.month_base(class="form-select") }}
+                    {% for err in form.month_base.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-md-6">
+                    {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.teacher(class="form-select") }}
+                    {% for err in form.teacher.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    {{ form.entitled.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.entitled(class="form-select") }}
+                    {% for err in form.entitled.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-md-6 d-none" id="bloco-nome-manual">
+                    {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.full_name(class="form-control", placeholder="Nome do professor fora do cadastro") }}
+                    {% for err in form.full_name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+            </div>
+            <div class="row g-3 mt-0">
+                <div class="col-md-3">
+                    {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.registration(class="form-control", placeholder="Auto ao selecionar") }}
+                    {% for err in form.registration.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    {{ form.class_hours.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.class_hours(class="form-control", placeholder="Ex.: 58,91") }}
+                    {% for err in form.class_hours.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    {{ form.night_minutes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.night_minutes(class="form-control", min=0, placeholder="Ex.: 160") }}
+                    {% for err in form.night_minutes.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    {{ form.uo_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.uo_code(class="form-control", min=1, placeholder="Ex.: 2") }}
+                    {% for err in form.uo_code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                </div>
+            </div>
+            <div class="d-flex justify-content-end mt-3 pt-3 border-top">
+                {{ form.submit(class="btn btn-primary px-4") }}
+            </div>
+        </form>
+        <details class="mt-3">
+            <summary class="text-muted small">Códigos das unidades (UO) usados na planilha</summary>
+            <p class="text-muted small mt-2 mb-0">
+                {% for codigo, nome in uo_codes %}
+                <span class="text-nowrap"><strong>{{ codigo }}</strong> {{ nome }}{{ ' ·' if not loop.last }}</span>
+                {% endfor %}
+            </p>
+        </details>
+    </div>
+</div>
+
+<script>
+    // Auto-preenchimento da matrícula: selecionar um professor do cadastro
+    // traz a matrícula da conta (travada para edição); a opção "Outro" libera
+    // a digitação livre de nome e matrícula.
+    (function () {
+        const PROFESSORES = {{ professores_map | tojson }};
+        const selProfessor = document.getElementById('teacher');
+        const inpMatricula = document.getElementById('registration');
+        const inpNome = document.getElementById('full_name');
+        const blocoNome = document.getElementById('bloco-nome-manual');
+
+        function aplicar(limpar) {
+            const manual = selProfessor.value === 'manual';
+            blocoNome.classList.toggle('d-none', !manual);
+            if (manual) {
+                inpMatricula.readOnly = false;
+                if (limpar) { inpMatricula.value = ''; inpNome.value = ''; }
+                return;
+            }
+            const prof = PROFESSORES[selProfessor.value];
+            if (prof && prof.matricula) {
+                inpMatricula.value = prof.matricula;
+                inpMatricula.readOnly = true;
+            } else {
+                // Professor sem matrícula no cadastro: digitação liberada.
+                if (limpar) inpMatricula.value = '';
+                inpMatricula.readOnly = false;
+            }
+        }
+
+        selProfessor.addEventListener('change', () => aplicar(true));
+        aplicar(false); // estado inicial: só visibilidade/trava, sem limpar
+    })();
+</script>
+
+<div class="card mb-4">
+    <div class="card-body p-4">
+        <h6 class="fw-bold text-uppercase text-muted mb-3">
+            <i class="bi bi-upload me-1"></i> Importar Planilha "Adicional Noturno Professores"
+        </h6>
+        <form method="POST" action="{{ url_for('an.importar') }}" enctype="multipart/form-data"
+              class="row g-3 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="planilha">Planilha (.xlsx)</label>
+                <input type="file" id="planilha" name="planilha" accept=".xlsx" class="form-control" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="month">Mês dos Lançamentos</label>
+                <select id="month" name="month_base" class="form-select">
+                    {% for valor, rotulo in meses_opcoes %}
+                        <option value="{{ valor }}" {{ 'selected' if valor == mes_corrente }}>{{ rotulo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-grid">
+                <button type="submit" class="btn btn-primary"
+                        title="Importar as linhas da planilha como lançamentos do mês selecionado">
+                    <i class="bi bi-box-arrow-in-down me-1"></i> Importar
+                </button>
+            </div>
+        </form>
+        <p class="text-muted small mt-3 mb-0">
+            Lê a planilha no modelo "Adicional Noturno Professores" (Matrícula, Professor,
+            Adicional Noturno, Horas/Aula, Minutos e Unidade) e cria um lançamento por linha
+            com matrícula e professor. Quem já possui lançamento no mês selecionado é mantido
+            — importar de novo não duplica.
+        </p>
+    </div>
+</div>
+{% endif %}
+
+<form method="GET" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="month_filter">Mês</label>
+                <select id="month_filter" name="month_base" class="form-select">
+                    <option value="">Todos os Meses</option>
+                    {% for valor, rotulo in meses_opcoes %}
+                        <option value="{{ valor }}" {{ 'selected' if filter_month == valor }}>{{ rotulo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="ordem-registro">Ordenar por</label>
+                <select name="ordem" id="ordem-registro" class="form-select">
+                    <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Lançamento (mais recentes)</option>
+                    <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Lançamento (mais antigas)</option>
+                    <option value="professor" {{ 'selected' if ordem == 'professor' }}>Professor</option>
+                    <option value="matricula" {{ 'selected' if ordem == 'matricula' }}>Matrícula</option>
+                    <option value="mes" {{ 'selected' if ordem == 'mes' }}>Mês (mais antigo)</option>
+                    <option value="mes_desc" {{ 'selected' if ordem == 'mes_desc' }}>Mês (mais recente)</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary flex-grow-1">
+                    <i class="bi bi-funnel me-1"></i> Filtrar
+                </button>
+                <a href="{{ url_for('an.registros') }}"
+                   class="btn btn-outline-secondary {{ '' if filter_month else 'disabled' }}"
+                   {{ '' if filter_month else 'aria-disabled="true" tabindex="-1"' }}
+                   title="Limpar o filtro aplicado">
+                    <i class="bi bi-x-circle me-1"></i> Limpar
+                </a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Mês</th>
+                        <th>Matrícula</th>
+                        <th>Professor</th>
+                        <th>Adicional</th>
+                        <th>Horas/Aula</th>
+                        <th>Minutos</th>
+                        <th title="Minutos decimais que a planilha de pagamento recebe">Min. Decimais</th>
+                        <th>UO</th>
+                        <th>Lançado em</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for e in registros %}
+                    <tr id="an-{{ e.id }}">
+                        <td class="ps-4">{{ e.month_base | mes_rotulo }}</td>
+                        <td>{{ e.registration }}</td>
+                        <td class="fw-bold">{{ e.full_name }}</td>
+                        <td>
+                            {% if e.entitled %}
+                            <span class="badge text-bg-success">Sim</span>
+                            {% else %}
+                            <span class="badge text-bg-secondary">Não</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ '%g' | format(e.class_hours) if e.class_hours is not none else '—' }}</td>
+                        <td>{{ e.night_minutes }}</td>
+                        <td>{{ '%g' | format(e.decimal_minutes) }}</td>
+                        <td>{{ e.uo_code }}</td>
+                        <td>{{ e.created_at | horario_local }}</td>
+                        <td class="text-end pe-4 text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                                    data-bs-target="#view-an-{{ e.id }}" title="Ver informações do lançamento">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            {% if current_user.has_permission('an:edit') %}
+                            <a href="{{ url_for('an.editar', registro_id=e.id, **request.args.to_dict()) }}"
+                               class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% endif %}
+                            {% if current_user.has_permission('an:delete') %}
+                            <form method="POST" action="{{ url_for('an.excluir', registro_id=e.id) }}"
+                                  class="d-inline" onsubmit="return confirm('Excluir este lançamento do Adicional Noturno?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted p-5">
+                            <i class="bi bi-moon-stars fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">{{ 'Nenhum lançamento para o mês filtrado' if filter_month else 'Nenhum lançamento adicionado' }}</h5>
+                            <p class="small mb-0">Use o formulário acima para lançar os minutos noturnos de um professor.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for e in registros %}
+<div class="modal fade" id="view-an-{{ e.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye text-primary me-2"></i>Lançamento de Adicional Noturno</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Professor</div>
+                        <div class="fw-semibold">{{ e.full_name }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Matrícula</div>
+                        <div>{{ e.registration }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Mês de Referência</div>
+                        <div>{{ e.month_base | mes_rotulo }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Adicional Noturno</div>
+                        <div>{{ 'Sim' if e.entitled else 'Não' }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Horas/Aula</div>
+                        <div>{{ '%g' | format(e.class_hours) if e.class_hours is not none else '—' }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Minutos Noturnos</div>
+                        <div>{{ e.night_minutes }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Minutos Decimais</div>
+                        <div>{{ '%g' | format(e.decimal_minutes) }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Unidade (UO)</div>
+                        <div>{{ e.uo_code }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Lançado em</div>
+                        <div>{{ e.created_at | horario_local }}</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="small fw-bold text-uppercase text-muted">Responsável pelo Lançamento</div>
+                        <div>{{ e.created_by.full_name if e.created_by else '—' }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                {% if current_user.has_permission('an:edit') %}
+                <a href="{{ url_for('an.editar', registro_id=e.id, **request.args.to_dict()) }}" class="btn btn-primary">
+                    <i class="bi bi-pencil me-1"></i> Editar
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{{ render_pagination(pagination, 'an.registros') }}
+
+{% endblock %}

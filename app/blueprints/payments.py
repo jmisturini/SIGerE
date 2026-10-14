@@ -270,7 +270,25 @@ def list_overtime():
     if filter_teacher:
         query = query.filter_by(teacher_id=filter_teacher)
 
-    pagination = query.order_by(TeacherOvertimePay.created_at.desc()) \
+    # Ordenação escolhida no filtro da página (padrão: lançamento recente)
+    ordem = request.args.get('ordem', 'recentes')
+    if ordem == 'antigas':
+        query = query.order_by(TeacherOvertimePay.created_at)
+    elif ordem == 'professor':
+        query = query.join(User, TeacherOvertimePay.teacher_id == User.id) \
+            .order_by(User.full_name, TeacherOvertimePay.month_base,
+                      TeacherOvertimePay.created_at.desc())
+    elif ordem == 'mes':
+        query = query.order_by(TeacherOvertimePay.month_base,
+                               TeacherOvertimePay.created_at.desc())
+    elif ordem == 'mes_desc':
+        query = query.order_by(TeacherOvertimePay.month_base.desc(),
+                               TeacherOvertimePay.created_at.desc())
+    else:
+        ordem = 'recentes'
+        query = query.order_by(TeacherOvertimePay.created_at.desc())
+
+    pagination = query \
         .paginate(page=request.args.get('page', 1, type=int),
                   per_page=PAYS_PER_PAGE, error_out=False)
     list_teachers = _teachers_for_current_unity()
@@ -287,6 +305,7 @@ def list_overtime():
     return render_template('payments/list_overtime.html', infos=pagination.items, pagination=pagination,
                            list_teachers=list_teachers, month_options=_month_options(),
                            filter_month=filter_month, filter_teacher=filter_teacher,
+                           ordem=ordem,
                            filter_month_label=_rotulo_mes(filter_month),
                            meses_fechados=_meses_fechados(current_unity_id()),
                            fechamento=fechamento,
@@ -577,8 +596,26 @@ def _render_meal_allowance(form, teacher_filter=None, month_filter=None):
         query = query.filter_by(teacher_id=teacher_filter)
     if month_filter:
         query = query.filter_by(month_base=month_filter)
-    pagination = query.order_by(TeacherMealAllowance.created_at.desc(),
-                                TeacherMealAllowance.id.desc()) \
+    # Ordenação escolhida no filtro da página (padrão: lançamento recente)
+    ordem = request.args.get('ordem', 'recentes')
+    if ordem == 'antigas':
+        query = query.order_by(TeacherMealAllowance.created_at,
+                               TeacherMealAllowance.id)
+    elif ordem == 'professor':
+        query = query.join(User, TeacherMealAllowance.teacher_id == User.id) \
+            .order_by(User.full_name, TeacherMealAllowance.month_base,
+                      TeacherMealAllowance.created_at.desc())
+    elif ordem == 'mes':
+        query = query.order_by(TeacherMealAllowance.month_base,
+                               TeacherMealAllowance.created_at.desc())
+    elif ordem == 'mes_desc':
+        query = query.order_by(TeacherMealAllowance.month_base.desc(),
+                               TeacherMealAllowance.created_at.desc())
+    else:
+        ordem = 'recentes'
+        query = query.order_by(TeacherMealAllowance.created_at.desc(),
+                               TeacherMealAllowance.id.desc())
+    pagination = query \
         .paginate(page=request.args.get('page', 1, type=int),
                   per_page=PAYS_PER_PAGE, error_out=False)
     # Total da unidade (sem filtro): alimenta a confirmação do "Limpar Tudo".
@@ -589,6 +626,7 @@ def _render_meal_allowance(form, teacher_filter=None, month_filter=None):
                            list_teachers=_teachers_for_current_unity(),
                            filter_teacher=teacher_filter,
                            filter_month=month_filter,
+                           ordem=ordem,
                            total_entries=total_entries,
                            meses_opcoes=_meses_opcoes(current_unity_id()),
                            meses_agendamentos=_meses_agendamentos(current_unity_id()),

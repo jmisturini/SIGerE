@@ -282,11 +282,26 @@ def create():
 @require_permission('reservation:read_own')
 def my_reservations():
     status = request.args.get('status', 'all')
+    # Ordenação escolhida na página (padrão: mais recentes primeiro)
+    ordem = request.args.get('ordem', 'data_desc')
+    if ordem not in ('data_desc', 'data_asc', 'sala', 'titulo'):
+        ordem = 'data_desc'
     query = Reservation.query.filter_by(user_id=current_user.id)
     if status != 'all':
         query = query.filter_by(status=status)
+    query = query.join(Classroom, Reservation.classroom_id == Classroom.id)
+    if ordem == 'data_asc':
+        query = query.order_by(Reservation.date, Reservation.start_time)
+    elif ordem == 'sala':
+        query = query.order_by(Classroom.name, Reservation.date,
+                               Reservation.start_time)
+    elif ordem == 'titulo':
+        query = query.order_by(Reservation.title, Reservation.date,
+                               Reservation.start_time)
+    else:
+        query = query.order_by(Reservation.date.desc(), Reservation.start_time)
 
-    pagination = query.order_by(Reservation.date.desc(), Reservation.start_time) \
+    pagination = query \
         .paginate(page=request.args.get('page', 1, type=int),
                   per_page=RESERVATIONS_PER_PAGE, error_out=False)
 
@@ -295,7 +310,8 @@ def my_reservations():
     past_reservations = [r for r in pagination.items if r.date < today]
 
     return render_template('reservations/my_reservations.html', pagination=pagination,
-                           upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status)
+                           upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status,
+                           ordem=ordem)
 
 # Admin route to view all reservations
 # Períodos do dia com os mesmos limites do filtro do calendário (schedule.events)

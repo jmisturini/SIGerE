@@ -18,32 +18,70 @@
         } %}
 
         {% for rel in releases %}
+        {# Cada release abre e fecha (Collapse do Bootstrap); a versão em
+           execução nasce aberta, o histórico nasce recolhido. #}
         <div class="card mb-4 {% if rel.versao == versao_atual %}border-primary shadow-sm{% endif %}">
-            <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h5 class="mb-0 d-flex align-items-center gap-2">
-                    <span class="badge {% if rel.versao == versao_atual %}text-bg-primary{% else %}text-bg-secondary{% endif %}">v{{ rel.versao }}</span>
-                    {{ rel.titulo }}
-                    {% if rel.versao == versao_atual %}
-                    <span class="badge text-bg-success-subtle text-success border border-success-subtle">versão atual</span>
-                    {% endif %}
+            <div class="card-header bg-transparent py-3">
+                <h5 class="mb-0">
+                    <button class="botao-changelog w-100 d-flex flex-wrap justify-content-between align-items-center gap-2"
+                            type="button" data-bs-toggle="collapse"
+                            data-bs-target="#release-{{ loop.index }}"
+                            aria-expanded="{{ 'true' if rel.versao == versao_atual else 'false' }}"
+                            aria-controls="release-{{ loop.index }}">
+                        <span class="d-flex align-items-center flex-wrap gap-2">
+                            <span class="badge {% if rel.versao == versao_atual %}text-bg-primary{% else %}text-bg-secondary{% endif %}">v{{ rel.versao }}</span>
+                            <span class="titulo-release">{{ rel.titulo }}</span>
+                            {% if rel.versao == versao_atual %}
+                            <span class="badge text-bg-success-subtle text-success border border-success-subtle">versão atual</span>
+                            {% endif %}
+                        </span>
+                        <span class="small text-muted d-inline-flex align-items-center gap-2 text-nowrap">
+                            {{ rel.data }}
+                            <i class="bi bi-chevron-down icone-toggle small"></i>
+                        </span>
+                    </button>
                 </h5>
-                <span class="small text-muted">{{ rel.data }}</span>
             </div>
-            <div class="card-body">
-                {% for grupo, itens in rel.grupos %}
-                {% set icone, cor = GRUPO_ESTILO.get(grupo, ('bi-tag', 'secondary')) %}
-                <h6 class="text-{{ cor }} fw-bold mb-2">
-                    <i class="bi {{ icone }} me-1"></i> {{ grupo }}
-                </h6>
-                <ul class="mb-3">
-                    {% for item in itens %}
-                    <li class="mb-1">{{ item }}</li>
+            <div id="release-{{ loop.index }}" class="collapse {{ 'show' if rel.versao == versao_atual }}">
+                <div class="card-body">
+                    {% for grupo, itens in rel.grupos %}
+                    {% set icone, cor = GRUPO_ESTILO.get(grupo, ('bi-tag', 'secondary')) %}
+                    <h6 class="text-{{ cor }} fw-bold mb-2">
+                        <i class="bi {{ icone }} me-1"></i> {{ grupo }}
+                    </h6>
+                    <ul class="mb-3">
+                        {% for item in itens %}
+                        <li class="mb-1">{{ item }}</li>
+                        {% endfor %}
+                    </ul>
                     {% endfor %}
-                </ul>
-                {% endfor %}
+                </div>
             </div>
         </div>
         {% endfor %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    /* Cabeçalho de cada release é o botão de abrir/fechar: sem cara de botão,
+       seta que gira quando o item está aberto e título realçado no hover. */
+    .botao-changelog {
+        background: none;
+        border: 0;
+        padding: 0;
+        color: inherit;
+        text-align: left;
+    }
+    .botao-changelog:hover .titulo-release {
+        color: var(--bs-primary);
+    }
+    .botao-changelog .icone-toggle {
+        transition: transform 0.2s ease;
+    }
+    .botao-changelog[aria-expanded="true"] .icone-toggle {
+        transform: rotate(180deg);
+    }
+</style>
 {% endblock %}

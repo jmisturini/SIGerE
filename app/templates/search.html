@@ -14,14 +14,28 @@
                 <form method="GET" class="row g-3 align-items-end">
                     <div class="col-md-3">
                         <label class="form-label small fw-bold">Tipo de Busca</label>
-                        <select name="type" class="form-select" id="searchType" onchange="togglePlaceholder()">
+                        <select name="type" class="form-select" id="searchType" onchange="togglePlaceholder(); toggleOrdem()">
                             <option value="classroom" {{ 'selected' if search_type == 'classroom' }}>Sala</option>
                             <option value="teacher" {{ 'selected' if search_type == 'teacher' }}>Professor</option>
                         </select>
                     </div>
-                    <div class="col-md-7">
+                    <div class="col-md-5">
                         <label class="form-label small fw-bold">Consulta</label>
                         <input type="text" name="q" id="searchInput" class="form-control" value="{{ query }}" placeholder="Digite o nome ou código...">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">Ordenar por</label>
+                        <select name="ordem" id="searchOrdem" class="form-select">
+                            <option value="codigo" class="opt-classroom" {{ 'selected' if ordem == 'codigo' }}>Código</option>
+                            <option value="nome" class="opt-classroom" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
+                            <option value="nome_desc" class="opt-classroom" {{ 'selected' if ordem == 'nome_desc' }}>Nome (Z–A)</option>
+                            <option value="capacidade" class="opt-classroom" {{ 'selected' if ordem == 'capacidade' }}>Capacidade (maior)</option>
+                            <option value="predio" class="opt-classroom" {{ 'selected' if ordem == 'predio' }}>Prédio, depois andar</option>
+                            <option value="professor_nome" class="opt-teacher" {{ 'selected' if ordem == 'professor_nome' }}>Nome (A–Z)</option>
+                            <option value="professor_nome_desc" class="opt-teacher" {{ 'selected' if ordem == 'professor_nome_desc' }}>Nome (Z–A)</option>
+                            <option value="matricula" class="opt-teacher" {{ 'selected' if ordem == 'matricula' }}>Matrícula</option>
+                            <option value="departamento" class="opt-teacher" {{ 'selected' if ordem == 'departamento' }}>Departamento</option>
+                        </select>
                     </div>
                     <div class="col-md-2 d-grid">
                         <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Buscar</button>
@@ -131,6 +145,20 @@
         const input = document.getElementById('searchInput');
         input.placeholder = type === 'classroom' ? "Digite o código ou nome da sala..." : "Digite o nome do professor...";
     }
+    // Mostra apenas as opções de ordenação do tipo de busca selecionado.
+    function toggleOrdem() {
+        const type = document.getElementById('searchType').value;
+        const sel = document.getElementById('searchOrdem');
+        let primeiraVisivel = null;
+        sel.querySelectorAll('option').forEach(function (opt) {
+            opt.hidden = !opt.classList.contains('opt-' + type);
+            if (!opt.hidden && !primeiraVisivel) primeiraVisivel = opt;
+        });
+        if (primeiraVisivel && sel.selectedOptions[0] && sel.selectedOptions[0].hidden) {
+            sel.value = primeiraVisivel.value;
+        }
+    }
     togglePlaceholder();
+    toggleOrdem();
 </script>
 {% endblock %}

@@ -155,6 +155,7 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - Filtros combináveis por data, sala, professor, curso, disciplina e período (manhã/tarde/noite)
 - Resultados em cartões agrupados por data e andar (térreo → andares superiores)
 - Cada cartão leva ao detalhe da reserva, com a cor da categoria da sala
+- **Exportar PDF:** baixa as aulas do período com os filtros atuais na identidade visual dos relatórios — indicadores em cartões, tabela agrupada por dia e aulas já ocorridas em cinza riscado; visível para quem tem `system:export`
 - API JSON (`/calendar/api/events`) com intervalo de datas obrigatório e filtros combináveis
 - Adaptação automática ao tema claro/escuro
 
@@ -189,6 +190,14 @@ Módulo no bloco **RH** do menu lateral (o Financeiro concentra apenas a Hora Ex
 - **Planilha de pagamento:** exportação Excel por grupo — Todos os grupos, Técnico-Administrativo ou Professores — preenchendo o modelo `planilha_base_vt.xlsx` (Matrícula, Nome e Valor Total a partir da linha 5, máximo de 72 linhas por arquivo); inclui apenas Optante "Sim" com passes maior que zero; a coluna UO e a tabela de códigos de unidades do modelo são preservadas intactas
 - **Relatório (`/vt/relatorio`):** indicadores do período (pedidos recebidos, adesão dos optantes, vales necessários, investimento estimado), gráficos (deseja VT, optantes por vínculo, trajetos, investimento por empresa), resumo por empresa de ônibus e conferência do RH (e-mails e matrículas repetidas), com versão para imprimir/PDF
 - **Administração:** cadastro de **Empresas de Ônibus** com tarifas (pares identificação + valor, ex.: "Patamar 3" + `7,24`) e **Configurações do Pedido VT** (números base de vales por trajeto e data de fechamento) — ambos no Painel Admin e usados pelo formulário público
+
+### 🌙 RH — Adicional Noturno (`/adicional-noturno`)
+Adaptação web do gerador local "Gerador-Ad-Noturno-SENAC-FL": o formulário replica as colunas da planilha **"Adicional Noturno Professores"** (Matrícula, Professor, Adicional Noturno Sim/Não, Horas/Aula, Minutos e Unidade) e a exportação preenche a planilha de pagamento no modelo `planilha_base_an.xlsx` ("TABELA PARA PAGAMENTO ADICIONAL NOTURNO PROFESSOR"):
+- **Lançamentos (`/adicional-noturno`):** formulário e listagem na mesma página, com mês de referência (cada lançamento fica no mês escolhido e o filtro mostra um mês por vez), referência dos códigos UO das unidades do Senac SC e correção individual (editar/excluir, `an:edit` / `an:delete`)
+- **Importação da planilha:** upload do arquivo `.xlsx` no modelo "Adicional Noturno Professores" — as colunas são localizadas pelo cabeçalho da primeira linha (Matrícula, Professor, Adicional Noturno, Horas/Aula, Minutos e Unidade) e cada linha com matrícula e professor vira um lançamento no mês selecionado; quem já possui lançamento no mês é mantido, então reimportar não duplica
+- **Minutos decimais:** o sistema reproduz a conversão da planilha de origem — os minutos noturnos viram h/m (hora×100+minuto) e voltam a minutos na base decimal ((h×100+m)×60/100; 2h40 → 144, 0h40 → 24), valor que alimenta a coluna "minutos decimal" do modelo
+- **Planilha de pagamento:** exportação Excel preenchendo o modelo a partir da linha 5 (Matrícula, Nome, H/A, Minutos Decimais e UO Lotação, máximo de 96 linhas por arquivo), com os critérios do gerador original — apenas adicional "Sim" com minutos maiores que zero, ordenado pelo código da unidade; as demais colunas seguem com as fórmulas do modelo (dias, total h/m e valor do adicional)
+- **Permissões:** `an:read`, `an:create`, `an:edit`, `an:delete`, `an:export`
 
 ### 🍳 Cozinha (`/kitchen`)
 - **Ficha Técnica:** envio de múltiplos arquivos `.docx` de fichas técnicas operacionais de uma vez; o sistema lê o conteúdo do modelo em tabelas (nome da preparação, equipamentos, utensílios, tempo de preparo, rendimento, tabela única de insumos com especificações/quantidade/unidade, modo de preparo e notas técnicas — observações, alergênicos e referências) e um botão **Salvar Ficha Técnica** gera a preparação; também é possível **criar a ficha manualmente** pelo botão "Criar Ficha Técnica", no mesmo modelo
@@ -599,6 +608,7 @@ Administradores com permissão `unity:switch` (ou `*`) veem o **seletor de unida
 
 - **Salas:** `/classrooms/export_pdf` (PDF)
 - **Disponibilidade mensal:** `/classrooms/<id>/export_availability` (PDF)
+- **Aulas do calendário:** `/calendar/export_pdf` (PDF, com os filtros da tela: datas, período, sala, professor, curso e disciplina)
 - **Horas extras:** `/payments/export/overtime` (Excel)
 - **Vale Transporte:** `/vt/pedidos/exportar-pagamento?group=tecnico|professores` (Excel, modelo `planilha_base_vt.xlsx`; sem `group`, exporta todos os grupos)
 - **Requisição de compra:** `/kitchen/compras/export` (Excel, via seleção de preparações)
@@ -640,12 +650,13 @@ SIGerE/
     │   ├── admin.py           # Painel admin (usuários, salas, categorias, cursos, feriados, papéis, unidades)
     │   ├── classrooms.py      # Salas: listagem, detalhes, disponibilidade e exportação
     │   ├── reservations.py    # Reservas: CRUD, aprovações, repetição, séries e conflitos
-    │   ├── schedule.py        # Calendário de reservas + API JSON de eventos
+    │   ├── schedule.py        # Calendário de reservas, API JSON de eventos e exportação em PDF
     │   ├── totem.py           # Display de quiosque para TVs
     │   ├── public.py          # Portal público (home, cronograma, busca de aula, busca geral)
     │   ├── api.py             # API REST de leitura de reservas para apps externos (/api/v1)
     │   ├── payments.py        # Pagamentos docentes (hora extra)
     │   ├── vt.py              # Vale Transporte: upload, parser, edição e exportação
+    │   ├── an.py              # Adicional Noturno: lançamentos e planilha de pagamento
     │   └── kitchen/           # Módulo Cozinha
     │       ├── __init__.py    # Rotas: fichas técnicas, preparações e compras
     │       ├── parser.py      # Parser das Fichas Técnicas (.docx)
@@ -653,7 +664,7 @@ SIGerE/
     │
     ├── static/
     │   ├── css/style.css      # Estilos globais e variáveis de tema
-    │   └── templates_excel/   # Modelos .xlsx (hora extra, requisição de compra)
+    │   └── templates_excel/   # Modelos .xlsx (hora extra, adicional noturno, VT, requisição de compra)
     │
     └── templates/
         ├── base.html          # Layout principal, navbar, toggle de tema, seletor de unidade
@@ -672,6 +683,7 @@ SIGerE/
         ├── reservations/      # Criar, editar, detalhes, minhas reservas, repetição, séries
         ├── payments/          # Formulário e listagem de horas extras
         ├── vt/                # Vale Transporte: importação, colaboradores e edição
+        ├── an/                # Adicional Noturno: lançamentos e edição
         ├── kitchen/           # Fichas técnicas, preparações e compras
         └── errors/            # Páginas 403, 404, 500
 ```
@@ -824,7 +836,7 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 |-------|-----------|
 | **Super Administrador** | Acesso irrestrito a todas as funcionalidades (`*`) |
 | **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis, cozinha, tokens da API e consulta dos pedidos de VT |
-| **Analista** | Aprovar reservas e criar/editar lançamentos de pagamento extra e do Vale Alimentação |
+| **Analista** | Aprovar reservas e criar/editar lançamentos de pagamento extra, do Vale Alimentação e do Adicional Noturno |
 | **Gestor** | Todas as permissões de cursos, reservas, pagamentos extras e salas, além de exportações |
 | **Professor** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
 | **Assistente/Logística** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
@@ -871,6 +883,8 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `role:read` / `role:create` / `role:edit` / `role:delete` | Visualizar / criar / editar / excluir papéis |
 | `meal:read` / `meal:create` | Acessar o Vale Alimentação - Professores / lançar dias trabalhados |
 | `meal:edit` / `meal:delete` | Editar / excluir lançamentos do Vale Alimentação - Professores |
+| `an:read` / `an:create` | Acessar o Adicional Noturno - Professores / lançar registros |
+| `an:edit` / `an:delete` / `an:export` | Editar / excluir lançamentos / exportar a planilha de pagamento do Adicional Noturno |
 | `*` | Permissão universal (super admin) |
 
 ---
