@@ -612,10 +612,10 @@ class FormAdicionalNoturno(BaseForm):
                            choices=[('Sim', 'Sim'), ('Não', 'Não')],
                            validators=[DataRequired()])
     # Horas/Aula da planilha (ex.: 58,91) — aceita vírgula ou ponto decimal,
-    # como o Valor H/a da Hora Extra.
-    class_hours = StringField('Horas/Aula (ex: 58,91)', validators=[
+    # como o Valor H/a da Hora Extra; o exemplo fica na dica do campo.
+    class_hours = StringField('Horas/Aula', validators=[
         Optional(), Length(max=10)])
-    night_minutes = IntegerField('Adicional Noturno (minutos)', validators=[
+    night_minutes = IntegerField('Minutos Noturnos', validators=[
         InputRequired(message='Informe os minutos noturnos.'),
         NumberRange(min=0, max=1440,
                     message='Os minutos devem estar entre 0 e 1440.')])
