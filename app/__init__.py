@@ -63,6 +63,7 @@ def create_app(config_class=Config):
     from app.blueprints.payments import bp as payments_bp
     from app.blueprints.vt import bp as vt_bp
     from app.blueprints.kitchen import bp as kitchen_bp
+    from app.blueprints.an import bp as an_bp
     from app.blueprints.api import bp as api_bp
     from app.blueprints.notifications import bp as notifications_bp
     from app.blueprints.relatorios import bp as relatorios_bp
@@ -79,6 +80,7 @@ def create_app(config_class=Config):
     app.register_blueprint(payments_bp)
     app.register_blueprint(vt_bp)
     app.register_blueprint(kitchen_bp)
+    app.register_blueprint(an_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(notifications_bp)
 

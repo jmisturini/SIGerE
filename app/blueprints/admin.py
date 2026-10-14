@@ -694,11 +694,13 @@ def import_holidays():
 # ================= ROLE MANAGEMENT =================
 
 # Rótulos amigáveis dos módulos de permissão (agrupamento da tela de papéis).
-# O Financeiro tem dois grupos de permissões separados (Pagamento Extra e
-# Vale-Transporte) para que papéis distintos possam cobrir cada área.
+# O Financeiro tem grupos de permissões separados (Pagamento Extra,
+# Vale-Transporte, Vale Alimentação e Adicional Noturno) para que papéis
+# distintos possam cobrir cada área.
 MODULO_LABELS = {
-    'api': 'API', 'course': 'Cursos', 'course_type': 'Tipos de Curso',
-    'holiday': 'Feriados', 'kitchen': 'Cozinha', 'meal': 'Vale Alimentação',
+    'an': 'Adicional Noturno', 'api': 'API', 'course': 'Cursos',
+    'course_type': 'Tipos de Curso', 'holiday': 'Feriados',
+    'kitchen': 'Cozinha', 'meal': 'Vale Alimentação',
     'notification': 'Notificações', 'payment': 'Pagamento Extra',
     'reservation': 'Reservas', 'role': 'Papéis', 'room': 'Salas',
     'system': 'Sistema', 'unity': 'Unidades', 'user': 'Usuários',
@@ -708,8 +710,10 @@ MODULO_LABELS = {
 # Módulos de permissão que dependem de um módulo ligável por unidade:
 # mapeiam o módulo da permissão para o código do módulo na Unity. Grupos
 # fora deste mapa não dependem de módulo (o aviso contextual nunca aparece).
-# Pagamento Extra e Vale-Transporte são áreas do módulo Financeiro.
+# Pagamento Extra, Vale-Transporte e Adicional Noturno são áreas do módulo
+# Financeiro.
 MODULO_PERMISSAO_PARA_MODULO_UNIDADE = {
+    'an': Unity.MODULE_FINANCE,
     'kitchen': Unity.MODULE_KITCHEN,
     'payment': Unity.MODULE_FINANCE,
     'vt': Unity.MODULE_FINANCE,

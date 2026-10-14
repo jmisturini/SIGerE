@@ -3,7 +3,7 @@
 > 🤖 **Documento gerado** por `docs/gerar_permissoes.py` a partir de
 > `PERMISSION_DATA` e `ROLES_CONFIG` (`app/commands.py`) — não editar à mão.
 > Após alterar o catálogo ou os papéis padrão, regenere com
-> `python docs/gerar_permissoes.py`. Última geração: 2026-10-06.
+> `python docs/gerar_permissoes.py`. Última geração: 2026-10-13.
 
 ## Como funciona
 
@@ -26,8 +26,8 @@ O SIGerE usa **RBAC** com permissões granulares:
 
 - **Super Administrador** (`super_admin`, padrão do sistema) — 1 permissão
 - **Administrador** (`admin`, padrão do sistema) — 47 permissões
-- **Analista** (`coordinator`, padrão editável) — 13 permissões
-- **Gestor** (`room_manager`, padrão editável) — 31 permissões
+- **Analista** (`coordinator`, padrão editável) — 16 permissões
+- **Gestor** (`room_manager`, padrão editável) — 36 permissões
 - **Professor** (`teacher`, padrão editável) — 6 permissões
 - **Assistente** (`employee`, padrão editável) — 6 permissões
 - **Módulo Cozinha** (`kitchen`, papel adicional (add-on)) — 3 permissões
@@ -37,11 +37,17 @@ qualquer combinação das permissões abaixo.
 
 ## Matriz papel × permissão
 
-65 permissões no catálogo. ✓ = o papel possui a permissão (o
+70 permissões no catálogo. ✓ = o papel possui a permissão (o
 Super Administrador tem tudo via `*`).
 
 | Permissão | Descrição | `super_admin` | `admin` | `coordinator` | `room_manager` | `teacher` | `employee` | `kitchen` |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| **Adicional Noturno** (`an`) | |  |  |  |  |  |  |  |
+| `an:create` | Lançar registros no Adicional Noturno - Professores | ✓ |  | ✓ | ✓ |  |  |  |
+| `an:delete` | Excluir lançamentos do Adicional Noturno - Professores | ✓ |  |  | ✓ |  |  |  |
+| `an:edit` | Editar lançamentos do Adicional Noturno - Professores | ✓ |  | ✓ | ✓ |  |  |  |
+| `an:export` | Exportar a planilha de pagamento do Adicional Noturno | ✓ |  |  | ✓ |  |  |  |
+| `an:read` | Acessar o Adicional Noturno - Professores (lançamentos e listagem) | ✓ |  | ✓ | ✓ |  |  |  |
 | **API** (`api`) | |  |  |  |  |  |  |  |
 | `api:manage` | Gerenciar tokens de acesso à API de reservas | ✓ | ✓ |  |  |  |  |  |
 | **Cursos** (`course`) | |  |  |  |  |  |  |  |

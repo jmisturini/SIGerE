@@ -71,6 +71,13 @@ PERMISSION_DATA = [
     ('meal:create', 'meal', 'create', 'Lançar dias trabalhados no Vale Alimentação - Professores'),
     ('meal:edit', 'meal', 'edit', 'Editar lançamentos do Vale Alimentação - Professores'),
     ('meal:delete', 'meal', 'delete', 'Excluir lançamentos do Vale Alimentação - Professores'),
+    # Módulo Adicional Noturno - Professores (RH): lançamentos da planilha
+    # "Adicional Noturno Professores" e exportação da planilha de pagamento
+    ('an:read', 'an', 'read', 'Acessar o Adicional Noturno - Professores (lançamentos e listagem)'),
+    ('an:create', 'an', 'create', 'Lançar registros no Adicional Noturno - Professores'),
+    ('an:edit', 'an', 'edit', 'Editar lançamentos do Adicional Noturno - Professores'),
+    ('an:delete', 'an', 'delete', 'Excluir lançamentos do Adicional Noturno - Professores'),
+    ('an:export', 'an', 'export', 'Exportar a planilha de pagamento do Adicional Noturno'),
     # Módulo Vale-Transporte (área do Financeiro com papéis próprios, separada
     # do pagamento extra: um papel pode liberar só uma das duas)
     ('vt:read', 'vt', 'read', 'Acessar o Vale-Transporte (pedidos e relatório)'),
@@ -139,7 +146,8 @@ ROLES_CONFIG = {
             'system:export',
             'room:read',
             'payment:create', 'payment:edit',
-            'meal:read', 'meal:create', 'meal:edit'
+            'meal:read', 'meal:create', 'meal:edit',
+            'an:read', 'an:create', 'an:edit'
         ]
     },
     'room_manager': {
@@ -155,6 +163,7 @@ ROLES_CONFIG = {
             'payment:read', 'payment:create',
             'payment:edit', 'payment:delete', 'payment:export', 'payment:close_month',
             'meal:read', 'meal:create', 'meal:edit', 'meal:delete',
+            'an:read', 'an:create', 'an:edit', 'an:delete', 'an:export',
             'room:read', 'room:create', 'room:edit', 'room:toggle',
             'system:export'
         ]
