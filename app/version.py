@@ -10,12 +10,60 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.32.0'
+APP_VERSION = '1.33.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.33.0',
+        'data': '2026-10-14',
+        'titulo': 'Adicional Noturno de Professores, tabelas ordenáveis e papéis em acordeão',
+        'grupos': [
+            ('Adicionado', [
+                'Módulo "Adicional Noturno" no bloco RH do menu (permissões an:* — Gestor e '
+                'Analista): lançamentos por mês de referência com professor escolhido do '
+                'cadastro (a matrícula preenche sozinha) ou digitado à mão para quem está fora '
+                'do sistema, listagem filtrada um mês por vez com correção individual '
+                '(editar/excluir) e referência dos códigos UO das unidades do Senac SC.',
+                'Importação da planilha "Adicional Noturno Professores" (.xlsx): as colunas são '
+                'localizadas pelo cabeçalho da primeira linha e cada linha com matrícula e '
+                'professor vira um lançamento no mês selecionado — quem já tem lançamento no '
+                'mês é mantido, então reimportar não duplica.',
+                'Exportação da planilha de pagamento: preenche o modelo planilha_base_an.xlsx '
+                '("TABELA PARA PAGAMENTO ADICIONAL NOTURNO PROFESSOR") a partir da linha 5 '
+                '(Matrícula, Nome, H/A, Minutos Decimais e UO Lotação, até 96 linhas por '
+                'arquivo), preservando as fórmulas do modelo e os critérios do gerador original '
+                '— apenas adicional "Sim" com minutos maiores que zero, ordenado pelo código da '
+                'unidade. Os minutos noturnos reproduzem a conversão da planilha de origem para '
+                'a base decimal (2h40 → 144; 0h40 → 24).',
+                'Ordenação em todas as listagens que ainda não tinham: filtro "Ordenar por" na '
+                'Adicional Noturno, Hora Extra, Vale Alimentação, Minhas Reservas, feriados, '
+                'tipos de curso, empresas de ônibus, tokens da API, grupos de notificação, '
+                'busca de aula, relatórios e nas telas da Cozinha — e cabeçalhos de tabela '
+                'clicáveis que alternam ascendente/descendente em todo o sistema, reconhecendo '
+                'datas pt-BR, valores em R$ e %, durações (XhMM) e mandando células vazias '
+                'para o fim; faixas de grupo e linhas fixas não se movem.',
+            ]),
+            ('Alterado', [
+                'Formulário de papéis: a grade de permissões virou acordeão por módulo — cada '
+                'módulo abre e fecha, mostra o contador de permissões selecionadas (x/y), os '
+                'módulos com permissões marcadas nascem abertos, o topo exibe o total geral '
+                'com botão "Limpar todas" e a caixa de permissões ganhou destaque próprio, '
+                'com títulos de módulo maiores.',
+                'Tela de novidades (/changelog): cada release abre e fecha com um clique — a '
+                'versão em execução nasce aberta e o histórico fica recolhido, com seta que '
+                'gira e título realçado ao passar o mouse.',
+                'Manual do usuário e README atualizados: a exportação de aulas do calendário '
+                'em PDF entrou no manual (com a captura do calendário refeita) e o README '
+                'documenta o módulo Adicional Noturno, o botão "Exportar PDF" do calendário e '
+                'o novo blueprint na estrutura do projeto.',
+                'Dependências atualizadas para as últimas versões de patch (boto3 1.43.113, '
+                'Werkzeug 3.1.9, fpdf2 2.8.9, entre outras).',
+            ]),
+        ],
+    },
     {
         'versao': '1.32.0',
         'data': '2026-10-13',
