@@ -10,12 +10,35 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.34.0'
+APP_VERSION = '1.34.1'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.34.1',
+        'data': '2026-10-15',
+        'titulo': 'Fluxo de professor sem herdar o curinga e autorização da série alinhada',
+        'grupos': [
+            ('Corrigido', [
+                'Fluxo de professor (reservation:create_pending) selecionado apenas pela '
+                'permissão explícita: o curinga "*" do super-admin não herda mais o fluxo — '
+                'quem tem acesso a tudo volta a designar qualquer docente da unidade e criar '
+                'reservas aprovadas.',
+                'Formulário de reserva no fluxo de professor: o envio com o campo Professor '
+                'vazio (opção "-- Selecionar Professor --") ou apontando para terceiros é '
+                'rejeitado — antes, a opção vazia passava na validação do campo opcional e '
+                'gravava uma reserva Pendente sem professor; na edição, a designação antiga '
+                'de reservas legadas continua aceita, mas trocá-la só é aceito apontando '
+                'para o próprio professor.',
+                'Página da série de repetição com autorização alinhada ao detalhe (CWE-863): '
+                'o acesso por vínculo — dono ou professor designado — agora exige '
+                'reservation:read_own; antes, ser o professor designado bastava para abrir '
+                'a série mesmo com papel sem permissão de leitura.',
+            ]),
+        ],
+    },
     {
         'versao': '1.34.0',
         'data': '2026-10-15',
