@@ -3,7 +3,6 @@
 import os
 import tempfile
 import unittest
-from datetime import date
 
 from app import create_app
 from app.config import Config

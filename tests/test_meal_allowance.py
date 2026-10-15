@@ -455,8 +455,8 @@ class MealAllowanceTestCase(unittest.TestCase):
         self.assertIn('Professora Souza', html)
         self.assertIn('1 dia<', html)  # singular, sem 's'
         with self.app.app_context():
-            lancamentos = {l.teacher_id: l.days
-                           for l in TeacherMealAllowance.query.all()}
+            lancamentos = {lanc.teacher_id: lanc.days
+                           for lanc in TeacherMealAllowance.query.all()}
             self.assertEqual(lancamentos[self.professor_id], 3)
             self.assertEqual(lancamentos[self.professor2_id], 1)
 
@@ -484,8 +484,8 @@ class MealAllowanceTestCase(unittest.TestCase):
         self._importar(month='2026-09')
         self._importar(month='2026-10')
         with self.app.app_context():
-            por_mes = {l.month_base: l.days
-                       for l in TeacherMealAllowance.query.all()}
+            por_mes = {lanc.month_base: lanc.days
+                       for lanc in TeacherMealAllowance.query.all()}
             self.assertEqual(por_mes, {'2026-09': 1, '2026-10': 1})
 
     def test_importar_sem_agendamentos_no_mes(self):

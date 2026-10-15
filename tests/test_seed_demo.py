@@ -257,7 +257,7 @@ class SeedDemoCommandTestCase(unittest.TestCase):
         self.assertEqual(client.get('/dashboard').status_code, 200)
         self.assertEqual(client.get('/calendar/').status_code, 200)
         eventos = client.get(
-            f'/calendar/api/events?start=2020-01-01&end=2030-12-31')
+            '/calendar/api/events?start=2020-01-01&end=2030-12-31')
         self.assertEqual(eventos.status_code, 200)
         self.assertTrue(eventos.get_json())
 

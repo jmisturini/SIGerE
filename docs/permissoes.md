@@ -3,7 +3,7 @@
 > 🤖 **Documento gerado** por `docs/gerar_permissoes.py` a partir de
 > `PERMISSION_DATA` e `ROLES_CONFIG` (`app/commands.py`) — não editar à mão.
 > Após alterar o catálogo ou os papéis padrão, regenere com
-> `python docs/gerar_permissoes.py`. Última geração: 2026-10-13.
+> `python docs/gerar_permissoes.py`. Última geração: 2026-10-15.
 
 ## Como funciona
 
@@ -28,7 +28,7 @@ O SIGerE usa **RBAC** com permissões granulares:
 - **Administrador** (`admin`, padrão do sistema) — 47 permissões
 - **Analista** (`coordinator`, padrão editável) — 16 permissões
 - **Gestor** (`room_manager`, padrão editável) — 36 permissões
-- **Professor** (`teacher`, padrão editável) — 6 permissões
+- **Professor** (`teacher`, padrão editável) — 7 permissões
 - **Assistente** (`employee`, padrão editável) — 6 permissões
 - **Módulo Cozinha** (`kitchen`, papel adicional (add-on)) — 3 permissões
 
@@ -37,7 +37,7 @@ qualquer combinação das permissões abaixo.
 
 ## Matriz papel × permissão
 
-70 permissões no catálogo. ✓ = o papel possui a permissão (o
+71 permissões no catálogo. ✓ = o papel possui a permissão (o
 Super Administrador tem tudo via `*`).
 
 | Permissão | Descrição | `super_admin` | `admin` | `coordinator` | `room_manager` | `teacher` | `employee` | `kitchen` |
@@ -91,6 +91,7 @@ Super Administrador tem tudo via `*`).
 | `reservation:cancel_all` | Cancelar todas as reservas | ✓ | ✓ |  | ✓ |  |  |  |
 | `reservation:cancel_own` | Cancelar próprias reservas | ✓ |  | ✓ | ✓ | ✓ | ✓ |  |
 | `reservation:create` | Criar reservas | ✓ |  | ✓ | ✓ | ✓ | ✓ |  |
+| `reservation:create_pending` | Reservas criadas por este perfil nascem Pendentes (aguardam aprovação) | ✓ |  |  |  | ✓ |  |  |
 | `reservation:delete_all` | Excluir todas as reservas | ✓ | ✓ |  | ✓ |  |  |  |
 | `reservation:edit_all` | Editar todas as reservas | ✓ | ✓ |  | ✓ |  |  |  |
 | `reservation:read_all` | Ver todas as reservas | ✓ | ✓ |  | ✓ |  |  |  |

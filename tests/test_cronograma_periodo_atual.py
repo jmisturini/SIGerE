@@ -14,7 +14,7 @@ from app import create_app
 from app.blueprints.public import _periodo_atual
 from app.config import Config
 from app.extensions import db
-from app.models import (Classroom, Permission, Reservation, Role, RoomCategory,
+from app.models import (Classroom, Reservation, RoomCategory,
                         Unity, User)
 
 ROTULOS = {'manha': 'Manhã', 'tarde': 'Tarde', 'noite': 'Noite'}

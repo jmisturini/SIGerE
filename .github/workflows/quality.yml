@@ -1,0 +1,27 @@
+name: Qualidade
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  qualidade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Instala ferramentas
+        run: pip install ruff bandit pip-audit
+
+      - name: Lint e erros de código (ruff)
+        run: ruff check app tests
+
+      - name: Segurança no código (bandit)
+        run: bandit -r app -ll
+
+      - name: Vulnerabilidades nas dependências (pip-audit)
+        run: pip-audit -r requirements.txt

@@ -44,6 +44,11 @@ PERMISSION_DATA = [
     ('reservation:cancel_own', 'reservation', 'cancel_own', 'Cancelar próprias reservas'),
     ('reservation:cancel_all', 'reservation', 'cancel_all', 'Cancelar todas as reservas'),
     ('reservation:approve', 'reservation', 'approve', 'Aprovar reservas pendentes'),
+    # Fluxo de aprovação de professor: quem tem esta permissão cria reservas
+    # que nascem PENDENTES (aguardam aprovação) mesmo sem conflito — concedida
+    # por padrão ao papel Professor (ver ROLES_CONFIG).
+    ('reservation:create_pending', 'reservation', 'create_pending',
+     'Reservas criadas por este perfil nascem Pendentes (aguardam aprovação)'),
     ('course:read', 'course', 'read', 'Visualizar cursos/disciplinas'),
     ('course:create', 'course', 'create', 'Criar cursos/disciplinas'),
     ('course:edit', 'course', 'edit', 'Editar cursos/disciplinas'),
@@ -173,7 +178,8 @@ ROLES_CONFIG = {
         'is_system': False,
         'permissions': [
             'course:read',
-            'reservation:create', 'reservation:cancel_own',
+            'reservation:create', 'reservation:create_pending',
+            'reservation:cancel_own',
             'reservation:read_own',
             'system:export',
             'room:read'
@@ -552,7 +558,6 @@ def _seed_demo_data():
         unities.append(unity)
     db.session.flush()
     main_unity = unities[0]  # dados acadêmicos/estoque demonstrados na unidade principal
-    unity_ids = [u.id for u in unities]
     click.echo(f"   ✅ {len(unities)} unidades educacionais criadas.")
 
     # 1. 100 Usuários
