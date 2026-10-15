@@ -577,7 +577,7 @@ venv/bin/flask --app run sync-permissions
 3. Clique em **Reservar** ou acesse **Minhas Reservas → Nova Reserva**
 4. Preencha sala, data, horário, curso, disciplina e professor
 5. O sistema verifica conflitos e o perfil de quem cria automaticamente:
-   - ✅ Sem conflitos → reserva **aprovada**
+   - ✅ Sem conflitos e sem `reservation:create_pending` → reserva **aprovada**
    - ⚠️ Professor ocupado ou criador com `reservation:create_pending` (papel Professor) → reserva **pendente** (requer aprovação)
    - ❌ Sala ocupada → **bloqueado**
 
