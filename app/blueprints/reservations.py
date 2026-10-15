@@ -33,6 +33,25 @@ def _teachers_for_current_unity():
         User.escopo_unidade(uid)
     ).order_by(User.full_name).all()
 
+def _teachers_para_formulario(reservation=None):
+    """Opções de docente do formulário de reserva: no fluxo de professor
+    (reservation:create_pending) o usuário designa apenas a si mesmo — a
+    lista completa da unidade vale para gestores e demais perfis. Na edição,
+    o docente atual da reserva permanece na lista para reservas antigas
+    designadas a terceiros não perderem a designação ao regravar."""
+    teachers = _teachers_for_current_unity()
+    if not current_user.has_permission('reservation:create_pending'):
+        return teachers
+    permitidos = {current_user.id}
+    if reservation is not None and reservation.teacher_id:
+        permitidos.add(reservation.teacher_id)
+    filtrados = [t for t in teachers if t.id in permitidos]
+    if current_user.id not in {t.id for t in filtrados}:
+        # Conta com fluxo de professor fora do escopo da listagem: o próprio
+        # criador segue disponível para registrar a reserva.
+        filtrados.append(current_user)
+    return filtrados
+
 def _load_range_occupancy(classroom_id, teacher_id, start_date, end_date,
                           unity_id, start_time, end_time):
     """Pré-carrega a ocupação de um intervalo em 3 consultas (sala, docente,
@@ -182,7 +201,7 @@ def create():
     form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in _courses_for_current_unity()]
     form.subject.choices = _subject_choices()
 
-    teachers = _teachers_for_current_unity()
+    teachers = _teachers_para_formulario()
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
 
     _preparar_campos_notificacao(form)
@@ -190,6 +209,10 @@ def create():
     preselect = request.args.get('classroom_id', type=int)
     if request.method == 'GET' and preselect:
         form.classroom.data = preselect
+
+    # Fluxo de professor: o criador já entra designado a si mesmo
+    if request.method == 'GET' and current_user.has_permission('reservation:create_pending'):
+        form.teacher.data = current_user.id
 
     if form.validate_on_submit():
         if form.date.data < date.today():
@@ -471,7 +494,7 @@ def edit(reservation_id):
     form.classroom.choices = [(c.id, f"{c.name} ({c.code}) - Cap {c.capacity}") for c in classrooms]
     form.course.choices = [(0, '-- Nenhum --')] + [(c.id, c.name) for c in _courses_for_current_unity()]
     form.subject.choices = _subject_choices()
-    teachers = _teachers_for_current_unity()
+    teachers = _teachers_para_formulario(reservation)
     form.teacher.choices = [(0, '-- Selecionar Professor --')] + [(t.id, f"{t.full_name} ({t.department or t.sector or 'N/A'})") for t in teachers]
 
     _preparar_campos_notificacao(form)
