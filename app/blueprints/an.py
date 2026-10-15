@@ -21,6 +21,10 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from xml.etree import ElementTree as ET
 
+# Parser blindado contra ataques de XML (entidades/expansão): o xlsx vem de
+# upload de usuário. Construção e serialização seguem no ET padrão.
+from defusedxml.ElementTree import fromstring as fromstring_seguro
+
 from flask import (Blueprint, abort, current_app, flash, redirect,
                    render_template, request, send_file, url_for)
 from openpyxl import load_workbook
@@ -299,8 +303,8 @@ def _preencher_cache_formulas(conteudo):
     with zipfile.ZipFile(io.BytesIO(conteudo)) as arquivo:
         entradas = {nome: arquivo.read(nome) for nome in arquivo.namelist()}
 
-    pasta = ET.fromstring(entradas['xl/workbook.xml'])
-    relacoes = ET.fromstring(entradas['xl/_rels/workbook.xml.rels'])
+    pasta = fromstring_seguro(entradas['xl/workbook.xml'])
+    relacoes = fromstring_seguro(entradas['xl/_rels/workbook.xml.rels'])
     alvo_por_rid = {rel.get('Id'): rel.get('Target')
                     for rel in relacoes.iter(f'{{{_REL_PKG}}}Relationship')}
     caminho = {}
@@ -310,7 +314,7 @@ def _preencher_cache_formulas(conteudo):
                                     else 'xl/' + alvo)
 
     ET.register_namespace('', _SSML)
-    dados = ET.fromstring(entradas[caminho[AN_SOURCE_SHEET]])
+    dados = fromstring_seguro(entradas[caminho[AN_SOURCE_SHEET]])
     celulas = {c.get('r'): c for c in dados.iter(f'{{{_SSML}}}c')}
     g2 = _numero_estatico(celulas, 'G2')
 
@@ -332,7 +336,7 @@ def _preencher_cache_formulas(conteudo):
             _escrever_cache(celulas.get(ref), valor)
 
     # Aba oculta: repõe o cache das referências às linhas da planilha.
-    oculta = ET.fromstring(entradas[caminho[AN_HIDDEN_SHEET]])
+    oculta = fromstring_seguro(entradas[caminho[AN_HIDDEN_SHEET]])
     celulas_ocultas = {c.get('r'): c for c in oculta.iter(f'{{{_SSML}}}c')}
     for linha in range(1, EXPORT_MAX_ROWS + 1):
         linha_dados = EXPORT_FIRST_ROW + linha - 1

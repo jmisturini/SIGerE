@@ -31,7 +31,6 @@ Decisões de mapeamento documentadas (ver docs/migracao-legado.md):
 import re
 from datetime import date, datetime, time, timezone
 
-import click
 from sqlalchemy import select
 
 from app.extensions import db

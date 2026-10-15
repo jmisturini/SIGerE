@@ -715,7 +715,7 @@ class TestPreferenciasNoPerfil(NotificationsTestCase):
 
 class TestCentroNotificacoes(NotificationsTestCase):
     def test_listagem_mostra_notificacao(self):
-        notificacao_id = self._notificar(self.ids['criador'])
+        self._notificar(self.ids['criador'])
         self._login('criador@escola.edu')
         resposta = self.client.get('/notificacoes/')
         self.assertEqual(resposta.status_code, 200)

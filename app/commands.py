@@ -558,7 +558,6 @@ def _seed_demo_data():
         unities.append(unity)
     db.session.flush()
     main_unity = unities[0]  # dados acadêmicos/estoque demonstrados na unidade principal
-    unity_ids = [u.id for u in unities]
     click.echo(f"   ✅ {len(unities)} unidades educacionais criadas.")
 
     # 1. 100 Usuários
