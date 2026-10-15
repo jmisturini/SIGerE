@@ -40,7 +40,10 @@ def _teachers_para_formulario(reservation=None):
     o docente atual da reserva permanece na lista para reservas antigas
     designadas a terceiros não perderem a designação ao regravar."""
     teachers = _teachers_for_current_unity()
-    if not current_user.has_permission('reservation:create_pending'):
+    # Permissão explícita: o curinga '*' do super-admin não seleciona o fluxo
+    # de professor — quem tem acesso a tudo continua designando qualquer
+    # docente da unidade.
+    if not current_user.has_explicit_permission('reservation:create_pending'):
         return teachers
     permitidos = {current_user.id}
     if reservation is not None and reservation.teacher_id:
@@ -211,10 +214,18 @@ def create():
         form.classroom.data = preselect
 
     # Fluxo de professor: o criador já entra designado a si mesmo
-    if request.method == 'GET' and current_user.has_permission('reservation:create_pending'):
+    if request.method == 'GET' and current_user.has_explicit_permission('reservation:create_pending'):
         form.teacher.data = current_user.id
 
     if form.validate_on_submit():
+        # Fluxo de professor (POST): a designação é sempre o próprio criador —
+        # rejeita a opção vazia (0) e o envio forjado apontando para terceiros.
+        if (current_user.has_explicit_permission('reservation:create_pending')
+                and form.teacher.data != current_user.id):
+            flash('No fluxo de professor, a reserva nasce designada a você: '
+                  'selecione o próprio nome no campo Professor.', 'danger')
+            return render_template('reservations/create.html', form=form, classrooms=classrooms)
+
         if form.date.data < date.today():
             flash('Não é possível reservar uma data no passado.', 'danger')
             return render_template('reservations/create.html', form=form, classrooms=classrooms)
@@ -255,8 +266,9 @@ def create():
 
             # Fluxo de aprovação de professor: quem tem reservation:create_pending
             # (papel Professor) cria reservas que nascem PENDENTES mesmo sem
-            # conflito — aguardam avaliação de quem aprova.
-            criador_pendente = current_user.has_permission('reservation:create_pending')
+            # conflito — aguardam avaliação de quem aprova. Permissão explícita:
+            # o curinga '*' do super-admin não seleciona o fluxo.
+            criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
             status = 'pending' if (criador_pendente or is_teacher_conflict
                                    or excede_limite_diario) else 'approved'
 
@@ -521,6 +533,17 @@ def edit(reservation_id):
             form.notify_users.data = [u.id for u in config.users]
 
     if form.validate_on_submit():
+        # Fluxo de professor: mantém a designação antiga (reservas legadas de
+        # terceiros continuam na lista), mas qualquer troca de docente só pode
+        # apontar para o próprio criador.
+        if current_user.has_explicit_permission('reservation:create_pending'):
+            novo_professor = form.teacher.data if form.teacher.data > 0 else None
+            if novo_professor != reservation.teacher_id \
+                    and novo_professor != current_user.id:
+                flash('No fluxo de professor, a designação só pode apontar '
+                      'para você mesmo.', 'danger')
+                return render_template('reservations/edit.html', form=form, reservation=reservation)
+
         classroom_id = form.classroom.data
         # Multi-unidade: a sala precisa pertencer à unidade ativa
         classroom = db.session.get(Classroom, classroom_id)
@@ -786,8 +809,9 @@ def repeat_schedule(reservation_id):
         # Série de repetição: origem e geradas compartilham o mesmo grupo.
         # Carga docente: se a repetição leva o professor além do limite
         # diário, nasce PENDENTE (e notifica) em vez de aprovada. Criador com
-        # reservation:create_pending (professor): nasce PENDENTE sempre.
-        criador_pendente = current_user.has_permission('reservation:create_pending')
+        # reservation:create_pending (professor): nasce PENDENTE sempre —
+        # permissão explícita, sem expandir o curinga '*'.
+        criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
         if res.repeat_group_id is None:
             res.repeat_group_id = res.id
         excede_limite_diario = res.teacher_id is not None and teacher_exceeds_daily_limit(
@@ -857,8 +881,9 @@ def repeat_schedule_all(reservation_id):
         d += timedelta(days=1)
 
     # Criador com reservation:create_pending (papel Professor): todas as
-    # reservas do lote nascem PENDENTES, independente de carga docente.
-    criador_pendente = current_user.has_permission('reservation:create_pending')
+    # reservas do lote nascem PENDENTES, independente de carga docente —
+    # permissão explícita, sem expandir o curinga '*'.
+    criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
 
     with slot_locks(res.classroom_id, range_dates):
         while current_date <= end_date:
@@ -948,9 +973,14 @@ def _series_count(res):
 
 
 def _check_series_view_access(res):
-    """Ver a série: dono da reserva, professor designado ou quem lê todas."""
-    if res.user_id != current_user.id and res.teacher_id != current_user.id \
-            and not current_user.has_permission('reservation:read_all'):
+    """Ver a série: dono da reserva, professor designado ou quem lê todas.
+    O acesso por vínculo exige reservation:read_own, como no detalhe — um
+    vinculado com papel sem leitura não abre a página da série."""
+    if current_user.has_permission('reservation:read_all'):
+        return
+    vinculado = (res.user_id == current_user.id
+                 or res.teacher_id == current_user.id)
+    if not (vinculado and current_user.has_permission('reservation:read_own')):
         abort(403)
 
 

@@ -133,6 +133,15 @@ class TeacherPendingCreationTestCase(unittest.TestCase):
             d += timedelta(days=1)
         return d
 
+    def _dia_posterior(self, dia):
+        """Dia seguinte a `dia`, também sem domingo — calculado a partir de
+        `dia` (e não de hoje) para nunca coincidir com ele: rodando num
+        sábado, hoje+1 e hoje+2 caem na mesma segunda-feira."""
+        d = dia + timedelta(days=1)
+        while d.weekday() == 6:
+            d += timedelta(days=1)
+        return d
+
     def _payload(self, dia, start, end):
         return {
             'classroom': str(self.room_id),
@@ -174,7 +183,8 @@ class TeacherPendingCreationTestCase(unittest.TestCase):
         self.assertIn('agendada com sucesso', pagina)
 
     def test_professor_repeticao_unica_nasce_pendente(self):
-        dia1, dia2 = self._dia_futuro(1), self._dia_futuro(2)
+        dia1 = self._dia_futuro()
+        dia2 = self._dia_posterior(dia1)
         self.client.post('/reservations/create',
                          data=self._payload(dia1, '09:00', '10:00'),
                          follow_redirects=True)
@@ -191,7 +201,8 @@ class TeacherPendingCreationTestCase(unittest.TestCase):
         self.assertEqual(self._status_reserva(dia2, '09:00'), 'pending')
 
     def test_professor_repeticao_em_lote_nasce_pendente(self):
-        dia1, dia2 = self._dia_futuro(1), self._dia_futuro(2)
+        dia1 = self._dia_futuro()
+        dia2 = self._dia_posterior(dia1)
         self.client.post('/reservations/create',
                          data=self._payload(dia1, '09:00', '10:00'),
                          follow_redirects=True)
