@@ -27,7 +27,7 @@ git push -u origin feature/minha-funcao
 # o push imprime o link para abrir o Pull Request para dev
 ```
 
-A CI (workflow **Testes**) roda o `pytest` em todo PR e em todo push para `main`/`dev`.
+A CI roda em todo PR e em todo push para `main`/`dev`: o workflow **Testes** executa o `pytest` e o workflow **Qualidade** passa ruff (lint), bandit (segurança no código) e pip-audit (CVEs das dependências).
 
 ## Release
 
