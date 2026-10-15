@@ -6,7 +6,7 @@
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
         <h3 class="fw-bold mb-1">Minhas Reservas</h3>
-        <p class="text-muted mb-0">Acompanhe o status das suas solicitações de salas.</p>
+        <p class="text-muted mb-0">Acompanhe o status das suas solicitações de salas e das reservas em que você é o professor designado.</p>
     </div>
     {% if current_user.can_book %}
     <a href="{{ url_for('reservations.create') }}" class="btn btn-primary">
@@ -55,7 +55,7 @@
             <table class="table table-hover mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th class="ps-4">Data</th><th>Horário</th><th>Sala</th><th>Título</th><th>Professor</th><th>Status</th><th class="text-end pe-4">Ações</th>
+                        <th class="ps-4">Data</th><th>Horário</th><th>Sala</th><th>Título</th><th>Professor</th><th>Origem</th><th>Status</th><th class="text-end pe-4">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -66,6 +66,13 @@
                     <td>{{ r.classroom.name }} <small class="text-muted">({{ r.classroom.code }})</small></td>
                     <td>{{ r.title }}</td>
                     <td>{{ r.teacher.full_name if r.teacher else '-' }}</td>
+                    <td>
+                        {% if r.user_id == current_user.id %}
+                        <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">Criada por você</span>
+                        {% else %}
+                        <span class="badge text-bg-info-subtle text-info border border-info-subtle">Designada a você</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if r.status == 'approved' %}
                             <span class="badge text-bg-success-subtle text-success border border-success-subtle">Aprovada</span>
@@ -108,7 +115,7 @@
             <table class="table table-hover mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th class="ps-4">Data</th><th>Horário</th><th>Sala</th><th>Título</th><th>Professor</th><th>Status</th><th class="text-end pe-4">Ações</th>
+                        <th class="ps-4">Data</th><th>Horário</th><th>Sala</th><th>Título</th><th>Professor</th><th>Origem</th><th>Status</th><th class="text-end pe-4">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -119,6 +126,13 @@
                     <td>{{ r.classroom.name }} <small class="text-muted">({{ r.classroom.code }})</small></td>
                     <td>{{ r.title }}</td>
                     <td>{{ r.teacher.full_name if r.teacher else '-' }}</td>
+                    <td>
+                        {% if r.user_id == current_user.id %}
+                        <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">Criada por você</span>
+                        {% else %}
+                        <span class="badge text-bg-info-subtle text-info border border-info-subtle">Designada a você</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if r.status == 'approved' %}
                             <span class="badge text-bg-success-subtle text-success border border-success-subtle">Aprovada</span>

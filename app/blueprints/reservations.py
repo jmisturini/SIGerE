@@ -230,7 +230,12 @@ def create():
                 excede_limite_diario = teacher_exceeds_daily_limit(
                     teacher_id, form.date.data)
 
-            status = 'pending' if (is_teacher_conflict or excede_limite_diario) else 'approved'
+            # Fluxo de aprovação de professor: quem tem reservation:create_pending
+            # (papel Professor) cria reservas que nascem PENDENTES mesmo sem
+            # conflito — aguardam avaliação de quem aprova.
+            criador_pendente = current_user.has_permission('reservation:create_pending')
+            status = 'pending' if (criador_pendente or is_teacher_conflict
+                                   or excede_limite_diario) else 'approved'
 
             reservation = Reservation(
                 user_id=current_user.id, classroom_id=classroom_id,
@@ -268,8 +273,10 @@ def create():
                   f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas em '
                   f'{form.date.data.strftime("%d/%m/%Y")}. Os grupos personalizados '
                   f'da unidade foram notificados.', 'warning')
-
-        flash('Reserva agendada com sucesso!', 'success')
+        elif criador_pendente:
+            flash('Reserva criada como PENDENTE: aguardando aprovação.', 'warning')
+        else:
+            flash('Reserva agendada com sucesso!', 'success')
         # Direciona aos detalhes da reserva recém-criada (não à listagem).
         return redirect(url_for('reservations.detail',
                                 reservation_id=reservation.id))
@@ -286,7 +293,12 @@ def my_reservations():
     ordem = request.args.get('ordem', 'data_desc')
     if ordem not in ('data_desc', 'data_asc', 'sala', 'titulo'):
         ordem = 'data_desc'
-    query = Reservation.query.filter_by(user_id=current_user.id)
+    # Minhas reservas: as criadas pelo usuário E as em que ele é o professor
+    # designado (criadas por terceiros) — o OR já evita duplicidade quando o
+    # usuário é criador e professor da mesma reserva.
+    query = Reservation.query.filter(
+        db.or_(Reservation.user_id == current_user.id,
+               Reservation.teacher_id == current_user.id))
     if status != 'all':
         query = query.filter_by(status=status)
     query = query.join(Classroom, Reservation.classroom_id == Classroom.id)
@@ -422,9 +434,13 @@ def all_reservations():
 @login_required
 def detail(reservation_id):
     reservation = _get_reservation_scoped(reservation_id)
-    # Permite ver se tem permissão global, OU se é o dono e tem permissão de ler as próprias
+    # Permite ver se tem permissão global, OU se tem permissão de ler as
+    # próprias e é o dono OU o professor designado da reserva (vínculo dá
+    # acesso de leitura; ações continuam nas regras de cada rota).
     if not current_user.has_permission('reservation:read_all'):
-        if not (current_user.has_permission('reservation:read_own') and reservation.user_id == current_user.id):
+        vinculado = (reservation.user_id == current_user.id
+                     or reservation.teacher_id == current_user.id)
+        if not (current_user.has_permission('reservation:read_own') and vinculado):
             abort(403)
     series_count = _series_count(reservation)
     # Compartilhar é leitura, mas não faz sentido para registro histórico
@@ -746,7 +762,9 @@ def repeat_schedule(reservation_id):
 
         # Série de repetição: origem e geradas compartilham o mesmo grupo.
         # Carga docente: se a repetição leva o professor além do limite
-        # diário, nasce PENDENTE (e notifica) em vez de aprovada.
+        # diário, nasce PENDENTE (e notifica) em vez de aprovada. Criador com
+        # reservation:create_pending (professor): nasce PENDENTE sempre.
+        criador_pendente = current_user.has_permission('reservation:create_pending')
         if res.repeat_group_id is None:
             res.repeat_group_id = res.id
         excede_limite_diario = res.teacher_id is not None and teacher_exceeds_daily_limit(
@@ -756,7 +774,7 @@ def repeat_schedule(reservation_id):
             subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
             description=res.description, date=new_date, start_time=res.start_time,
             end_time=res.end_time,
-            status='pending' if excede_limite_diario else 'approved',
+            status='pending' if (criador_pendente or excede_limite_diario) else 'approved',
             unity_id=res.unity_id,
             repeat_group_id=res.repeat_group_id
         )
@@ -770,6 +788,9 @@ def repeat_schedule(reservation_id):
         flash(f'Reserva agendada como PENDENTE para {new_date}: o professor passa de '
               f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas no dia. Os grupos '
               f'personalizados da unidade foram notificados.', 'warning')
+    elif criador_pendente:
+        flash(f'Reserva agendada como PENDENTE para {new_date}: '
+              'aguardando aprovação.', 'warning')
     else:
         flash(f'Reserva agendada com sucesso para {new_date}.', 'success')
     return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
@@ -812,6 +833,10 @@ def repeat_schedule_all(reservation_id):
         range_dates.append(d)
         d += timedelta(days=1)
 
+    # Criador com reservation:create_pending (papel Professor): todas as
+    # reservas do lote nascem PENDENTES, independente de carga docente.
+    criador_pendente = current_user.has_permission('reservation:create_pending')
+
     with slot_locks(res.classroom_id, range_dates):
         while current_date <= end_date:
             if same_day and current_date.weekday() != original_weekday:
@@ -848,7 +873,7 @@ def repeat_schedule_all(reservation_id):
                             subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
                             description=res.description, date=current_date, start_time=res.start_time,
                             end_time=res.end_time,
-                            status='pending' if excede else 'approved',
+                            status='pending' if (criador_pendente or excede) else 'approved',
                             unity_id=res.unity_id,
                             repeat_group_id=res.repeat_group_id
                         )
@@ -862,11 +887,20 @@ def repeat_schedule_all(reservation_id):
             current_date += timedelta(days=1)
 
         db.session.commit()
-    flash(f'{scheduled_count} novas reservas agendadas com sucesso.', 'success')
-    if pendentes_count:
-        flash(f'{pendentes_count} delas nasceram PENDENTES: o professor passa de '
-              f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas no dia. Os grupos '
-              f'personalizados da unidade foram notificados.', 'warning')
+    if criador_pendente:
+        flash(f'{scheduled_count} novas reservas criadas como PENDENTES: '
+              'aguardando aprovação.', 'warning')
+        if pendentes_count:
+            flash(f'Sendo {pendentes_count} delas também por carga docente: o '
+                  f'professor passa de {TEACHER_DAILY_RESERVATION_LIMIT} '
+                  'reservas no dia. Os grupos personalizados da unidade foram '
+                  'notificados.', 'warning')
+    else:
+        flash(f'{scheduled_count} novas reservas agendadas com sucesso.', 'success')
+        if pendentes_count:
+            flash(f'{pendentes_count} delas nasceram PENDENTES: o professor passa de '
+                  f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas no dia. Os grupos '
+                  f'personalizados da unidade foram notificados.', 'warning')
     return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
 # ================= SERIES MANAGEMENT (agendamentos repetidos) =================
@@ -891,8 +925,9 @@ def _series_count(res):
 
 
 def _check_series_view_access(res):
-    """Ver a série: dono da reserva ou quem lê todas."""
-    if res.user_id != current_user.id and not current_user.has_permission('reservation:read_all'):
+    """Ver a série: dono da reserva, professor designado ou quem lê todas."""
+    if res.user_id != current_user.id and res.teacher_id != current_user.id \
+            and not current_user.has_permission('reservation:read_all'):
         abort(403)
 
 
