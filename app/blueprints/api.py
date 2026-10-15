@@ -12,7 +12,7 @@ Escopo multi-unidade: usuário comum só vê a própria unidade; quem pode
 alternar unidade (ou uma integração anônima) escolhe com ?unity_id=<id>.
 """
 import hashlib
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timezone
 from functools import wraps
 
 from flask import Blueprint, abort, g, jsonify, request

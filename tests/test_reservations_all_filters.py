@@ -167,7 +167,7 @@ class ReservationsAllFiltersTestCase(unittest.TestCase):
         sala_id = self.ids['sala_s2']
         page = self.client.get(f'/reservations/all?periodo=atuais&room_id={sala_id}').get_data(as_text=True)
         # As duas abas carregam o filtro de sala na query string
-        self.assertIn(f'periodo=passadas', page)
+        self.assertIn('periodo=passadas', page)
         self.assertIn(f'room_id={sala_id}', page)
 
     # ---------- ordenação ----------

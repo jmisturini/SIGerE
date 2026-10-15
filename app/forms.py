@@ -8,7 +8,7 @@ from sqlalchemy import func
 # CORREÇÃO: Holiday e Role não estavam importados — os validadores de
 # HolidayForm.validate_date e RoleForm.validate_name geravam NameError (erro 500).
 from app.models import (User, Course, Subject, RoomCategory, Holiday, Role, Unity,
-                        VtEmpresa, VtConfig)
+                        VtEmpresa)
 from app.unity_context import current_unity_id
 
 # =============================================================================
@@ -809,7 +809,7 @@ def parse_tarifa_linhas(identificacoes, valores):
         linhas.append((identificacao, valor))
     if not linhas:
         raise ValueError('Adicione pelo menos uma tarifa (identificação + valor).')
-    return sorted(linhas, key=lambda l: l[0].casefold())
+    return sorted(linhas, key=lambda linha: linha[0].casefold())
 
 
 class FormVtEmpresa(BaseForm):

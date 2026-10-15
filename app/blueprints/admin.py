@@ -3,7 +3,7 @@ import os
 import secrets
 
 import requests
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from flask import (Blueprint, render_template, redirect, url_for, flash, abort,
                    request, jsonify, current_app, session)
 from flask_login import login_required, current_user
