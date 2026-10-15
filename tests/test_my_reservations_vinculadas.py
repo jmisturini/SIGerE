@@ -19,6 +19,7 @@ from app.models import (Classroom, Course, Permission, Reservation, Role,
 
 GESTOR_EMAIL = 'gestor@escola.edu'
 PROF_EMAIL = 'professor@escola.edu'
+PROF_SEM_LEITURA_EMAIL = 'semleitura@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -63,6 +64,12 @@ class MyReservationsVinculadasTestCase(unittest.TestCase):
                                    permissions=[perm_create, perm_read_own,
                                                 perm_cancel_own])
             db.session.add(papel_professor)
+            # Papel customizado sem leitura: ser o professor designado não pode
+            # abrir o detalhe nem a série da reserva
+            papel_sem_leitura = Role(name='designado-sem-leitura',
+                                     label='Designado sem Leitura',
+                                     permissions=[perm_create])
+            db.session.add(papel_sem_leitura)
             db.session.flush()
 
             gestor = User(
@@ -84,6 +91,17 @@ class MyReservationsVinculadasTestCase(unittest.TestCase):
             professor.set_password(PASSWORD)
             db.session.add(professor)
             db.session.flush()
+
+            prof_sem_leitura = User(
+                email=PROF_SEM_LEITURA_EMAIL, full_name='Designado Sem Leitura',
+                role='room', profile_type='teacher', unities=[self.unity],
+                role_id=papel_sem_leitura.id, force_password_change=False,
+                is_active_user=True,
+            )
+            prof_sem_leitura.set_password(PASSWORD)
+            db.session.add(prof_sem_leitura)
+            db.session.flush()
+            self.prof_sem_leitura_id = prof_sem_leitura.id
 
             category = RoomCategory(name='Sala de Aula', code='SA')
             db.session.add(category)
@@ -128,20 +146,21 @@ class MyReservationsVinculadasTestCase(unittest.TestCase):
             d += timedelta(days=1)
         return d
 
-    def _payload(self, dia, titulo, start='09:00', end='10:00'):
+    def _payload(self, dia, titulo, start='09:00', end='10:00', teacher_id=None):
         return {
             'classroom': str(self.room_id),
             'course': str(self.course_id),
-            'subject': '0', 'teacher': str(self.professor_id),
+            'subject': '0', 'teacher': str(teacher_id or self.professor_id),
             'title': titulo, 'description': '',
             'date': dia.strftime('%Y-%m-%d'),
             'start_time': start, 'end_time': end,
         }
 
-    def _criar_como_gestor(self, dia, titulo):
-        """Gestor cria reserva designando o professor; devolve o id."""
+    def _criar_como_gestor(self, dia, titulo, teacher_id=None):
+        """Gestor cria reserva designando o docente; devolve o id."""
         response = self.client.post('/reservations/create',
-                                    data=self._payload(dia, titulo),
+                                    data=self._payload(dia, titulo,
+                                                       teacher_id=teacher_id),
                                     follow_redirects=True)
         self.assertIn('agendada com sucesso', response.get_data(as_text=True))
         with self.app.app_context():
@@ -210,6 +229,31 @@ class MyReservationsVinculadasTestCase(unittest.TestCase):
         response = self.client.get(f'/reservations/{reserva_id}')
         self.assertEqual(response.status_code, 200)
         self.assertIn('Aula com Detalhe', response.get_data(as_text=True))
+
+    def test_designado_com_leitura_ve_serie(self):
+        """O acesso à série por vínculo continua valendo para quem tem
+        reservation:read_own (reserva única redireciona ao detalhe)."""
+        dia = self._dia_futuro()
+        reserva_id = self._criar_como_gestor(dia, 'Serie Visivel')
+
+        self._login(PROF_EMAIL)
+        response = self.client.get(f'/reservations/{reserva_id}/series',
+                                   follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Serie Visivel', response.get_data(as_text=True))
+
+    def test_designado_sem_read_own_nao_ve_detalhe_nem_serie(self):
+        """Vínculo de designação não substitui a permissão: abrir o detalhe
+        ou a página da série exige reservation:read_own, mesmo sendo o
+        professor designado da reserva."""
+        dia = self._dia_futuro()
+        reserva_id = self._criar_como_gestor(dia, 'Serie Protegida',
+                                             teacher_id=self.prof_sem_leitura_id)
+
+        self._login(PROF_SEM_LEITURA_EMAIL)
+        self.assertEqual(self.client.get(f'/reservations/{reserva_id}').status_code, 403)
+        self.assertEqual(
+            self.client.get(f'/reservations/{reserva_id}/series').status_code, 403)
 
     def test_designado_nao_cancela_reserva_de_terceiro(self):
         dia = self._dia_futuro()

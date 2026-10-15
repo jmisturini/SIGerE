@@ -133,6 +133,14 @@ class User(UserMixin, db.Model):
             return True
         return perm_code in self.permissions
 
+    def has_explicit_permission(self, perm_code):
+        """Como has_permission, mas o curinga '*' não expande: vale apenas o
+        código concedido por nome a algum papel do usuário. Para fluxos que
+        escolhem um comportamento a partir de uma permissão específica
+        (reservation:create_pending faz a reserva nascer Pendente), o
+        super-admin não deve herdar o fluxo só porque tem acesso a tudo."""
+        return perm_code in self.permissions
+
     # ── Vínculos com unidades (N:N) ──────────────────────────────────────
     @property
     def unity_ids(self):

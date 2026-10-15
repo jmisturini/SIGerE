@@ -2,10 +2,13 @@
 
 Quem cria no fluxo de professor (reservation:create_pending) designa apenas
 a si mesmo: o campo Professor do formulário lista só o próprio usuário (já
-pré-selecionado) e o servidor rejeita POST com outro docente (o SelectField
-valida contra as opções). Gestores e demais perfis continuam com a lista
-completa da unidade. Na edição, o docente atual de reservas antigas fica na
-lista para a designação não se perder ao regravar o formulário.
+pré-selecionado) e o servidor rejeita POST com outro docente — inclusive a
+opção vazia (0), que passa na validação do campo opcional. Gestores e demais
+perfis continuam com a lista completa da unidade; o curinga '*' do
+super-admin não seleciona o fluxo (a permissão precisa estar explícita). Na
+edição, o docente atual de reservas antigas fica na lista para a designação
+não se perder ao regravar o formulário, e trocá-lo só é aceito quando aponta
+para o próprio professor.
 """
 import os
 import re
@@ -22,6 +25,7 @@ from app.models import (Classroom, Course, Permission, Reservation, Role,
 GESTOR_EMAIL = 'gestor@escola.edu'
 PROF_A_EMAIL = 'ana@escola.edu'
 PROF_B_EMAIL = 'bruno@escola.edu'
+SUPER_EMAIL = 'super@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 
@@ -54,7 +58,8 @@ class ProfessorTeacherChoicesTestCase(unittest.TestCase):
                                       action='create_pending')
             perm_read_own = Permission(code='reservation:read_own', module='reservation',
                                        action='read_own')
-            db.session.add_all([perm_create, perm_pending, perm_read_own])
+            perm_curinga = Permission(code='*', module='system', action='all')
+            db.session.add_all([perm_create, perm_pending, perm_read_own, perm_curinga])
             db.session.flush()
 
             papel_gestor = Role(name='gestor-teste', label='Gestor Teste',
@@ -64,6 +69,20 @@ class ProfessorTeacherChoicesTestCase(unittest.TestCase):
             papel_professor = Role(name='teacher', label='Professor',
                                    permissions=[perm_create, perm_pending, perm_read_own])
             db.session.add(papel_professor)
+            # Super-admin: só o curinga '*' — não deve herdar o fluxo de professor
+            papel_super = Role(name='super_admin', label='Super Administrador',
+                               permissions=[perm_curinga])
+            db.session.add(papel_super)
+            db.session.flush()
+
+            super_user = User(
+                email=SUPER_EMAIL, full_name='Super Admin',
+                role='room', profile_type='employee', unities=[self.unity],
+                role_id=papel_super.id, force_password_change=False,
+                is_active_user=True,
+            )
+            super_user.set_password(PASSWORD)
+            db.session.add(super_user)
             db.session.flush()
 
             gestor = User(
@@ -177,6 +196,25 @@ class ProfessorTeacherChoicesTestCase(unittest.TestCase):
         self.assertIn('Prof Ana Criadora', select)
         self.assertIn('Prof Bruno Colega', select)
 
+    def test_super_admin_nao_entra_no_fluxo_professor(self):
+        """O curinga '*' não seleciona o fluxo de professor: o super-admin
+        vê a lista completa da unidade e cria reservas aprovadas."""
+        self._login(SUPER_EMAIL)
+        response = self.client.get('/reservations/create')
+        select = self._select_teacher(response.get_data(as_text=True))
+        self.assertIn('Prof Ana Criadora', select)
+        self.assertIn('Prof Bruno Colega', select)
+
+        dia = self._dia_futuro()
+        response = self.client.post('/reservations/create',
+                                    data=self._payload(dia, self.prof_b_id),
+                                    follow_redirects=True)
+        self.assertIn('agendada com sucesso', response.get_data(as_text=True))
+        with self.app.app_context():
+            reserva = Reservation.query.filter_by(date=dia).one()
+            self.assertEqual(reserva.status, 'approved')
+            self.assertEqual(reserva.teacher_id, self.prof_b_id)
+
     def test_professor_nao_designa_terceiro_no_post(self):
         """POST forjado com outro docente: o SelectField valida contra as
         opções e a reserva não é criada."""
@@ -185,6 +223,17 @@ class ProfessorTeacherChoicesTestCase(unittest.TestCase):
                                     data=self._payload(self._dia_futuro(),
                                                        self.prof_b_id))
         self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(Reservation.query.count(), 0)
+
+    def test_professor_post_sem_docente_e_rejeitado(self):
+        """POST com a opção vazia (0) passa na validação do campo opcional,
+        mas o fluxo de professor exige a própria designação — nada é gravado."""
+        self._login(PROF_A_EMAIL)
+        response = self.client.post('/reservations/create',
+                                    data=self._payload(self._dia_futuro(), 0))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('selecione o próprio nome', response.get_data(as_text=True))
         with self.app.app_context():
             self.assertEqual(Reservation.query.count(), 0)
 
@@ -220,6 +269,35 @@ class ProfessorTeacherChoicesTestCase(unittest.TestCase):
             reserva = db.session.get(Reservation, reserva_id)
             self.assertEqual(reserva.teacher_id, self.prof_b_id)
             self.assertEqual(reserva.title, 'Aula Legada Editada')
+
+    def test_edicao_professor_nao_limpa_docente_de_reserva_antiga(self):
+        """Na edição, alterar a designação (inclusive limpar com a opção
+        vazia) só é aceito quando aponta para o próprio professor — a reserva
+        antiga designada a um colega segue com ele."""
+        dia = self._dia_futuro()
+        with self.app.app_context():
+            reserva = Reservation(
+                user_id=self.prof_a_id, classroom_id=self.room_id,
+                course_id=self.course_id, teacher_id=self.prof_b_id,
+                title='Aula Legada', date=dia,
+                start_time=datetime.strptime('09:00', '%H:%M').time(),
+                end_time=datetime.strptime('10:00', '%H:%M').time(),
+                status='approved', unity_id=self.unity_id,
+            )
+            db.session.add(reserva)
+            db.session.commit()
+            reserva_id = reserva.id
+
+        self._login(PROF_A_EMAIL)
+        response = self.client.post(f'/reservations/{reserva_id}/edit',
+                                    data=self._payload(dia, 0,
+                                                       titulo='Aula Legada Editada'))
+        self.assertIn('só pode apontar para você mesmo',
+                      response.get_data(as_text=True))
+        with self.app.app_context():
+            reserva = db.session.get(Reservation, reserva_id)
+            self.assertEqual(reserva.teacher_id, self.prof_b_id)
+            self.assertEqual(reserva.title, 'Aula Legada')
 
 
 if __name__ == '__main__':
