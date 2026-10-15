@@ -576,12 +576,14 @@ venv/bin/flask --app run sync-permissions
 2. Acesse **Salas** e filtre por disponibilidade
 3. Clique em **Reservar** ou acesse **Minhas Reservas → Nova Reserva**
 4. Preencha sala, data, horário, curso, disciplina e professor
-5. O sistema verifica conflitos automaticamente:
+5. O sistema verifica conflitos e o perfil de quem cria automaticamente:
    - ✅ Sem conflitos → reserva **aprovada**
-   - ⚠️ Professor ocupado → reserva **pendente** (requer aprovação admin)
+   - ⚠️ Professor ocupado ou criador com `reservation:create_pending` (papel Professor) → reserva **pendente** (requer aprovação)
    - ❌ Sala ocupada → **bloqueado**
 
-Status possíveis da reserva: `approved` (aprovada), `pending` (aguardando aprovação por conflito de professor) e `cancelled` (cancelada — mantida no histórico).
+No fluxo de professor, a reserva já nasce designada ao próprio criador — o campo Professor lista apenas ele — e **Minhas Reservas** exibe tanto as reservas criadas pelo usuário quanto as em que ele é o professor designado, distinguidas pela coluna "Origem".
+
+Status possíveis da reserva: `approved` (aprovada), `pending` (aguardando aprovação — por conflito de professor ou pelo fluxo de aprovação do papel Professor) e `cancelled` (cancelada — mantida no histórico).
 
 ### Alternar unidade ativa
 
@@ -838,7 +840,7 @@ O SIGerE utiliza um sistema de **RBAC (Role-Based Access Control)** com permiss�
 | **Administrador** | Gestão de usuários, unidades, salas, cursos, feriados, papéis, cozinha, tokens da API e consulta dos pedidos de VT |
 | **Analista** | Aprovar reservas e criar/editar lançamentos de pagamento extra, do Vale Alimentação e do Adicional Noturno |
 | **Gestor** | Todas as permissões de cursos, reservas, pagamentos extras e salas, além de exportações |
-| **Professor** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
+| **Professor** | Criar/editar/cancelar próprias reservas — que nascem **Pendentes** para aprovação (`reservation:create_pending`) —, visualizar salas e cursos, exportação |
 | **Assistente/Logística** | Criar/editar/cancelar próprias reservas, visualizar salas e cursos, exportação |
 
 Além do papel principal, cada usuário pode receber **papéis adicionais** (módulos extra) na tela de cadastro/edição — a permissão efetiva é a união dos dois. O padrão inclui o papel adicional **Módulo Cozinha** (`kitchen:read`, `kitchen:sheet_create`, `kitchen:shopping_export`), destinado por exemplo a professores de gastronomia, que mantêm o papel Professor e ganham o acesso à Cozinha sem duplicar papéis.
@@ -859,6 +861,7 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `room:read` / `room:create` / `room:edit` / `room:toggle` | Visualizar / criar / editar / ativar-desativar salas |
 | `reservation:read_all` / `reservation:read_own` | Ver todas / próprias reservas |
 | `reservation:create` | Criar reservas |
+| `reservation:create_pending` | Reservas criadas por este perfil nascem Pendentes (aguardam aprovação) — concedida por padrão ao papel Professor |
 | `reservation:edit_all` | Editar todas as reservas (o dono edita a própria mesmo sem esta permissão) |
 | `reservation:delete_all` | Excluir reservas permanentemente |
 | `reservation:cancel_all` / `reservation:cancel_own` | Cancelar todas / próprias reservas |

@@ -10,12 +10,45 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.33.0'
+APP_VERSION = '1.34.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.34.0',
+        'data': '2026-10-15',
+        'titulo': 'Reservas de professor com fluxo de aprovação e revisão automatizada de código',
+        'grupos': [
+            ('Adicionado', [
+                'Fluxo de aprovação para professores: quem tem a nova permissão '
+                'reservation:create_pending — concedida por padrão ao papel Professor — '
+                'cria reservas que nascem Pendentes mesmo sem conflito de sala ou de '
+                'carga docente, na criação avulsa e nas repetições em série, com aviso '
+                '"aguardando aprovação" e avaliação normal por quem aprova reservas.',
+                '"Minhas Reservas" passa a listar também as reservas em que o usuário é o '
+                'professor designado (criadas por terceiros), com a coluna "Origem" '
+                'distinguindo "Criada por você" de "Designada a você"; o professor '
+                'designado ganha acesso de leitura ao detalhe e à série da reserva.',
+                'Revisão automatizada de código nos Pull Requests (workflow "Qualidade"): '
+                'ruff (lint e erros de código), bandit (segurança no código) e pip-audit '
+                '(CVEs das dependências) rodam em todo PR para main/dev, com a '
+                'configuração no pyproject.toml e as ferramentas em requirements-dev.txt.',
+            ]),
+            ('Alterado', [
+                'Formulário de reserva: no fluxo de professor (reservation:create_pending), '
+                'o campo Professor lista apenas o próprio usuário — ele já abre designado a '
+                'si mesmo e não é possível designar terceiros; gestores e demais perfis '
+                'seguem escolhendo qualquer docente da unidade. Na edição, o docente atual '
+                'permanece na lista para reservas antigas designadas a terceiros não '
+                'perderem a designação ao regravar.',
+                'Leitura das planilhas do Adicional Noturno (.xlsx) migrada para defusedxml '
+                '(XML não confiável) e limpeza de imports, variáveis e nomes ambíguos '
+                'apontados pelo linter em todo o app.',
+            ]),
+        ],
+    },
     {
         'versao': '1.33.0',
         'data': '2026-10-14',
