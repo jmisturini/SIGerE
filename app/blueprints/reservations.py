@@ -293,7 +293,12 @@ def my_reservations():
     ordem = request.args.get('ordem', 'data_desc')
     if ordem not in ('data_desc', 'data_asc', 'sala', 'titulo'):
         ordem = 'data_desc'
-    query = Reservation.query.filter_by(user_id=current_user.id)
+    # Minhas reservas: as criadas pelo usuário E as em que ele é o professor
+    # designado (criadas por terceiros) — o OR já evita duplicidade quando o
+    # usuário é criador e professor da mesma reserva.
+    query = Reservation.query.filter(
+        db.or_(Reservation.user_id == current_user.id,
+               Reservation.teacher_id == current_user.id))
     if status != 'all':
         query = query.filter_by(status=status)
     query = query.join(Classroom, Reservation.classroom_id == Classroom.id)
@@ -429,9 +434,13 @@ def all_reservations():
 @login_required
 def detail(reservation_id):
     reservation = _get_reservation_scoped(reservation_id)
-    # Permite ver se tem permissão global, OU se é o dono e tem permissão de ler as próprias
+    # Permite ver se tem permissão global, OU se tem permissão de ler as
+    # próprias e é o dono OU o professor designado da reserva (vínculo dá
+    # acesso de leitura; ações continuam nas regras de cada rota).
     if not current_user.has_permission('reservation:read_all'):
-        if not (current_user.has_permission('reservation:read_own') and reservation.user_id == current_user.id):
+        vinculado = (reservation.user_id == current_user.id
+                     or reservation.teacher_id == current_user.id)
+        if not (current_user.has_permission('reservation:read_own') and vinculado):
             abort(403)
     series_count = _series_count(reservation)
     # Compartilhar é leitura, mas não faz sentido para registro histórico
@@ -916,8 +925,9 @@ def _series_count(res):
 
 
 def _check_series_view_access(res):
-    """Ver a série: dono da reserva ou quem lê todas."""
-    if res.user_id != current_user.id and not current_user.has_permission('reservation:read_all'):
+    """Ver a série: dono da reserva, professor designado ou quem lê todas."""
+    if res.user_id != current_user.id and res.teacher_id != current_user.id \
+            and not current_user.has_permission('reservation:read_all'):
         abort(403)
 
 
