@@ -221,13 +221,16 @@ def autocancelar_pendentes(agora=None, dry_run=False):
                 stats['avisos'] += 1
             continue
         # Revalidação atômica na gravação: entre a consulta dos candidatos e
-        # aqui a reserva pode ter sido aprovada em outra sessão — o filtro de
-        # status no próprio UPDATE garante que só pendência vira cancelada, e
-        # o rowcount diz se a linha mudou ('fetch' espelha o novo status na
-        # instância da sessão para o aviso).
+        # aqui a reserva pode ter sido aprovada em outra sessão — ou remarcada
+        # (editar muda date/start_time mantendo pending). O filtro repete id,
+        # status E o horário avaliado: só cancela quem continua sendo a
+        # pendência vencida, e o rowcount diz se a linha mudou ('fetch'
+        # espelha o novo status na instância da sessão para o aviso).
         afetadas = Reservation.query.filter(
             Reservation.id == reservation.id,
             Reservation.status == 'pending',
+            Reservation.date == reservation.date,
+            Reservation.start_time == reservation.start_time,
         ).update({'status': 'cancelled'}, synchronize_session='fetch')
         if not afetadas:
             continue
