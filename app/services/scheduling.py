@@ -210,8 +210,7 @@ def autocancelar_pendentes(agora=None, dry_run=False):
         db.session.flush()  # id da reserva para o aviso
         stats['avisos'] += notificar_mudanca_status(
             reservation, 'pending',
-            motivo='Cancelada automaticamente por não ter sido aprovada até '
-                   '1 hora antes do horário agendado.')
+            motivo='Não houve aprovação até 1 hora antes do horário agendado.')
         stats['canceladas'] += 1
 
     if not dry_run:

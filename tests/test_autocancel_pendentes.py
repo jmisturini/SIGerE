@@ -117,8 +117,10 @@ class AutocancelPendentesTestCase(unittest.TestCase):
         self.assertEqual(self._status(rid), 'cancelled')
         avisos = self._avisos(rid)
         self.assertEqual(len(avisos), 1)
-        self.assertIn('Cancelada automaticamente', avisos[0].body)
-        self.assertIn('1 hora antes', avisos[0].body)
+        self.assertEqual(avisos[0].title,
+                         'Reserva cancelada automaticamente: Pendente Iminente')
+        self.assertIn('cancelada automaticamente pelo sistema', avisos[0].body)
+        self.assertIn('Não houve aprovação até 1 hora antes', avisos[0].body)
 
     def test_pendente_2h_antes_permanece(self):
         agora = datetime.now()

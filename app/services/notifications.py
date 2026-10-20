@@ -294,8 +294,13 @@ def notificar_mudanca_status(reservation, status_anterior, ator_id=None,
         situacao = 'aprovada'
     elif reservation.status == 'cancelled':
         evento = EVENT_RESERVATION_CANCELLED
-        titulo = f'Reserva cancelada: {reservation.title}'[:200]
-        situacao = ('cancelada — ainda aguardava aprovação'
+        # Motivo presente: cancelamento do sistema (autocancelar_pendentes) —
+        # o título e a situação deixam claro que não foi ação de outra pessoa.
+        titulo = (f'Reserva cancelada automaticamente: {reservation.title}'[:200]
+                  if motivo
+                  else f'Reserva cancelada: {reservation.title}'[:200])
+        situacao = ('cancelada automaticamente pelo sistema' if motivo else
+                    'cancelada — ainda aguardava aprovação'
                     if status_anterior == 'pending' else 'cancelada')
     else:
         return 0
