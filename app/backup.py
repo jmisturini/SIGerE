@@ -95,7 +95,10 @@ def _interpretar_uri(uri):
         return 'sqlite', caminho
 
     partes = urlsplit(uri)
-    if partes.scheme not in ('postgres', 'postgresql'):
+    # SQLAlchemy aceita driver no scheme (postgresql+psycopg2://): o motor é
+    # o que vem antes do "+".
+    motor = partes.scheme.split('+', 1)[0]
+    if motor not in ('postgres', 'postgresql'):
         raise BackupError(
             f'Motor de banco não suportado para backup: "{partes.scheme}". '
             'Use uma DATABASE_URL SQLite ou PostgreSQL.')

@@ -231,7 +231,7 @@ def seed_command():
         db.session.commit()
         click.echo(click.style("✅ Administrador criado com sucesso!", fg="green", bold=True))
         click.echo(click.style(
-            "   Login: admin/admin123",
+            "   Login: admin@school.edu / admin123",
             fg="cyan"
         ))
 
@@ -247,7 +247,7 @@ def seed_command():
             db.session.commit()
             click.echo(click.style("✅ Dados de demonstração criados com sucesso!", fg="green", bold=True))
             click.echo(click.style(
-                "   Logins adicionais: teacher1/teacher123 | employee1/employee123",
+                "   Logins adicionais: teacher1@school.edu/teacher123 | employee1@school.edu/employee123",
                 fg="cyan"
             ))
         else:

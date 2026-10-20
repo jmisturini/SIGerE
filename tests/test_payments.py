@@ -752,11 +752,13 @@ class PaymentsTestCase(unittest.TestCase):
 
     def test_edit_datas_completas_legado(self):
         # Registro gravado por uma versão intermediária com datas completas e
-        # dates_month nulo: o mês vem da própria data ("25/09/2026" → setembro).
+        # dates_month nulo: o mês vem da própria data — usa o mês anterior ao
+        # corrente (data relativa, senão o teste expira quando o mês vira).
         record_id = self._add_overtime(self._mes_atual())
         with self.app.app_context():
             record = db.session.get(TeacherOvertimePay, record_id)
-            record.multiple_dates = '25/09/2026'
+            ano, mes = self._mes_anterior().split('-')
+            record.multiple_dates = f'25/{mes}/{ano}'
             db.session.commit()
         page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
         bloco = re.search(r'<select name="dates_month".*?</select>', page, re.S).group(0)

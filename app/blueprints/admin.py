@@ -1528,7 +1528,7 @@ def create_notificacao_grupo():
 @login_required
 @require_permission('notification:groups')
 def edit_notificacao_grupo(group_id):
-    grupo = _unity_scoped_or_404(db.session.get(NotificationGroup, group_id))
+    grupo = _unity_scoped_or_404(db.get_or_404(NotificationGroup, group_id))
     form = FormNotificacaoGrupo(obj=grupo)
     form.members.choices = [(u.id, u.full_name) for u in _usuarios_escopo_choices()]
     if request.method == 'GET':
@@ -1554,7 +1554,7 @@ def edit_notificacao_grupo(group_id):
 @login_required
 @require_permission('notification:groups')
 def delete_notificacao_grupo(group_id):
-    grupo = _unity_scoped_or_404(db.session.get(NotificationGroup, group_id))
+    grupo = _unity_scoped_or_404(db.get_or_404(NotificationGroup, group_id))
     nome = grupo.name
     db.session.delete(grupo)
     db.session.commit()

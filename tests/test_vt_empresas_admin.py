@@ -9,7 +9,7 @@ nas opções; empresa inativa sai).
 import os
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from app import create_app
@@ -331,21 +331,23 @@ class VtEmpresasAdminTestCase(unittest.TestCase):
     def test_configuracao_salva_e_exibe(self):
         """Página de configuração salva números base de vales e a data de
         fechamento para a unidade ativa."""
+        # Data relativa a hoje: fixa, o teste quebraria a partir de 2027.
+        fechamento = date.today() + timedelta(days=30)
         response = self.client.post('/admin/vt-configuracao', data={
             'vales_somente_ida': '2',
             'vales_ida_e_volta': '4',
-            'fecha_em': '2026-12-31',
+            'fecha_em': fechamento.isoformat(),
         }, follow_redirects=True)
         page = response.get_data(as_text=True)
         self.assertIn('Configurações do pedido de VT salvas', page)
         self.assertIn('Aberto até', page)
-        self.assertIn('31/12/2026', page)
+        self.assertIn(fechamento.strftime('%d/%m/%Y'), page)
 
         with self.app.app_context():
             config = VtConfig.query.filter_by(unity_id=self.unity.id).first()
             self.assertEqual(config.vales_somente_ida, 2)
             self.assertEqual(config.vales_ida_e_volta, 4)
-            self.assertEqual(str(config.fecha_em), '2026-12-31')
+            self.assertEqual(str(config.fecha_em), fechamento.isoformat())
 
     def test_configuracao_vales_parciais_rejeitados(self):
         """Informar só um dos números base é rejeitado (valem em par)."""

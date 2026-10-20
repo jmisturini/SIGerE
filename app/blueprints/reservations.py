@@ -601,7 +601,12 @@ def edit(reservation_id):
                 excede_limite_diario = teacher_exceeds_daily_limit(
                     reservation.teacher_id, reservation.date,
                     exclude_id=reservation.id)
-            if (teacher_conflict or excede_limite_diario) and reservation.status == 'approved':
+            # Fluxo de professor (mesma regra da criação): quem tem
+            # reservation:create_pending não carrega a aprovação anterior ao
+            # editar — sala/data/horário novos voltam à avaliação.
+            criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
+            if (criador_pendente or teacher_conflict or excede_limite_diario) \
+                    and reservation.status == 'approved':
                 reservation.status = 'pending'
             if excede_limite_diario:
                 notificar_sobrecarga_professor(reservation)
@@ -615,6 +620,8 @@ def edit(reservation_id):
                   f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas em '
                   f'{reservation.date.strftime("%d/%m/%Y")}. Os grupos '
                   f'personalizados da unidade foram notificados.', 'warning')
+        elif criador_pendente and reservation.status == 'pending':
+            flash('Reserva atualizada como PENDENTE: aguardando nova aprovação.', 'warning')
         else:
             flash('Reserva atualizada com sucesso.', 'success')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
@@ -801,6 +808,13 @@ def repeat_schedule(reservation_id):
         flash('Data inválida.', 'danger')
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
+    # A tela já limita a max(data da reserva, hoje) + 1; o servidor repete a
+    # regra — um POST forjado não pode criar reserva no passado.
+    minimo = max(res.date + timedelta(days=1), date.today() + timedelta(days=1))
+    if new_date < minimo:
+        flash('A repetição precisa ser em data futura (após a reserva e após hoje).', 'danger')
+        return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+
     excede_limite_diario = False
     with slot_locks(res.classroom_id, [new_date]):
         allowed, msg = check_schedule_restrictions(new_date, res.start_time, res.end_time)
@@ -867,6 +881,14 @@ def repeat_schedule_all(reservation_id):
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
     except ValueError:
         flash('Datas inválidas.', 'danger')
+        return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+
+    # Mesma janela mínima da tela (max(data da reserva, hoje) + 1) e fim não
+    # pode anteceder o início — POST forjado não cria reservas no passado.
+    minimo = max(res.date + timedelta(days=1), date.today() + timedelta(days=1))
+    if start_date < minimo or end_date < start_date:
+        flash('Intervalo de datas inválido: a repetição começa após a reserva '
+              'e após hoje, e o fim não antecede o início.', 'danger')
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
     if (end_date - start_date).days + 1 > MAX_REPEAT_RANGE_DAYS:
@@ -1075,6 +1097,8 @@ def series_edit(reservation_id):
         by_classroom.setdefault(classroom.id if classroom else m.classroom_id, []).append(m)
 
     updated, skipped = [], []
+    criador_pendente_serie = current_user.has_explicit_permission(
+        'reservation:create_pending')
     with ExitStack() as stack:
         for room_id, room_targets in by_classroom.items():
             stack.enter_context(slot_locks(room_id, [m.date for m in room_targets]))
@@ -1101,10 +1125,15 @@ def series_edit(reservation_id):
                 if description:
                     m.description = description
                 # Docente sobreposto após a mudança → mesma regra da edição
-                # individual: a reserva volta a PENDENTE para revisão.
-                if m.teacher_id and check_teacher_conflict(
-                        m.teacher_id, m.date, m.start_time, m.end_time,
-                        exclude_id=m.id) and m.status == 'approved':
+                # individual: a reserva volta a PENDENTE para revisão. No
+                # fluxo de professor (reservation:create_pending), qualquer
+                # edição devolve à avaliação — a aprovação anterior não cobre
+                # os dados novos.
+                if m.status == 'approved' and (
+                        criador_pendente_serie
+                        or (m.teacher_id and check_teacher_conflict(
+                            m.teacher_id, m.date, m.start_time, m.end_time,
+                            exclude_id=m.id))):
                     m.status = 'pending'
                 updated.append(m)
         db.session.commit()
