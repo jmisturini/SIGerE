@@ -2,10 +2,14 @@
 
 Reserva pendente de aprovação cujo horário agendado chega a menos de 1 hora
 (ou já passou) é cancelada pelo comando autocancel-pendentes — aprovação
-tardia não teria mais função. O criador recebe o mesmo aviso dos
-cancelamentos manuais, com o motivo automático no corpo. Reservas aprovadas,
-já canceladas e pendências ainda fora da janela ficam intactas; rodar de
-novo é idempotente e o dry-run não grava nada.
+tardia não teria mais função. O limite é inclusivo: exatamente 1h antes já
+cancela. O criador recebe o mesmo aviso dos cancelamentos manuais, com o
+motivo automático no corpo. Reservas aprovadas, já canceladas e pendências
+fora da janela ficam intactas; rodar de novo é idempotente e o dry-run não
+grava nada (mas pré-conta os avisos como a execução real os criaria).
+
+Horários fixos (o serviço aceita agora injetável) mantêm os testes
+determinísticos, incluindo a virada da meia-noite.
 """
 import os
 import tempfile
@@ -106,7 +110,7 @@ class AutocancelPendentesTestCase(unittest.TestCase):
                 event_type=EVENT_RESERVATION_CANCELLED).all()
 
     def test_pendente_30_min_antes_e_cancelada_com_aviso(self):
-        agora = datetime.now()
+        agora = datetime(2026, 6, 1, 9, 0)
         rid = self._criar('Pendente Iminente', agora + timedelta(minutes=30))
 
         from app.services.scheduling import autocancelar_pendentes
@@ -122,8 +126,49 @@ class AutocancelPendentesTestCase(unittest.TestCase):
         self.assertIn('cancelada automaticamente pelo sistema', avisos[0].body)
         self.assertIn('Não houve aprovação até 1 hora antes', avisos[0].body)
 
+    def test_limite_exato_1h_e_cancelada(self):
+        """O limite é inclusivo: exatamente 1h antes do início já cancela."""
+        agora = datetime(2026, 6, 1, 9, 0)
+        rid = self._criar('No Limite', agora + timedelta(hours=1))
+
+        from app.services.scheduling import autocancelar_pendentes
+        with self.app.app_context():
+            stats = autocancelar_pendentes(agora=agora)
+
+        self.assertEqual(stats['canceladas'], 1)
+        self.assertEqual(self._status(rid), 'cancelled')
+
+    def test_1h01_permanece(self):
+        agora = datetime(2026, 6, 1, 9, 0)
+        rid = self._criar('Fora da Janela',
+                          agora + timedelta(hours=1, minutes=1))
+
+        from app.services.scheduling import autocancelar_pendentes
+        with self.app.app_context():
+            stats = autocancelar_pendentes(agora=agora)
+
+        self.assertEqual(stats['canceladas'], 0)
+        self.assertEqual(self._status(rid), 'pending')
+
+    def test_cruzando_meia_noite(self):
+        """Reserva do dia seguinte dentro da janela (00:15 quando agora é
+        23:30) é cancelada; a do dia seguinte fora dela (01:00) permanece."""
+        agora = datetime(2026, 6, 1, 23, 30)
+        rid_dentro = self._criar('Madrugada Dentro',
+                                 agora + timedelta(minutes=45))
+        rid_fora = self._criar('Madrugada Fora',
+                               agora + timedelta(hours=1, minutes=30))
+
+        from app.services.scheduling import autocancelar_pendentes
+        with self.app.app_context():
+            stats = autocancelar_pendentes(agora=agora)
+
+        self.assertEqual(stats['canceladas'], 1)
+        self.assertEqual(self._status(rid_dentro), 'cancelled')
+        self.assertEqual(self._status(rid_fora), 'pending')
+
     def test_pendente_2h_antes_permanece(self):
-        agora = datetime.now()
+        agora = datetime(2026, 6, 1, 9, 0)
         rid = self._criar('Pendente Distante', agora + timedelta(hours=2))
 
         from app.services.scheduling import autocancelar_pendentes
@@ -135,7 +180,7 @@ class AutocancelPendentesTestCase(unittest.TestCase):
         self.assertEqual(self._avisos(rid), [])
 
     def test_aprovada_e_cancelada_nao_sao_afetadas(self):
-        agora = datetime.now()
+        agora = datetime(2026, 6, 1, 9, 0)
         rid_aprovada = self._criar('Aprovada Iminente',
                                    agora + timedelta(minutes=30),
                                    status='approved')
@@ -154,7 +199,7 @@ class AutocancelPendentesTestCase(unittest.TestCase):
     def test_pendente_com_inicio_passado_e_cancelada(self):
         """Início já passou (timer parado/fim de semana): pendência vencida
         nunca mais será aprovada — sai da fila como cancelada."""
-        agora = datetime.now()
+        agora = datetime(2026, 6, 1, 9, 0)
         rid = self._criar('Pendente Passada', agora - timedelta(days=1))
 
         from app.services.scheduling import autocancelar_pendentes
@@ -164,8 +209,8 @@ class AutocancelPendentesTestCase(unittest.TestCase):
         self.assertEqual(stats['canceladas'], 1)
         self.assertEqual(self._status(rid), 'cancelled')
 
-    def test_dry_run_nao_grava(self):
-        agora = datetime.now()
+    def test_dry_run_nao_grava_e_prev_conta_avisos(self):
+        agora = datetime(2026, 6, 1, 9, 0)
         rid = self._criar('Pendente Dry Run', agora + timedelta(minutes=30))
 
         from app.services.scheduling import autocancelar_pendentes
@@ -173,11 +218,13 @@ class AutocancelPendentesTestCase(unittest.TestCase):
             stats = autocancelar_pendentes(agora=agora, dry_run=True)
 
         self.assertEqual(stats['canceladas'], 1)
+        # A prévia conta o aviso que a execução real criaria (criador ativo).
+        self.assertEqual(stats['avisos'], 1)
         self.assertEqual(self._status(rid), 'pending')
         self.assertEqual(self._avisos(rid), [])
 
     def test_idempotente(self):
-        agora = datetime.now()
+        agora = datetime(2026, 6, 1, 9, 0)
         self._criar('Pendente Unica', agora + timedelta(minutes=30))
 
         from app.services.scheduling import autocancelar_pendentes
@@ -187,9 +234,10 @@ class AutocancelPendentesTestCase(unittest.TestCase):
 
         self.assertEqual(primeira['canceladas'], 1)
         self.assertEqual(segunda['canceladas'], 0)
+        self.assertEqual(segunda['avisos'], 0)
 
     def test_criador_inativo_cancela_sem_aviso(self):
-        agora = datetime.now()
+        agora = datetime(2026, 6, 1, 9, 0)
         rid = self._criar('Pendente de Inativo', agora + timedelta(minutes=30))
         with self.app.app_context():
             criador = db.session.get(User, self.criador_id)
