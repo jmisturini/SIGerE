@@ -46,7 +46,7 @@ educacional. O nível de detalhe da resposta depende do token:
 Requisições **sem token continuam funcionando** — recebem apenas o payload
 público. Não existe endpoint "bloqueado": o que muda é o quanto ele revela.
 
-> 🚪 **App de exemplo incluída no repositório:** [examples/quadro-sala](../../examples/quadro-sala/)
+> 🚪 **App de exemplo incluída no repositório:** [examples/quadro-sala](../examples/quadro-sala/)
 > — um quadro de sala para tablet afixado na porta que consome a API
 > anonimamente de outra origem, com atualização automática. Serve de referência
 > prática para integrações web.
@@ -92,8 +92,9 @@ Como funciona:
   última vez, a validade e o status; tokens podem ser **revogados** (sem perder
   o histórico), reativados ou excluídos permanentemente.
 - O **escopo de dados** do token é o da conta que o criou: as reservas ficam
-  limitadas à unidade do criador (a menos que ele tenha permissão de alternar
-  unidade, usando `?unity_id=`).
+  limitadas às unidades do criador (a menos que a conta possa alternar
+  unidade — super-admin (`*`) ou vínculo com mais de uma unidade — usando
+  `?unity_id=`).
 - Tokens de contas **desativadas** param de autenticar imediatamente.
 - Credenciais inválidas retornam `401` com o cabeçalho
   `WWW-Authenticate: Bearer realm="SIGerE API"`.
@@ -297,7 +298,7 @@ O SIGerE é multi-unidade e a API respeita o isolamento de dados:
 | **Anônimo** sem `unity_id` | Primeira unidade **ativa** (ordem alfabética de nome) — mesma regra do totem |
 | **Anônimo** com `?unity_id=<id>` | A unidade indicada, se existir e estiver ativa (`404` caso contrário) |
 | **Token de usuário comum** | **Sempre a própria unidade** — `?unity_id` é ignorado |
-| **Token de usuário com permissão `*` ou `unity:switch`** | A própria unidade por padrão; `?unity_id=<id>` troca o escopo |
+| **Token de super-admin (`*`) ou de conta com mais de um vínculo de unidade** | A primeira unidade do escopo por padrão; `?unity_id=<id>` troca o escopo |
 
 Cada resposta inclui o campo `unity_id` no topo para o cliente confirmar o escopo
 que recebeu. Reservas de outra unidade jamais aparecem — e o detalhe delas responde
@@ -441,8 +442,9 @@ apenas o prefixo e a revogação é imediata. **Use sempre HTTPS em produção**
 revogue tokens de apps desativados.
 
 **Por que meu token não vê reservas da outra unidade?**
-O escopo segue a unidade da conta que criou o token. Só contas com permissão
-`*` ou `unity:switch` podem trocar a unidade com `?unity_id`.
+O escopo segue as unidades da conta que criou o token. Só super-admins (`*`)
+e contas vinculadas a mais de uma unidade podem trocar a unidade com `?unity_id`
+(a permissão `unity:switch` sozinha não concede isso).
 
 **Por que o endpoint responde 404 para uma reserva que sei que existe?**
 Ou ela é de outra unidade, ou está pendente/cancelada e a chamada é anônima. O 404

@@ -178,8 +178,8 @@ Menu próprio na barra lateral, logo depois da Agenda, com as duas visões (aces
 ### 💰 Financeiro
 - **Horas Extras:** com nível de ensino, valor hora, turno e dias selecionados no calendário (gravados apenas como dia, separados por vírgula — o mês/ano vêm do Mês Base)
 - **Regras de negócio:**
-  - Bloqueio de lançamento em meses anteriores ao atual (mensagem de erro visível) e de edição/exclusão de meses anteriores ou com mais de 30 dias
-  - Lançamentos do mês corrente só até o dia 25
+  - Janela de lançamento: do dia 21 do mês anterior ao dia 20 do mês de referência (o Mês Base segue essa janela)
+  - O gestor pode **fechar o mês** ("Fechar Mês"); fechado, o mês fica somente leitura para lançamento, edição e exclusão
 - **Consulta:** filtro de Mês Base em caixa de seleção (meses já lançados + mês atual, abrindo no mês atual, com opção "Todos os meses") combinado com filtro por professor
 - **Código Orçamentário:** máscara automática com pontos — `xx.xx.xxxx.x` (9 dígitos) ou `xx.xx.xxxx.xx.xxxx` (14 dígitos), aplicada no cadastro e na exportação
 - **Exportação Excel:** planilha formatada com modelo pré-definido (`base_pagamento_extra.xlsx`), filtrável por mês e/ou professor
@@ -305,7 +305,7 @@ flask --app run db upgrade
 # 5. Popule o banco — escolha UMA das opções:
 #    a) cria o admin com senha definida por você (sem dados de demonstração):
 flask --app run seed-admin
-#    b) cria o admin padrão (admin/admin123) e pergunta sobre dados de demonstração:
+#    b) cria o admin padrão (admin@school.edu / admin123) e pergunta sobre dados de demonstração:
 flask --app run seed
 #    c) cenário de demonstração completo (todos os módulos, reservas na semana
 #       corrente, cozinha, financeiro, token da API — ver "Contas de Demonstração"):
@@ -325,7 +325,7 @@ A aplicação estará disponível em: **http://localhost:5000**
 
 > **Nota:** o schema do banco é versionado com Flask-Migrate/Alembic (não é criado automaticamente no boot). O boot apenas avisa no terminal quando o banco está vazio ou fora do fluxo de migrações.
 
-> **Nota:** o comando `seed` cria sempre o administrador (`admin`/`admin123`) e, em seguida, **pergunta interativamente** se você quer popular dados de demonstração (responda `y` para receber também as contas `teacher1@school.edu` e `employee1@school.edu`). Veja detalhes em [Contas de Demonstração](#-contas-de-demonstração).
+> **Nota:** o comando `seed` cria sempre o administrador (`admin@school.edu`/`admin123`) e, em seguida, **pergunta interativamente** se você quer popular dados de demonstração (responda `y` para receber também as contas `teacher1@school.edu` e `employee1@school.edu`). Veja detalhes em [Contas de Demonstração](#-contas-de-demonstração).
 
 > **Implantação real:** prefira o comando `flask --app run seed-admin` — cria **apenas** a conta do administrador (sem dados de demonstração) e **solicita que você defina a senha** no terminal (mínimo de 8 caracteres, digitação oculta).
 
@@ -901,8 +901,8 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 - **Proteção contra double-booking concorrente:** locks por (sala, data), revalidação atômica na gravação e, em PostgreSQL, `SELECT ... FOR UPDATE` + advisory locks
 - **Proteção contra auto-desativação:** administradores não podem desativar sua própria conta
 - **Troca de senha forçada** no primeiro login ou após reset administrativo
-- **Bloqueio de edição/exclusão** de reservas passadas (exceto para administradores)
-- **Regras temporais** em hora extra: edição/exclusão até 30 dias e bloqueio de meses anteriores
+- **Bloqueio de edição/exclusão** de reservas passadas (inclusive para administradores)
+- **Regras temporais** em hora extra: janela de lançamento 21→20 e meses fechados pelo gestor ficam somente leitura
 - **`SECRET_KEY` obrigatória em produção** (fail-fast no boot fora do modo debug)
 - **Cookies de sessão endurecidos:** `Secure` fora do debug e `SameSite=Lax`
 - **Limite de upload** de 16 MB (`MAX_CONTENT_LENGTH`)

@@ -89,7 +89,7 @@ pip install -r requirements.txt
 flask --app run db upgrade
 
 # 5. Popule o banco — escolha UMA opção:
-flask --app run seed          # admin padrão (admin/admin123) + pergunta sobre dados de demonstração
+flask --app run seed          # admin padrão (admin@school.edu / admin123) + pergunta sobre dados de demonstração
 # ou
 flask --app run seed-admin    # apenas o admin, com senha definida por você (implantação real)
 ```
@@ -343,7 +343,7 @@ testar o isolamento multi-unidade.
 Para um cenário que **abranja cada módulo** (reservas na semana corrente,
 cozinha com escala de porções, vale-transporte com grupos de exportação,
 token da API etc.), rode `flask --app run seed-demo` — contas e detalhes na
-[tabela abaixo](#cenario-de-demonstração-completo-seed-demo) e no
+tabela abaixo e no
 [README](../README.md#-cenário-de-demonstração-completo-seed-demo).
 
 | Perfil | E-mail (login) | Senha | Observação |
