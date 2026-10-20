@@ -13,7 +13,6 @@ from datetime import date, time, timedelta
 from unittest.mock import patch
 
 from app import create_app
-from app.blueprints.reservations import RESERVATIONS_PER_PAGE
 from app.config import Config
 from app.extensions import db
 from app.models import (Classroom, Permission, Reservation, Role, RoomCategory,
