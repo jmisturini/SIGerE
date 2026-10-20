@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% set ids_marcadas = form.permissions.data or [] %}
+{% set ns = namespace(total=0) %}
+{% for _, perms, _ in grupos_permissoes %}{% set ns.total = ns.total + perms|length %}{% endfor %}
+<div class="row justify-content-center">
+    <div class="col-xl-10 col-md-11">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0"><i class="bi bi-shield-lock text-primary me-2"></i> {{ title }}</h5>
+                <a href="{{ url_for('admin.list_roles') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            {{ form.label.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.label(class="form-control") }}
+                            {% for err in form.label.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+
+                        <div class="col-12">
+                            {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.description(class="form-control", rows=2) }}
+                            {% for err in form.description.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="caixa-permissoes mt-3">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-3">
+                            <h6 class="fw-bold fs-5 mb-0">
+                                <i class="bi bi-key text-primary me-2"></i> Permissões
+                            </h6>
+                            <span class="text-muted small">
+                                <strong id="perm-total-selecionadas">0</strong> de {{ ns.total }} permissões selecionadas
+                            </span>
+                            <button type="button" id="perm-limpar-todas" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-x-circle me-1"></i> Limpar todas
+                            </button>
+                        </div>
+                        {% for err in form.permissions.errors %}<div class="text-danger small mt-1 mb-2 px-3">{{ err }}</div>{% endfor %}
+                        <div class="accordion" id="gradePermissoes">
+                        {% for rotulo, perms, modulo_unidade in grupos_permissoes %}
+                        {% set modulo_desligado = modulo_unidade and not unity_module_enabled(modulo_unidade) %}
+                        {% set qtd_marcadas = perms | selectattr('id', 'in', ids_marcadas) | list | length %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header d-flex align-items-stretch">
+                                <button class="accordion-button flex-shrink-1 {{ 'collapsed' if not qtd_marcadas }}" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#modulo-{{ loop.index }}"
+                                        aria-expanded="{{ 'true' if qtd_marcadas else 'false' }}">
+                                    <span class="fw-bold small text-uppercase">{{ rotulo }}</span>
+                                    <span class="badge border ms-2 perm-contador perm-contador-{{ 'ativa' if qtd_marcadas else 'vazia' }}"
+                                          data-modulo="{{ rotulo }}">{{ qtd_marcadas }}/{{ perms|length }}</span>
+                                </button>
+                                <div class="d-flex align-items-center gap-1 px-2 border-start flex-shrink-0">
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 perm-toggle"
+                                            data-modulo="{{ rotulo }}" data-marcar="1" {{ 'disabled' if modulo_desligado }}>Marcar todas</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 perm-toggle"
+                                            data-modulo="{{ rotulo }}" data-marcar="0" {{ 'disabled' if modulo_desligado }}>Limpar</button>
+                                </div>
+                            </h2>
+                            <div id="modulo-{{ loop.index }}" class="accordion-collapse collapse {{ 'show' if qtd_marcadas }}">
+                                <div class="accordion-body">
+                                    {% if modulo_desligado %}
+                                    <div class="alert alert-warning py-1 px-2 small mb-2"
+                                         title="O módulo pode estar ativo nas demais unidades — o papel é global e segue valendo nelas.">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        O módulo <strong>{{ rotulo }}</strong> está desativado nesta unidade:
+                                        as opções ficam bloqueadas e as permissões que o papel já possui
+                                        são preservadas até o módulo ser reativado.
+                                    </div>
+                                    {% endif %}
+                                    <div class="row">
+                                        {% for coluna in perms | slice(3) %}
+                                        <div class="col-md-6 col-xl-4">
+                                            {% for p in coluna %}
+                                            <div class="form-check">
+                                                <input class="form-check-input perm-check" type="checkbox" name="permissions"
+                                                       value="{{ p.id }}" id="perm-{{ p.id }}" data-modulo="{{ rotulo }}"
+                                                       {{ 'disabled' if modulo_desligado }}
+                                                       {% if p.id in ids_marcadas %}checked{% endif %}>
+                                                <label class="form-check-label small" for="perm-{{ p.id }}">
+                                                    {{ p.description or p.action }} <small class="text-muted">({{ p.code }})</small>
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('admin.list_roles') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    /* Caixa que destaca a grade de permissões do restante do formulário:
+       superfície no tom do fundo da página (não do card) + borda própria. */
+    .caixa-permissoes {
+        background: var(--body-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    /* O acordeão do Bootstrap usa --bs-body-bg (branco fixo), que destoa do
+       tema claro/escuro do app — dentro da caixa ele fica transparente e
+       usa as variáveis de texto/borda dos .card. */
+    #gradePermissoes {
+        --bs-accordion-bg: transparent;
+        --bs-accordion-color: var(--text-color);
+        --bs-accordion-border-color: var(--border-color);
+        --bs-accordion-btn-bg: transparent;
+        --bs-accordion-btn-color: var(--text-color);
+        --bs-accordion-active-bg: transparent;
+        --bs-accordion-active-color: var(--text-color);
+        --bs-accordion-btn-focus-box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.2);
+    }
+    [data-theme="dark"] #gradePermissoes .accordion-button::after {
+        filter: invert(1) grayscale(1);
+    }
+    /* Título de cada módulo com mais presença: sobe o "small" (0.875em) do
+       rótulo para um corpo próximo do texto normal e abre o espaçamento —
+       o span mantém as classes exatas que os testes verificam. */
+    #gradePermissoes .accordion-button .text-uppercase {
+        font-size: 1rem;
+        letter-spacing: 0.04em;
+    }
+    /* Badges de contagem por módulo: sutil quando vazio, destaque quando há
+       permissões marcadas — permite bater o olho e ver o que o papel já tem. */
+    .perm-contador-vazia {
+        background: var(--bs-secondary-bg-subtle, #e9ecef);
+        color: var(--bs-secondary-color, #6c757d);
+        border-color: var(--bs-secondary-bg-subtle, #e9ecef);
+    }
+    .perm-contador-ativa {
+        background: var(--bs-primary-bg-subtle, #cfe2ff);
+        color: var(--bs-primary-text, #0d6efd);
+        border-color: var(--bs-primary-bg-subtle, #cfe2ff);
+    }
+</style>
+<script>
+    const permChecks = document.querySelectorAll('.perm-check');
+
+    // Recalcula o contador de cada módulo e o total geral da página
+    function atualizaContadoresPermissoes() {
+        let totalSelecionadas = 0;
+        document.querySelectorAll('.perm-contador').forEach(badge => {
+            const checks = document.querySelectorAll(
+                `.perm-check[data-modulo="${badge.dataset.modulo}"]`);
+            const marcadas = [...checks].filter(c => c.checked).length;
+            badge.textContent = `${marcadas}/${checks.length}`;
+            badge.classList.toggle('perm-contador-ativa', marcadas > 0);
+            badge.classList.toggle('perm-contador-vazia', marcadas === 0);
+            totalSelecionadas += marcadas;
+        });
+        document.getElementById('perm-total-selecionadas').textContent = totalSelecionadas;
+    }
+
+    // Marca/limpa todas as permissões de um módulo (ignora as desabilitadas
+    // por módulo desligado na unidade ativa)
+    document.querySelectorAll('.perm-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const marcar = btn.dataset.marcar === '1';
+            document.querySelectorAll(`.perm-check[data-modulo="${btn.dataset.modulo}"]`)
+                .forEach(c => { if (!c.disabled) c.checked = marcar; });
+            atualizaContadoresPermissoes();
+        });
+    });
+
+    permChecks.forEach(c => c.addEventListener('change', atualizaContadoresPermissoes));
+
+    document.getElementById('perm-limpar-todas').addEventListener('click', () => {
+        permChecks.forEach(c => { if (!c.disabled) c.checked = false; });
+        atualizaContadoresPermissoes();
+    });
+
+    atualizaContadoresPermissoes();
+</script>
+{% endblock %}

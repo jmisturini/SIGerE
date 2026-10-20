@@ -1,0 +1,263 @@
+from flask import Blueprint, render_template, request, redirect, url_for, session
+from flask_login import current_user
+from sqlalchemy import func, or_
+from app.models import User, Classroom, Reservation, Course, Subject, Unity
+from app.unity_context import current_unity_id
+from app.forms import LoginForm
+from datetime import date, time, datetime
+
+bp = Blueprint('public', __name__)
+
+# Cortes de período do cronograma público — mesmos limites usados no totem
+# (Manhã até 12h, Tarde até 18h, Noite a partir das 18h). A aula entra no
+# período em que COMEÇA, então uma aula 11h–13h aparece na Manhã.
+PERIODOS_DIA = (
+    ('manha', 'Manhã', 'bi-sunrise', time(12, 0)),
+    ('tarde', 'Tarde', 'bi-sun', time(18, 0)),
+    ('noite', 'Noite', 'bi-moon-stars', None),
+)
+
+
+def _periodo_da_aula(start_time):
+    for key, _, _, limite in PERIODOS_DIA:
+        if limite is None or start_time < limite:
+            return key
+    return 'noite'
+
+
+def _periodo_atual():
+    """Chave do período em que o relógio está agora (mesmos cortes da
+    divisão por período e do totem)."""
+    agora = datetime.now().time()
+    return _periodo_da_aula(agora)
+
+
+def _public_unity():
+    """Unidade exibida no portal público (cronograma e busca de aula).
+
+    Precedência: ?unity=<id> na URL — a escolha (manual na lista ou pela
+    detecção de unidade próxima) fica memorizada na sessão do visitante; sem
+    o parâmetro, vale a última escolha — os links do menu entre as páginas
+    públicas não carregam ?unity=, e sem isso a seleção resetava a cada
+    troca de página; por fim, a primeira ativa, como fallback original.
+    Uma unidade desativada depois da escolha cai para o fallback, sem erro.
+    """
+    unity_id = request.args.get('unity', type=int)
+    if unity_id:
+        unity = Unity.query.filter_by(id=unity_id, is_active=True).first()
+        if unity:
+            session['public_unity_id'] = unity.id
+            return unity
+    lembrada = session.get('public_unity_id')
+    if lembrada:
+        unity = Unity.query.filter_by(id=lembrada, is_active=True).first()
+        if unity:
+            return unity
+        # A escolha não existe mais (unidade removida/desativada): sai da
+        # sessão para não carregar um id morto.
+        session.pop('public_unity_id', None)
+    return Unity.query.filter_by(is_active=True).order_by(Unity.name).first()
+
+
+# Public home page
+@bp.route('/')
+def home():
+    # Redirect to dashboard if the user is already logged in
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
+    # Home funcional (redesign C): a busca, o cronograma do dia e o login
+    # passam a executar na própria página — mesmos dados de /cronograma
+    # (_aulas_do_dia) e o form de login aponta para auth.login como antes.
+    periods, _, unity, unities = _aulas_do_dia(date.today())
+    agora = datetime.now().time()
+    aulas_hoje = [r for p in periods for r in p['reservations']]
+    em_andamento = [r for r in aulas_hoje if r.start_time <= agora < r.end_time]
+    proximas = [r for r in aulas_hoje if r.start_time > agora]
+    return render_template(
+        'home.html',
+        today=date.today(),
+        # Prévia curta do cronograma: aula em andamento + próximas do dia
+        aulas_preview=(em_andamento + proximas)[:4],
+        ids_em_andamento={r.id for r in em_andamento},
+        em_andamento_count=len(em_andamento),
+        proxima_aula=proximas[0] if proximas else None,
+        periodo_atual_label=next(
+            label for key, label, _, _ in PERIODOS_DIA if key == _periodo_atual()),
+        public_unity=unity,
+        public_unities=unities,
+        form=LoginForm(),
+    )
+
+
+def _parse_data_arg():
+    """Data consultada (?data=YYYY-MM-DD, padrão: hoje); datas inválidas caem para hoje."""
+    schedule_date = date.today()
+    if request.args.get('data'):
+        try:
+            schedule_date = date.fromisoformat(request.args.get('data'))
+        except ValueError:
+            pass
+    return schedule_date
+
+
+def _aulas_do_dia(schedule_date, query=''):
+    """Reservas aprovadas do dia na unidade pública, agrupadas por período,
+    mais o resultado da busca (quando há query). Retorna (periodos, resultados,
+    unidade_ativa, unidades_disponiveis)."""
+    unity = _public_unity()
+    periods = [
+        {'key': key, 'label': label, 'icon': icon, 'reservations': []}
+        for key, label, icon, _ in PERIODOS_DIA
+    ]
+    results = []
+
+    if unity is not None:
+        scope = [
+            Reservation.status == 'approved',
+            Reservation.date == schedule_date,
+            Classroom.unity_id == unity.id,
+        ]
+        day_reservations = (Reservation.query.join(Reservation.classroom)
+                            .filter(*scope)
+                            .order_by(Reservation.start_time, Classroom.code)
+                            .all())
+        by_period = {p['key']: p for p in periods}
+        for r in day_reservations:
+            by_period[_periodo_da_aula(r.start_time)]['reservations'].append(r)
+
+        if query:
+            # O aluno busca pelo que reconhece: título da aula, curso/turma,
+            # disciplina, professor ou sala.
+            like = f'%{query}%'
+            results = (Reservation.query
+                       .join(Reservation.classroom)
+                       .outerjoin(Reservation.course)
+                       .outerjoin(Reservation.subject)
+                       .outerjoin(User, Reservation.teacher_id == User.id)
+                       .filter(*scope, or_(
+                           Reservation.title.ilike(like),
+                           Classroom.name.ilike(like),
+                           Classroom.code.ilike(like),
+                           Course.name.ilike(like),
+                           Course.code.ilike(like),
+                           Subject.name.ilike(like),
+                           Subject.code.ilike(like),
+                           User.full_name.ilike(like)))
+                       .order_by(Reservation.start_time, Classroom.code)
+                       .all())
+
+    unities = Unity.query.filter_by(is_active=True).order_by(Unity.name).all()
+    return periods, results, unity, unities
+
+
+# Public: busca da aula pelo aluno (curso, disciplina, professor ou sala)
+@bp.route('/buscar-aula')
+def class_search():
+    query = request.args.get('q', '').strip()
+    schedule_date = _parse_data_arg()
+    _, results, unity, unities = _aulas_do_dia(schedule_date, query)
+    return render_template(
+        'buscar_aula.html',
+        query=query,
+        search_results=results,
+        schedule_date=schedule_date,
+        today=date.today(),
+        public_unity=unity,
+        public_unities=unities,
+    )
+
+
+# Public: cronograma geral das aulas do dia, dividido por período
+@bp.route('/cronograma')
+def daily_schedule():
+    schedule_date = _parse_data_arg()
+    periods, _, unity, unities = _aulas_do_dia(schedule_date)
+    # Destaque do período atual: só faz sentido no dia de hoje — consultando
+    # outro dia, nenhum cartão é destacado.
+    periodo_atual = _periodo_atual() if schedule_date == date.today() else None
+    return render_template(
+        'cronograma.html',
+        schedule_date=schedule_date,
+        today=date.today(),
+        schedule_periods=periods,
+        schedule_count=sum(len(p['reservations']) for p in periods),
+        periodo_atual=periodo_atual,
+        public_unity=unity,
+        public_unities=unities,
+    )
+
+# Public search page for rooms and teachers
+@bp.route('/search')
+def search():
+    query = request.args.get('q', '')
+    search_type = request.args.get('type', 'classroom')
+    ordem = request.args.get('ordem', '')
+
+    results_rooms = []
+    results_teachers = []
+
+    if query:
+        if search_type == 'classroom':
+            # Busca salas ativas da unidade do visitante logado (ou de todas para anônimos)
+            uid = current_unity_id()
+            room_filter = [
+                Classroom.is_active == True,
+                (Classroom.name.ilike(f'%{query}%') | Classroom.code.ilike(f'%{query}%'))
+            ]
+            if uid is not None:
+                room_filter.append(Classroom.unity_id == uid)
+            # Ordenação escolhida no formulário (padrão: código, como antes)
+            if ordem not in ('codigo', 'nome', 'nome_desc', 'capacidade', 'predio'):
+                ordem = 'codigo'
+            room_query = Classroom.query.filter(*room_filter)
+            if ordem == 'nome':
+                room_query = room_query.order_by(Classroom.name)
+            elif ordem == 'nome_desc':
+                room_query = room_query.order_by(Classroom.name.desc())
+            elif ordem == 'capacidade':
+                room_query = room_query.order_by(Classroom.capacity.desc(),
+                                                 Classroom.code)
+            elif ordem == 'predio':
+                room_query = room_query.order_by(Classroom.building,
+                                                 Classroom.floor, Classroom.code)
+            else:
+                room_query = room_query.order_by(Classroom.code)
+            results_rooms = room_query.all()
+
+        elif search_type == 'teacher':
+            # Busca professores ativos (escopo por unidade quando determinável)
+            uid = current_unity_id()
+            teacher_filter = [
+                User.is_active_user == True,
+                User.profile_type == 'teacher',
+                User.full_name.ilike(f'%{query}%')
+            ]
+            if uid is not None:
+                teacher_filter.append(User.escopo_unidade(uid))
+            if ordem not in ('professor_nome', 'professor_nome_desc',
+                             'matricula', 'departamento'):
+                ordem = 'professor_nome'
+            teacher_query = User.query.filter(*teacher_filter)
+            if ordem == 'professor_nome_desc':
+                teacher_query = teacher_query.order_by(User.full_name.desc())
+            elif ordem == 'matricula':
+                # matrícula é texto — ordena por tamanho antes do valor
+                # (50 antes de 100), como no adicional noturno
+                teacher_query = teacher_query.order_by(
+                    func.length(User.registration), User.registration,
+                    User.full_name)
+            elif ordem == 'departamento':
+                teacher_query = teacher_query.order_by(User.department,
+                                                       User.full_name)
+            else:
+                teacher_query = teacher_query.order_by(User.full_name)
+            results_teachers = teacher_query.all()
+
+    return render_template(
+        'search.html',
+        query=query,
+        search_type=search_type,
+        results_rooms=results_rooms,
+        results_teachers=results_teachers,
+        ordem=ordem
+    )

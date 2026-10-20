@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Quadro da Sala — SIGerE</title>
+<style>
+  /* ── Quadro de sala para tablet afixado na porta ──────────────────────
+     App externo que consome a API pública do SIGerE (/api/v1) de forma
+     ANÔNIMA: recebe apenas data, horário, sala e título de reservas
+     aprovadas — exatamente o que um painel de porta pode exibir.
+     Configuração por query string:
+       ?api=http://servidor-sigere:5000&room=S101&unity=1&refresh=60&org=SIGerE
+  ──────────────────────────────────────────────────────────────────── */
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface-2: #273449;
+    --text: #f1f5f9;
+    --text-dim: #94a3b8;
+    --livre: #22c55e;
+    --livre-dim: #14532d;
+    --uso: #ef4444;
+    --uso-dim: #7f1d1d;
+    --amber: #f59e0b;
+    --accent: #38bdf8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    padding: clamp(14px, 3vmin, 32px);
+    gap: clamp(10px, 2vmin, 22px);
+    overflow: hidden;
+  }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .sala-info { min-width: 0; }
+  .sala-nome {
+    font-size: clamp(26px, 6vmin, 52px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sala-sub { color: var(--text-dim); font-size: clamp(12px, 2.2vmin, 18px); margin-top: 2px; }
+  .org { color: var(--text-dim); font-size: clamp(11px, 2vmin, 15px); }
+  .relogio { text-align: right; flex-shrink: 0; }
+  .relogio .hora {
+    font-size: clamp(30px, 7vmin, 60px);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .relogio .data { color: var(--text-dim); font-size: clamp(11px, 2.2vmin, 16px); }
+
+  /* Status EM USO / LIVRE */
+  .status {
+    display: flex; align-items: center; gap: clamp(12px, 2.5vmin, 24px);
+    border-radius: clamp(12px, 2vmin, 20px);
+    padding: clamp(12px, 2.4vmin, 24px) clamp(16px, 3vmin, 30px);
+  }
+  .status.livre { background: var(--livre-dim); border: 2px solid var(--livre); }
+  .status.em-uso { background: var(--uso-dim); border: 2px solid var(--uso); }
+  .status .pulse {
+    width: clamp(14px, 3vmin, 26px); height: clamp(14px, 3vmin, 26px);
+    border-radius: 50%; flex-shrink: 0;
+  }
+  .status.livre .pulse { background: var(--livre); box-shadow: 0 0 0 0 rgba(34,197,94,.6); animation: pulse 2s infinite; }
+  .status.em-uso .pulse { background: var(--uso); box-shadow: 0 0 0 0 rgba(239,68,68,.6); animation: pulse 1.2s infinite; }
+  @keyframes pulse {
+    70% { box-shadow: 0 0 0 clamp(10px, 2vmin, 18px) rgba(255,255,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+  }
+  .status .txt { min-width: 0; }
+  .status .estado { font-size: clamp(20px, 4.2vmin, 38px); font-weight: 800; letter-spacing: .06em; }
+  .status .detalhe { font-size: clamp(13px, 2.6vmin, 20px); color: var(--text); opacity: .85; margin-top: 2px;
+                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Lista do dia */
+  .titulo-lista { color: var(--text-dim); font-size: clamp(12px, 2.2vmin, 17px);
+                  font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
+  .lista { display: flex; flex-direction: column; gap: clamp(6px, 1.2vmin, 12px);
+           overflow-y: auto; flex: 1; min-height: 0; scrollbar-width: thin; }
+  .item {
+    display: flex; align-items: center; gap: clamp(10px, 2vmin, 20px);
+    background: var(--surface); border-radius: clamp(10px, 1.6vmin, 16px);
+    padding: clamp(10px, 1.8vmin, 18px) clamp(14px, 2.4vmin, 24px);
+    border-left: 6px solid transparent;
+  }
+  .item .horario {
+    font-variant-numeric: tabular-nums; font-weight: 800;
+    font-size: clamp(16px, 3.2vmin, 28px); color: var(--accent); flex-shrink: 0;
+  }
+  .item .titulo-item { font-size: clamp(15px, 2.8vmin, 24px); font-weight: 600;
+                       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item.passado { opacity: .38; border-left-color: var(--text-dim); }
+  .item.passado .horario { color: var(--text-dim); }
+  .item.agora { border-left-color: var(--uso); background: var(--surface-2); }
+  .item.agora .tag {
+    background: var(--uso); color: #fff; font-size: clamp(10px, 1.8vmin, 13px);
+    font-weight: 800; padding: 3px 10px; border-radius: 999px; margin-left: auto;
+    letter-spacing: .08em; flex-shrink: 0;
+  }
+  .vazio { color: var(--text-dim); font-size: clamp(14px, 2.6vmin, 20px);
+           text-align: center; padding: 8vh 0; }
+
+  footer { display: flex; justify-content: space-between; color: var(--text-dim);
+           font-size: clamp(10px, 1.8vmin, 14px); gap: 12px; flex-wrap: wrap; }
+
+  /* Erro de conexão */
+  .erro {
+    background: #7c2d12; border: 2px solid var(--amber);
+    border-radius: 12px; padding: 10px 16px; font-size: clamp(13px, 2.4vmin, 18px);
+    display: none;
+  }
+  .erro.visivel { display: block; }
+
+  /* Tela de configuração (sem ?room=) */
+  .config { margin: auto; max-width: 420px; width: 100%;
+            background: var(--surface); border-radius: 16px; padding: 28px; }
+  .config h1 { font-size: 22px; margin-bottom: 6px; }
+  .config p { color: var(--text-dim); font-size: 14px; margin-bottom: 18px; }
+  .config label { display: block; font-size: 13px; color: var(--text-dim); margin: 12px 0 4px; }
+  .config input {
+    width: 100%; padding: 12px; font-size: 16px; border-radius: 8px;
+    border: 1px solid #475569; background: var(--bg); color: var(--text);
+  }
+  .config button {
+    width: 100%; margin-top: 20px; padding: 14px; font-size: 16px; font-weight: 700;
+    border: 0; border-radius: 8px; background: var(--accent); color: #082f49; cursor: pointer;
+  }
+  .config .dica { font-size: 12px; margin-top: 14px; }
+  .config code { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header id="cabecalho" style="display:none">
+  <div class="sala-info">
+    <div class="sala-nome" id="salaNome">…</div>
+    <div class="sala-sub" id="salaSub"></div>
+  </div>
+  <div class="relogio">
+    <div class="hora" id="relogioHora">--:--</div>
+    <div class="data" id="relogioData"></div>
+    <div class="org" id="org"></div>
+  </div>
+</header>
+
+<div class="erro" id="erro"></div>
+
+<div class="status livre" id="status" style="display:none">
+  <div class="pulse"></div>
+  <div class="txt">
+    <div class="estado" id="statusEstado">LIVRE</div>
+    <div class="detalhe" id="statusDetalhe"></div>
+  </div>
+</div>
+
+<div class="titulo-lista" id="tituloLista" style="display:none">Reservas de hoje</div>
+<div class="lista" id="lista" style="display:none"></div>
+
+<div class="config" id="config" style="display:none">
+  <h1>Quadro da Sala</h1>
+  <p>Painel para tablet afixado na porta da sala. Configure abaixo ou direto na URL.</p>
+  <label for="cfgApi">Endereço do SIGerE (API)</label>
+  <input id="cfgApi" placeholder="http://servidor:5000">
+  <label for="cfgRoom">Código da sala</label>
+  <input id="cfgRoom" placeholder="S101">
+  <label for="cfgUnity">ID da unidade (opcional)</label>
+  <input id="cfgUnity" placeholder="1">
+  <button id="cfgOk">Abrir quadro</button>
+  <p class="dica">Ex.: <code>?api=http://servidor:5000&amp;room=S101&amp;unity=1</code> —
+  salve a URL final como página inicial do navegador kiosk do tablet.</p>
+</div>
+
+<footer id="rodape" style="display:none">
+  <span id="atualizado"></span>
+  <span id="refreshInfo"></span>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var params = new URLSearchParams(location.search);
+  var cfg = {
+    api:    (params.get('api') || '').replace(/\/+$/, ''),
+    room:   params.get('room') || '',
+    unity:  params.get('unity') || '',
+    org:    params.get('org') || 'SIGerE',
+    refresh: Math.max(parseInt(params.get('refresh') || '60', 10) || 60, 10)
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var salaNomeCache = null;   // nome resolvido da sala (via /rooms)
+  var reservas = [];          // reservas de hoje (payload público)
+  var proximoRefreshEm = cfg.refresh;
+
+  // ── Tela de configuração quando falta ?room= ──
+  if (!cfg.room) {
+    $('config').style.display = 'block';
+    $('cfgOk').addEventListener('click', function () {
+      var q = new URLSearchParams();
+      if ($('cfgApi').value.trim()) q.set('api', $('cfgApi').value.trim());
+      if ($('cfgRoom').value.trim()) q.set('room', $('cfgRoom').value.trim().toUpperCase());
+      if ($('cfgUnity').value.trim()) q.set('unity', $('cfgUnity').value.trim());
+      location.replace(location.pathname + '?' + q.toString());
+    });
+    $('cfgRoom').focus();
+    return; // sem sala configurada, não consulta nada
+  }
+  $('config').style.display = 'none';
+
+  $('org').textContent = cfg.org;
+  mostrarSkeleton();
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function horaLocal() {
+    var d = new Date();
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+
+  function mostrarSkeleton() {
+    $('cabecalho').style.display = 'flex';
+    $('status').style.display = 'flex';
+    $('tituloLista').style.display = 'block';
+    $('lista').style.display = 'flex';
+    $('rodape').style.display = 'flex';
+    $('salaNome').textContent = cfg.room;
+    $('salaSub').textContent = 'carregando…';
+  }
+
+  function fetchJSON(url, timeoutMs) {
+    var ctrl = new AbortController();
+    var t = setTimeout(function () { ctrl.abort(); }, timeoutMs || 10000);
+    return fetch(url, { signal: ctrl.signal, cache: 'no-store' })
+      .then(function (r) {
+        clearTimeout(t);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .catch(function (e) { clearTimeout(t); throw e; });
+  }
+
+  function hojeISO() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  function atualizar() {
+    var q = 'classroom_code=' + encodeURIComponent(cfg.room) +
+            '&start=' + hojeISO() + '&end=' + hojeISO();
+    if (cfg.unity) q += '&unity_id=' + encodeURIComponent(cfg.unity);
+
+    Promise.all([
+      fetchJSON(cfg.api + '/api/v1/reservations?' + q),
+      fetchJSON(cfg.api + '/api/v1/rooms' + (cfg.unity ? '?unity_id=' + encodeURIComponent(cfg.unity) : ''))
+    ]).then(function (rs) {
+      var dados = rs[0];
+      reservas = dados.reservations || [];
+      var sala = null;
+      (rs[1].rooms || []).some(function (s) { if (s.code === cfg.room) { sala = s; return true; } return false; });
+      if (sala) salaNomeCache = sala.name;
+      $('erro').classList.remove('visivel');
+      renderizar();
+    }).catch(function (e) {
+      $('erro').textContent = '⚠ Sem conexão com a API (' + (e.message || 'erro') +
+        '). Tentando novamente em ' + cfg.refresh + ' s.';
+      $('erro').classList.add('visivel');
+      if (reservas.length) renderizar();  // mantém o último dado válido visível
+    });
+  }
+
+  function renderizar() {
+    var sala = (reservas.length && reservas[0].classroom) || null;
+    $('salaNome').textContent = salaNomeCache || (sala && sala.name) || cfg.room;
+    $('salaSub').textContent = 'Sala ' + (sala ? sala.code : cfg.room) + ' · ' + cfg.org;
+
+    var agora = horaLocal();
+    var atual = null, proxima = null, restantes = 0;
+    reservas.forEach(function (r) {
+      if (r.start_time <= agora && agora < r.end_time) atual = r;
+      else if (r.start_time > agora) { if (!proxima) proxima = r; restantes++; }
+    });
+
+    var st = $('status');
+    if (atual) {
+      st.className = 'status em-uso';
+      $('statusEstado').textContent = 'EM USO';
+      $('statusDetalhe').textContent = atual.title + ' — até ' + atual.end_time.slice(0, 5);
+    } else {
+      st.className = 'status livre';
+      $('statusEstado').textContent = 'LIVRE';
+      $('statusDetalhe').textContent = proxima
+        ? 'Próxima reserva às ' + proxima.start_time.slice(0, 5)
+        : 'Nenhuma reserva para o resto do dia';
+    }
+
+    var lista = $('lista');
+    lista.innerHTML = '';
+    if (!reservas.length) {
+      var v = document.createElement('div');
+      v.className = 'vazio';
+      v.textContent = 'Nenhuma reserva aprovada para hoje.';
+      lista.appendChild(v);
+    } else {
+      reservas.forEach(function (r) {
+        var emAndamento = r.start_time <= agora && agora < r.end_time;
+        var passou = r.end_time <= agora;
+        var item = document.createElement('div');
+        item.className = 'item' + (emAndamento ? ' agora' : (passou ? ' passado' : ''));
+        item.innerHTML =
+          '<span class="horario">' + r.start_time.slice(0, 5) + '–' + r.end_time.slice(0, 5) + '</span>' +
+          '<span class="titulo-item"></span>' +
+          (emAndamento ? '<span class="tag">AGORA</span>' : '');
+        item.querySelector('.titulo-item').textContent = r.title;  // anti-XSS
+        lista.appendChild(item);
+      });
+    }
+
+    $('atualizado').textContent = 'Atualizado às ' + agora + ' · API pública (sem dados pessoais)';
+  }
+
+  // ── Relógio + contador de refresh ──
+  setInterval(function () {
+    var agora = horaLocal();
+    $('relogioHora').textContent = agora.slice(0, 5);
+    $('relogioData').textContent = new Date().toLocaleDateString('pt-BR', {
+      weekday: 'long', day: '2-digit', month: 'long'
+    });
+    proximoRefreshEm -= 1;
+    if (proximoRefreshEm <= 0) { proximoRefreshEm = cfg.refresh; atualizar(); }
+    $('refreshInfo').textContent = 'Atualiza a cada ' + cfg.refresh + ' s (em ' +
+      Math.max(proximoRefreshEm, 0) + ' s)';
+  }, 1000);
+
+  atualizar();
+})();
+</script>
+</body>
+</html>

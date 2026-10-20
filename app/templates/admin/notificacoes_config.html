@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Notificações — Sobrecarga de Professor{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0"><i class="bi bi-bell text-primary me-2"></i> Notificações</h5>
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-light border small mb-4">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Os avisos de <strong>atividade próxima</strong> (24h e 1h antes) passaram a ser
+                    configurados na própria reserva — quem cria a reserva ativa o aviso e escolhe os
+                    destinatários no formulário. Aqui fica apenas o aviso de
+                    <strong>sobrecarga de professor</strong>, da regra de carga docente.
+                </div>
+
+                {% if current_unity %}
+                <p class="text-muted small mb-4">
+                    <i class="bi bi-geo-alt me-1"></i> Configuração da unidade
+                    <strong>{{ current_unity.name }}</strong>.
+                </p>
+                {% endif %}
+
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <h6 class="fw-bold mb-2"><i class="bi bi-people me-1"></i> Sobrecarga de professor</h6>
+                    <p class="text-muted small mb-3">Quando uma reserva deixa o professor com mais de
+                        2 reservas no mesmo dia, ela nasce Pendente e os grupos selecionados abaixo
+                        são avisados na hora. Sem seleção, ninguém recebe o aviso.</p>
+                    {% if grupos %}
+                    <div class="mb-3">
+                        {{ form.overload_groups.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.overload_groups(class="form-select", size=grupos|length if grupos|length <= 8 else 8, multiple=true) }}
+                        {% for err in form.overload_groups.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        <div class="form-text">Segure Ctrl (ou toque e arraste no celular) para selecionar vários.</div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-light border small mb-3">
+                        Nenhum grupo cadastrado nesta unidade ainda.
+                        {% if current_user.has_permission('notification:groups') %}
+                        <a href="{{ url_for('admin.create_notificacao_grupo') }}">Criar o primeiro grupo</a>.
+                        {% endif %}
+                    </div>
+                    {% for err in form.overload_groups.errors %}<div class="text-danger small mb-3">{{ err }}</div>{% endfor %}
+                    {% endif %}
+
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('admin.notificacoes_grupos') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-collection me-1"></i> Gerenciar grupos
+                        </a>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">Cancelar</a>
+                            {{ form.submit(class="btn btn-primary px-4") }}
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

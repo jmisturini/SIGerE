@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+{% from '_pagination.html' import render_pagination %}
+{% block title %}Horas Extras{% endblock %}
+
+{% block content %}
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Horas Extras</h3>
+        <p class="text-muted mb-0">Gerencie as horas extras e exporte relatórios.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="https://antigaintranet.sc.senac.br/formularios/classificaProjetosEspeciais/form.php" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary">
+            <i class="bi bi-box-arrow-up-right me-1"></i> Formulário FIC
+        </a>
+        {% if current_user.has_permission('payment:close_month') and filter_month %}
+        <form method="POST" action="{{ url_for('payments.close_month_overtime') }}" class="d-inline"
+              onsubmit="return confirm('Fechar os lançamentos de {{ filter_month_label }}? O mês não aceitará mais edições e a planilha final será baixada.');">
+            <input type="hidden" name="month_base" value="{{ filter_month }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger" {{ 'disabled' if filter_month in meses_fechados }}
+                    title="{{ 'Este mês já está fechado' if filter_month in meses_fechados else 'Fecha os lançamentos do mês, bloqueia edições e baixa a planilha final' }}">
+                <i class="bi bi-lock-fill me-1"></i> Fechar Mês
+            </button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('payments.create_overtime', **request.args.to_dict()) }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Nova Hora Extra
+        </a>
+    </div>
+</div>
+
+{% if fechamento %}
+<div class="alert alert-secondary d-flex align-items-center gap-2 py-2 px-3 mb-4 small" role="alert">
+    <i class="bi bi-lock-fill flex-shrink-0"></i>
+    <div>
+        Os lançamentos de <strong>{{ filter_month | mes_referencia }}</strong> foram fechados em
+        <strong>{{ fechamento.closed_at | horario_local }}</strong>
+        {% if fechamento.closed_by %} por <strong>{{ fechamento.closed_by.full_name }}</strong>{% endif %} —
+        o mês está somente leitura.
+    </div>
+</div>
+{% endif %}
+
+<!-- Formulário Unificado de Filtro e Exportação -->
+<form method="GET" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Mês Base</label>
+                <select id="month_base" name="month_base" class="form-select">
+                    <option value="">Todos os meses</option>
+                    {% for value, label in month_options %}
+                        <option value="{{ value }}" {{ 'selected' if filter_month == value }}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Professor</label>
+                <select id="teacher_filter" name="teacher_filter" class="form-select">
+                    <option value="">Todos os Professores</option>
+                    {% for t in list_teachers %}
+                        <option value="{{ t.id }}" {{ 'selected' if filter_teacher == t.id }}>{{ t.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Ordenar por</label>
+                <select name="ordem" class="form-select">
+                    <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Lançamento (mais recentes)</option>
+                    <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Lançamento (mais antigas)</option>
+                    <option value="professor" {{ 'selected' if ordem == 'professor' }}>Professor</option>
+                    <option value="mes" {{ 'selected' if ordem == 'mes' }}>Mês (mais antigo)</option>
+                    <option value="mes_desc" {{ 'selected' if ordem == 'mes_desc' }}>Mês (mais recente)</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary flex-grow-1">
+                    <i class="bi bi-funnel me-1"></i> Filtrar
+                </button>
+                <a href="{{ url_for('payments.list_overtime') }}"
+                   class="btn btn-outline-secondary {{ '' if (filter_month or filter_teacher) else 'disabled' }}"
+                   {{ '' if (filter_month or filter_teacher) else 'aria-disabled="true" tabindex="-1"' }}
+                   title="Limpar os filtros aplicados e voltar à consulta do mês atual">
+                    <i class="bi bi-x-circle me-1"></i> Limpar
+                </a>
+                <button type="submit" formaction="{{ url_for('payments.export_excel_overtime') }}" id="exportBtn" class="btn btn-success flex-grow-1" disabled
+                        title="Exporta a planilha com os filtros aplicados (mês e/ou professor)">
+                    <i class="bi bi-file-excel me-1"></i> Exportar
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+{# Caixa separada dos filtros: informa o período de lançamento do mês em
+   vista — o JavaScript a atualiza quando o mês do seletor muda. #}
+<div class="alert alert-secondary d-flex align-items-center gap-2 py-2 px-3 mb-4 small" id="periodo-hint" aria-live="polite" role="alert">
+    <i class="bi bi-calendar-range flex-shrink-0"></i>
+    <div>
+        {% if periodo_inicio %}
+        Período de lançamento de <strong>{{ filter_month_label }}</strong>:
+        <strong>{{ periodo_inicio }}</strong> a <strong>{{ periodo_fim }}</strong> — o que foi lançado nesse intervalo conta para este mês.
+        {% else %}
+        Mostrando os lançamentos de todos os períodos.
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <!-- text-nowrap: evita quebra de valores curtos ("2026-10", nomes) —
+                 abaixo da largura natural, o contêiner rola em vez de espremer -->
+            <table class="table table-hover mb-0 align-middle text-nowrap">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Professor</th>
+                        <th>Mês Base</th>
+                        <th>Nível</th>
+                        <th>Dias Selecionados</th>
+                        <th>Justificativa</th>
+                        <th>Turno</th>
+                        <th>Código</th>
+                        <th>Horas</th>
+                        <th>Valor H/a</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for o in infos %}
+                    <tr id="overtime-{{ o.id }}">
+                        <td class="ps-4 fw-bold">{{ o.teacher.full_name }}</td>
+                        <td>{{ o.month_base | mes_referencia }}</td>
+                        <td>{{ o.teaching_level }}</td>
+                        <td><small class="text-muted">{{ o.multiple_dates or '-' }}</small></td>
+                        <td><small class="d-inline-block text-truncate align-middle text-muted" style="max-width: 180px;"
+                                   title="{{ o.justification or '' }}">{{ o.justification or '-' }}</small></td>
+                        <td>{{ o.shift }}</td>
+                        <td>{{ o.budget_code | budget_code }}</td>
+                        <td>{{ o.weekly_workload | hours_minutes }}</td>
+                        <td>R$ {{ "%.2f"|format(o.hourly_value) }}</td>
+                        <td class="text-end pe-4 text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                                    data-bs-target="#view-overtime-{{ o.id }}" title="Ver informações do lançamento">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            {% if o.month_base in meses_fechados %}
+                                {# Mês fechado: somente leitura #}
+                                <span class="d-inline-block ms-1" title="Mês fechado: o lançamento não pode mais ser alterado ou excluído.">
+                                    <i class="bi bi-lock-fill text-muted"></i>
+                                </span>
+                            {% else %}
+                                {% if current_user.has_permission('payment:edit') %}
+                                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                {% endif %}
+                                {% if current_user.has_permission('payment:delete') %}
+                                <form method="POST" action="{{ url_for('payments.delete_overtime', overtime_id=o.id) }}" class="d-inline" onsubmit="return confirm('Excluir Hora Extra?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted p-5">
+                            <i class="bi bi-cash-stack fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhuma hora extra encontrada</h5>
+                            <p class="small mb-0">Nenhum registro encontrado para os filtros selecionados.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for o in infos %}
+<div class="modal fade" id="view-overtime-{{ o.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye text-primary me-2"></i>Lançamento de Hora Extra</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Professor</div>
+                        <div class="fw-semibold">{{ o.teacher.full_name }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Mês Base</div>
+                        <div>{{ o.month_base | mes_referencia }}</div>
+                    </div>
+                    {% if o.dates_month and o.dates_month != o.month_base %}
+                    {# Dias lançados no mês anterior ao Mês Base (janela 20→20) #}
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Mês das Datas</div>
+                        <div>{{ o.dates_month | mes_referencia }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Tipo de Curso</div>
+                        <div>{{ o.course_type.name if o.course_type else '—' }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-bold text-uppercase text-muted">Nível de Ensino</div>
+                        <div>{{ o.teaching_level }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Turno</div>
+                        <div>{{ o.shift }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Carga Horária</div>
+                        <div>{{ o.weekly_workload | hours_minutes }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Valor H/a</div>
+                        <div>R$ {{ "%.2f"|format(o.hourly_value) }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Data do Lançamento</div>
+                        <div>{{ o.created_at | horario_local }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Código Orçamentário</div>
+                        <div>{{ o.budget_code | budget_code }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small fw-bold text-uppercase text-muted">Dias Selecionados</div>
+                        <div>{{ o.multiple_dates or '—' }}</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="small fw-bold text-uppercase text-muted">Justificativa</div>
+                        <div>{{ o.justification or '—' }}</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="small fw-bold text-uppercase text-muted">Observação</div>
+                        <div>{{ o.observation or '—' }}</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="small fw-bold text-uppercase text-muted">Responsável pelo Lançamento</div>
+                        <div>{{ o.accountable.full_name if o.accountable else '—' }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                {% if o.month_base not in meses_fechados and current_user.has_permission('payment:edit') %}
+                <a href="{{ url_for('payments.edit_overtime', overtime_id=o.id, **request.args.to_dict()) }}" class="btn btn-primary">
+                    <i class="bi bi-pencil me-1"></i> Editar
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{{ render_pagination(pagination, 'payments.list_overtime') }}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const monthSelect = document.getElementById('month_base');
+    const teacherSelect = document.getElementById('teacher_filter');
+    const exportBtn = document.getElementById('exportBtn');
+    const periodoBox = document.getElementById('periodo-hint');
+    const NOMES_MESES = {{ nomes_meses | tojson }};
+
+    // Função para ativar/desativar o botão de exportar
+    function updateExportBtn() {
+        if (monthSelect.value || teacherSelect.value) {
+            exportBtn.disabled = false;
+        } else {
+            exportBtn.disabled = true;
+        }
+    }
+
+    function rotuloMes(mes) {
+        const [ano, m] = mes.split('-').map(Number);
+        return NOMES_MESES[m - 1] + '/' + ano;
+    }
+
+    function mesAnteriorDe(mes) {
+        let [ano, m] = mes.split('-').map(Number);
+        m -= 1;
+        if (m < 1) { m = 12; ano -= 1; }
+        return ano + '-' + String(m).padStart(2, '0');
+    }
+
+    // Dica do período visualizado: cada mês de referência reúne o que foi
+    // lançado do dia 21 do mês anterior ao dia 20 dele. O texto vive na div
+    // interna da caixa, preservando o ícone.
+    function atualizarPeriodo() {
+        if (!periodoBox) return;
+        const texto = periodoBox.querySelector('div');
+        if (!monthSelect.value) {
+            texto.textContent = 'Mostrando os lançamentos de todos os períodos.';
+            return;
+        }
+        const anterior = mesAnteriorDe(monthSelect.value);
+        const [anoAnterior, mesAnterior] = anterior.split('-').map(Number);
+        const [ano, mes] = monthSelect.value.split('-').map(Number);
+        const periodo = '21/' + String(mesAnterior).padStart(2, '0') + '/' + anoAnterior +
+            ' a 20/' + String(mes).padStart(2, '0') + '/' + ano;
+        texto.innerHTML = 'Período de lançamento de <strong>' + rotuloMes(monthSelect.value) +
+            '</strong>: <strong>' + periodo + '</strong> — o que foi lançado nesse intervalo conta para este mês.';
+    }
+
+    // Executa ao carregar a página e a cada mudança nos campos
+    updateExportBtn();
+    atualizarPeriodo();
+    monthSelect.addEventListener('change', updateExportBtn);
+    monthSelect.addEventListener('change', atualizarPeriodo);
+    teacherSelect.addEventListener('change', updateExportBtn);
+});
+</script>
+{% endblock %}

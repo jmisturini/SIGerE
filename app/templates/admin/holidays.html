@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}Gerenciar Feriados{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Gerenciar Feriados</h3>
+        <p class="text-muted mb-0">Cadastre ou importe feriados nacionais para o calendário do sistema.</p>
+    </div>
+    <a href="{{ url_for('admin.create_holiday') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> Adicionar Manualmente
+    </a>
+</div>
+
+<!-- Caixa de Importação da API -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-1"><i class="bi bi-cloud-download text-primary me-2"></i> Importar da BrasilAPI</h5>
+        <p class="text-muted small mb-3">Busque os feriados nacionais do Brasil automaticamente para o ano selecionado.</p>
+        <form method="POST" action="{{ url_for('admin.import_holidays') }}" class="row g-3 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Ano</label>
+                <input type="number" name="year" class="form-control" value="{{ now.year }}" required>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-magic me-1"></i> Buscar e Importar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Ordenação -->
+<form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <label class="form-label small fw-bold text-muted mb-0" for="ordem-feriado">Ordenar por</label>
+    <select name="ordem" id="ordem-feriado" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        <option value="data" {{ 'selected' if ordem == 'data' }}>Data (mais próxima)</option>
+        <option value="data_desc" {{ 'selected' if ordem == 'data_desc' }}>Data (mais distante)</option>
+        <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
+        <option value="nome_desc" {{ 'selected' if ordem == 'nome_desc' }}>Nome (Z–A)</option>
+        <option value="status" {{ 'selected' if ordem == 'status' }}>Status (ativos primeiro)</option>
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Ordenar</button></noscript>
+</form>
+
+<!-- Tabela de Feriados -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Data</th>
+                        <th>Nome</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for h in holidays %}
+                    <tr id="holiday-{{ h.id }}">
+                        <td class="ps-4 fw-bold text-nowrap">{{ h.date.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ h.name }}</td>
+                        <td>
+                            {% if h.is_active %}
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Ativo</span>
+                            {% else %}
+                                <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <a href="{{ url_for('admin.edit_holiday', holiday_id=h.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="POST" action="{{ url_for('admin.delete_holiday', holiday_id=h.id) }}" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este feriado?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted p-5">
+                            <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhum feriado encontrado</h5>
+                            <p class="small mb-0">Use a importação automática acima ou adicione manualmente.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

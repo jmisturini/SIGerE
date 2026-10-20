@@ -1,0 +1,33 @@
+{# Controles de paginação reutilizáveis (Bootstrap 5).
+   Uso: {% from '_pagination.html' import render_pagination %}
+        {{ render_pagination(pagination, 'admin.list_users') }}
+   Preserva automaticamente os demais parâmetros da query string
+   (busca, filtros de status etc.) ao trocar de página. #}
+{% macro render_pagination(pagination, endpoint) %}
+{% if pagination and pagination.pages > 1 %}
+{% set args = request.args.to_dict() %}
+{% set _ = args.pop('page', None) %}
+<nav aria-label="Navegação de páginas" class="mt-4">
+  <div class="text-muted small mb-2 text-center">
+    {{ pagination.total }} registro(s) — página {{ pagination.page }} de {{ pagination.pages }}
+  </div>
+  <ul class="pagination justify-content-center mb-0">
+    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+      <a class="page-link" href="{{ url_for(endpoint, page=pagination.prev_num or 1, **args) }}" aria-label="Anterior">&laquo;</a>
+    </li>
+    {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+      {% if p %}
+        <li class="page-item {{ 'active' if p == pagination.page }}">
+          <a class="page-link" href="{{ url_for(endpoint, page=p, **args) }}">{{ p }}</a>
+        </li>
+      {% else %}
+        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+      {% endif %}
+    {% endfor %}
+    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+      <a class="page-link" href="{{ url_for(endpoint, page=pagination.next_num or pagination.pages, **args) }}" aria-label="Próxima">&raquo;</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
+{% endmacro %}

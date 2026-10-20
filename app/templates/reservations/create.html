@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% block title %}Nova Reserva{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0"><i class="bi bi-calendar-plus text-primary me-2"></i> Nova Reserva</h5>
+                <a href="{{ url_for('classrooms.detail', classroom_id=request.args.get('classroom_id', type=int)) if request.args.get('classroom_id') else url_for('main.index') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row g-3">
+                        <div class="col-12">
+                            {{ form.classroom.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.classroom(class="form-select") }}
+                            {% for err in form.classroom.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.course.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.course(class="form-select") }}
+                            {% for err in form.course.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+
+                        <div class="col-md-6">
+                            {{ form.subject.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.subject(class="form-select") }}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.teacher(class="form-select") }}
+                        </div>
+                        
+                        <div class="col-12">
+                            {{ form.title.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.title(class="form-control") }}
+                            {% for err in form.title.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-12">
+                            {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.description(class="form-control", rows="3") }}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            {{ form.date.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.date(class="form-control") }}
+                            <div id="dateWarning" class="alert alert-warning mt-2 p-2 small align-items-center" style="display: none;"></div>
+                            {% for err in form.date.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            {{ form.start_time.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.start_time(class="form-control") }}
+                            {% for err in form.start_time.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            {{ form.end_time.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.end_time(class="form-control") }}
+                            {% for err in form.end_time.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-1"><i class="bi bi-bell me-1"></i> Notificações</h6>
+                    <p class="text-muted small mb-3">Opcional — desativado por padrão. Ao ativar, os destinatários
+                        escolhidos recebem um aviso no sino antes do início da atividade.</p>
+                    <div class="form-check form-switch mb-3">
+                        {{ form.notify_enabled(class="form-check-input", role="switch", id="notify_enabled_switch") }}
+                        {{ form.notify_enabled.label(class="form-check-label fw-medium", for="notify_enabled_switch") }}
+                        {% for err in form.notify_enabled.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                    </div>
+                    <div id="notificacoesDetalhes" class="{{ 'd-none' if not form.notify_enabled.data }}">
+                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">Avisar antes da atividade</label>
+                        <div class="d-flex flex-wrap gap-4 mb-3">
+                            <div class="form-check">
+                                {{ form.notify_7d(class="form-check-input", id="notify_7d_check") }}
+                                {{ form.notify_7d.label(class="form-check-label", for="notify_7d_check") }}
+                            </div>
+                            <div class="form-check">
+                                {{ form.notify_24h(class="form-check-input", id="notify_24h_check") }}
+                                {{ form.notify_24h.label(class="form-check-label", for="notify_24h_check") }}
+                            </div>
+                            <div class="form-check">
+                                {{ form.notify_1h(class="form-check-input", id="notify_1h_check") }}
+                                {{ form.notify_1h.label(class="form-check-label", for="notify_1h_check") }}
+                            </div>
+                            <div class="form-check">
+                                {{ form.notify_dia(class="form-check-input", id="notify_dia_check") }}
+                                {{ form.notify_dia.label(class="form-check-label", for="notify_dia_check") }}
+                            </div>
+                        </div>
+                        <div class="form-check mb-3">
+                            {{ form.notify_criador(class="form-check-input", id="notify_criador_check") }}
+                            {{ form.notify_criador.label(class="form-check-label", for="notify_criador_check") }}
+                            <div class="form-text">Você recebe os mesmos avisos dos destinatários escolhidos.</div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                {{ form.notify_groups.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                {{ form.notify_groups(class="form-select", multiple=true) }}
+                                <div class="form-text">Grupos personalizados cadastrados no painel admin.</div>
+                                {% for err in form.notify_groups.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.notify_users.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                {{ form.notify_users(class="form-select", multiple=true) }}
+                                <div class="form-text">Adicione usuários individualmente, além dos grupos.</div>
+                                {% for err in form.notify_users.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const dateInput = document.getElementById('date');
+        const startInput = document.getElementById('start_time');
+        const endInput = document.getElementById('end_time');
+        const warningBox = document.getElementById('dateWarning');
+
+        function updateWarnings() {
+            let messages = [];
+            if (dateInput.value) {
+                const dateObj = new Date(dateInput.value + 'T00:00:00');
+                const day = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+                if (day === 6 && startInput.value) {
+                    // Mesma regra do servidor: início ou término após 18:00 é inválido
+                    const lateStart = startInput.value >= '18:00';
+                    const lateEnd = endInput.value && endInput.value > '18:00';
+                    if (lateStart || lateEnd) {
+                        messages.push("Aos sábados, as reservas são permitidas apenas pela manhã e tarde (até 18:00).");
+                    }
+                }
+            }
+
+            if (dateInput.value) {
+                fetch(`{{ url_for('reservations.check_holiday') }}?date=${dateInput.value}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.has_warning) { messages.push(data.message); }
+                        if (messages.length > 0) {
+                            warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i> ${messages.join('<br>')}`;
+                            warningBox.style.display = 'flex';
+                        } else { warningBox.style.display = 'none'; }
+                    })
+                    .catch(err => {
+                        if (messages.length > 0) {
+                            warningBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i> ${messages.join('<br>')}`;
+                            warningBox.style.display = 'flex';
+                        } else { warningBox.style.display = 'none'; }
+                    });
+            } else { warningBox.style.display = 'none'; }
+        }
+        updateWarnings();
+        dateInput.addEventListener('change', updateWarnings);
+        startInput.addEventListener('change', updateWarnings);
+        endInput.addEventListener('change', updateWarnings);
+
+        // Notificações: os detalhes (antecedências e destinatários) só
+        // aparecem com o interruptor ativado.
+        const notifySwitch = document.getElementById('notify_enabled_switch');
+        const notifyDetalhes = document.getElementById('notificacoesDetalhes');
+        if (notifySwitch && notifyDetalhes) {
+            const alternarDetalhes = () => notifyDetalhes.classList.toggle('d-none', !notifySwitch.checked);
+            notifySwitch.addEventListener('change', alternarDetalhes);
+        }
+    });
+</script>
+{% endblock %}

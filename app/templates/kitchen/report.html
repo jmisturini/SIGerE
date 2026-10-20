@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+{% block title %}Cozinha — Relatório de Ingredientes{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-text text-primary me-2"></i>Relatório de Ingredientes</h3>
+        <p class="text-muted mb-0">Ingredientes que serão exportados na requisição de compra. Use <strong>Detalhes</strong>
+            para ver a quantidade individual de cada preparação e ajuste os dados abaixo para exportar a planilha.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('kitchen.shopping') }}">
+        <i class="bi bi-arrow-left me-1"></i> Voltar para Compras
+    </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-transparent py-3">
+        <h6 class="fw-bold mb-0"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Dados da requisição</h6>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('kitchen.shopping_export') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% for recipe_id in recipe_ids %}
+            <input type="hidden" name="recipe_ids" value="{{ recipe_id }}">
+            {% endfor %}
+            <div class="row g-3 align-items-end">
+                <div class="col-6 col-lg-3">
+                    <label for="professor" class="form-label small text-muted mb-1">Prof</label>
+                    <input type="text" class="form-control" id="professor" name="professor"
+                           value="{{ professor }}" maxlength="120">
+                </div>
+                <div class="col-6 col-lg-3">
+                    <label for="class_date" class="form-label small text-muted mb-1">Data da aula</label>
+                    <input type="date" class="form-control" id="class_date" name="class_date"
+                           value="{{ class_date.strftime('%Y-%m-%d') }}">
+                </div>
+                <div class="col-6 col-lg-3">
+                    <label for="course" class="form-label small text-muted mb-1">Curso</label>
+                    <input type="text" class="form-control" id="course" name="course"
+                           value="{{ course }}" maxlength="200"
+                           placeholder="Ex: TURISMO - GRADUAÇÃO - 090001009">
+                </div>
+                <div class="col-6 col-lg-3">
+                    <label for="period" class="form-label small text-muted mb-1">Período</label>
+                    <select class="form-select" id="period" name="period">
+                        <option value="" {% if not period %}selected{% endif %}>—</option>
+                        <option value="Matutino" {% if period == 'Matutino' %}selected{% endif %}>Matutino</option>
+                        <option value="Vespertino" {% if period == 'Vespertino' %}selected{% endif %}>Vespertino</option>
+                        <option value="Noturno" {% if period == 'Noturno' %}selected{% endif %}>Noturno</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-3 align-items-center mt-0">
+                <div class="col-lg">
+                    <div class="alert alert-light border small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        A planilha gerada segue o modelo "REQUISIÇÃO DE COMPRA - GASTRONOMIA", com a aba de referência
+                        dos centros de custo. Ingredientes sem quantidade definida (ex.: "a gosto") são listados com a
+                        quantidade em branco; ingredientes <strong>desativados</strong> na preparação ficam de fora.
+                        Água não é incluída.
+                    </div>
+                </div>
+                <div class="col-lg-auto">
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Exportar Requisição (.xlsx)
+                    </button>
+                </div>
+            </div>
+        </form>
+        <hr class="my-4">
+        <div class="small text-muted mb-1">Preparações selecionadas</div>
+        {% for name in recipe_names %}
+        <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle me-1 mb-1">{{ name }}</span>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-transparent py-3">
+        <h6 class="fw-bold mb-0"><i class="bi bi-basket me-2"></i>Ingredientes ({{ rows|length }})</h6>
+    </div>
+    {% if rows %}
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" data-ordenavel>
+                <thead class="table-light">
+                <tr>
+                    <th class="ps-4">PRODUTO</th>
+                    <th class="text-center" style="width: 120px;">QUANTIDADE</th>
+                    <th class="text-center" style="width: 110px;">UNIDADE</th>
+                    <th class="text-center" style="width: 110px;" data-nao-ordenavel>DETALHES</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td class="ps-4 fw-semibold">{{ row.nome }}</td>
+                        <td class="text-center">{{ row.quantidade|qtyfmt }}</td>
+                        <td class="text-center">{{ row.unidade }}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-primary detalhes-btn"
+                                    data-index="{{ loop.index0 }}"
+                                    title="Ver a quantidade individual de cada preparação deste ingrediente">
+                                <i class="bi bi-card-list me-1"></i>Detalhes
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card-body text-center text-muted p-5">
+        <i class="bi bi-basket fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Nenhum ingrediente para exportar</h5>
+        <p class="small mb-0">As preparações selecionadas não têm ingredientes ativos com quantidade definida.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="modal fade" id="detalhesModal" tabindex="-1" aria-labelledby="detalhesTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0" id="detalhesTitulo">Ingrediente</h6>
+                    <div class="small text-muted" id="detalhesTotal"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-0">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th class="ps-3 py-2">PREPARAÇÃO</th>
+                        <th class="text-center pe-3 py-2" style="width: 140px;">QUANTIDADE</th>
+                    </tr>
+                    </thead>
+                    <tbody id="detalhesCorpo"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="ingredientes-data" type="application/json">{{ rows|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/tabela-ordenavel.js') }}"></script>
+<script>
+    // Dados do relatório (nome, total e quebra por preparação de cada linha),
+    // serializados pelo servidor na ordem das linhas da tabela.
+    const ingredientes = JSON.parse(document.getElementById('ingredientes-data').textContent);
+    const modalEl = document.getElementById('detalhesModal');
+    const tituloEl = document.getElementById('detalhesTitulo');
+    const totalEl = document.getElementById('detalhesTotal');
+    const corpoEl = document.getElementById('detalhesCorpo');
+
+    // O modal acompanha o tema do aplicativo: o Bootstrap 5.3 alterna as
+    // cores dos componentes pelo atributo data-bs-theme, enquanto o tema
+    // deste app vive em data-theme (no <html>).
+    const sincronizarTemaModal = () => {
+        modalEl.setAttribute('data-bs-theme',
+            document.documentElement.getAttribute('data-theme') === 'dark'
+                ? 'dark' : 'light');
+    };
+    sincronizarTemaModal();
+
+    // Mesmo formato do filtro qtyfmt: 0.6 → '0,6', 5.0 → '5', None → '—'.
+    const fmtQty = (value) => {
+        if (value === null) return '—';
+        return value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '').replace('.', ',');
+    };
+
+    document.querySelectorAll('.detalhes-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const linha = ingredientes[Number(btn.dataset.index)];
+            sincronizarTemaModal();
+            tituloEl.textContent = linha.nome;
+            totalEl.textContent = 'Total da linha: '
+                + (linha.quantidade === null ? '—' : fmtQty(linha.quantidade) + ' ' + linha.unidade);
+            corpoEl.replaceChildren();
+            linha.fontes.forEach(fonte => {
+                const tr = document.createElement('tr');
+                const tdNome = document.createElement('td');
+                tdNome.className = 'px-3 py-2';
+                tdNome.textContent = fonte.nome;
+                const tdQtd = document.createElement('td');
+                tdQtd.className = 'text-center pe-3 py-2';
+                tdQtd.textContent = fonte.quantidade === null
+                    ? '—'
+                    : fmtQty(fonte.quantidade) + ' ' + fonte.unidade;
+                tr.append(tdNome, tdQtd);
+                corpoEl.append(tr);
+            });
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        });
+    });
+</script>
+{% endblock %}

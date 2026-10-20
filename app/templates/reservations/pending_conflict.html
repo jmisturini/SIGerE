@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Reserva Pendente{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i> Reserva Pendente</h5>
+                <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-warning border border-warning-subtle d-flex align-items-center mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
+                    <div>
+                        <strong>Atenção!</strong> O professor selecionado (<strong>{{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</strong>) já está agendado em outra reserva neste horário.<br>
+                        Esta reserva foi criada como <strong>PENDENTE</strong> e requer aprovação do administrador.
+                    </div>
+                </div>
+                
+                <h6 class="text-muted text-uppercase small fw-bold mb-3">Detalhes da Reserva</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-borderless mb-0">
+                            <tr>
+                                <th class="text-muted small text-uppercase fw-bold border-0 ps-0" style="width: 120px;">Sala</th>
+                                <td class="border-0 fw-medium">{{ reservation.classroom.code }} - {{ reservation.classroom.name }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Professor</th>
+                                <td class="border-0 fw-medium">{{ reservation.teacher.full_name if reservation.teacher else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Data</th>
+                                <td class="border-0 fw-medium">{{ reservation.date.strftime('%d/%m/%Y') }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-borderless mb-0">
+                            <tr>
+                                <th class="text-muted small text-uppercase fw-bold border-0 ps-0" style="width: 120px;">Horário</th>
+                                <td class="border-0 fw-medium">{{ reservation.start_time.strftime('%H:%M') }} - {{ reservation.end_time.strftime('%H:%M') }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-muted small text-uppercase fw-bold border-0 ps-0">Título</th>
+                                <td class="border-0 fw-medium">{{ reservation.title }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="d-flex flex-wrap justify-content-end gap-2 mt-4 pt-3 border-top">
+                    <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">Ver Detalhes</a>
+                    <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-primary px-4">Ver Minhas Reservas</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

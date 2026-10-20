@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% block title %}Salas{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Salas e Espaços</h3>
+        <p class="text-muted mb-0">Encontre a sala ideal para sua atividade.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        {% if current_user.has_permission('reservation:read_all') %}
+        <a class="btn btn-outline-primary" href="{{ url_for('relatorios.geral') }}" title="Relatório Geral de Salas e Reservas">
+            <i class="bi bi-clipboard-data me-1"></i> Relatório
+        </a>
+        {% endif %}
+        <a class="btn btn-outline-secondary" href="{{ url_for('classrooms.export_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+            <i class="bi bi-filetype-pdf me-1"></i> Exportar PDF
+        </a>
+
+        {% if current_user.has_permission('room:create') %}
+        <a href="{{ url_for('admin.create_room') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Adicionar Sala
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<form method="GET" id="filterForm" class="card mb-4">
+    <div class="card-body">
+        <!-- align-items-start: os rótulos das três colunas nascem na mesma
+             altura; o select de períodos (3 linhas) pendura o texto de ajuda
+             abaixo de si sem empurrar os outros campos para baixo -->
+        <div class="row g-3 align-items-start">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Disponível</label>
+                <input type="date" id="available_date" name="available_date" class="form-control" value="{{ request.args.get('available_date', '') }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Períodos</label>
+                <div class="d-flex flex-wrap gap-3 pt-2" role="group" aria-label="Períodos">
+                    {% for valor, rotulo in [('morning', 'Manhã'), ('afternoon', 'Tarde'), ('evening', 'Noite')] %}
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" name="available_period"
+                               id="period_{{ valor }}" value="{{ valor }}"
+                               {{ 'checked' if valor in request.args.getlist('available_period') }}>
+                        <label class="form-check-label" for="period_{{ valor }}">{{ rotulo }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="form-text">A sala precisa estar livre em todos os períodos marcados.</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Tipo de Sala</label>
+                <select id="category_select" name="category" class="form-select">
+                    <option value="">Todos os Tipos</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {{ 'selected' if selected_category == cat.id|string }}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md">
+                {# Rótulo invisível: ocupa a mesma altura dos títulos das outras colunas
+                   para o botão nascer alinhado com os campos, e não com os títulos #}
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1 invisible d-none d-md-inline-block" aria-hidden="true">&nbsp;</label>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="submit" id="filterBtn" class="btn btn-outline-primary flex-fill" disabled>
+                        <i class="bi bi-funnel me-1"></i> Filtrar
+                    </button>
+                    {% if is_filtered %}
+                    <a href="{{ url_for('classrooms.list_classrooms') }}" class="btn btn-outline-secondary flex-fill" title="Limpar Filtros">
+                        <i class="bi bi-eraser"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-12 mt-3 border-top pt-3">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="available_now" name="available_now" value="true" {{ 'checked' if request.args.get('available_now') }}>
+                    <label class="form-check-label fw-medium" for="available_now">Mostrar apenas salas disponíveis AGORA</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+{% if is_filtered %}
+<div class="alert alert-primary-subtle text-primary border border-primary-subtle d-flex align-items-center mb-4" role="alert">
+    <i class="bi bi-info-circle-fill me-2"></i>
+    <div>{{ filter_message | safe }}</div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    {% for floor_name, rooms in grouped_rooms.items() %}
+        <div class="col-12 mt-4">
+            <div class="d-flex align-items-center mb-3">
+                <i class="bi bi-layers text-primary me-2 fs-5"></i>
+                <h5 class="mb-0 text-uppercase small fw-bold text-muted">{{ floor_name }}</h5>
+            </div>
+        </div>
+        
+        {% for c in rooms %}
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0 fw-bold">{{ c.name }}</h5>
+                        <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">{{ c.code }}</span>
+                    </div>
+                    <p class="text-muted small mb-3">
+                        <i class="bi bi-building me-1"></i> {{ c.building or 'N/A' }} 
+                        <span class="mx-1">·</span> 
+                        <i class="bi bi-people me-1"></i> Cap. {{ c.capacity }}
+                    </p>
+                    <div class="mb-3">
+                        {% if c.category %}
+                        <!-- Ícone e cor vêm do cadastro da categoria -->
+                        <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">
+                            <i class="bi {{ c.category.display_icon }} me-1" style="color: {{ c.category.display_color }};"></i>
+                            {{ c.category.name }}{% if c.category.controla_computadores %} ({{ c.computer_count }} PCs){% endif %}
+                        </span>
+                        {% else %}
+                        <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-tag me-1"></i> Sem Categoria</span>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex gap-2 mt-auto">
+                        <a href="{{ url_for('classrooms.detail', classroom_id=c.id) }}" class="btn btn-sm btn-outline-secondary flex-fill">
+                            <i class="bi bi-info-circle"></i> Detalhes
+                        </a>
+                        <a href="{{ url_for('classrooms.availability', classroom_id=c.id) }}" class="btn btn-sm btn-outline-primary flex-fill">
+                            <i class="bi bi-calendar-week"></i> Disponibilidade
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12 text-center text-muted py-5">
+            <div class="feature-icon bg-primary-subtle text-primary mb-4 mx-auto">
+                <i class="bi bi-emoji-frown"></i>
+            </div>
+            <h5 class="mb-1">Nenhuma sala encontrada</h5>
+            <p class="small mb-0">
+                {% if is_filtered %}
+                    Todas as salas podem estar ocupadas nos períodos selecionados.
+                {% else %}
+                    Não há salas ativas no sistema.
+                {% endif %}
+            </p>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .feature-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+    }
+    .hover-shadow { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .hover-shadow:hover { transform: translateY(-4px); box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.1) !important; }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('available_date');
+    const periodChecks = document.querySelectorAll('input[name="available_period"]');
+    const categorySelect = document.getElementById('category_select');
+    const nowCheckbox = document.getElementById('available_now');
+    const filterBtn = document.getElementById('filterBtn');
+    const filterForm = document.getElementById('filterForm');
+
+    function updateFilterBtn() {
+        const temPeriodo = Array.from(periodChecks).some(c => c.checked);
+        const hasDatePeriod = dateInput.value && temPeriodo;
+        const hasCategory = categorySelect.value !== '';
+        const hasNow = nowCheckbox.checked;
+        filterBtn.disabled = !(hasDatePeriod || hasCategory || hasNow);
+    }
+
+    updateFilterBtn();
+    [dateInput, categorySelect, nowCheckbox, ...periodChecks].forEach(element => {
+        element.addEventListener('input', updateFilterBtn);
+        element.addEventListener('change', updateFilterBtn);
+    });
+
+    // Disponível agora: filtra ao marcar e também ao desmarcar — sem o
+    // checkbox, o GET sai sem o parâmetro e a listagem volta sem esse filtro.
+    nowCheckbox.addEventListener('change', function() {
+        filterForm.submit();
+    });
+});
+</script>
+{% endblock %}

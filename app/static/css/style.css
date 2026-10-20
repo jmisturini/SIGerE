@@ -1,0 +1,1043 @@
+:root {
+    --sidebar-bg: #002a48;
+    --sidebar-color: rgba(255, 255, 255, 0.75);
+    --sidebar-active-bg: rgba(255, 255, 255, 0.1);
+    --sidebar-active-color: #fff;
+    --primary-color: #004b8d;
+    --primary-color-rgb: 0, 75, 141;
+    --topbar-bg: #ffffff;
+    --body-bg: #f4f6f9;
+    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    --text-color: #333;
+    --text-muted: #6c757d;
+    --border-color: rgba(0, 0, 0, 0.05);
+    /* Tons derivados do accent: hover/ativo do botão sólido (mais escuros
+       que o base) — cada tema de cor sobrescreve estes tokens. */
+    --primary-hover: #003d70;
+    --primary-active: #003361;
+    /* Tokens do Bootstrap alinhados à paleta institucional: sem isso, badges,
+       links, abas, paginação, checkboxes e foco de campos usam o azul padrão
+       do Bootstrap (#0d6efd), dessintonizado do azul Senac dos botões. */
+    --bs-primary: #004b8d;
+    --bs-primary-rgb: 0, 75, 141;
+    --bs-primary-bg-subtle: #d4e4f2;
+    --bs-primary-border-subtle: #a9c8e4;
+    --bs-link-color: #004b8d;
+    --bs-link-color-rgb: 0, 75, 141;
+    --bs-link-hover-color: #003a6e;
+    --bs-pagination-active-bg: #004b8d;
+    --bs-pagination-active-border-color: #004b8d;
+    --bs-dropdown-link-active-bg: #004b8d;
+    --bs-dropdown-link-active-color: #fff;
+    --bs-focus-ring-color: rgba(0, 75, 141, 0.25);
+}
+
+[data-theme="dark"] {
+    color-scheme: dark;
+    --sidebar-bg: #0a1624;
+    --topbar-bg: #161b22;
+    --body-bg: #0d1117;
+    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    --primary-color: #2c7be5;
+    --primary-color-rgb: 44, 123, 229;
+    /* Tons derivados do accent no escuro: hover/ativo do botão sólido
+       (mais claros que o base) e o tom de link/outline legível sobre
+       superfícies escuras — cada tema de cor sobrescreve estes tokens. */
+    --primary-hover: #4a93ec;
+    --primary-active: #61a4f0;
+    --primary-light: #6ea8fe;
+    --primary-light-rgb: 110, 168, 254;
+    --primary-light-hover: #9cc2ff;
+    --text-color: #c9d1d9;
+    --text-muted: #8b949e;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --bs-body-color: #c9d1d9;
+    --bs-primary: #2c7be5;
+    --bs-primary-rgb: 44, 123, 229;
+    --bs-primary-bg-subtle: rgba(44, 123, 229, 0.18);
+    --bs-primary-border-subtle: rgba(44, 123, 229, 0.45);
+    --bs-link-color: var(--primary-light);
+    --bs-link-color-rgb: var(--primary-light-rgb);
+    --bs-link-hover-color: var(--primary-light-hover);
+    --bs-pagination-active-bg: var(--primary-color);
+    --bs-pagination-active-border-color: var(--primary-color);
+    --bs-dropdown-link-active-bg: var(--primary-color);
+    --bs-dropdown-link-active-color: #fff;
+    --bs-focus-ring-color: rgba(var(--primary-color-rgb), 0.35);
+    /* Cinza secundário legível no escuro: botões outline-secondary
+       ("Detalhes", "Exportar PDF") usam estes valores no Bootstrap 5.3. */
+    --bs-secondary-color: rgba(201, 209, 217, 0.75);
+    --bs-secondary-border-color: #30363d;
+    /* Badges e alertas sutis adaptados ao tema escuro */
+    --bs-success-bg-subtle: rgba(25, 135, 84, 0.22);
+    --bs-success-border-subtle: rgba(25, 135, 84, 0.45);
+    --bs-success-text-emphasis: #7fd4a6;
+    --bs-warning-bg-subtle: rgba(255, 193, 7, 0.16);
+    --bs-warning-border-subtle: rgba(255, 193, 7, 0.4);
+    --bs-warning-text-emphasis: #ffd66b;
+    --bs-danger-bg-subtle: rgba(220, 53, 69, 0.22);
+    --bs-danger-border-subtle: rgba(220, 53, 69, 0.45);
+    --bs-danger-text-emphasis: #ff9aa5;
+    --bs-info-bg-subtle: rgba(13, 202, 240, 0.16);
+    --bs-info-border-subtle: rgba(13, 202, 240, 0.4);
+    --bs-info-text-emphasis: #7fe0f2;
+    --bs-secondary-bg-subtle: rgba(139, 148, 158, 0.18);
+    --bs-secondary-border-subtle: rgba(139, 148, 158, 0.4);
+    --bs-secondary-text-emphasis: #c9d1d9;
+    /* Paginação legível no escuro */
+    --bs-pagination-bg: transparent;
+    --bs-pagination-color: #c9d1d9;
+    --bs-pagination-border-color: #30363d;
+    --bs-pagination-hover-bg: rgba(255, 255, 255, 0.06);
+    --bs-pagination-hover-color: #fff;
+    --bs-pagination-hover-border-color: #30363d;
+    --bs-pagination-focus-bg: rgba(255, 255, 255, 0.06);
+    --bs-pagination-disabled-bg: transparent;
+    --bs-pagination-disabled-color: #6e7681;
+    --bs-pagination-disabled-border-color: #30363d;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--body-bg);
+    margin: 0;
+    color: var(--text-color);
+    overflow-x: hidden;
+}
+
+.app-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Sidebar: coluna flexível — a marca fica fixa no topo e o menu rola sob ela */
+.sidebar {
+    width: 260px;
+    background-color: var(--sidebar-bg);
+    color: var(--sidebar-color);
+    position: fixed;
+    height: 100vh;
+    z-index: 1000;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar-header {
+    padding: 1rem 1rem 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
+}
+
+.sidebar-brand {
+    color: #fff;
+    text-decoration: none;
+    font-size: 1.15rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.sidebar-brand i {
+    font-size: 1.5rem;
+}
+
+.sidebar-brand .brand-logo {
+    height: 1.9rem;
+    width: auto;
+    flex-shrink: 0;
+}
+
+/* Quem rola é o menu: com todos os módulos ligados a lista passa da altura
+   da tela e a marca permanece visível. Barra de rolagem fina e discreta. */
+.sidebar-menu {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.5rem 0 1.25rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.25) transparent;
+}
+
+.sidebar-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-menu::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.2);
+    border-radius: 999px;
+}
+
+.sidebar-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-menu .nav-item {
+    width: 100%;
+}
+
+/* Títulos de seção: um fio discreto separa cada grupo de módulos */
+.sidebar-menu .nav-section {
+    color: rgba(255,255,255,0.45);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 1rem 1.5rem 0.4rem;
+    font-weight: 600;
+}
+
+.sidebar-menu .nav-section:not(:first-child) {
+    margin: 0.9rem 1.5rem 0;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Itens: pílulas com respiro das bordas (em vez de barras coladas nelas);
+   ícone de largura fixa mantém todos os rótulos na mesma coluna. */
+.sidebar-menu .nav-link {
+    color: var(--sidebar-color);
+    margin: 0.1rem 0.75rem;
+    padding: 0.55rem 0.7rem;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-weight: 500;
+    transition: background-color 0.15s, color 0.15s;
+    border-radius: 8px;
+    font-size: 0.925rem;
+    white-space: nowrap;
+}
+
+.sidebar-menu .nav-link > i {
+    font-size: 1.05rem;
+    width: 1.25rem;
+    flex-shrink: 0;
+    text-align: center;
+}
+
+.sidebar-menu .nav-link:hover {
+    background-color: var(--sidebar-active-bg);
+    color: var(--sidebar-active-color);
+}
+
+/* Item ativo: pílula clara que se destaca do fundo escuro. O rótulo usa o
+   próprio fundo da sidebar, então a inversão funciona em qualquer tema
+   de cor (azul, verde, roxo...) e no tema escuro. */
+.sidebar-menu .nav-link.active,
+.sidebar-menu .nav-link.active:hover {
+    background-color: #fff;
+    color: var(--sidebar-bg);
+    font-weight: 600;
+}
+
+/* Grupos expansíveis da sidebar (menus dropdown) */
+.sidebar-menu .nav-link .nav-chevron {
+    font-size: 0.7rem;
+    transition: transform 0.2s ease;
+}
+
+.sidebar-menu .nav-link[aria-expanded="true"] .nav-chevron {
+    transform: rotate(180deg);
+}
+
+/* Submenu: linha-guia liga visualmente os itens ao ícone do grupo pai */
+.sidebar-menu .nav-submenu {
+    position: relative;
+    padding-bottom: 0.35rem;
+}
+
+.sidebar-menu .nav-submenu::before {
+    content: '';
+    position: absolute;
+    left: 2.1rem;
+    top: 0;
+    bottom: 0.45rem;
+    width: 1px;
+    background: rgba(255,255,255,0.18);
+}
+
+.sidebar-menu .nav-submenu .nav-link {
+    padding: 0.45rem 0.7rem 0.45rem 1.55rem;
+    font-size: 0.85rem;
+    font-weight: 400;
+    gap: 0.65rem;
+}
+
+.sidebar-menu .nav-submenu .nav-link > i {
+    font-size: 0.9rem;
+    width: 1rem;
+}
+
+/* Main Content */
+.main-content {
+    margin-left: 260px;
+    width: calc(100% - 260px);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    transition: margin-left 0.3s ease, width 0.3s ease;
+}
+
+/* Páginas públicas sem barra lateral (ex.: pedido de Vale-Transporte):
+   o conteúdo ocupa a largura inteira. */
+.app-container.sem-sidebar .main-content {
+    margin-left: 0;
+    width: 100%;
+}
+
+/* Botão de contrair/expandir a sidebar (desktop) */
+.sidebar-collapse-btn {
+    color: var(--sidebar-color);
+    border: 0;
+    background: transparent;
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0.3rem 0.45rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.sidebar-collapse-btn:hover {
+    background: var(--sidebar-active-bg);
+    color: var(--sidebar-active-color);
+}
+
+.sidebar-collapse-btn i {
+    display: inline-block;
+    transition: transform 0.3s ease;
+}
+
+/* Modo contraído: apenas ícones. Escopado para desktop (≥992px) — no
+   celular a sidebar é off-canvas com largura fixa e ignora este estado. */
+@media (min-width: 992px) {
+    html.sidebar-collapsed .sidebar { width: 72px; }
+    html.sidebar-collapsed .main-content { margin-left: 72px; width: calc(100% - 72px); }
+    html.sidebar-collapsed .sidebar-header { padding: 1rem 0.5rem; }
+    html.sidebar-collapsed .sidebar-brand { justify-content: center; gap: 0; }
+    html.sidebar-collapsed .brand-text { display: none; }
+    html.sidebar-collapsed .sidebar-collapse-btn i { transform: rotate(180deg); }
+    html.sidebar-collapsed .sidebar-menu .nav-section { display: none; }
+    html.sidebar-collapsed .sidebar-menu .nav-link { justify-content: center; padding: 0.6rem 0; gap: 0; }
+    html.sidebar-collapsed .sidebar-menu .nav-link > span:not(.nav-chevron) { display: none; }
+    html.sidebar-collapsed .sidebar-menu .nav-link .nav-chevron { display: none; }
+    /* Submenus ficam para o modo expandido: clicar no grupo reexpande o menu */
+    html.sidebar-collapsed .sidebar-menu .nav-submenu { display: none !important; }
+}
+
+/* Topbar */
+.topbar {
+    height: 64px;
+    background-color: var(--topbar-bg);
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+[data-theme="dark"] .topbar {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Link do Painel Admin na topbar (hub das áreas administrativas) */
+.topbar-painel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.75rem;
+    margin-right: 0.35rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-color);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+}
+
+.topbar-painel:hover,
+.topbar-painel:focus-visible {
+    color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb), 0.08);
+}
+
+.topbar-painel.active {
+    color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb), 0.12);
+    font-weight: 600;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: #555;
+    padding: 0.5rem;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.btn-icon:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+[data-theme="dark"] .btn-icon {
+    color: #c9d1d9;
+}
+
+[data-theme="dark"] .btn-icon:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+/* Page Content */
+.page-content {
+    padding: 2rem;
+    flex: 1;
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 1.5rem;
+    color: #6c757d;
+    font-size: 0.875rem;
+    background-color: var(--body-bg);
+}
+
+/* Código da sala nas listagens (painel, cronograma, reservas): caixa de
+   largura mínima uniforme com o número centralizado — a fonte proporcional
+   deixava códigos com "1" (ex.: 103) mais estreitos que os demais (302). */
+.badge-codigo-sala {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3em;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Senac Style overrides */
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    background-color: var(--topbar-bg);
+    color: var(--text-color);
+}
+
+/* Botões: sobrescrevem TODOS os tokens internos do Bootstrap 5.3 — se
+   apenas o background fosse trocado, hover/ativo/desabilitado voltariam
+   ao azul padrão (#0b5ed7/#0d6efd), como no "Aplicar Filtros" desabilitado.
+   Mesma métrica dos botões outline (sem padding/peso próprios): um botão
+   sólido ao lado de outlines não pode ficar maior que eles. */
+.btn-primary {
+    --bs-btn-bg: var(--primary-color);
+    --bs-btn-border-color: var(--primary-color);
+    --bs-btn-hover-bg: var(--primary-hover);
+    --bs-btn-hover-border-color: var(--primary-hover);
+    --bs-btn-active-bg: var(--primary-active);
+    --bs-btn-active-border-color: var(--primary-active);
+    --bs-btn-disabled-bg: var(--primary-color);
+    --bs-btn-disabled-border-color: var(--primary-color);
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    border-radius: 8px;
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--primary-color);
+    --bs-btn-border-color: var(--primary-color);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--primary-color);
+    --bs-btn-hover-border-color: var(--primary-color);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--primary-color);
+    --bs-btn-active-border-color: var(--primary-color);
+    --bs-btn-disabled-color: var(--primary-color);
+    --bs-btn-disabled-border-color: var(--primary-color);
+    border-radius: 8px;
+}
+
+[data-theme="dark"] .btn-outline-primary {
+    --bs-btn-color: var(--primary-light);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-color: var(--primary-light);
+}
+
+/* .btn-link herda --bs-link-color do Bootstrap 5.3 — corrigido pelos tokens
+   acima; nada a fazer aqui. Checkbox e foco de formulário seguem a paleta: */
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: rgba(var(--primary-color-rgb), 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.2);
+}
+
+.form-check-input:focus {
+    border-color: rgba(var(--primary-color-rgb), 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.2);
+}
+
+.progress-bar {
+    background-color: var(--primary-color);
+}
+
+[data-theme="dark"] .text-muted {
+    color: #8b949e !important;
+}
+
+[data-theme="dark"] .dropdown-menu {
+    background-color: #161b22;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+[data-theme="dark"] .dropdown-item {
+    color: #c9d1d9;
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+    background-color: rgba(255,255,255,0.1);
+}
+
+/* Seletor de unidade da topbar: inline no base.html não dá para sobrescrever,
+   então a largura vive aqui (o inline vencia qualquer media query). */
+/* Unidade ativa no topo (à esquerda, ao lado da barra lateral) */
+.unity-area {
+    min-width: 0;
+}
+
+.unity-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Dropdown de troca de unidade: formulários por item sem margens */
+.unity-area .dropdown-menu form {
+    display: contents;
+}
+
+/* Seletor de unidade do portal público (cronograma, busca e home): com um
+   cadastro grande (ex.: unidades do Senac SC) o menu ficava mais alto que a
+   tela e os itens do fim ficavam inalcançáveis — altura máxima com rolagem. */
+.dropdown-menu-unidades {
+    max-height: min(60vh, 26rem);
+    max-width: calc(100vw - 2rem);
+    overflow-y: auto;
+    /* Rolar até o fim do menu não arrasta a página atrás */
+    overscroll-behavior: contain;
+}
+
+/* Nav-tabs e paginação são flex-nowrap no Bootstrap: com 4 abas ou muitas
+   páginas elas estouravam a largura da tela no mobile. */
+.nav-tabs {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+}
+
+.pagination {
+    flex-wrap: wrap;
+}
+
+/* Sidebar toggle for mobile */
+@media (max-width: 991.98px) {
+    .sidebar {
+        margin-left: -260px;
+    }
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+    .app-container.sidebar-open .sidebar {
+        margin-left: 0;
+    }
+}
+
+/* Telas de celular: menos respiro nas bordas (o padding de 2rem do desktop
+   sobrava pouco conteúdo para os cards) e seletor de unidade mais estreito
+   para caber ao lado do toggle da sidebar, tema e avatar. */
+@media (max-width: 575.98px) {
+    .page-content {
+        padding: 1rem;
+    }
+    .topbar {
+        padding: 0 1rem;
+    }
+    /* Sangria da barra de períodos: cobre a calha do .page-content para o
+       conteúdo não aparecer deslizando nas laterais dela. */
+    .periodo-nav {
+        margin-inline: -1rem;
+        padding-inline: 1rem;
+    }
+}
+
+/* Cronograma público — atalhos de período (celular): barra fixa logo abaixo
+   da topbar (também sticky, 64px) para pular direto a Manhã/Tarde/Noite sem
+   rolar pelos cartões anteriores. No desktop (d-md-none) ela não existe e os
+   três períodos já ficam lado a lado. */
+.periodo-nav {
+    position: sticky;
+    top: 64px;
+    z-index: 1020;
+    display: flex;
+    gap: 0.5rem;
+    background-color: var(--body-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding-block: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Entre o celular e o desktop o .page-content ainda tem 2rem de padding */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .periodo-nav {
+        margin-inline: -2rem;
+        padding-inline: 2rem;
+    }
+}
+
+.periodo-nav-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 2rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-color);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.periodo-nav-item .badge {
+    font-size: 0.7rem;
+}
+
+.periodo-nav-item.ativo {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background-color: var(--bs-primary-bg-subtle);
+}
+
+/* Pulso do período em curso: pontinho animado no atalho (o cartão usa o
+   selo "Agora"). */
+.periodo-nav-pulso {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    animation: periodo-pulso 1.6s ease-out infinite;
+}
+
+@keyframes periodo-pulso {
+    0% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0.45); }
+    70% { box-shadow: 0 0 0 7px rgba(var(--primary-color-rgb), 0); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--primary-color-rgb), 0); }
+}
+
+/* Âncoras dos cartões de período: recua o bastante para o cartão não ficar
+   escondido sob topbar (64px) + barra de atalhos ao navegar. */
+#periodo-manha,
+#periodo-tarde,
+#periodo-noite {
+    scroll-margin-top: 7.5rem;
+}
+
+/* Styles to match screenshots */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-color);
+}
+
+[data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, 
+[data-theme="dark"] h4, [data-theme="dark"] h5, [data-theme="dark"] h6 {
+    color: #fff;
+}
+
+/* O modal do Bootstrap é sempre branco (não acompanha o tema escuro): sem
+   esta regra, o título herda a cor clara dos headings do tema escuro
+   ([data-theme="dark"] h6, especificidade maior que .modal-title) e some
+   sobre o fundo branco. Dois classes para vencer essa especificidade. */
+.modal-header .modal-title {
+    color: #212529;
+}
+
+/* Modal que segue o tema escuro (data-bs-theme="dark"): superfície no tom
+   do app e título claro. */
+[data-theme="dark"] .modal[data-bs-theme="dark"] .modal-content {
+    background-color: #161b22;
+}
+.modal[data-bs-theme="dark"] .modal-header .modal-title {
+    color: #fff;
+}
+
+.list-group-item {
+    border: none;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    background-color: transparent;
+}
+
+[data-theme="dark"] .list-group-item {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.table {
+    color: inherit;
+}
+
+/* Cabeçalhos clicáveis das tabelas ordenáveis (js/tabela-ordenavel.js) */
+.th-ordenavel {
+    cursor: pointer;
+    user-select: none;
+}
+
+[data-theme="dark"] .table > :not(caption) > * > * {
+    background-color: transparent;
+    border-color: rgba(255,255,255,0.1);
+    color: #c9d1d9;
+}
+
+[data-theme="dark"] .form-control {
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+}
+
+[data-theme="dark"] .form-control:focus {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.25);
+}
+
+/* Campos de seleção continuavam brancos no tema escuro (o override acima só
+   cobria .form-control). Seta clara: o SVG padrão do Bootstrap é cinza-escuro. */
+[data-theme="dark"] .form-select {
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23c9d1d9' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+[data-theme="dark"] .form-select:focus {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.25);
+}
+
+[data-theme="dark"] .input-group-text {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+}
+
+/* Botão de revelar contas desativadas (listagens administrativas) */
+.btn.border-dashed {
+    border-style: dashed;
+}
+
+/* ===== Tom Select (selects com busca) =====
+   O tema bootstrap5 do Tom Select acompanha o claro; abaixo, a integração
+   com o tema escuro (mesma paleta de .form-control/.form-select). */
+.ts-dropdown {
+    /* Acima de modais (1055) e da topbar */
+    z-index: 1060;
+}
+
+/* Ao digitar na busca de um select simples (dropdown aberto), o item
+   selecionado some — só o texto digitado aparece. O tema bootstrap5 deixa
+   os dois visíveis ao mesmo tempo. Ao fechar, o item volta ao normal. */
+.ts-wrapper.single.dropdown-active .ts-control > .item {
+    display: none;
+}
+
+[data-theme="dark"] .ts-wrapper .ts-control {
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+}
+
+[data-theme="dark"] .ts-wrapper.single .ts-control {
+    /* Seta clara no lugar do SVG cinza-escuro do tema claro */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23c9d1d9' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+[data-theme="dark"] .ts-wrapper.focus .ts-control {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.25);
+}
+
+[data-theme="dark"] .ts-wrapper .ts-control input {
+    color: #c9d1d9;
+}
+
+[data-theme="dark"] .ts-wrapper .ts-control input::placeholder {
+    color: #8b949e;
+}
+
+[data-theme="dark"] .ts-dropdown {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+}
+
+[data-theme="dark"] .ts-dropdown .option {
+    color: #c9d1d9;
+}
+
+[data-theme="dark"] .ts-dropdown .active,
+[data-theme="dark"] .ts-dropdown .option:hover {
+    background-color: rgba(var(--primary-color-rgb), 0.25);
+    color: #ffffff;
+}
+
+[data-theme="dark"] .ts-dropdown .optgroup-header {
+    background-color: #161b22;
+    color: #8b949e;
+    border-bottom-color: #30363d;
+}
+
+[data-theme="dark"] .ts-wrapper.multi .ts-control > item {
+    background-color: rgba(var(--primary-color-rgb), 0.25);
+    border: 1px solid rgba(var(--primary-color-rgb), 0.45);
+    color: #c9d1d9;
+}
+
+/* Botões outline (cor estática #6c757d no Bootstrap) ficavam quase
+   invisíveis sobre os cards escuros. */
+[data-theme="dark"] .btn-outline-secondary {
+    --bs-btn-color: #c9d1d9;
+    --bs-btn-border-color: #30363d;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #30363d;
+    --bs-btn-hover-border-color: #6e7681;
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: #3d444d;
+    --bs-btn-active-border-color: #6e7681;
+    --bs-btn-disabled-color: #6e7681;
+    --bs-btn-disabled-border-color: #30363d;
+}
+
+/* ===== Temas de cor personalizados (data-accent) =====
+   O Azul Senac é o padrão (sem data-accent). Cada paleta sobrescreve os
+   tokens de marca no modo claro e, combinada com o tema escuro
+   ([data-theme="dark"][data-accent=...]), redefine também os tons
+   derivados (hover/ativo do botão sólido e o tom de link legível sobre
+   superfícies escuras). A sidebar acompanha o tema com um tom próprio. */
+
+[data-accent="verde"] {
+    --primary-color: #157347;
+    --primary-color-rgb: 21, 115, 71;
+    --sidebar-bg: #0c3a25;
+    --bs-primary: #157347;
+    --bs-primary-rgb: 21, 115, 71;
+    --bs-primary-bg-subtle: #d7e9df;
+    --bs-primary-border-subtle: #a5d2bb;
+    --bs-link-color: #157347;
+    --bs-link-color-rgb: 21, 115, 71;
+    --bs-link-hover-color: #0e4f31;
+    --bs-pagination-active-bg: #157347;
+    --bs-pagination-active-border-color: #157347;
+    --bs-dropdown-link-active-bg: #157347;
+    --bs-focus-ring-color: rgba(21, 115, 71, 0.25);
+}
+
+[data-theme="dark"][data-accent="verde"] {
+    --primary-color: #2f9e63;
+    --primary-color-rgb: 47, 158, 99;
+    --primary-hover: #4cb47c;
+    --primary-active: #63c08d;
+    --primary-light: #7fd3a4;
+    --primary-light-rgb: 127, 211, 164;
+    --primary-light-hover: #a4e2c0;
+    --sidebar-bg: #0a1f13;
+    --bs-primary: #2f9e63;
+    --bs-primary-rgb: 47, 158, 99;
+    --bs-primary-bg-subtle: rgba(47, 158, 99, 0.18);
+    --bs-primary-border-subtle: rgba(47, 158, 99, 0.45);
+    --bs-focus-ring-color: rgba(47, 158, 99, 0.35);
+}
+
+[data-accent="roxo"] {
+    --primary-color: #6f42c1;
+    --primary-color-rgb: 111, 66, 193;
+    --sidebar-bg: #2b1a4e;
+    --bs-primary: #6f42c1;
+    --bs-primary-rgb: 111, 66, 193;
+    --bs-primary-bg-subtle: #e7ddf6;
+    --bs-primary-border-subtle: #c9b2ee;
+    --bs-link-color: #6f42c1;
+    --bs-link-color-rgb: 111, 66, 193;
+    --bs-link-hover-color: #532b94;
+    --bs-pagination-active-bg: #6f42c1;
+    --bs-pagination-active-border-color: #6f42c1;
+    --bs-dropdown-link-active-bg: #6f42c1;
+    --bs-focus-ring-color: rgba(111, 66, 193, 0.25);
+}
+
+[data-theme="dark"][data-accent="roxo"] {
+    --primary-color: #9d7bea;
+    --primary-color-rgb: 157, 123, 234;
+    --primary-hover: #b096ef;
+    --primary-active: #bda7f2;
+    --primary-light: #c3adf7;
+    --primary-light-rgb: 195, 173, 247;
+    --primary-light-hover: #d7c7fa;
+    --sidebar-bg: #150f28;
+    --bs-primary: #9d7bea;
+    --bs-primary-rgb: 157, 123, 234;
+    --bs-primary-bg-subtle: rgba(157, 123, 234, 0.18);
+    --bs-primary-border-subtle: rgba(157, 123, 234, 0.45);
+    --bs-focus-ring-color: rgba(157, 123, 234, 0.35);
+}
+
+[data-accent="laranja"] {
+    --primary-color: #b45309;
+    --primary-color-rgb: 180, 83, 9;
+    --sidebar-bg: #45230a;
+    --bs-primary: #b45309;
+    --bs-primary-rgb: 180, 83, 9;
+    --bs-primary-bg-subtle: #f7e5d2;
+    --bs-primary-border-subtle: #ecc9a3;
+    --bs-link-color: #b45309;
+    --bs-link-color-rgb: 180, 83, 9;
+    --bs-link-hover-color: #8a3e07;
+    --bs-pagination-active-bg: #b45309;
+    --bs-pagination-active-border-color: #b45309;
+    --bs-dropdown-link-active-bg: #b45309;
+    --bs-focus-ring-color: rgba(180, 83, 9, 0.25);
+}
+
+[data-theme="dark"][data-accent="laranja"] {
+    --primary-color: #e08c2b;
+    --primary-color-rgb: 224, 140, 43;
+    --primary-hover: #e8a353;
+    --primary-active: #edb26b;
+    --primary-light: #f2be7f;
+    --primary-light-rgb: 242, 190, 127;
+    --primary-light-hover: #f6d2a5;
+    --sidebar-bg: #1e1409;
+    --bs-primary: #e08c2b;
+    --bs-primary-rgb: 224, 140, 43;
+    --bs-primary-bg-subtle: rgba(224, 140, 43, 0.18);
+    --bs-primary-border-subtle: rgba(224, 140, 43, 0.45);
+    --bs-focus-ring-color: rgba(224, 140, 43, 0.35);
+}
+
+[data-accent="grafite"] {
+    --primary-color: #37474f;
+    --primary-color-rgb: 55, 71, 79;
+    --sidebar-bg: #1c262f;
+    --bs-primary: #37474f;
+    --bs-primary-rgb: 55, 71, 79;
+    --bs-primary-bg-subtle: #dfe5e9;
+    --bs-primary-border-subtle: #b6c2c9;
+    --bs-link-color: #37474f;
+    --bs-link-color-rgb: 55, 71, 79;
+    --bs-link-hover-color: #20313a;
+    --bs-pagination-active-bg: #37474f;
+    --bs-pagination-active-border-color: #37474f;
+    --bs-dropdown-link-active-bg: #37474f;
+    --bs-focus-ring-color: rgba(55, 71, 79, 0.25);
+}
+
+[data-theme="dark"][data-accent="grafite"] {
+    --primary-color: #93a8b3;
+    --primary-color-rgb: 147, 168, 179;
+    --primary-hover: #abbec7;
+    --primary-active: #bcccd3;
+    --primary-light: #c8d6dd;
+    --primary-light-rgb: 200, 214, 221;
+    --primary-light-hover: #dee6ea;
+    --sidebar-bg: #12181d;
+    --bs-primary: #93a8b3;
+    --bs-primary-rgb: 147, 168, 179;
+    --bs-primary-bg-subtle: rgba(147, 168, 179, 0.18);
+    --bs-primary-border-subtle: rgba(147, 168, 179, 0.45);
+    --bs-focus-ring-color: rgba(147, 168, 179, 0.35);
+}
+
+/* Seletor de tema de cor da topbar: amostras redondas; a escolhida recebe
+   um contorno e o "check". */
+.accent-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.08);
+    background: var(--sw);
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+    transition: transform 0.15s ease;
+}
+
+.accent-swatch:hover {
+    transform: scale(1.12);
+}
+
+.accent-swatch.selected {
+    outline: 2px solid var(--text-color);
+    outline-offset: 2px;
+    color: #fff;
+}
+
+.accent-swatch.selected i {
+    font-size: 0.8rem;
+}
+
+/* Opções de tema claro/escuro do seletor de aparência: mesma linguagem
+   visual das amostras de cor, com ícone em vez de cor. A escolhida recebe
+   contorno e o ícone na cor principal. */
+.theme-option {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.08);
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    transition: transform 0.15s ease;
+}
+
+.theme-option:hover {
+    transform: scale(1.12);
+}
+
+.theme-option.selected {
+    outline: 2px solid var(--text-color);
+    outline-offset: 2px;
+    color: var(--primary-color);
+}
+/* ── Sino de notificações: dropdown de preview ─────────────────────────── */
+.notif-lista {
+    max-height: 380px;
+    overflow-y: auto;
+}
+
+.notif-lista .dropdown-item-text + .dropdown-item-text {
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}

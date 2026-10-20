@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Configurações do Pedido de VT{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0"><i class="bi bi-sliders text-primary me-2"></i> Configurações do Pedido de VT</h5>
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                {% if current_unity %}
+                <p class="text-muted small mb-4">
+                    <i class="bi bi-geo-alt me-1"></i> Configurações da unidade
+                    <strong>{{ current_unity.name }}</strong> — aplicadas ao formulário
+                    público <a href="{{ url_for('vt.request_form', unity=current_unity.id) }}" target="_blank" rel="noopener">/vt/pedido?unity={{ current_unity.id }}</a>.
+                </p>
+                {% endif %}
+
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <h6 class="fw-bold mb-3"><i class="bi bi-ticket-perforated me-1"></i> Números base de vales</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            {{ form.vales_somente_ida.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.vales_somente_ida(class="form-control") }}
+                            {% for err in form.vales_somente_ida.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.vales_ida_e_volta.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.vales_ida_e_volta(class="form-control") }}
+                            {% for err in form.vales_ida_e_volta.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        <div class="col-12">
+                            <div class="form-text">Quando os dois números estiverem definidos, o pedido público
+                                oferece o botão "Usar valor base" para o Técnico-Administrativo preencher
+                                o nº de vales com um clique, conforme o trajeto escolhido. Deixe os dois
+                                vazios para não oferecer o botão.</div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-calendar-event me-1"></i> Fechamento do formulário</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            {{ form.fecha_em.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.fecha_em(class="form-control", type="date") }}
+                            <div class="form-text small">Último dia em que o pedido pode ser preenchido.
+                                Deixe vazio para deixar o formulário sempre aberto.</div>
+                            {% for err in form.fecha_em.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            {% if config and config.fecha_em %}
+                            <div class="alert {% if config.esta_fechado(now.date()) %}alert-danger{% else %}alert-info{% endif %} py-2 px-3 small mb-0 w-100">
+                                {% if config.esta_fechado(now.date()) %}
+                                <i class="bi bi-lock-fill me-1"></i> <strong>Fechado</strong> desde
+                                {{ config.fecha_em.strftime('%d/%m/%Y') }}.
+                                {% else %}
+                                <i class="bi bi-unlock me-1"></i> Aberto até
+                                <strong>{{ config.fecha_em.strftime('%d/%m/%Y') }}</strong>.
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <div class="text-muted small mb-0"><i class="bi bi-unlock me-1"></i> Formulário sem data de fechamento.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        {{ form.submit(class="btn btn-primary px-4") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

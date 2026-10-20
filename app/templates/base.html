@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        // Tema de cor personalizado (accent): aplica antes da renderização
+        // para não piscar a paleta padrão.
+        const accentSalvo = localStorage.getItem('accent');
+        if (accentSalvo) {
+            document.documentElement.setAttribute('data-accent', accentSalvo);
+        }
+        // Modo contraído da sidebar (só tem efeito no desktop; ver CSS)
+        if (localStorage.getItem('sidebar-collapsed') === '1') {
+            document.documentElement.classList.add('sidebar-collapsed');
+        }
+    </script>
+    <title>{% block title %}SIGerE{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="32x32">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}">
+    <meta name="theme-color" content="#004b8d">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+<div class="app-container {{ 'sem-sidebar' if ocultar_sidebar else '' }}">
+    {% if not ocultar_sidebar %}
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="d-flex justify-content-between align-items-center gap-1">
+                <a class="sidebar-brand" href="{{ url_for('main.index') if current_user.is_authenticated else url_for('public.home') }}">
+                    <img class="brand-logo" src="{{ url_for('static', filename='img/logo-sigere.png') }}" alt="">
+                    <span class="brand-text">SIGerE</span>
+                </a>
+                <button type="button" id="sidebar-collapse" class="sidebar-collapse-btn d-none d-lg-block"
+                        title="Contrair menu" aria-expanded="true" aria-label="Contrair ou expandir o menu lateral">
+                    <i class="bi bi-chevron-double-left"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="sidebar-menu">
+            <ul class="nav flex-column">
+                {% if current_user.is_authenticated %}
+                {# Endpoint atual abreviado para as regras de destaque do menu #}
+                {% set ep = request.endpoint or '' %}
+                <li class="nav-section">Geral</li>
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if ep == 'main.index' }}" title="Painel" href="{{ url_for('main.index') }}">
+                        <i class="bi bi-speedometer2"></i> <span>Painel</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if ep.startswith('schedule.') }}" title="Agenda" href="{{ url_for('schedule.view') }}">
+                        <i class="bi bi-calendar3"></i> <span>Agenda</span>
+                    </a>
+                </li>
+
+                {# Relatórios: seção própria (fora de Salas e Reservas), com o relatório
+                   geral e o personalizado — acesso ligado à leitura gerencial #}
+                {% if current_user.has_permission('reservation:read_all') %}
+                {% set in_relatorios = ep.startswith('relatorios.') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_relatorios else '' }}" title="Relatórios" data-bs-toggle="collapse" href="#menu-relatorios" role="button" aria-expanded="{{ 'true' if in_relatorios else 'false' }}" aria-controls="menu-relatorios">
+                        <i class="bi bi-clipboard-data"></i> <span>Relatórios</span>
+                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
+                    </a>
+                    <div class="collapse {{ 'show' if in_relatorios else '' }}" id="menu-relatorios">
+                        <ul class="nav flex-column nav-submenu">
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep == 'relatorios.geral' }}" title="Relatório Geral" href="{{ url_for('relatorios.geral') }}">
+                                    <i class="bi bi-graph-up"></i> <span>Relatório Geral</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep == 'relatorios.personalizado' }}" title="Relatório Personalizado" href="{{ url_for('relatorios.personalizado') }}">
+                                    <i class="bi bi-sliders"></i> <span>Relatório Personalizado</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
+                <li class="nav-section">Salas e Reservas</li>
+                {# Salas inclui a gestão administrativa (admin/rooms, categorias) e as telas públicas #}
+                {% set in_salas = ep.startswith('classrooms') or ep.startswith('admin.rooms') or ep.startswith('admin.categories') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_salas }}" title="Salas" href="{{ url_for('classrooms.list_classrooms') }}">
+                        <i class="bi bi-door-open"></i> <span>Salas</span>
+                    </a>
+                </li>
+                {% set in_reservations = ep.startswith('reservations.') %}
+                {% if current_user.has_permission('reservation:create') or current_user.has_permission('reservation:read_all') or current_user.has_permission('reservation:read_own') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_reservations else '' }}" title="Reservas" data-bs-toggle="collapse" href="#menu-reservas" role="button" aria-expanded="{{ 'true' if in_reservations else 'false' }}" aria-controls="menu-reservas">
+                        <i class="bi bi-calendar-week"></i> <span>Reservas</span>
+                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
+                    </a>
+                    <div class="collapse {{ 'show' if in_reservations else '' }}" id="menu-reservas">
+                        <ul class="nav flex-column nav-submenu">
+                            {% if current_user.has_permission('reservation:create') %}
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.create') }}" title="Nova Reserva" href="{{ url_for('reservations.create') }}">
+                                    <i class="bi bi-plus-circle"></i> <span>Nova Reserva</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if current_user.has_permission('reservation:read_own') %}
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.my') }}" title="Minhas Reservas" href="{{ url_for('reservations.my_reservations') }}">
+                                    <i class="bi bi-calendar-check"></i> <span>Minhas Reservas</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if current_user.has_permission('reservation:read_all') %}
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep.startswith('reservations.all') }}" title="Todas as Reservas" href="{{ url_for('reservations.all_reservations') }}">
+                                    <i class="bi bi-people"></i> <span>Todas as Reservas</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
+                {# Endpoints do Vale Alimentação: payments.{list,add,edit,delete}_meal_allowance #}
+                {% set in_meal = request.endpoint and 'meal_allowance' in request.endpoint %}
+                {% set in_overtime = request.endpoint and request.endpoint.startswith('payments.') and not in_meal %}
+                {% set in_vt = request.endpoint and request.endpoint.startswith('vt.') %}
+                {% set in_an = request.endpoint and request.endpoint.startswith('an.') %}
+                {# O Financeiro concentra o Pagamento Extra (payment:*). #}
+                {# O módulo Financeiro pode ser desligado por unidade (edição da unidade) — o toggle governa também o Vale-Transporte, no RH. #}
+                {% if unity_module_enabled('finance') and current_user.has_permission('payment:read') %}
+                <li class="nav-section">Financeiro</li>
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_overtime else '' }}" title="Hora Extra" data-bs-toggle="collapse" href="#menu-hora-extra" role="button" aria-expanded="{{ 'true' if in_overtime else 'false' }}" aria-controls="menu-hora-extra">
+                        <i class="bi bi-cash-stack"></i> <span>Hora Extra</span>
+                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
+                    </a>
+                    <div class="collapse {{ 'show' if in_overtime else '' }}" id="menu-hora-extra">
+                        <ul class="nav flex-column nav-submenu">
+                            {% if current_user.has_permission('payment:create') %}
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.create_overtime') or ep.startswith('payments.edit_overtime') }}" title="Nova Hora Extra" href="{{ url_for('payments.create_overtime') }}">
+                                    <i class="bi bi-plus-circle"></i> <span>Nova Hora Extra</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep.startswith('payments.list_overtime') }}" title="Consultar H. Extras" href="{{ url_for('payments.list_overtime') }}">
+                                    <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
+                {# RH: Vale-Transporte (vt:*), Vale Alimentação (meal:*) e Adicional Noturno (an:*) — seguem sob o módulo Financeiro da unidade #}
+                {% if unity_module_enabled('finance') and (current_user.has_permission('vt:read') or current_user.has_permission('meal:read') or current_user.has_permission('an:read')) %}
+                <li class="nav-section">RH</li>
+                {% endif %}
+                {% if unity_module_enabled('finance') and current_user.has_permission('vt:read') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_vt else '' }}" title="Vale Transporte" data-bs-toggle="collapse" href="#menu-vt" role="button" aria-expanded="{{ 'true' if in_vt else 'false' }}" aria-controls="menu-vt">
+                        <i class="bi bi-bus-front"></i> <span>Vale Transporte</span>
+                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
+                    </a>
+                    <div class="collapse {{ 'show' if in_vt else '' }}" id="menu-vt">
+                        <ul class="nav flex-column nav-submenu">
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep.startswith('vt.requests') }}" title="Pedidos VT" href="{{ url_for('vt.requests') }}">
+                                    <i class="bi bi-inbox"></i> <span>Pedidos VT</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link {{ 'active' if ep == 'vt.relatorio' }}" title="Relatório VT" href="{{ url_for('vt.relatorio') }}">
+                                    <i class="bi bi-graph-up"></i> <span>Relatório</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+                {% if unity_module_enabled('finance') and current_user.has_permission('meal:read') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_meal else '' }}" title="Vale Alimentação - Professores" href="{{ url_for('payments.list_meal_allowance') }}">
+                        <i class="bi bi-basket2"></i> <span>Vale Alimentação</span>
+                    </a>
+                </li>
+                {% endif %}
+                {% if unity_module_enabled('finance') and current_user.has_permission('an:read') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if in_an else '' }}" title="Adicional Noturno - Professores" href="{{ url_for('an.registros') }}">
+                        <i class="bi bi-moon-stars"></i> <span>Adicional Noturno</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                {# O módulo Cozinha pode ser desligado por unidade (edição da unidade) #}
+                {% if current_user.has_permission('kitchen:read') and unity_module_enabled('kitchen') %}
+                <li class="nav-section">Cozinha</li>
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if ep.startswith('kitchen.sheet') }}" title="Ficha Técnica" href="{{ url_for('kitchen.sheets') }}">
+                        <i class="bi bi-file-earmark-word"></i> <span>Ficha Técnica</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if ep.startswith('kitchen.preparation') }}" title="Preparações" href="{{ url_for('kitchen.preparations') }}">
+                        <i class="bi bi-journal-text"></i> <span>Preparações</span>
+                    </a>
+                </li>
+                {% if current_user.has_permission('kitchen:shopping_export') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if ep.startswith('kitchen.shopping') }}" title="Compras" href="{{ url_for('kitchen.shopping') }}">
+                        <i class="bi bi-cart-check"></i> <span>Compras</span>
+                    </a>
+                </li>
+                {% endif %}
+                {% endif %}
+
+                {% else %}
+                {# Calendário removido do menu de visitantes: o schedule exige login #}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('public.home') }}">
+                        <i class="bi bi-house"></i> <span>Início</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('public.class_search') }}">
+                        <i class="bi bi-search"></i> <span>Buscar Aula</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('public.daily_schedule') }}">
+                        <i class="bi bi-calendar-day"></i> <span>Cronograma</span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </nav>
+    {% endif %}
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Topbar -->
+        <nav class="topbar">
+            {% if not ocultar_sidebar %}
+            <button class="btn btn-link d-lg-none" id="sidebar-toggle" type="button">
+                <i class="bi bi-list"></i>
+            </button>
+            {% endif %}
+
+            {% if current_user.is_authenticated and current_unity %}
+            {# Unidade ativa à esquerda do topbar, ao lado da barra lateral #}
+            <div class="unity-area d-none d-md-flex align-items-center gap-2" title="{{ current_unity.name }} — unidade ativa de operação">
+                <i class="bi bi-geo-alt text-muted"></i>
+                <span class="fw-semibold unity-name">{{ current_unity.name }}</span>
+                {% if can_switch_unity and switchable_unities|length > 1 %}
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
+                            aria-expanded="false" title="Trocar unidade ativa">
+                        Trocar
+                    </button>
+                    <ul class="dropdown-menu">
+                        {% for u in switchable_unities %}
+                        <li>
+                            <form method="POST" action="{{ url_for('main.switch_unity') }}" class="m-0">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="unity_id" value="{{ u.id }}">
+                                <button type="submit" class="dropdown-item" {{ 'disabled' if current_unity.id == u.id }}>
+                                    {{ u.name }}{% if current_unity.id == u.id %} <i class="bi bi-check2"></i>{% endif %}
+                                </button>
+                            </form>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="ms-auto d-flex align-items-center">
+                {# O Painel Admin é o hub das áreas administrativas: Unidades,
+                   Tokens da API, Empresas de Ônibus e Configurações do Pedido
+                   de VT vivem dentro dele (cards na página), então o link é
+                   visível para quem tem qualquer uma dessas permissões e fica
+                   ativo em todas as páginas /admin/*. #}
+                {% if current_user.is_authenticated %}
+                {# Sino de notificações: dropdown com preview das últimas (buscado ao abrir) e badge com não lidas (atualizado por poll leve) #}
+                <div class="dropdown">
+                    <a class="btn btn-link position-relative text-decoration-none text-muted"
+                       title="Notificações" href="{{ url_for('notifications.lista') }}" id="notif-bell"
+                       data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
+                        <i class="bi bi-bell fs-5"></i>
+                        <span id="notif-badge"
+                              class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger {{ 'd-none' if not notificacoes_nao_lidas }}">
+                            {{ notificacoes_nao_lidas }}
+                        </span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-end notif-dropdown p-0" id="notif-dropdown" style="min-width: 320px; max-width: 92vw;">
+                        <div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
+                            <span class="small fw-bold text-uppercase text-muted">Notificações</span>
+                            <a href="{{ url_for('notifications.lista') }}" class="small text-decoration-none">Ver todas</a>
+                        </div>
+                        <div id="notif-dropdown-corpo" class="text-muted small px-3 py-3">Carregando…</div>
+                        <div class="px-3 py-2 border-top">
+                            <button type="button" id="notif-marcar-todas"
+                                    class="btn btn-link btn-sm text-decoration-none text-muted p-0">
+                                <i class="bi bi-check2-all me-1"></i>Marcar todas como lidas
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if current_user.is_authenticated %}
+                {% set ep_top = request.endpoint or '' %}
+                {% set painel_visivel = current_user.has_permission('system:dashboard')
+                    or current_user.has_permission('unity:read')
+                    or current_user.has_permission('api:manage')
+                    or current_user.has_permission('vt:empresas')
+                    or current_user.has_permission('vt:config') %}
+                {% set in_painel_admin = ep_top.startswith('admin.') and not ('room' in ep_top or 'categor' in ep_top) %}
+                {% if painel_visivel %}
+                <a class="topbar-painel {{ 'active' if in_painel_admin }}" title="Painel Admin"
+                   href="{{ url_for('admin.dashboard') }}">
+                    <i class="bi bi-gear"></i> <span class="d-none d-md-inline">Painel Admin</span>
+                </a>
+                {% endif %}
+                {% endif %}
+
+                {# Aparência: um único seletor reúne o tema claro/escuro e a
+                   cor da interface — um ícone a menos na topbar e os dois
+                   ajustes sempre no mesmo lugar. #}
+                <div class="dropdown">
+                    <button id="appearance-toggle" class="btn btn-sm btn-icon" title="Aparência: tema claro/escuro e cor da interface"
+                            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                        <i class="bi bi-palette"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end p-3" aria-labelledby="appearance-toggle">
+                        <div class="small text-muted text-uppercase fw-bold mb-2">Tema</div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="theme-option" data-theme-opcao="light" title="Tema claro">
+                                <i class="bi bi-sun-fill"></i>
+                            </button>
+                            <button type="button" class="theme-option" data-theme-opcao="dark" title="Tema escuro">
+                                <i class="bi bi-moon-stars-fill"></i>
+                            </button>
+                        </div>
+                        <hr class="dropdown-divider my-2">
+                        <div class="small text-muted text-uppercase fw-bold mb-2">Cor da interface</div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="accent-swatch" data-accent-opcao="" title="Azul Senac (padrão)"
+                                    style="--sw: #004b8d"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="verde" title="Verde"
+                                    style="--sw: #157347"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="roxo" title="Roxo"
+                                    style="--sw: #6f42c1"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="laranja" title="Laranja"
+                                    style="--sw: #b45309"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="grafite" title="Grafite"
+                                    style="--sw: #37474f"><i class="bi bi-check-lg"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                {% if current_user.is_authenticated %}
+                <div class="dropdown">
+                    <a class="btn btn-link dropdown-toggle text-decoration-none text-muted d-flex align-items-center" data-bs-toggle="dropdown" href="#">
+                        <i class="bi bi-person-circle fs-5 me-2"></i>
+                        <div class="text-start d-none d-md-block">
+                            <div class="fw-bold" style="font-size: 0.9rem; line-height: 1;">{{ current_user.full_name }}</div>
+                            <div class="small text-capitalize">{{ current_user.role_obj.label if current_user.role_obj else current_user.role }}</div>
+                        </div>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{{ url_for('auth.perfil') }}"><i class="bi bi-person me-2"></i> Meu Perfil</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
+                    </ul>
+                </div>
+                {% else %}
+                <div class="d-flex align-items-center text-muted py-2 pe-3">
+                    <div class="me-3 text-end d-none d-md-block">
+                        <div id="nav-clock" style="font-size: 1rem; font-weight: 600; line-height: 1;">--:--:--</div>
+                        <div id="nav-date" style="font-size: 0.75rem; opacity: 0.8;">Carregando...</div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <i id="nav-weather-icon" class="bi bi-cloud-sun fs-4 me-2"></i>
+                        <div>
+                            <div id="nav-weather-temp" style="font-size: 1rem; font-weight: 600; line-height: 1;">--°C</div>
+                            <div id="nav-weather-city" style="font-size: 0.75rem; opacity: 0.8;">Campus</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </nav>
+
+        <!-- Page Content -->
+        <div class="page-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </div>
+
+        <footer class="footer">
+            &copy; {{ now.year }} SIGerE ·
+            <a href="{{ url_for('main.changelog') }}"
+               title="Novidades desta versão">v{{ app_version }}</a>
+        </footer>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.popular.min.js"></script>
+<script>
+        // Selects com muitas opções viram caixas com busca (Tom Select). Selects
+        // pequenos, desabilitados e já convertidos seguem nativos — sem mudar a
+        // UX onde a busca não traz ganho.
+        //
+        // Páginas que recarregam opções de um select via JS (ex.: disciplinas
+        // por curso nas reservas) devem chamar tomSelectSync(select) ao final
+        // da atualização — o sync() nativo do Tom Select só acrescenta opções,
+        // nunca remove as que saíram do DOM.
+        window.tomSelectSync = function (sel) {
+            var ts = sel.tomselect;
+            if (!ts) return;
+            try {
+                var presentes = {};
+                Array.from(sel.options).forEach(function (o) { presentes[o.value] = o.textContent.trim(); });
+                var mudou = false;
+                Object.keys(ts.options).forEach(function (v) {
+                    if (!(v in presentes)) { ts.removeOption(v, true); mudou = true; }
+                });
+                Array.from(sel.options).forEach(function (o) {
+                    if (o.value && !ts.options[o.value]) {
+                        ts.addOption({ value: o.value, text: presentes[o.value] });
+                        mudou = true;
+                    }
+                });
+                var atuais = Array.from(sel.options).filter(function (o) { return o.selected; })
+                                              .map(function (o) { return o.value; });
+                var iguais = atuais.length === ts.items.length &&
+                            atuais.every(function (v) { return ts.items.indexOf(v) !== -1; });
+                if (!iguais) { ts.setValue(atuais, true); mudou = true; }
+                if (mudou) { ts.refreshOptions(ts.isOpen); ts.refreshItems(); }
+            } catch (e) { /* falha do espelho nunca pode quebrar o filtro da página */ }
+        };
+        (function () {
+            var LIMIAR_OPCOES = 6;
+            document.querySelectorAll('select.form-select').forEach(function (sel) {
+                if (sel.disabled || sel.tomselect || sel.options.length < LIMIAR_OPCOES) return;
+                // Selects repovoados por JavaScript (ex.: tarifas do pedido
+                // de VT dependendo da empresa): o Tom Select cacheia as
+                // opções no load e ficaria desatualizado após o repovoamento.
+                if (sel.hasAttribute('data-nativo')) return;
+                // .input-group: o Tom Select quebra o layout com botões anexos
+                // (ex.: seletor de ícone da categoria com o preview ao lado)
+                if (sel.closest('.input-group')) return;
+                var config = { maxOptions: 1000 };
+                if (sel.multiple) {
+                    config.maxItems = null;
+                    config.plugins = ['remove_button'];
+                    config.hideSelected = true;
+                } else if (sel.options[0] && sel.options[0].value === '') {
+                    config.allowEmptyOption = true;
+                    config.placeholder = sel.options[0].text;
+                }
+                new TomSelect(sel, config);
+            });
+        })();
+    </script>
+<script>
+    // Aparência: dropdown único com tema claro/escuro e cor da interface.
+    // O tema troca ao vivo (sem recarregar); o accent recarrega a página para
+    // tudo (gráficos inclusive) nascer na nova cor.
+    const themeOptions = document.querySelectorAll('.theme-option');
+    function marcarTema() {
+        const escuro = document.documentElement.getAttribute('data-theme') === 'dark';
+        themeOptions.forEach(b =>
+            b.classList.toggle('selected', (b.dataset.themeOpcao === 'dark') === escuro));
+    }
+    marcarTema();
+    themeOptions.forEach(botao => {
+        botao.addEventListener('click', () => {
+            if (botao.dataset.themeOpcao === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+            }
+            marcarTema();
+        });
+    });
+
+    // Tema de cor (accent): a paleta vive no CSS ([data-accent=...]) e a
+    // escolha no localStorage. Ao trocar, recarrega a página para tudo
+    // (gráficos inclusive) nascer na nova cor.
+    const appearanceToggle = document.getElementById('appearance-toggle');
+    if (appearanceToggle) {
+        document.querySelectorAll('.accent-swatch').forEach(botao => {
+            botao.addEventListener('click', () => {
+                const accent = botao.dataset.accentOpcao || '';
+                if (accent) localStorage.setItem('accent', accent);
+                else localStorage.removeItem('accent');
+                document.documentElement.setAttribute('data-accent', accent);
+                location.reload();
+            });
+        });
+        appearanceToggle.closest('.dropdown').addEventListener('show.bs.dropdown', () => {
+            marcarTema();
+            const atual = document.documentElement.getAttribute('data-accent') || '';
+            document.querySelectorAll('.accent-swatch').forEach(b => {
+                b.classList.toggle('selected', (b.dataset.accentOpcao || '') === atual);
+            });
+        });
+    }
+
+    // Sidebar toggle for mobile
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const appContainer = document.querySelector('.app-container');
+    if(sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => {
+            appContainer.classList.toggle('sidebar-open');
+        });
+    }
+
+    // Contrair/expandir a sidebar no desktop (preferência salva no navegador)
+    const collapseBtn = document.getElementById('sidebar-collapse');
+    function setSidebarCollapsed(collapsed) {
+        document.documentElement.classList.toggle('sidebar-collapsed', collapsed);
+        localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+        if (collapseBtn) {
+            collapseBtn.title = collapsed ? 'Expandir menu' : 'Contrair menu';
+            collapseBtn.setAttribute('aria-expanded', String(!collapsed));
+        }
+    }
+    if (collapseBtn) {
+        setSidebarCollapsed(document.documentElement.classList.contains('sidebar-collapsed'));
+        collapseBtn.addEventListener('click', () =>
+            setSidebarCollapsed(!document.documentElement.classList.contains('sidebar-collapsed')));
+        // Contraído, os grupos com submenu não têm espaço: clicar neles
+        // reexpande o menu para escolher o item
+        document.querySelectorAll('.sidebar-menu .nav-link[data-bs-toggle="collapse"]').forEach(link => {
+            link.addEventListener('click', () => {
+                if (document.documentElement.classList.contains('sidebar-collapsed')) {
+                    setSidebarCollapsed(false);
+                }
+            });
+        });
+    }
+</script>
+{% if not current_user.is_authenticated %}
+<script>
+    function updateNavClock() {
+        const now = new Date();
+        const options = { weekday: 'short', month: 'short', day: 'numeric' };
+        const dateStr = now.toLocaleDateString('pt-BR', options);
+        const timeStr = now.toLocaleTimeString('pt-BR', { hour12: false });
+        const dateEl = document.getElementById('nav-date');
+        const timeEl = document.getElementById('nav-clock');
+        if(dateEl) dateEl.textContent = dateStr;
+        if(timeEl) timeEl.textContent = timeStr;
+    }
+    setInterval(updateNavClock, 1000); updateNavClock();
+    const lat = {{ totem_lat }}; const lon = {{ totem_lon }};
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
+        .then(r => r.json()).then(data => {
+            if (data.current_weather) {
+                document.getElementById('nav-weather-temp').textContent = `${Math.round(data.current_weather.temperature)}°C`;
+                let icon = 'bi-cloud'; const code = data.current_weather.weathercode;
+                if (code === 0) icon = 'bi-sun'; else if (code <= 3) icon = 'bi-cloud-sun'; else if (code <= 48) icon = 'bi-cloud-fog'; else if (code <= 67) icon = 'bi-cloud-rain'; else if (code <= 77) icon = 'bi-snow'; else if (code <= 99) icon = 'bi-cloud-lightning-rain';
+                document.getElementById('nav-weather-icon').className = `bi ${icon} fs-4 me-2`;
+            }
+        }).catch(() => document.getElementById('nav-weather-city').textContent = 'Indisponível');
+</script>
+{% endif %}
+<script>
+    // Mostrar/ocultar senha em qualquer campo com [data-password-toggle]
+    document.querySelectorAll('[data-password-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const input = document.getElementById(btn.dataset.passwordToggle);
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+        });
+    });
+</script>
+{% if current_user.is_authenticated %}
+<script>
+    // Sino de notificações: badge com poll leve (o valor inicial vem
+    // renderizado do servidor) e dropdown com preview das últimas — buscado
+    // a cada abertura. Falhas silenciosas — o conteúdo/badge antigo vale até
+    // o próximo carregamento ou abertura.
+    (function () {
+        const badge = document.getElementById('notif-badge');
+        if (!badge) return;
+        const corpo = document.getElementById('notif-dropdown-corpo');
+        const csrfToken = '{{ csrf_token() }}';
+        // Contador de não lidas também no título da aba (o prefixo "(n)"
+        // some quando zera; título base é capturado já sem prefixo).
+        const tituloBase = (document.title || 'SIGerE').replace(/^\s*\(\d+\)\s*/, '');
+
+        function atualizarBadge(qtde) {
+            badge.textContent = qtde;
+            badge.classList.toggle('d-none', !qtde);
+            document.title = qtde > 0 ? `(${qtde}) ${tituloBase}` : tituloBase;
+        }
+
+        function quando(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+        }
+
+        // Títulos/corpos vêm de conteúdo do usuário (ex.: título da reserva):
+        // escapam antes de virar HTML.
+        function escapar(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        function itemHtml(n) {
+            const naoLida = !n.lida;
+            const ponto = naoLida
+                ? '<span class="badge bg-primary rounded-pill me-1">&nbsp;</span>' : '';
+            const fundo = naoLida ? ' bg-light' : '';
+            const titulo = n.url
+                ? '<a href="' + escapar(n.url) + '" class="text-decoration-none notif-item-link" data-id="' + n.id + '">' + escapar(n.titulo) + '</a>'
+                : '<span>' + escapar(n.titulo) + '</span>';
+            return '<div class="dropdown-item-text small px-3 py-2' + fundo + '">'
+                + '<div class="fw-semibold">' + ponto + titulo + '</div>'
+                + (n.corpo ? '<div class="text-muted mt-1">' + escapar(n.corpo) + '</div>' : '')
+                + '<div class="text-muted mt-1"><i class="bi bi-clock me-1"></i>' + quando(n.criado_em) + '</div>'
+                + '</div>';
+        }
+
+        function renderizar(dados) {
+            atualizarBadge(dados.count);
+            if (!dados.itens || !dados.itens.length) {
+                corpo.className = 'text-muted small text-center px-3 py-4';
+                corpo.innerHTML = '<i class="bi bi-bell-slash d-block display-6 mb-2"></i>Sem notificações.';
+                return;
+            }
+            corpo.className = 'notif-lista';
+            corpo.innerHTML = dados.itens.map(itemHtml).join('');
+        }
+
+        function carregar() {
+            return fetch('{{ url_for("notifications.api_recentes") }}', { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (dados) { if (dados) renderizar(dados); })
+                .catch(function () {});
+        }
+
+        if (corpo) {
+            document.getElementById('notif-bell').closest('.dropdown')
+                .addEventListener('show.bs.dropdown', carregar);
+            // Clique num item: marca como lida (fetch) e só então navega.
+            // O molde da URL vem com id 0; o prefixo /notificacoes/ nunca
+            // contém "/0/", então o replace atinge exatamente o placeholder.
+            corpo.addEventListener('click', function (ev) {
+                const link = ev.target.closest('.notif-item-link');
+                if (!link) return;
+                ev.preventDefault();
+                fetch('{{ url_for("notifications.marcar_lida", notification_id=0) }}'.replace('/0/', '/' + link.dataset.id + '/'), {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'fetch', 'X-CSRFToken': csrfToken }
+                })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (dados) { if (dados) atualizarBadge(dados.count); })
+                    .catch(function () {})
+                    .finally(function () { window.location.href = link.href; });
+            });
+        }
+
+            // Rodapé "Marcar todas como lidas": fetch e recarrega o conteúdo.
+            const botaoTodas = document.getElementById('notif-marcar-todas');
+            if (botaoTodas) {
+                botaoTodas.addEventListener('click', function () {
+                    fetch('{{ url_for("notifications.marcar_todas") }}', {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'fetch', 'X-CSRFToken': csrfToken }
+                    })
+                        .then(function (r) { return r.ok ? r.json() : null; })
+                        .then(function (dados) { if (dados) atualizarBadge(dados.count); })
+                        .catch(function () {})
+                        .finally(carregar);
+                });
+            }
+
+            setInterval(function () {
+            fetch('{{ url_for("notifications.api_nao_lidas") }}', { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (dados) { if (dados) atualizarBadge(dados.count); })
+                .catch(function () {});
+        }, 60000);
+    })();
+</script>
+{% endif %}
+<script>
+    // Marcação visual de campos obrigatórios: asterisco no rótulo de todo
+    // campo [required] e legenda "Campos com * são obrigatórios." no form.
+    // Cobre tanto os forms WTForms (required vem do servidor) quanto os
+    // formulários manuais que já declaram o atributo.
+    (function () {
+        // Rótulo do campo: primeiro via label[for=id]; se não casar (alguns
+        // templates sobrescrevem o id do input), sobe até o contêiner que
+        // guarda o par label+campo.
+        function acharRotulo(campo) {
+            if (campo.id) {
+                const direto = document.querySelector('label[for="' + CSS.escape(campo.id) + '"]');
+                if (direto) return direto;
+            }
+            let cont = campo.parentElement;
+            for (let i = 0; i < 4 && cont && cont !== document.body; i++) {
+                const rotulo = cont.querySelector('label');
+                if (rotulo) return rotulo;
+                cont = cont.parentElement;
+            }
+            return null;
+        }
+
+        function marcarObrigatorios() {
+            const formsMarcados = new Set();
+            document.querySelectorAll('form [required]').forEach(function (campo) {
+                const form = campo.closest('form');
+                if (form && !formsMarcados.has(form)) {
+                    formsMarcados.add(form);
+                    if (!form.querySelector('.legenda-obrigatorios')) {
+                        const nota = document.createElement('div');
+                        nota.className = 'legenda-obrigatorios form-text text-muted mt-1 mb-2';
+                        nota.innerHTML = 'Campos com <span class="text-danger fw-bold">*</span> são obrigatórios.';
+                        form.prepend(nota);
+                    }
+                }
+                // Evita duplicar o asterisco em rótulos que já o trazem no texto
+                const rotulo = acharRotulo(campo);
+                if (rotulo && !rotulo.querySelector('.asterisco-obrigatorio') && !rotulo.textContent.includes('*')) {
+                    const asterisco = document.createElement('span');
+                    asterisco.className = 'asterisco-obrigatorio text-danger fw-bold ms-1';
+                    asterisco.title = 'Campo obrigatório';
+                    asterisco.textContent = '*';
+                    rotulo.appendChild(asterisco);
+                }
+            });
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', marcarObrigatorios);
+        } else {
+            marcarObrigatorios();
+        }
+    })();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

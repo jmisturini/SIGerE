@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% block title %}Editar Pedido VT{% endblock %}
+
+{% macro radios_lista(field, nome) %}
+{% for valor, rotulo in field.choices %}
+<div class="form-check">
+    <input class="form-check-input" type="radio" name="{{ nome }}" id="{{ nome }}-{{ loop.index }}"
+           value="{{ valor }}" {{ 'checked' if field.data == valor }}>
+    <label class="form-check-label" for="{{ nome }}-{{ loop.index }}">{{ rotulo }}</label>
+</div>
+{% endfor %}
+{% for err in field.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+{% endmacro %}
+
+{% macro texto(field, col='col-md-6', extras={}) %}
+<div class="{{ col }}">
+    {{ field.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+    {{ field(class="form-control" if field.type != 'SelectField' else 'form-select', **extras) }}
+    {% for err in field.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10 col-md-12">
+        <div class="card">
+            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-bus-front text-primary me-2"></i>Editar pedido —
+                    <span class="text-muted">{{ pedido.full_name }}</span>
+                    <small class="text-muted fw-normal">(Matrícula {{ pedido.registration }})</small>
+                </h5>
+                <a href="{{ url_for('vt.requests') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" novalidate id="form-pedido-edit">
+                    {{ form.hidden_tag() }}
+
+                    <h6 class="text-muted text-uppercase small fw-bold mb-3">
+                        <i class="bi bi-person me-1"></i> Identificação
+                    </h6>
+                    <div class="row g-3">
+                        {{ texto(form.email, 'col-md-4') }}
+                        {{ texto(form.full_name, 'col-md-4') }}
+                        {{ texto(form.registration, 'col-md-2') }}
+                        <div class="col-md-2">
+                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.optant.label.text }}</span>
+                            {{ radios_lista(form.optant, 'optant') }}
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted text-uppercase small fw-bold mt-4 mb-3">
+                        <i class="bi bi-briefcard me-1"></i> Pedido do mês
+                    </h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.link.label.text }}</span>
+                            {{ radios_lista(form.link, 'link') }}
+                        </div>
+                        <div class="col-md-4">
+                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.company_count.label.text }}</span>
+                            {{ radios_lista(form.company_count, 'company_count') }}
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted text-uppercase small fw-bold mt-4 mb-3">
+                        <i class="bi bi-bus-front me-1"></i> Empresa A
+                    </h6>
+                    <div class="row g-3">
+                        {{ texto(form.company_a_name, 'col-md-4') }}
+                        {{ texto(form.company_a_value, 'col-md-4', {"data-nativo": "true"}) }}
+                        <div class="col-md-2">
+                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.company_a_route.label.text }}</span>
+                            {{ radios_lista(form.company_a_route, 'company_a_route') }}
+                        </div>
+                        {{ texto(form.company_a_passes, 'col-md-2') }}
+                    </div>
+
+                    <h6 class="text-muted text-uppercase small fw-bold mt-4 mb-3">
+                        <i class="bi bi-bus-front me-1"></i> Empresa B
+                    </h6>
+                    <div class="row g-3">
+                        {{ texto(form.company_b_name, 'col-md-4') }}
+                        {{ texto(form.company_b_value, 'col-md-4', {"data-nativo": "true"}) }}
+                        <div class="col-md-2">
+                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.company_b_route.label.text }}</span>
+                            {{ radios_lista(form.company_b_route, 'company_b_route') }}
+                        </div>
+                        {{ texto(form.company_b_passes, 'col-md-2') }}
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('vt.requests') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-check-lg me-1"></i> Salvar alterações
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Select de tarifa dependente da empresa escolhida (mesmo comportamento
+    // do pedido público): trocar a empresa recarrega as linhas de tarifa do
+    // cadastro e mantém a seleção quando ela continua válida.
+    (function () {
+        const form = document.getElementById('form-pedido-edit');
+        const EMPRESAS_VALORES = {{ empresas_valores | tojson }};
+
+        function preencherValores(empresaSelect, valorSelect) {
+            const linhas = EMPRESAS_VALORES[empresaSelect.value] || [];
+            const anterior = valorSelect.value;
+            valorSelect.innerHTML = '<option value="">Selecione…</option>' + linhas.map(l =>
+                `<option value="${l.id}" ${String(l.id) === anterior ? 'selected' : ''}>${l.rotulo}</option>`).join('');
+            valorSelect.disabled = linhas.length === 0;
+        }
+
+        for (const sufixo of ['a', 'b']) {
+            const empresa = form.elements[`company_${sufixo}_name`];
+            const valor = form.elements[`company_${sufixo}_value`];
+            if (!empresa || !valor) continue;
+            preencherValores(empresa, valor);
+            empresa.addEventListener('change', () => preencherValores(empresa, valor));
+        }
+    })();
+</script>
+{% endblock %}

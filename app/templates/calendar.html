@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+{% block title %}Calendário{% endblock %}
+{% block content %}
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3"><i class="bi bi-funnel"></i> Filtros de Reserva</h5>
+        <form id="filterForm" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Data Inicial</label>
+                <input type="date" id="initialDate" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Data Final</label>
+                <input type="date" id="finalDate" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Período</label>
+                <select id="filterPeriod" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="morning">Manhã</option>
+                    <option value="afternoon">Tarde</option>
+                    <option value="night">Noite</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Sala</label>
+                <select id="filterRoom" class="form-select">
+                    <option value="">Todas</option>
+                    {% for c in classrooms %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Professor</label>
+                <select id="filterTeacher" class="form-select">
+                    <option value="">Todos</option>
+                    {% for t in teachers %}<option value="{{ t.id }}">{{ t.full_name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Curso</label>
+                <select id="filterCourse" class="form-select">
+                    <option value="">Todos</option>
+                    {% for c in courses %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Disciplina</label>
+                <select id="filterSubject" class="form-select">
+                    <option value="">Todas</option>
+                    {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-12 mt-3 d-flex flex-wrap gap-2">
+                <button type="button" id="applyFilters" class="btn btn-primary" disabled><i class="bi bi-search"></i> Aplicar Filtros</button>
+                <button type="button" id="clearFilters" class="btn btn-outline-secondary"><i class="bi bi-eraser"></i> Limpar</button>
+                {% if current_user.has_permission('system:export') %}
+                <button type="button" id="exportPdf" class="btn btn-outline-primary" title="Baixa em PDF as aulas do período e filtros atuais">
+                    <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                </button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="card-container" class="mt-4">
+    <div class="text-center text-muted p-5">
+        <div class="spinner-border" role="status"><span class="visually-hidden">Carregando...</span></div>
+        <p class="mt-2">Carregando calendário...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('card-container');
+    const applyBtn = document.getElementById('applyFilters');
+    const clearBtn = document.getElementById('clearFilters');
+    const initDateInput = document.getElementById('initialDate');
+    const finDateInput = document.getElementById('finalDate');
+    const periodSelect = document.getElementById('filterPeriod');
+    const roomSelect = document.getElementById('filterRoom');
+    const teacherSelect = document.getElementById('filterTeacher');
+    const courseSelect = document.getElementById('filterCourse');
+    const subjectSelect = document.getElementById('filterSubject');
+
+    // Determine current period based on time
+    function getCurrentPeriod() {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'morning';
+        if (hour < 18) return 'afternoon';
+        return 'night';
+    }
+
+    // Enable/disable apply button
+    function updateFilterBtn() {
+        const hasFilter = initDateInput.value || finDateInput.value || periodSelect.value || roomSelect.value || teacherSelect.value || courseSelect.value || subjectSelect.value;
+        applyBtn.disabled = !hasFilter;
+    }
+
+    // Os dados das reservas (título, curso, professor, sala...) são digitados
+    // por usuários: escapar antes de interpolá-los no HTML montado via innerHTML.
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+
+    // Monta os parâmetros a partir dos filtros do formulário — fonte única
+    // da consulta da API e do PDF exportado
+    function buildParams() {
+        const params = new URLSearchParams();
+        const period = periodSelect.value;
+        const room = roomSelect.value;
+        const teacher = teacherSelect.value;
+        const course = courseSelect.value;
+        const subject = subjectSelect.value;
+        if (initDateInput.value) params.append('initialDate', initDateInput.value);
+        if (finDateInput.value) params.append('finalDate', finDateInput.value);
+        if (period) params.append('period', period);
+        if (room) params.append('room_id', room);
+        if (teacher) params.append('teacher_id', teacher);
+        if (course) params.append('course_id', course);
+        if (subject) params.append('subject_id', subject);
+        return params;
+    }
+
+    // Fetch data from API
+    function fetchData() {
+        let url = '{{ url_for("schedule.events") }}';
+
+        container.innerHTML = '<div class="text-center text-muted p-5"><div class="spinner-border"></div><p class="mt-2">Carregando...</p></div>';
+
+        fetch(`${url}?${buildParams().toString()}`)
+            .then(response => response.json())
+            .then(data => renderCards(data))
+            .catch(error => { container.innerHTML = '<div class="alert alert-danger text-center p-5">Erro ao carregar os dados.</div>'; });
+    }
+
+    // Render Bootstrap cards grouped by date and floor
+    function renderCards(data) {
+        if (data.length === 0) {
+            container.innerHTML = `
+                <div class="card text-center text-muted p-5">
+                    <i class="bi bi-emoji-smile fs-1 d-block mb-3"></i>
+                    <h5 class="mb-1">Nenhuma reserva encontrada</h5>
+                    <p class="small mb-0">Tente ajustar os filtros selecionados acima.</p>
+                </div>
+            `;
+            return;
+        }
+
+        const grouped = {};
+        data.forEach(event => {
+            const dateStr = event.start.split('T')[0];
+            if (!grouped[dateStr]) grouped[dateStr] = [];
+            grouped[dateStr].push(event);
+        });
+
+        const sortedDates = Object.keys(grouped).sort();
+
+        let html = '';
+        sortedDates.forEach(dateStr => {
+            const dateObj = new Date(dateStr + 'T00:00:00');
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const formattedDate = dateObj.toLocaleDateString('pt-BR', options);
+
+            html += `<div class="mb-5"><h4 class="mb-3 border-bottom pb-2 text-capitalize"><i class="bi bi-calendar3 text-primary"></i> ${esc(formattedDate)}</h4>`;
+
+            // Agrupar por andar
+            const floors = {};
+            grouped[dateStr].forEach(event => {
+                const floor = event.floor || 'Outros';
+                if (!floors[floor]) floors[floor] = [];
+                floors[floor].push(event);
+            });
+
+            // Ordenar andares logicamente. "Térreo" pode ser cadastrado com
+            // caixa ou acento diferentes da chave do mapa; normaliza o nome
+            // para que venha antes dos andares numerados.
+            const floorOrder = {"Térreo": 0, "Ground Floor": 0, "1º Andar": 1, "1st Floor": 1, "2º Andar": 2, "2nd Floor": 2, "3º Andar": 3, "3rd Floor": 3, "4º Andar": 4, "4th Floor": 4, "5º Andar": 5, "5th Floor": 5};
+            const rankFloor = nome => {
+                const n = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                if (n.includes('terreo') || n.includes('ground')) return 0;
+                return floorOrder[nome] || 99;
+            };
+            const sortedFloors = Object.keys(floors).sort((a, b) => rankFloor(a) - rankFloor(b));
+
+            sortedFloors.forEach(floorName => {
+                html += `<div class="col-12 mt-3"><h6 class="text-muted border-bottom pb-1 text-uppercase small"><i class="bi bi-layers"></i> ${esc(floorName)}</h6></div>`;
+                html += `<div class="row g-3">`;
+                
+                // Ordenar salas por número dentro do andar
+                floors[floorName].sort((a, b) => {
+                    let numA = parseInt(a.room_number) || 9999;
+                    let numB = parseInt(b.room_number) || 9999;
+                    return numA - numB;
+                });
+
+                floors[floorName].forEach(event => {
+                    const startTime = new Date(event.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
+                    const endTime = new Date(event.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+                    html += `
+                        <div class="col-md-6 col-xl-4">
+                            <a href="${esc(event.url)}" class="text-decoration-none text-reset">
+                                <div class="card h-100 hover-shadow border-primary border-start border-4 border-top-0 border-end-0 border-bottom-0">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <span class="fs-4 fw-bold text-primary"><i class="bi bi-door-closed"></i> ${esc(event.classroom_code)}</span>
+                                            <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-clock"></i> ${esc(startTime)} - ${esc(endTime)}</span>
+                                        </div>
+                                        <div class="mb-2">
+                                            <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
+                                            <p class="mb-0 fs-5 fw-bold text-truncate">${esc(event.course)}</p>
+                                        </div>
+                                        <div class="mb-2">
+                                            <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
+                                            <p class="mb-0 fs-5 fw-bold text-truncate">${esc(event.teacher)}</p>
+                                        </div>
+                                        ${event.title && event.title.trim() ? `
+                                        <div class="mb-0">
+                                            <span class="text-muted small text-uppercase fw-bold d-block">Evento</span>
+                                            <p class="mb-0 small text-break">${esc(event.title)}</p>
+                                        </div>` : ''}
+                                    </div>
+                                </div>
+                            </a>
+                        </div>`;
+                });
+                html += `</div>`; // Fecha row
+            });
+            html += `</div>`; // Fecha div do dia
+        });
+
+        container.innerHTML = html;
+    }
+
+    // Event Listeners
+    [initDateInput, finDateInput, periodSelect, roomSelect, teacherSelect, courseSelect, subjectSelect].forEach(element => {
+        element.addEventListener('input', updateFilterBtn);
+        element.addEventListener('change', updateFilterBtn);
+    });
+    applyBtn.addEventListener('click', fetchData);
+    const exportBtn = document.getElementById('exportPdf');
+    if (exportBtn) {
+        // Baixa o PDF dos filtros atuais (Content-Disposition: attachment não
+        // navega para fora da página)
+        exportBtn.addEventListener('click', function() {
+            const url = '{{ url_for("schedule.export_pdf") }}';
+            window.location.href = `${url}?${buildParams().toString()}`;
+        });
+    }
+    clearBtn.addEventListener('click', function() {
+        initDateInput.value = ''; finDateInput.value = ''; periodSelect.value = ''; roomSelect.value = ''; teacherSelect.value = ''; courseSelect.value = ''; subjectSelect.value = '';
+        updateFilterBtn();
+        container.innerHTML = `<div class="card text-center text-muted p-5"><i class="bi bi-funnel fs-1 d-block mb-3"></i><h5 class="mb-1">Nenhum filtro aplicado.</h5><p class="small mb-0">Selecione um filtro acima e clique em "Aplicar Filtros".</p></div>`;
+    });
+
+    // Initial Load Setup. Deep link: ?initialDate=&finalDate= pré-preenche o
+    // período — é o formato dos links das notificações de atividade próxima;
+    // sem finalDate, mostra só o dia do link.
+    const urlParams = new URLSearchParams(window.location.search);
+    const todayStr = new Date().toISOString().split('T')[0];
+    initDateInput.value = urlParams.get('initialDate') || todayStr;
+    finDateInput.value = urlParams.get('finalDate') || urlParams.get('initialDate') || todayStr;
+    periodSelect.value = getCurrentPeriod();
+    updateFilterBtn();
+    fetchData();
+});
+</script>
+<style>
+    .hover-shadow { 
+        transition: transform 0.2s ease, box-shadow 0.2s ease; 
+    }
+    .hover-shadow:hover { 
+        transform: translateY(-4px); 
+        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.15) !important; 
+    }
+</style>
+{% endblock %}

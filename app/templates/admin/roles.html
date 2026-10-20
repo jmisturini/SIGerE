@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}Gerenciar Papéis{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Gerenciar Papéis (Roles)</h3>
+        <p class="text-muted mb-0">Defina os perfis de acesso e permissões do sistema.</p>
+    </div>
+    {% if current_user.has_permission('role:create') %}
+    <a href="{{ url_for('admin.create_role') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> Criar Novo Papel
+    </a>
+    {% endif %}
+</div>
+
+<form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <label class="form-label small fw-bold text-muted mb-0" for="ordem-papel">Ordenar por</label>
+    <select name="ordem" id="ordem-papel" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
+        <option value="nome_desc" {{ 'selected' if ordem == 'nome_desc' }}>Nome (Z–A)</option>
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Ordenar</button></noscript>
+</form>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Rótulo</th>
+                        <th>Descrição</th>
+                        <th>Permissões</th>
+                        <th>Usuários</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in roles %}
+                    <tr id="role-{{ r.id }}">
+                        <td class="ps-4 fw-bold">
+                            {{ r.label }}
+                            {% if r.is_system %}
+                                <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle ms-1">Sistema</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small">{{ r.description or '-' }}</td>
+                        <td>
+                            <span class="badge text-bg-info-subtle text-info border border-info-subtle">
+                                <i class="bi bi-key me-1"></i> {{ r.permissions|length }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">
+                                <i class="bi bi-people me-1"></i> {{ r.users|length }}
+                            </span>
+                        </td>
+                        <td class="text-end pe-4">
+                            {% if current_user.has_permission('role:edit') and (current_user.has_permission('*') or r.id not in ids_papel_super_admin) %}
+                            <a href="{{ url_for('admin.edit_role', role_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% elif r.id in ids_papel_super_admin %}
+                            <span class="btn btn-sm btn-outline-secondary disabled" tabindex="-1" aria-disabled="true"
+                                  title="Apenas o super-admin pode editar este papel.">
+                                <i class="bi bi-lock-fill"></i>
+                            </span>
+                            {% endif %}
+                            {% if current_user.has_permission('role:delete') and not r.is_system %}
+                            <form method="POST" action="{{ url_for('admin.delete_role', role_id=r.id) }}" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este papel?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted p-5">
+                            <i class="bi bi-shield-lock fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhum papel encontrado</h5>
+                            <p class="small mb-0">Crie um novo papel para começar a gerenciar permissões.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+name: Testes
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Instala dependências
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Roda a suíte de testes
+        run: python -m pytest -q

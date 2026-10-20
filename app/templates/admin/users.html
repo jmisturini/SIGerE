@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% from '_pagination.html' import render_pagination %}
+{% block title %}Gerenciar Usuários{% endblock %}
+
+{% block content %}
+{% set args_alternar = request.args.to_dict() %}
+{% set _ = args_alternar.update({'inativos': '0' if mostrar_inativos else '1'}) %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Gerenciar Usuários</h3>
+        <p class="text-muted mb-0">Visualize, edite e gerencie contas de professores e funcionários.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn {{ 'btn-outline-secondary' if mostrar_inativos else 'btn-outline-secondary border-dashed' }}"
+           href="{{ url_for('admin.list_users', **args_alternar) }}"
+           title="{{ 'Ocultar as contas desativadas da listagem' if mostrar_inativos else 'Exibir também as contas desativadas' }}">
+            <i class="bi {{ 'bi-eye-slash' if mostrar_inativos else 'bi-eye' }} me-1"></i>
+            {{ 'Esconder desativados' if mostrar_inativos else 'Mostrar desativados' }}
+        </a>
+        <a class="btn btn-primary" href="{{ url_for('admin.create_user', **request.args.to_dict()) }}">
+            <i class="bi bi-plus-lg me-1"></i> Cadastrar Usuário
+        </a>
+    </div>
+</div>
+
+<form method="GET" class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Buscar por Nome</label>
+                <input type="text" name="name" class="form-control" value="{{ search_name }}" placeholder="Digite o nome...">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Filtrar por Tipo</label>
+                <select name="type" class="form-select">
+                    <option value="">Todos os Tipos</option>
+                    <option value="teacher" {{ 'selected' if filter_type == 'teacher' }}>Professor</option>
+                    <option value="employee" {{ 'selected' if filter_type == 'employee' }}>Funcionário</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Ordenar por</label>
+                <select name="ordem" class="form-select">
+                    <option value="padrao" {{ 'selected' if ordem == 'padrao' }}>Papel, depois nome</option>
+                    <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
+                    <option value="nome_desc" {{ 'selected' if ordem == 'nome_desc' }}>Nome (Z–A)</option>
+                    <option value="matricula" {{ 'selected' if ordem == 'matricula' }}>Matrícula</option>
+                    <option value="status" {{ 'selected' if ordem == 'status' }}>Status (ativas primeiro)</option>
+                </select>
+            </div>
+            <input type="hidden" name="inativos" value="{{ '1' if mostrar_inativos else '0' }}">
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary flex-grow-1"><i class="bi bi-funnel me-1"></i> Filtrar</button>
+                <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline-secondary flex-grow-1" title="Limpar filtros"><i class="bi bi-eraser"></i></a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Nome</th>
+                        <th>Tipo</th>
+                        <th>Matrícula</th>
+                        <th>E-mail</th>
+                        <th>Setor / Dept</th>
+                        <th>Papel</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in users %}
+                    <tr id="user-{{ u.id }}">
+                        <td class="ps-4 fw-bold">{{ u.full_name }}</td>
+                        <td>
+                            <span class="badge text-bg-info-subtle text-info border border-info-subtle">
+                                {% if u.profile_type == 'teacher' %}Professor{% else %}Funcionário{% endif %}
+                            </span>
+                            {% if u.is_teacher %}
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle ms-1" title="Também é Professor">
+                                    <i class="bi bi-mortarboard"></i>
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>{{ u.registration or '-' }}</td>
+                        <td>{{ u.email }}</td>
+                        <td>
+                            {{ u.sector or u.department or '-' }}
+                            {% if u.function %}<br><small class="text-muted">{{ u.function }}</small>{% endif %}
+                        </td>
+                        <td>
+                            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ u.role_obj.label if u.role_obj else 'Sem Papel' }}</span>
+                            {% for extra in u.extra_roles %}
+                                <span class="badge text-bg-info-subtle text-info border border-info-subtle" title="Papel adicional">{{ extra.label }}</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% if u.is_active_user %}
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Ativo</span>
+                            {% else %}
+                                <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            {% if u.has_permission('*') and not current_user.has_permission('*') %}
+                                <span class="text-muted small" title="Conta protegida: apenas o super-administrador pode editá-la">
+                                    <i class="bi bi-shield-lock"></i> Protegida
+                                </span>
+                            {% else %}
+                            <a href="{{ url_for('admin.edit_user', user_id=u.id, **request.args.to_dict()) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="POST" action="{{ url_for('admin.toggle_user', user_id=u.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                {% if u.is_active_user %}
+                                <button class="btn btn-sm btn-outline-danger" title="Desativar Usuário" onclick="return confirm('Tem certeza que deseja desativar este usuário?')">
+                                    <i class="bi bi-toggle-off"></i>
+                                </button>
+                                {% else %}
+                                <button class="btn btn-sm btn-outline-success" title="Ativar Usuário">
+                                    <i class="bi bi-toggle-on"></i>
+                                </button>
+                                {% endif %}
+                            </form>
+                            {% if current_user.has_permission('user:edit') %}
+                            <form method="POST" action="{{ url_for('admin.reset_user_password', user_id=u.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-outline-warning" title="Resetar senha (gera senha temporária e força a troca no próximo login)"
+                                        onclick="return confirm('Gerar uma nova senha temporária para {{ u.full_name }}? A senha atual deixará de funcionar.')">
+                                    <i class="bi bi-key"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted p-5">
+                            <i class="bi bi-people fs-2 d-block mb-2"></i>
+                            <h5 class="mb-1">Nenhum usuário encontrado</h5>
+                            <p class="small mb-0">Ajuste os filtros ou cadastre um novo usuário.</p>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{{ render_pagination(pagination, 'admin.list_users') }}
+{% endblock %}

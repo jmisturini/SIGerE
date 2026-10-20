@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% block title %}Painel de Controle{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-1">Bem-vindo, {{ current_user.full_name }} 👋</h1>
+        <p class="text-muted mb-0">Aqui está o resumo das reservas de hoje, {{ formatted_today }}.</p>
+    </div>
+    
+    <div class="d-flex flex-wrap gap-2">
+        <!-- Novidades: abre a tela de changelog da versão atual -->
+        <a href="{{ url_for('main.changelog') }}" class="btn btn-outline-secondary"
+           title="Veja o que mudou nesta e nas versões anteriores">
+            <i class="bi bi-stars me-1"></i> Novidades <span class="badge text-bg-secondary ms-1">v{{ app_version }}</span>
+        </a>
+
+        <!-- View Toggle Dropdown -->
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="viewDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-layout-three-columns"></i> <span id="viewModeText">Visão em Lista</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="viewDropdown">
+                <li><a class="dropdown-item view-toggle" href="#" data-view="list"><i class="bi bi-list-ul me-2"></i> Visão em Lista</a></li>
+                <li><a class="dropdown-item view-toggle" href="#" data-view="card"><i class="bi bi-grid-3x3-gap me-2"></i> Visão em Cartões</a></li>
+            </ul>
+        </div>
+
+        {% if current_user.has_permission('reservation:create') %}
+        <a href="{{ url_for('reservations.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Nova Reserva
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ================= LIST VIEW ================= -->
+<div id="listView">
+    {% for sec in category_sections %}
+    {% set cat = sec.category %}
+    <div class="card mb-4">
+        <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+            <h5 class="mb-0"><i class="bi {{ cat.display_icon }} me-2" style="color: {{ cat.display_color }};"></i> Agenda de {{ cat.name }}</h5>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ current_period }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Horário</th>
+                            <th>Espaço</th>
+                            <th>Curso</th>
+                            <th class="pe-4">Professor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for r in sec.reservations %}
+                        <tr>
+                            <td class="fw-bold text-nowrap ps-4">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
+                            <td>
+                                <span class="badge me-2 badge-codigo-sala" style="background-color: {{ cat.display_color }};">{{ r.classroom.code }}</span>
+                                {{ r.classroom.name }}
+                            </td>
+                            <td>{{ r.course.name if r.course else 'N/A' }}</td>
+                            <td class="pe-4">{{ r.teacher.full_name if r.teacher else 'N/A' }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card text-center text-muted p-5">
+        <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Nenhum espaço agendado</h5>
+        <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ================= CARD VIEW ================= -->
+<div id="cardView" style="display: none;">
+    {% for sec in category_sections %}
+    {% set cat = sec.category %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <h5 class="mb-0"><i class="bi {{ cat.display_icon }} me-2" style="color: {{ cat.display_color }};"></i> Agenda de {{ cat.name }}</h5>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ current_period }}</span>
+    </div>
+
+    <div class="row g-3 {% if not loop.last %}mb-5{% endif %}">
+        {% for r in sec.reservations %}
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 hover-shadow border-start border-4 border-top-0 border-end-0 border-bottom-0" style="border-left-color: {{ cat.display_color }};">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="fs-4 fw-bold" style="color: {{ cat.display_color }};"><i class="bi {{ cat.display_icon }}"></i> {{ r.classroom.code }}</span>
+                        <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-clock"></i> {{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <span class="text-muted small text-uppercase fw-bold d-block">Curso</span>
+                        <p class="mb-0 fs-5 fw-bold text-break">{{ r.course.name if r.course else 'N/A' }}</p>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <span class="text-muted small text-uppercase fw-bold d-block">Professor</span>
+                            <p class="mb-0">{{ r.teacher.full_name if r.teacher else 'N/A' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card text-center text-muted p-5">
+        <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Nenhum espaço agendado</h5>
+        <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const listView = document.getElementById('listView');
+    const cardView = document.getElementById('cardView');
+    const viewText = document.getElementById('viewModeText');
+    const toggleLinks = document.querySelectorAll('.view-toggle');
+
+    // Function to switch views and save preference to localStorage
+    function setView(view) {
+        if (view === 'card') {
+            listView.style.display = 'none';
+            cardView.style.display = 'block';
+            viewText.textContent = 'Visão em Cartões';
+        } else {
+            listView.style.display = 'block';
+            cardView.style.display = 'none';
+            viewText.textContent = 'Visão em Lista';
+        }
+        localStorage.setItem('dashboardView', view);
+    }
+
+    // Load preference on page load
+    const savedView = localStorage.getItem('dashboardView') || 'list';
+    setView(savedView);
+
+    // Attach click events to dropdown links
+    toggleLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            setView(this.getAttribute('data-view'));
+        });
+    });
+});
+</script>
+<style>
+    .hover-shadow { 
+        transition: transform 0.2s ease, box-shadow 0.2s ease; 
+    }
+    .hover-shadow:hover { 
+        transform: translateY(-4px); 
+        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.1) !important; 
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,428 @@
+{% extends 'base.html' %}
+{% block title %}Disponibilidade - {{ classroom.name }}{% endblock %}
+
+{% block content %}
+{# Atributos data-* que alimentam o modal de detalhes a partir de cada reserva.
+   O link para a página completa só vai para quem tem permissão de leitura —
+   a mesma regra da rota reservations.detail. #}
+{% macro detalhe_reserva(ev) -%}
+role="button" data-bs-toggle="modal" data-bs-target="#modalReserva"
+data-titulo="{{ ev.title }}"
+data-data="{{ ev.date.strftime('%d/%m/%Y') }}"
+data-horario="{{ ev.start_time.strftime('%H:%M') }} – {{ ev.end_time.strftime('%H:%M') }}"
+data-status="{{ {'approved': 'Aprovada', 'pending': 'Pendente', 'cancelled': 'Cancelada'}[ev.status] if ev.status in ('approved', 'pending', 'cancelled') else ev.status }}"
+data-curso="{{ ev.course.name if ev.course else '' }}"
+data-disciplina="{{ ev.subject.name if ev.subject else '' }}"
+data-professor="{{ ev.teacher.full_name if ev.teacher else '' }}"
+data-solicitante="{{ ev.user.full_name if ev.user else '' }}"
+data-descricao="{{ ev.description or '' }}"
+data-link="{{ url_for('reservations.detail', reservation_id=ev.id) }}"
+data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all') or (current_user.has_permission('reservation:read_own') and ev.user_id == current_user.id) else '0' }}"
+{%- endmacro %}
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">Disponibilidade: {{ classroom.name }}</h3>
+        <p class="text-muted mb-0">
+            <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle me-1">{{ classroom.code }}</span>
+            Verifique os horários ocupados e livres desta sala.
+        </p>
+    </div>
+    <a href="{{ url_for('classrooms.detail', classroom_id=classroom.id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+{% set nav_prev = {'view': view, 'year': prev_date.year, 'month': prev_date.month,
+                   'day': anchor.day if view == 'month' else prev_date.day} %}
+{% set nav_next = {'view': view, 'year': next_date.year, 'month': next_date.month,
+                   'day': anchor.day if view == 'month' else next_date.day} %}
+
+<div class="card">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, **nav_prev) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-chevron-left"></i> Anterior
+        </a>
+
+        <div class="text-center">
+            <h5 class="mb-2 fw-bold">{{ title_periodo }}</h5>
+            <div class="btn-group btn-group-sm mb-2" role="group" aria-label="Modo de visualização">
+                {% for v, rotulo, icone in [('day', 'Dia', 'bi-calendar-day'), ('week', 'Semana', 'bi-calendar-week'), ('month', 'Mês', 'bi-calendar3')] %}
+                {% set args = {'view': v, 'year': anchor.year, 'month': anchor.month, 'day': anchor.day} %}
+                <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, **args) }}"
+                   class="btn btn-sm {{ 'btn-primary' if view == v else 'btn-outline-secondary' }}"
+                   {% if view == v %}aria-current="true"{% endif %}>
+                    <i class="bi {{ icone }} me-1"></i>{{ rotulo }}
+                </a>
+                {% endfor %}
+            </div>
+            <div>
+                {% set rotulos_exportar = {'day': 'Exportar Reservas do Dia (PDF)',
+                                           'week': 'Exportar Reservas da Semana (PDF)',
+                                           'month': 'Exportar Reservas do Mês (PDF)'} %}
+                <a href="{{ url_for('classrooms.export_availability', classroom_id=classroom.id,
+                                    view=view, year=anchor.year, month=anchor.month, day=anchor.day) }}"
+                   class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-filetype-pdf me-1"></i>{{ rotulos_exportar[view] }}
+                </a>
+            </div>
+        </div>
+
+        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id, **nav_next) }}" class="btn btn-sm btn-outline-secondary">
+            Próximo <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+
+    <div class="card-body">
+        {% if view == 'month' %}
+        <!-- Cabeçalho dos dias da semana -->
+        <div class="calendar-grid mb-2">
+            <div class="calendar-weekday">Dom</div>
+            <div class="calendar-weekday">Seg</div>
+            <div class="calendar-weekday">Ter</div>
+            <div class="calendar-weekday">Qua</div>
+            <div class="calendar-weekday">Qui</div>
+            <div class="calendar-weekday">Sex</div>
+            <div class="calendar-weekday">Sáb</div>
+        </div>
+
+        <!-- Dias do mês -->
+        <div class="calendar-grid">
+            {% for week in month_days %}
+                {% for day in week %}
+                    {% if day == 0 %}
+                    <div class="calendar-day empty"></div>
+                    {% else %}
+                    <div class="calendar-day {% if day == today.day and month == today.month and year == today.year %}today{% endif %}">
+                        <div class="day-number">{{ day }}</div>
+                        {% if day in reservations_by_day %}
+                        <div class="events-container">
+                            {% for ev in reservations_by_day[day] %}
+                            <div class="event-pill" title="{{ ev.title }}" {{ detalhe_reserva(ev) }}>
+                                <strong>{{ ev.start_time.strftime('%H:%M') }}</strong>
+                                {{ ev.title | truncate(15, true) }}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        </div>
+
+        {% elif view == 'week' %}
+        <!-- Semana: 7 colunas, domingo a sábado -->
+        <div class="calendar-grid mb-2">
+            {% for dia, reservas_dia in days %}
+            <div class="calendar-weekday {{ 'text-primary' if dia == today }}">
+                {{ ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][(dia.weekday() + 1) % 7] }}<br>
+                <span class="fw-normal">{{ dia.strftime('%d/%m') }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="calendar-grid">
+            {% for dia, reservas_dia in days %}
+            <div class="calendar-day {% if dia == today %}today{% endif %}">
+                <div class="day-number">{{ dia.day }}</div>
+                <div class="events-container">
+                    {% for ev in reservas_dia %}
+                    <div class="event-pill" title="{{ ev.title }}" {{ detalhe_reserva(ev) }}>
+                        <strong>{{ ev.start_time.strftime('%H:%M') }}</strong>
+                        {{ ev.title | truncate(15, true) }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <!-- Dia: lista detalhada das reservas -->
+        {% set reservas_dia = days[0][1] %}
+        {% if reservas_dia %}
+        <div class="list-group">
+            {% for ev in reservas_dia %}
+            <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">
+                    {{ ev.start_time.strftime('%H:%M') }} – {{ ev.end_time.strftime('%H:%M') }}
+                </span>
+                <div class="flex-grow-1">
+                    <div class="fw-bold">{{ ev.title }}</div>
+                    <div class="small text-muted">
+                        {%- if ev.course %}{{ ev.course.name }}{% endif -%}
+                        {%- if ev.course and ev.subject %} · {% endif -%}
+                        {%- if ev.subject %}{{ ev.subject.name }}{% endif -%}
+                        {%- if ev.teacher %}{% if ev.course or ev.subject %} · {% endif %}{{ ev.teacher.full_name }}{% endif -%}
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" {{ detalhe_reserva(ev) }}>
+                    <i class="bi bi-info-circle me-1"></i>Detalhes
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted p-5">
+            <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
+            <h5 class="mb-1">Nenhuma reserva neste dia</h5>
+            <p class="small mb-0">Todos os horários da sala estão livres para reservas aprovadas.</p>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal de detalhes da reserva -->
+<div class="modal fade" id="modalReserva" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content modal-reserva">
+            <div class="d-flex">
+                <div class="mr-bloco-data">
+                    <div class="mr-dia" id="modalDia"></div>
+                    <div class="mr-ano" id="modalAno"></div>
+                    <div class="mr-horario" id="modalHorario"></div>
+                </div>
+                <div class="mr-corpo modal-body flex-grow-1">
+                    <div class="d-flex align-items-start justify-content-between gap-2">
+                        <h5 class="mr-titulo text-break" id="modalTitulo"></h5>
+                        <span class="badge flex-shrink-0 mt-1" id="modalStatus"></span>
+                    </div>
+                    <div class="mr-detalhes" id="modalDetalhes">
+                        <span class="mr-linha" id="modalLinhaContexto"></span>
+                        <span class="mr-linha" id="modalLinhaSolicitante"></span>
+                    </div>
+                    <p class="mr-descricao text-break" id="modalDescricao"></p>
+                    <div class="mr-rodape">
+                        <a id="modalLinkCompleto" class="btn btn-sm btn-outline-primary" href="#">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>Ver detalhes completos
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('modalReserva').addEventListener('show.bs.modal', function (event) {
+        const gatilho = event.relatedTarget;
+        if (!gatilho) return;
+        const atributo = (nome) => gatilho.getAttribute('data-' + nome) || '';
+        const data = atributo('data');
+        // Bloco lateral: dia/mês com o ano, e o horário abaixo
+        document.getElementById('modalDia').textContent = data.slice(0, 5);
+        document.getElementById('modalAno').textContent = data.slice(-4);
+        document.getElementById('modalHorario').textContent = atributo('horario');
+        document.getElementById('modalTitulo').textContent = atributo('titulo');
+        const badge = document.getElementById('modalStatus');
+        const status = atributo('status');
+        badge.textContent = status;
+        badge.className = 'badge flex-shrink-0 mt-1 ' + ({
+            'Aprovada': 'text-bg-success-subtle text-success border border-success-subtle',
+            'Pendente': 'text-bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+            'Cancelada': 'text-bg-danger-subtle text-danger-emphasis border border-danger-subtle'
+        }[status] || 'text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle');
+        // Linha de contexto (curso · disciplina · professor) some se não houver nenhum
+        const contexto = [atributo('curso'), atributo('disciplina'), atributo('professor')].filter(Boolean).join(' · ');
+        const linhaContexto = document.getElementById('modalLinhaContexto');
+        linhaContexto.textContent = contexto;
+        linhaContexto.classList.toggle('d-none', !contexto);
+        const solicitante = atributo('solicitante');
+        const linhaSolicitante = document.getElementById('modalLinhaSolicitante');
+        linhaSolicitante.textContent = solicitante ? 'Reservado por: ' + solicitante : '';
+        linhaSolicitante.classList.toggle('d-none', !solicitante);
+        document.getElementById('modalDetalhes').classList.toggle('d-none', !contexto && !solicitante);
+        const descricao = document.getElementById('modalDescricao');
+        descricao.textContent = atributo('descricao');
+        descricao.classList.toggle('d-none', !atributo('descricao'));
+        const link = document.getElementById('modalLinkCompleto');
+        link.href = atributo('link');
+        link.classList.toggle('d-none', atributo('link-visivel') !== '1');
+    });
+</script>
+
+<style>
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 10px;
+    }
+    .calendar-weekday {
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-muted, #6c757d);
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--border-color, rgba(0,0,0,0.05));
+    }
+    .calendar-day {
+        min-height: 120px;
+        border: 1px solid var(--border-color, rgba(0,0,0,0.05));
+        border-radius: 8px;
+        padding: 8px;
+        background-color: var(--topbar-bg, #ffffff); /* Usa a cor de fundo dos cards */
+        transition: box-shadow 0.2s ease;
+    }
+    .calendar-day:hover:not(.empty) {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    .calendar-day.empty {
+        background-color: transparent;
+        border: none;
+    }
+    .calendar-day.today {
+        border: 2px solid var(--primary-color, #004b8d);
+        background-color: rgba(var(--primary-color-rgb, 0, 75, 141), 0.05);
+    }
+    .day-number {
+        font-weight: 700;
+        margin-bottom: 5px;
+        color: var(--text-muted, #6c757d);
+    }
+    .calendar-day.today .day-number {
+        color: var(--primary-color, #004b8d);
+    }
+    .events-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .event-pill {
+        font-size: 0.75rem;
+        background: var(--body-bg, #f4f6f9); /* Fundo suave utilizando a cor de fundo do body */
+        color: var(--text-color, #333);
+        padding: 4px 8px;
+        border-radius: 4px;
+        border-left: 3px solid var(--primary-color, #004b8d);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .event-pill[role="button"] {
+        cursor: pointer;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    .event-pill[role="button"]:hover {
+        background-color: var(--primary-color, #004b8d);
+        color: #fff;
+    }
+
+    /* Modal de detalhes no estilo banner: bloco de data à esquerda */
+    .modal-reserva {
+        overflow: hidden;
+        /* O modal fica branco nos dois temas (padrão do app), então os tons
+           de texto/botão/badge usam os valores da superfície clara — no tema
+           escuro eles virariam tons claros e sumiriam sobre o branco. */
+        --bs-warning-text-emphasis: #664d03;
+        --bs-danger-text-emphasis: #b02a37;
+        --bs-secondary-text-emphasis: #5c636a;
+        --bs-secondary-color: rgba(33, 37, 41, 0.75);
+        --bs-secondary-border-color: #6c757d;
+        color: #212529;
+    }
+    .modal-reserva .mr-bloco-data {
+        flex-shrink: 0;
+        width: 118px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        color: #fff;
+        background-color: var(--primary-color, #004b8d);
+        padding: 1rem .75rem;
+        gap: .35rem;
+    }
+    .modal-reserva .mr-dia {
+        font-size: 1.7rem;
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: -.02em;
+    }
+    .modal-reserva .mr-ano {
+        font-size: .72rem;
+        font-weight: 600;
+        opacity: .85;
+        letter-spacing: .02em;
+    }
+    .modal-reserva .mr-horario {
+        font-size: .78rem;
+        font-weight: 600;
+        opacity: .9;
+        white-space: nowrap;
+    }
+    .modal-reserva .mr-corpo {
+        padding: 1rem 1.25rem 1rem 1.5rem;
+    }
+    .modal-reserva .mr-titulo {
+        font-size: 1.05rem;
+        font-weight: 700;
+        line-height: 1.3;
+        margin-bottom: 0;
+        /* Vence o [data-theme="dark"] h5 { color: #fff } do style.css */
+        color: #212529;
+    }
+    .modal-reserva .mr-detalhes {
+        font-size: .855rem;
+        color: #6c757d;
+        margin: .35rem 0 .75rem;
+    }
+    .modal-reserva .mr-linha {
+        display: block;
+    }
+    .modal-reserva .mr-descricao {
+        font-size: .855rem;
+        color: #6c757d;
+        margin-bottom: 0;
+    }
+    .modal-reserva .mr-rodape {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: .5rem;
+        margin-top: 1rem;
+    }
+
+    /* No celular as 7 colunas ficam com ~40px cada: menos respiro e altura
+       para os dias continuarem legíveis sem rolagem lateral. */
+    @media (max-width: 575.98px) {
+        .calendar-grid {
+            gap: 4px;
+        }
+        .calendar-weekday {
+            font-size: 0.7rem;
+            padding-bottom: 4px;
+        }
+        .calendar-day {
+            min-height: 72px;
+            padding: 4px;
+        }
+        .day-number {
+            font-size: 0.75rem;
+            margin-bottom: 2px;
+        }
+        .event-pill {
+            font-size: 0.6rem;
+            padding: 2px 4px;
+        }
+    }
+
+    /* Bloco de data do modal encolhe no celular */
+    @media (max-width: 575.98px) {
+        .modal-reserva .mr-bloco-data {
+            width: 92px;
+            padding: .75rem .5rem;
+        }
+        .modal-reserva .mr-dia {
+            font-size: 1.35rem;
+        }
+        .modal-reserva .mr-horario {
+            font-size: .68rem;
+        }
+        .modal-reserva .mr-corpo {
+            padding: .75rem 1rem;
+        }
+    }
+</style>
+{% endblock %}

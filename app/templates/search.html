@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% block title %}Busca{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="page-header text-center mb-4">
+            <h3 class="fw-bold mb-2"><i class="bi bi-search text-primary me-2"></i> Buscar Salas e Professores</h3>
+            <p class="text-muted mb-0">Encontre rapidamente salas disponíveis ou professores ativos no sistema.</p>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="GET" class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Tipo de Busca</label>
+                        <select name="type" class="form-select" id="searchType" onchange="togglePlaceholder(); toggleOrdem()">
+                            <option value="classroom" {{ 'selected' if search_type == 'classroom' }}>Sala</option>
+                            <option value="teacher" {{ 'selected' if search_type == 'teacher' }}>Professor</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label small fw-bold">Consulta</label>
+                        <input type="text" name="q" id="searchInput" class="form-control" value="{{ query }}" placeholder="Digite o nome ou código...">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">Ordenar por</label>
+                        <select name="ordem" id="searchOrdem" class="form-select">
+                            <option value="codigo" class="opt-classroom" {{ 'selected' if ordem == 'codigo' }}>Código</option>
+                            <option value="nome" class="opt-classroom" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
+                            <option value="nome_desc" class="opt-classroom" {{ 'selected' if ordem == 'nome_desc' }}>Nome (Z–A)</option>
+                            <option value="capacidade" class="opt-classroom" {{ 'selected' if ordem == 'capacidade' }}>Capacidade (maior)</option>
+                            <option value="predio" class="opt-classroom" {{ 'selected' if ordem == 'predio' }}>Prédio, depois andar</option>
+                            <option value="professor_nome" class="opt-teacher" {{ 'selected' if ordem == 'professor_nome' }}>Nome (A–Z)</option>
+                            <option value="professor_nome_desc" class="opt-teacher" {{ 'selected' if ordem == 'professor_nome_desc' }}>Nome (Z–A)</option>
+                            <option value="matricula" class="opt-teacher" {{ 'selected' if ordem == 'matricula' }}>Matrícula</option>
+                            <option value="departamento" class="opt-teacher" {{ 'selected' if ordem == 'departamento' }}>Departamento</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Buscar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body p-0">
+                {% if query %}
+                    {% if search_type == 'classroom' %}
+                        <div class="table-responsive">
+                            <!-- min-width: em telas estreitas o table-responsive rola
+                                 lateralmente em vez de esmagar a coluna Nome -->
+                            <table class="table table-hover mb-0 align-middle" style="min-width: 540px;">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4">Nome</th>
+                                        <th>Código</th>
+                                        <th>Prédio</th>
+                                        <th>Andar</th>
+                                        <th class="pe-4">Capacidade</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for r in results_rooms %}
+                                    <tr>
+                                        <td class="ps-4 fw-bold">{{ r.name }}</td>
+                                        <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ r.code }}</span></td>
+                                        <td>{{ r.building or 'N/A' }}</td>
+                                        <td>{{ r.floor or 'N/A' }}</td>
+                                        <td class="pe-4"><i class="bi bi-people text-muted me-1"></i> {{ r.capacity }}</td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted p-5">
+                                            <i class="bi bi-emoji-frown fs-2 d-block mb-2"></i>
+                                            <h5 class="mb-1">Nenhuma sala encontrada</h5>
+                                            <p class="small mb-0">Não foi possível encontrar salas ativas para "{{ query }}".</p>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% elif search_type == 'teacher' %}
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4">Nome</th>
+                                        <th>Departamento</th>
+                                        <th class="pe-4">Matrícula</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for t in results_teachers %}
+                                    <tr>
+                                        <td class="ps-4 fw-bold">{{ t.full_name }}</td>
+                                        <td>{{ t.department or 'N/A' }}</td>
+                                        <td class="pe-4">{{ t.registration or 'N/A' }}</td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted p-5">
+                                            <i class="bi bi-emoji-frown fs-2 d-block mb-2"></i>
+                                            <h5 class="mb-1">Nenhum professor encontrado</h5>
+                                            <p class="small mb-0">Não foi possível encontrar professores ativos para "{{ query }}".</p>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center text-muted p-5">
+                        <div class="feature-icon bg-primary-subtle text-primary mb-4 mx-auto">
+                            <i class="bi bi-search"></i>
+                        </div>
+                        <h5 class="mb-1">Inicie sua busca acima</h5>
+                        <p class="small mb-0">Selecione um tipo e digite um nome ou palavra-chave para encontrar salas ou professores ativos.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .feature-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+    }
+</style>
+<script>
+    function togglePlaceholder() {
+        const type = document.getElementById('searchType').value;
+        const input = document.getElementById('searchInput');
+        input.placeholder = type === 'classroom' ? "Digite o código ou nome da sala..." : "Digite o nome do professor...";
+    }
+    // Mostra apenas as opções de ordenação do tipo de busca selecionado.
+    function toggleOrdem() {
+        const type = document.getElementById('searchType').value;
+        const sel = document.getElementById('searchOrdem');
+        let primeiraVisivel = null;
+        sel.querySelectorAll('option').forEach(function (opt) {
+            opt.hidden = !opt.classList.contains('opt-' + type);
+            if (!opt.hidden && !primeiraVisivel) primeiraVisivel = opt;
+        });
+        if (primeiraVisivel && sel.selectedOptions[0] && sel.selectedOptions[0].hidden) {
+            sel.value = primeiraVisivel.value;
+        }
+    }
+    togglePlaceholder();
+    toggleOrdem();
+</script>
+{% endblock %}

@@ -1,0 +1,237 @@
+import click
+from flask import Flask, render_template, redirect, url_for, request, flash
+from app.config import Config
+from app.extensions import db, login_manager, csrf, limiter, migrate
+from datetime import datetime
+import os
+import sys
+
+# Valor de desenvolvimento — ao servir requisições sem FLASK_DEBUG, a app se
+# recusa a iniciar sem um SECRET_KEY real, pois com ele é possível forjar
+# cookies de sessão.
+DEV_SECRET_KEY = 'dev-secret-key-change-in-production'
+
+def debug_enabled() -> bool:
+    """True se FLASK_DEBUG indicar modo desenvolvimento.
+
+    Tolerante a variações comuns de escrita (1/true/yes/on, maiúsculas e
+    espaços nas bordas — `set FLASK_DEBUG=true ` no CMD deixa espaço final).
+    """
+    return os.environ.get('FLASK_DEBUG', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+def create_app(config_class=Config):
+    """Factory function to create and configure the Flask app."""
+    app = Flask(__name__)
+    app.config.from_object(config_class)
+
+    debug_mode = debug_enabled()
+
+    # Fail-fast de segurança: sem SECRET_KEY forte, sessões podem ser forjadas.
+    # Vale apenas para quem SERVE requisições (python run.py, gunicorn...):
+    # pela CLI do Flask (db upgrade, seed, sync-permissions) não há HTTP e,
+    # portanto, nenhum cookie de sessão para proteger.
+    under_cli = click.get_current_context(silent=True) is not None
+    if app.config['SECRET_KEY'] == DEV_SECRET_KEY and not debug_mode and not under_cli:
+        raise RuntimeError(
+            'SECRET_KEY não configurada: defina a variável de ambiente SECRET_KEY '
+            'com um valor forte e único (ou rode com FLASK_DEBUG=true em desenvolvimento).'
+        )
+
+    # Endurecimento de cookies apenas fora do modo debug (produção assumed HTTPS):
+    # Secure impede envio do cookie por HTTP puro; HttpOnly já é o padrão do Flask.
+    # Atribuição direta: o Flask já predefine SESSION_COOKIE_SECURE=False, então
+    # setdefault não teria efeito.
+    if not debug_mode:
+        app.config['SESSION_COOKIE_SECURE'] = True
+
+    # Initialize Flask extensions
+    db.init_app(app)
+    migrate.init_app(app, db)
+    login_manager.init_app(app)
+    csrf.init_app(app)
+    limiter.init_app(app)
+
+    # Register all Blueprints
+    from app.blueprints.auth import bp as auth_bp
+    from app.blueprints.main import bp as main_bp
+    from app.blueprints.classrooms import bp as classrooms_bp
+    from app.blueprints.reservations import bp as reservations_bp
+    from app.blueprints.admin import bp as admin_bp
+    from app.blueprints.totem import bp as totem_bp
+    from app.blueprints.schedule import bp as schedule_bp
+    from app.blueprints.public import bp as public_bp
+    from app.blueprints.payments import bp as payments_bp
+    from app.blueprints.vt import bp as vt_bp
+    from app.blueprints.kitchen import bp as kitchen_bp
+    from app.blueprints.an import bp as an_bp
+    from app.blueprints.api import bp as api_bp
+    from app.blueprints.notifications import bp as notifications_bp
+    from app.blueprints.relatorios import bp as relatorios_bp
+
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(main_bp)
+    app.register_blueprint(classrooms_bp)
+    app.register_blueprint(reservations_bp)
+    app.register_blueprint(relatorios_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(totem_bp)
+    app.register_blueprint(schedule_bp)
+    app.register_blueprint(public_bp)
+    app.register_blueprint(payments_bp)
+    app.register_blueprint(vt_bp)
+    app.register_blueprint(kitchen_bp)
+    app.register_blueprint(an_bp)
+    app.register_blueprint(api_bp)
+    app.register_blueprint(notifications_bp)
+
+    # ── Register CLI commands ──
+    from app.commands import (seed_command, seed_admin_command,
+                              sync_permissions_command, seed_unidades_command,
+                              import_legacy_command, notify_scan_command,
+                              notify_email_command, notify_cleanup_command)
+    from app.seed_demo import seed_demo_command
+    from app.backup import backup_command
+    app.cli.add_command(seed_command)
+    app.cli.add_command(seed_admin_command)
+    app.cli.add_command(sync_permissions_command)
+    app.cli.add_command(seed_unidades_command)
+    app.cli.add_command(seed_demo_command)
+    app.cli.add_command(import_legacy_command)
+    app.cli.add_command(backup_command)
+    app.cli.add_command(notify_scan_command)
+    app.cli.add_command(notify_email_command)
+    app.cli.add_command(notify_cleanup_command)
+
+    # Custom Error Handlers
+    @app.errorhandler(403)
+    def forbidden(_):
+        return render_template('errors/403.html'), 403
+
+    @app.errorhandler(404)
+    def not_found(_):
+        return render_template('errors/404.html'), 404
+
+    @app.errorhandler(500)
+    def server_error(_):
+        return render_template('errors/500.html'), 500
+
+    # CSRF rejeitado (token ausente/expirado — típico de sessão expirada):
+    # mensagem amigável em vez de página "Bad Request" crua.
+    from flask_wtf.csrf import CSRFError
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        flash('Sua sessão expirou ou o formulário já não é válido. '
+              'Recarregue a página e tente novamente.', 'warning')
+        return redirect(request.referrer or url_for('main.index'))
+
+    # Rate limit excedido (ex.: várias tentativas de login): aviso amigável
+    # em vez da página 429 crua.
+    from flask_limiter.errors import RateLimitExceeded
+    @app.errorhandler(RateLimitExceeded)
+    def handle_rate_limit(e):
+        flash('Muitas tentativas em pouco tempo. Aguarde um momento e tente novamente.', 'warning')
+        return redirect(url_for('auth.login'))
+
+    # Context processor to inject current datetime into all templates
+    @app.context_processor
+    def inject_now():
+        return {'now': datetime.now()}
+
+    # Versão da aplicação (rodapé e tela de novidades) — app/version.py
+    @app.context_processor
+    def inject_app_version():
+        from app.version import APP_VERSION
+        return {'app_version': APP_VERSION}
+
+    @app.template_filter('horario_local')
+    def horario_local(dt):
+        """Datetime (gravado em UTC) exibido no fuso local do servidor —
+        sem isso, os horários aparecem 3h adiantados no Brasil. O SQLite
+        devolve os datetimes ingênuos (tzinfo perdido no round-trip): por
+        convenção do sistema, o valor ingênuo representa UTC."""
+        if dt is None:
+            return '—'
+        try:
+            if dt.tzinfo is None:
+                from datetime import timezone as _tz
+                dt = dt.replace(tzinfo=_tz.utc)
+            return dt.astimezone().strftime('%d/%m/%Y %H:%M')
+        except (ValueError, OSError, TypeError):
+            return dt.strftime('%d/%m/%Y %H:%M') if dt else '—'
+
+    @app.template_filter('mes_referencia')
+    def mes_referencia(month_base):
+        """'2026-10' → 'Outubro/2026' — mesmo rótulo da caixa de consulta."""
+        from app.blueprints.payments import _rotulo_mes
+        return _rotulo_mes(month_base)
+
+    # Coordenadas do clima (totem/portal): preferem a localização da unidade
+    # ativa (cada unidade tem a sua, editável no painel) e caem para as
+    # globais do Config quando a unidade não tem coordenadas próprias.
+    @app.context_processor
+    def inject_weather_config():
+        from app.unity_context import current_unity
+        unity = current_unity()
+        if unity and unity.weather_latitude is not None and unity.weather_longitude is not None:
+            return {'totem_lat': unity.weather_latitude,
+                    'totem_lon': unity.weather_longitude,
+                    'totem_city': unity.weather_city or 'Campus'}
+        return {'totem_lat': app.config['TOTEM_LATITUDE'],
+                'totem_lon': app.config['TOTEM_LONGITUDE'],
+                'totem_city': 'Campus'}
+
+    # Multi-unidade: injeta a unidade ativa e o seletor de unidades nos templates
+    @app.context_processor
+    def inject_unity_context():
+        from app.unity_context import (current_unity, switchable_unities,
+                                   can_switch_unity, unity_module_enabled)
+        return {
+            'current_unity': current_unity(),
+            'switchable_unities': switchable_unities(),
+            'can_switch_unity': can_switch_unity(),
+            'unity_module_enabled': unity_module_enabled,
+        }
+
+    # Sino de notificações: contador de não lidas do usuário logado. Consulta
+    # apenas quando autenticado — páginas públicas não pagam a query.
+    @app.context_processor
+    def inject_notificacoes():
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return {'notificacoes_nao_lidas': 0}
+        from app.blueprints.notifications import contar_nao_lidas
+        return {'notificacoes_nao_lidas': contar_nao_lidas(current_user.id)}
+
+    # Security Hook: Force password change on first login or admin reset
+    @app.before_request
+    def require_password_change():
+        from flask_login import current_user
+        if current_user.is_authenticated and current_user.force_password_change:
+            allowed_endpoints = ['auth.change_password', 'auth.logout', 'static']
+            # Guard against None endpoint (e.g. unresolved routes before 404 handler fires)
+            if request.endpoint and request.endpoint not in allowed_endpoints:
+                return redirect(url_for('auth.change_password'))
+
+    # Schema gerenciado pelo Alembic (Flask-Migrate): `flask --app run db upgrade`
+    # cria o schema do zero e aplica as migrações após cada mudança de modelos.
+    # Nada de DDL no boot — seguro com multi-worker. O boot apenas orienta o
+    # operador quando o banco está fora do fluxo:
+    with app.app_context():
+        from sqlalchemy import inspect
+        tables = inspect(db.engine).get_table_names()
+        if not tables:
+            print('⚠️  Banco de dados vazio: rode "flask --app run db upgrade" para '
+                  'criar o schema e "flask --app run seed" para os dados iniciais.',
+                  file=sys.stderr)
+        elif 'alembic_version' not in tables:
+            print('⚠️  Banco existente sem versionamento Alembic: recrie o banco '
+                  '("flask --app run db upgrade" + "flask --app run seed") ou rode '
+                  '"flask --app run db stamp head" se o schema já estiver atualizado.',
+                  file=sys.stderr)
+
+        # Permissões/papéis novos em bancos já existentes (idempotente)
+        if 'permissions' in tables:
+            from app.commands import sync_permissions_impl
+            sync_permissions_impl(verbose=False)
+
+    return app

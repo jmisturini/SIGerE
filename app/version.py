@@ -1,0 +1,1145 @@
+"""Versionamento do SIGerE.
+
+Número da versão da aplicação em SemVer (MAJOR.MINOR.PATCH):
+  - MAJOR: mudanças incompatíveis (ex.: quebra de contrato da API, schema sem migração);
+  - MINOR: novas funcionalidades compatíveis com as anteriores;
+  - PATCH: correções de defeitos.
+
+A cada release, atualize APP_VERSION e adicione a entrada correspondente no
+topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
+dados automaticamente.
+"""
+
+APP_VERSION = '1.33.0'
+
+# Histórico de versões, do mais novo para o mais antigo. Cada release tem
+# versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
+# (Adicionado, Alterado, Corrigido, Removido).
+RELEASES = [
+    {
+        'versao': '1.33.0',
+        'data': '2026-10-14',
+        'titulo': 'Adicional Noturno de Professores, tabelas ordenáveis e papéis em acordeão',
+        'grupos': [
+            ('Adicionado', [
+                'Módulo "Adicional Noturno" no bloco RH do menu (permissões an:* — Gestor e '
+                'Analista): lançamentos por mês de referência com professor escolhido do '
+                'cadastro (a matrícula preenche sozinha) ou digitado à mão para quem está fora '
+                'do sistema, listagem filtrada um mês por vez com correção individual '
+                '(editar/excluir) e referência dos códigos UO das unidades do Senac SC.',
+                'Importação da planilha "Adicional Noturno Professores" (.xlsx): as colunas são '
+                'localizadas pelo cabeçalho da primeira linha e cada linha com matrícula e '
+                'professor vira um lançamento no mês selecionado — quem já tem lançamento no '
+                'mês é mantido, então reimportar não duplica.',
+                'Exportação da planilha de pagamento: preenche o modelo planilha_base_an.xlsx '
+                '("TABELA PARA PAGAMENTO ADICIONAL NOTURNO PROFESSOR") a partir da linha 5 '
+                '(Matrícula, Nome, H/A, Minutos Decimais e UO Lotação, até 96 linhas por '
+                'arquivo), preservando as fórmulas do modelo e os critérios do gerador original '
+                '— apenas adicional "Sim" com minutos maiores que zero, ordenado pelo código da '
+                'unidade. Os minutos noturnos reproduzem a conversão da planilha de origem para '
+                'a base decimal (2h40 → 144; 0h40 → 24).',
+                'Ordenação em todas as listagens que ainda não tinham: filtro "Ordenar por" na '
+                'Adicional Noturno, Hora Extra, Vale Alimentação, Minhas Reservas, feriados, '
+                'tipos de curso, empresas de ônibus, tokens da API, grupos de notificação, '
+                'busca de aula, relatórios e nas telas da Cozinha — e cabeçalhos de tabela '
+                'clicáveis que alternam ascendente/descendente em todo o sistema, reconhecendo '
+                'datas pt-BR, valores em R$ e %, durações (XhMM) e mandando células vazias '
+                'para o fim; faixas de grupo e linhas fixas não se movem.',
+            ]),
+            ('Alterado', [
+                'Formulário de papéis: a grade de permissões virou acordeão por módulo — cada '
+                'módulo abre e fecha, mostra o contador de permissões selecionadas (x/y), os '
+                'módulos com permissões marcadas nascem abertos, o topo exibe o total geral '
+                'com botão "Limpar todas" e a caixa de permissões ganhou destaque próprio, '
+                'com títulos de módulo maiores.',
+                'Tela de novidades (/changelog): cada release abre e fecha com um clique — a '
+                'versão em execução nasce aberta e o histórico fica recolhido, com seta que '
+                'gira e título realçado ao passar o mouse.',
+                'Manual do usuário e README atualizados: a exportação de aulas do calendário '
+                'em PDF entrou no manual (com a captura do calendário refeita) e o README '
+                'documenta o módulo Adicional Noturno, o botão "Exportar PDF" do calendário e '
+                'o novo blueprint na estrutura do projeto.',
+                'Dependências atualizadas para as últimas versões de patch (boto3 1.43.113, '
+                'Werkzeug 3.1.9, fpdf2 2.8.9, entre outras).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.32.0',
+        'data': '2026-10-13',
+        'titulo': 'Exportação das aulas do calendário em PDF',
+        'grupos': [
+            ('Adicionado', [
+                'Botão "Exportar PDF" na página do Calendário: baixa as aulas do '
+                'período com os filtros aplicados na tela (datas, período do dia, '
+                'sala, professor, curso e disciplina) na identidade visual dos '
+                'relatórios — faixa de marca com a unidade, linha com o período e '
+                'os filtros escolhidos, indicadores em cartões (aulas, horas de '
+                'aula, dias com aula e salas diferentes) e tabela agrupada dia a '
+                'dia, com faixas de data e as aulas já ocorridas em cinza riscado. '
+                'O botão aparece para quem tem a permissão de exportar dados '
+                '(system:export) e o arquivo sai com o período no nome '
+                '(aulas_INICIO_a_FIM.pdf).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.31.1',
+        'data': '2026-10-07',
+        'titulo': 'Importação legada nasce fechada e Hora Extra tolera minutos em branco',
+        'grupos': [
+            ('Corrigido', [
+                'Importação do sistema legado: os lançamentos de hora extra com mês de '
+                'referência anterior ao mês base atual (janela 20→20) já entram '
+                'bloqueados, como se a unidade tivesse fechado o mês — o acervo '
+                'importado é histórico e nasce somente leitura, sem usuário '
+                'responsável (o fechamento é feito pela própria migração).',
+                'Cadastro de Hora Extra: minutos deixados em branco contam como zero — '
+                '"4h" sem minuto não perde mais a carga horária (fica 4,00); com os '
+                'dois campos vazios o total é zero e a validação pede um valor maior '
+                'que zero.',
+                'Cadastro de Hora Extra: ao reabrir o formulário com erro de validação, '
+                'o campo Mês volta selecionado com o mês de referência escolhido em vez '
+                'de recair no mês corrente.',
+                'Implantação: a unit do systemd do guia de produção declara '
+                'RuntimeDirectory=sigere — o /run é tmpfs e a pasta do socket sumia no '
+                'reboot, derrubando o serviço com status 1 e sem traceback no journal '
+                '(o erro só aparecia no error.log do Gunicorn); troubleshooting e '
+                'pontos de ajuste trazem o caminho de correção para instalações '
+                'existentes.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.31.0',
+        'data': '2026-10-07',
+        'titulo': 'Menu Relatórios com relatório geral e personalizado e notificações ampliadas',
+        'grupos': [
+            ('Adicionado', [
+                'Menu próprio "Relatórios" na barra lateral, logo depois da Agenda, '
+                'com dois submenus: Relatório Geral e Relatório Personalizado. O '
+                'endereço do relatório mudou para /relatorios/geral — a URL antiga '
+                'continua funcionando e redireciona preservando os filtros.',
+                'Relatório Geral de Salas e Reservas: indicadores do período (reservas '
+                'aprovadas, horas reservadas, salas utilizadas e docentes envolvidos), '
+                'gráficos (status, período do dia, dia da semana e horas por sala), '
+                'ocupação por sala com participação percentual, reservas por curso, '
+                'carga por docente e o quadro "Professores e cursos" com duas abas — '
+                'professores por curso e cursos por professor, com as horas que cada '
+                'um contribuiu. Botão Imprimir/PDF na própria página.',
+                'Relatório Personalizado: monte a relação de reservas combinando '
+                'período, status, sala, professor, curso, disciplina, período do dia '
+                '(manhã/tarde/noite), busca no título, ordenação e agrupamento por '
+                'data, sala, professor, curso, disciplina ou sem agrupamento — com '
+                'faixas de grupo com totais, KPIs do filtro e impressão/PDF em '
+                'paisagem.',
+                'Notificações com marcos de aviso por instante de gatilho: "no dia" '
+                '(07:00 da data), 7 dias, 24 horas e 1 hora antes do início — o mais '
+                'iminente vencido dispara e os anteriores ficam absorvidos. O criador '
+                'da reserva passa a receber avisos de mudança de status (aprovada/'
+                'cancelada), de exclusão e lembretes de reserva pendente aguardando '
+                'aprovação (24h/48h) para os aprovadores da unidade.',
+                'Espelho das notificações por e-mail: um serviço drena a fila com '
+                'assunto de resumo quando há vários avisos, respeitando o opt-out '
+                '"Receber notificações também por e-mail" no perfil; falhas de SMTP '
+                'contam tentativas até o limite configurável e comandos notify-email '
+                'e notify-cleanup cuidam do envio e da limpeza dos avisos antigos.',
+                'Sino de notificações vira dropdown: preview das 8 últimas avisos '
+                'buscado a cada abertura, destaque das não lidas, marcar como lida '
+                'com um clique, rodapé "Marcar todas como lidas" e contador de não '
+                'lidas também no título da aba.',
+            ]),
+            ('Alterado', [
+                'Permissões: aposentadas as permissões obsoletas payment:read_own e '
+                'reservation:edit_own (o sync remove os vínculos em bancos já '
+                'existentes) e o papel Administrador ganha vt:read — quem configura '
+                'o módulo Vale-Transporte também abre a tela operacional de pedidos.',
+                'docs/permissoes.md passa a ser gerado automaticamente por '
+                'docs/gerar_permissoes.py a partir do catálogo de permissões e papéis.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.30.1',
+        'data': '2026-10-06',
+        'titulo': 'Dica do mês de referência alinhada e Térreo em ordem na agenda',
+        'grupos': [
+            ('Corrigido', [
+                'Cadastro de Hora Extra: a dica ao lado do Mês de Referência fica '
+                'verticalmente centrada com o campo — o rótulo saiu da linha '
+                'centralizada da caixa em destaque e o texto não "flutua" mais acima '
+                'do centro, na criação (mês atual e próximo mês) e na edição.',
+                'Agenda (/calendar): andares cadastrados como "Térreo" aparecem antes '
+                'dos andares numerados mesmo com acento ou caixa diferentes do texto '
+                'exato do mapa ("TERREO", "terreo") — a ordenação normaliza o nome do '
+                'andar antes de consultar a ordem; os demais andares seguem como '
+                'estavam.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.30.0',
+        'data': '2026-10-03',
+        'titulo': 'Notificações por reserva com avisos de 24h/1h e preferências no perfil',
+        'grupos': [
+            ('Adicionado', [
+                'Redesign dos avisos de atividade próxima: a configuração agora é feita na '
+                'própria reserva, na seção "Notificações" dos formulários de criar e editar '
+                '(desativada por padrão). Quem cria a reserva ativa o aviso, escolhe avisar '
+                '24 horas e/ou 1 hora antes do início e define os destinatários — usuários '
+                'individuais além dos grupos personalizados cadastrados no painel admin. '
+                'Sem ao menos um marco e um destinatário, o formulário não grava.',
+                'Preferências de notificação no perfil (/perfil): o usuário pode desativar '
+                'todas as notificações de atividade próxima ou silenciar apenas as de salas '
+                'de determinados tipos (categorias de sala). A varredura respeita os '
+                'silenciamentos; o aviso de sobrecarga de professor não é afetado.',
+                'Botão "Limpar lidas" no centro de notificações agora está sempre visível, '
+                'com a contagem de notificações lidas ao lado do rótulo; sem lidas, aparece '
+                'desabilitado com explicação no tooltip. A confirmação antes de remover '
+                'continua.',
+            ]),
+            ('Alterado', [
+                'Varredura notify-scan: os marcos de antecedência passam a ser por horas '
+                '(24h/1h antes do início da atividade), configurados na própria reserva em '
+                'vez da configuração da unidade. Ao encontrar marcos vencidos em conjunto, '
+                'dispara só o mais iminente, como antes; atividades já iniciadas não avisam. '
+                'O comando continua idempotente e aceita rodar a cada 15 minutos.',
+                'Painel admin: a página de Notificações passa a cuidar apenas do aviso de '
+                'sobrecarga de professor (regra de carga docente) — a escolha dos grupos '
+                'destinatários desse aviso permanece igual. As antecedências e os '
+                'destinatários fixos dos avisos de reserva próxima saíram da configuração '
+                'geral da unidade e migraram para a reserva.',
+                'Detalhe da reserva: o botão de notificações virou atalho para a edição e o '
+                'rodapé "Informações Gerais" exibe o estado atual (Ativadas/Desativadas, '
+                'marcos configurados e número de destinatários). A rota de alternância '
+                'rápida foi removida — o estado agora é editado no formulário.',
+                'Formulário de reserva: o campo Disciplina lista todas as disciplinas ativas '
+                'da unidade, independentemente do curso selecionado — o filtro em JavaScript '
+                'que escondia as disciplinas de outros cursos foi removido (cursos e '
+                'disciplinas não são sempre pai e filho no domínio da escola).',
+            ]),
+            ('Removido', [
+                'Colunas da configuração geral de notificações por unidade (módulo '
+                'ligado/desligado, antecedências em dias e destinatários fixos) — '
+                'substituídas pela configuração por reserva. Reservas com notificações já '
+                'ativadas herdam os destinatários que a unidade configurava, com o aviso de '
+                '24 horas ligado.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.29.0',
+        'data': '2026-10-02',
+        'titulo': 'Cadastrar reserva leva aos detalhes; menu e permissões corrigidos',
+        'grupos': [
+            ('Alterado', [
+                'Ao clicar em "Cadastrar Reserva", o usuário é direcionado aos detalhes '
+                'da reserva recém-criada — antes ia para a listagem "Minhas Reservas". '
+                'O flash de sucesso (e o aviso de pendência por carga docente, quando a '
+                'reserva nasce Pendente) aparece no topo da página de detalhes; o aviso '
+                'dedicado de conflito de professor continua abrindo a própria tela de '
+                'pendência.',
+            ]),
+            ('Corrigido', [
+                'Barra lateral: abrir o Vale Alimentação não marca mais o grupo nem os '
+                'itens da Hora Extra — a detecção de página usava o prefixo '
+                '"payments.meal", que não corresponde aos endpoints reais '
+                '(payments.*_meal_allowance), de modo que a página do Vale Alimentação '
+                'acendia "Hora Extra" e "Consultar H. Extras" e a edição de um '
+                'lançamento acendia "Nova Hora Extra", sem destacar o item do próprio '
+                'módulo. O critério passa a ser "meal_allowance" no endpoint e os itens '
+                'do submenu usam os prefixos específicos do Hora Extra; testes de '
+                'regressão cobrem a listagem, a edição e a consulta.',
+                'Painel de permissões (formulário de papéis): os grupos dos módulos sem '
+                'rótulo no dicionário de tradução apareciam com o nome em inglês gerado '
+                'pelo fallback do código — "Meal", "Course Type", "Notification" e '
+                '"Api" — e agora exibem Vale Alimentação, Tipos de Curso, Notificações '
+                'e API; um teste estrutural garante que todo módulo do catálogo de '
+                'permissões tenha rótulo em português.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.28.0',
+        'data': '2026-10-02',
+        'titulo': 'Vale Alimentação no RH, Hora Extra com fechamento do mês e '
+                  'reservas com carga docente',
+        'grupos': [
+            ('Adicionado', [
+                'Módulo Vale Alimentação - Professores no RH: lançamento de dias '
+                'trabalhados (professor + dias) com formulário, listagem com filtro '
+                'por professor, edição, exclusão e detalhes (permissões meal:*);',
+                'Catálogo de Tipos de Curso no Painel Admin, alimentando o novo campo '
+                'obrigatório "Tipo de Curso" da Hora Extra (permissões course_type:*);',
+                'Campo Observação no lançamento de Hora Extra — tipo de curso e '
+                'observação também saem na planilha de exportação;',
+                'Botão "Fechar Mês" na consulta de Hora Extra (payment:close_month): '
+                'bloqueia edição e exclusão dos lançamentos do mês e baixa a planilha '
+                'final;',
+                'Regra de carga docente: a reserva que deixa o professor com mais de 2 '
+                'reservas ativas no mesmo dia nasce Pendente e avisa na hora os grupos '
+                'personalizados selecionados na configuração de notificações — válida '
+                'na criação, edição e repetições em série;',
+                'Filtro de salas com múltiplos períodos: caixas de seleção '
+                'Manhã/Tarde/Noite — a sala precisa estar livre em todos os períodos '
+                'marcados.',
+            ]),
+            ('Alterado', [
+                'Hora Extra: o Mês de Referência é derivado pela janela de lançamento '
+                '(do dia 20 do mês anterior ao dia 20 do mês corrente) — sai o seletor '
+                'manual de mês e os bloqueios de "até o dia 25" e de 30 dias;',
+                'Hora Extra: carga horária exibida e exportada em horas e minutos '
+                'inteiros (4h30), sem conversão para decimal;',
+                'Reserva: o Curso passa a ser obrigatório e o Título/Assunto opcional — '
+                'em branco, a reserva usa o nome do curso como título;',
+                'Horários de lançamento, fechamento e notificações exibidos no fuso '
+                'local do servidor (antes, UTC adiantava 3h).',
+            ]),
+            ('Corrigido', [
+                'Aviso de navegador removido das telas de Hora Extra;',
+                'Layout da consulta de Hora Extra e do filtro de salas: colunas sem '
+                'quebra de valores, rótulos alinhados e data no padrão dd/mm/aaaa.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.27.1',
+        'data': '2026-10-01',
+        'titulo': 'Dropdown de unidades não quebra mais com a lista completa',
+        'grupos': [
+            ('Corrigido', [
+                'Seletor de unidade do portal público (home, cronograma e busca de '
+                'aula) com cadastro grande de unidades: o menu do dropdown ganha '
+                'altura máxima (~60% da tela) com barra de rolagem interna, e rolar '
+                'até o fim do menu não arrasta mais a página atrás (overscroll-'
+                'behavior) — antes, com todas as unidades do Senac SC cadastradas, '
+                'os itens do fim da lista ficavam além da borda inferior da tela e '
+                'inalcançáveis.',
+                'Na home pública, o card "Cronograma de hoje" não corta mais o menu '
+                'de unidades aberto: o card funcional deixou de usar overflow '
+                'hidden — a faixa gradiente do topo passou a carregar o próprio '
+                'raio de canto, preservando as bordas arredondadas do card.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.27.0',
+        'data': '2026-10-01',
+        'titulo': 'Home pública com cards funcionais (redesign opção C)',
+        'grupos': [
+            ('Adicionado', [
+                'A home do visitante passa a executar as funções na própria página, '
+                'seguindo a opção "Cards funcionais" do redesign: card de busca com '
+                'formulário que submete direto para /buscar-aula (termo, data e '
+                'unidade), card do cronograma com prévia das próximas aulas do dia — '
+                'badge "Agora" nas aulas em andamento, seletor de unidade do portal '
+                'público e botão "Ver dia completo" — e card "Entrar no sistema" com '
+                'o formulário de login completo (e-mail, senha com mostrar/ocultar e '
+                'CSRF), sem nova rota: a home consulta o banco reusando os mesmos '
+                'dados de /cronograma.',
+                'Faixa "Agora no campus" no topo da home: período corrente do dia '
+                '(manhã/tarde/noite), quantidade de aulas em andamento e a próxima '
+                'aula com horário e sala, com link "Ver tudo" para o cronograma '
+                'completo.',
+            ]),
+            ('Alterado', [
+                'Cabeçalho da home reduzido ao título "Bem-vindo ao SIGerE", sem o '
+                'parágrafo descritivo.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.26.0',
+        'data': '2026-09-30',
+        'titulo': 'Nova identidade visual no favicon e na barra lateral',
+        'grupos': [
+            ('Alterado', [
+                'Favicon do site e logo da barra lateral trocados pelo emblema da nova marca '
+                '(a letra "S" com o prédio isométrico e as setas de renovação), com o fundo '
+                'da arte removido: no lugar do ícone genérico de prédio (bi-building), a '
+                'sidebar exibe o emblema ao lado do texto "SIGerE", restando apenas o texto '
+                'no modo contraído, como antes; o favicon desenhado (prédio em tile azul) deu '
+                'lugar a favicon.ico (16/32/48), favicon-16x16.png, favicon-32x32.png, '
+                'apple-touch-icon.png (fundo branco, exigência do iOS) e favicon.svg com o '
+                'raster embutido — os <link> dos templates não mudam.',
+                'Documentação alinhada à nova marca: as telas que exibem a barra lateral '
+                '(login, painel, calendário, reservas, disponibilidade de sala, portal e '
+                'cronograma público) foram recapturadas em docs/screenshots/ com os dados de '
+                'demonstração (flask seed), e a apresentação aos usuários recebeu o novo '
+                'emblema na capa (tile branco) e nos rodapés, com apresentacao-sigere.pdf e '
+                'o preview regenerados.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.25.1',
+        'data': '2026-09-30',
+        'titulo': 'Notificações de atividade próxima sem avisos duplicados',
+        'grupos': [
+            ('Corrigido', [
+                'A varredura de reservas próximas (flask notify-scan) não gera mais avisos '
+                'duplicados quando a reserva entra na janela com antecedência menor que o maior '
+                'marco configurado — uma reserva criada na véspera para o dia seguinte, com '
+                'marcos de 7, 1 e 0 dias, recebia na véspera dois avisos idênticos de "Amanhã", '
+                'um do marco "de 7 dias" que nunca existiu de fato e outro "de 1 dia". Agora '
+                'cada varredura cria apenas o aviso do marco mais iminente já vencido: no fluxo '
+                'normal cada marco continua disparando exatamente no seu dia (7 dias antes, 1 '
+                'dia antes e no próprio dia), e o aviso cujo prazo nunca chegou a existir não '
+                'dispara tardiamente; atrasos do timer continuam sem pular o aviso mais '
+                'próximo.',
+                'Migração que limpa os avisos duplicados já acumulados: para o mesmo '
+                'destinatário e reserva com título e corpo idênticos, fica apenas o aviso do '
+                'marco mais iminente — avisos legítimos, criados em dias diferentes com títulos '
+                'distintos ("Em 7 dias", "Amanhã", "Hoje"), não são tocados. A atualização do '
+                'servidor (flask db upgrade) aplica a limpeza automaticamente.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.25.0',
+        'data': '2026-09-30',
+        'titulo': 'Totem digital em página única com ajuste automático de escala',
+        'grupos': [
+            ('Alterado', [
+                'Totem digital (TV de corredor) em página única: todas as categorias com '
+                'atividade ficam empilhadas na mesma tela e, se o conteúdo não couber na '
+                'altura, a escala do conteúdo é reduzida até tudo aparecer de uma vez — sem '
+                'rolagem automática nem animações, que tornavam a apresentação demorada em '
+                'listas grandes. O ajuste de escala só age em telas grandes (no celular a '
+                'página rola normalmente); abaixo do piso de escala a página rola; o '
+                'parâmetro ?unity=ID, o clima e a atualização a cada 5 minutos continuam '
+                'iguais.',
+                'Desempenho do totem para hardware fraco (Raspberry Pi 3B+): remoção do CSS '
+                'do Bootstrap e da fonte Google Inter do carregamento (fontes do sistema, '
+                'com os ícones do Bootstrap Icons mantidos), sem backdrop-filter nem sombra '
+                'por cartão, tema dia/noite trocando apenas variáveis CSS e o relógio como '
+                'único temporizador da página.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.24.0',
+        'data': '2026-09-29',
+        'titulo': 'Relatórios PDF com identidade visual, detalhes em banner e limpeza de notificações lidas',
+        'grupos': [
+            ('Adicionado', [
+                'Relatórios PDF de exportação com a identidade visual do SIGerE (faixa azul com a unidade e a hora de emissão, título repetido em todas as páginas, tabela zebrada e rodapé com paginação): o botão “Exportar PDF” da listagem de salas gera o “Relatório de Salas” com indicadores em cartões (salas listadas, capacidade total, salas com computadores e prédios) e a tabela dos resultados; os botões “Exportar Reservas do Dia/Semana/Mês (PDF)” da disponibilidade geram a “Agenda de Reservas” com indicadores (reservas, horas reservadas, dias com atividade e quantas ainda vão ocorrer) e a tabela agrupada dia a dia, com faixas de data e as reservas já ocorridas em cinza riscado.',
+                'Botão “Limpar lidas” na tela de notificações: remove permanentemente todos os avisos já lidos, com confirmação e mensagem de resultado — o botão só aparece quando existe ao menos uma notificação lida; avisos não lidos nunca são apagados por ele.',
+                'Manual do usuário atualizado (docs/manual-do-usuario.pdf) para o estado atual do sistema: novo capítulo de Notificações, Vale-Transporte no bloco RH do menu, usuários multi-unidades, seletor único de aparência, banner de detalhes na disponibilidade, relatórios PDF e as seções de administração de notificações e grupos; o pipeline de geração agora é versionado em docs/gerar_manual.py.',
+            ]),
+            ('Alterado', [
+                'Detalhes da reserva na disponibilidade da sala em banner horizontal: clicar em uma reserva — nas pílulas das visões de Semana e Mês ou no botão “Detalhes” da visão de Dia — abre um banner com o bloco de data (dia, ano e horário) ao lado do título, da situação, do curso, da disciplina, do professor e de quem reservou; o botão “Ver detalhes completos” aparece só para quem tem acesso à reserva.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.23.0',
+        'data': '2026-09-28',
+        'titulo': 'Notificações por reserva (opt-in) e navegação de volta sem loops',
+        'grupos': [
+            ('Adicionado', [
+                'Botão “Ativar notificações” no detalhe da reserva: as notificações de atividade próxima passam a ser opt-in por reserva — vêm desativadas por padrão e o dono da reserva (ou quem tem permissão de editar qualquer reserva) ativa e desativa com um clique; o botão exibe o estado (sino cortado quando desligado, sino preenchido em destaque quando ligado) e só aparece para reservas aprovadas e futuras, que são as que avisam.',
+            ]),
+            ('Alterado', [
+                'A varredura de reservas próximas (flask notify-scan) só gera avisos para as reservas com as notificações ativadas no próprio detalhe — antes, toda reserva aprovada dentro da janela avisava automaticamente. Os destinatários (professor, criador, aprovadores e grupos) continuam definidos pela configuração da unidade; desativar na reserva interrompe os avisos futuros e os já criados permanecem no sino.',
+            ]),
+            ('Corrigido', [
+                'Botões “Voltar” que prendiam o usuário em loop: o detalhe da reserva voltava ao formulário de edição (e o formulário de volta ao detalhe) quando um salvamento redirecionava para o detalhe; a tela Repetir não saía de si mesma (a rota redireciona para ela própria ao agendar datas); “Nova reserva” e a disponibilidade da sala recarregavam a própria página quando o formulário re-renderizava com erro; e o aviso de conflito de professor tentava reenviar o formulário de criação — todos agora navegam de forma determinística para a página-pai lógica (lista de reservas, página da sala, calendário), sem depender do histórico do navegador.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.22.0',
+        'data': '2026-09-27',
+        'titulo': 'Notificações de atividades próximas com grupos e configuração por unidade',
+        'grupos': [
+            ('Adicionado', [
+                'Módulo de notificações de atividade próxima: quando uma reserva aprovada se aproxima da data, professor, criador, aprovadores da unidade e grupos cadastrados recebem um aviso no sino do sistema, com antecedências definidas pela própria unidade (ex.: 7 dias, 1 dia antes e no próprio dia).',
+                'Grupos de notificação por unidade no Painel Admin: reúna as pessoas que devem ser avisadas juntas (ex.: “Coordenação Gastronomia”) e selecione quais grupos recebem os avisos — junto com os destinatários fixos (professor, criador e aprovadores) na configuração de notificações da unidade.',
+                'Sino na barra superior com contador de não lidas (atualizado sozinho a cada minuto) e tela de notificações com marcar como lida, marcar todas e paginação; os avisos apontam para o detalhe da reserva ou para o calendário no dia da atividade — o calendário agora entende datas recebidas no endereço (deep link).',
+                'Comando `flask --app run notify-scan` para a varredura que gera os avisos (idempotente — rodar de novo não duplica; `--dry-run` mostra o que seria criado) e documentação de implantação com o agendamento de 15 minutos pelo systemd.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.21.0',
+        'data': '2026-09-23',
+        'titulo': 'Backup automático do banco de dados com upload para a nuvem',
+        'grupos': [
+            ('Adicionado', [
+                'Comando `flask --app run backup`: gera o snapshot do banco configurado em DATABASE_URL comprimido em gzip (pasta backups/), com retenção automática dos arquivos antigos — no PostgreSQL (produção) é um dump SQL do pg_dump com as credenciais passadas por variáveis de ambiente, nunca na linha de comando; no SQLite (desenvolvimento) é um snapshot consistente pela API de backup, que funciona com a aplicação no ar e sai verificado por integridade.',
+                'Upload do backup para qualquer armazenamento compatível com a API S3 — AWS S3, Backblaze B2, Cloudflare R2, Wasabi, MinIO e Google Cloud Storage (chaves HMAC) — ao definir BACKUP_S3_BUCKET no .env: a nuvem também recebe a mesma política de retenção, apagando os objetos vencidos. Sem bucket configurado, o backup continua funcionando e fica apenas na pasta local.',
+                'Opções `--no-upload` (só o arquivo local), `--dir` (outra pasta) e `--keep-days` (outra retenção) para executar o backup pontualmente em testes e operações manuais.',
+                'Documentação de implantação com a configuração do bucket, o agendamento diário pelo systemd (sigere-backup.service + timer, com alternativa em cron) e o passo a passo de restauração para PostgreSQL e SQLite.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.20.0',
+        'data': '2026-09-23',
+        'titulo': 'Atalhos de período no cronograma mobile, salas em ordem no painel e unidade memorizada',
+        'grupos': [
+            ('Adicionado', [
+                'No cronograma público acessado pelo celular, barra fixa de atalhos Manhã/Tarde/Noite (com a contagem de aulas de cada período) presa abaixo do topo enquanto a página rola — não é mais preciso deslizar pelos períodos anteriores para chegar à Tarde ou à Noite. Abrindo o cronograma do dia, a página rola sozinha até o cartão do período em curso (o do selo "Agora"); o atalho do período que está na tela fica marcado durante a rolagem e o do período em curso leva um ponto pulsante; tocar num atalho desliza suavemente até o cartão do período. No desktop nada muda: os três períodos continuam lado a lado, sem a barra.',
+            ]),
+            ('Alterado', [
+                'No painel, as salas do dia agora aparecem em ordem crescente de numeração (LI104, LI202, LI205...), comparando os números do código como inteiros — LI9 viria antes de LI10 — e usando o horário da aula apenas como desempate; antes, salas com o mesmo horário saíam em ordem imprevisível, que dependia da ordem de cadastro das reservas.',
+                'No portal público (cronograma e busca de aula), a unidade escolhida — pela lista ou pela detecção de unidade próxima — fica memorizada na sessão do visitante: navegar entre as páginas pelo menu não reseta mais a seleção para a primeira unidade. Unidade desativada depois da escolha ou endereço com unidade inexistente caem na primeira unidade ativa, sem erro.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.19.0',
+        'data': '2026-09-21',
+        'titulo': 'Favicon do site e filtro instantâneo de salas disponíveis',
+        'grupos': [
+            ('Adicionado', [
+                'Favicon do site: o prédio da marca (o mesmo do menu lateral) sobre o Azul Senac nas abas do navegador e nos atalhos de tela inicial — SVG vetorial para navegadores modernos, .ico para os mais antigos, PNGs de 16 e 32 px e ícone apple-touch.',
+            ]),
+            ('Alterado', [
+                'Na listagem de salas, o checkbox "Mostrar apenas salas disponíveis AGORA" aplica o filtro na hora em que é marcado e também quando é desmarcado, sem depender do botão Filtrar — ao desmarcar, a listagem volta a mostrar todas as salas mantendo os demais filtros ativos.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.18.2',
+        'data': '2026-09-21',
+        'titulo': 'Caixas dos códigos de sala uniformes',
+        'grupos': [
+            ('Corrigido', [
+                'Nas listagens (painel, cronograma público, busca de aula e Todas as Reservas), as caixas com o código da sala ganharam largura mínima uniforme com o número centralizado e dígitos de largura fixa — na fonte proporcional, códigos com "1" (ex.: 103) ficavam mais estreitos que os demais (302).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.18.1',
+        'data': '2026-09-21',
+        'titulo': 'Manual do usuário e README atualizados',
+        'grupos': [
+            ('Alterado', [
+                'Manual do usuário em PDF atualizado para a v1.18.0: a seção do cronograma público descreve o destaque do período atual com o selo "Agora" e a seção de cursos e disciplinas documenta o botão Mostrar/Esconder inativos; referências de versão revisadas na capa, nos rodapés e na introdução.',
+                'Manual do usuário: descrição do campo Título / Assunto da reserva corrigida na Tabela 2 — o campo aceita letras, números e pontuação comum, não "apenas letras" — e o passo de cadastro de usuário documenta que o Nome Completo aceita letras, números e pontuação (regras da v1.17.2 que o manual ainda não refletia).',
+                'README: as seções de Estrutura Acadêmica e Portal Público passam a descrever o filtro de inativos das listagens de cursos e disciplinas e o destaque do período atual no cronograma; captura de tela do cronograma público refeita com o novo destaque.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.18.0',
+        'data': '2026-09-21',
+        'titulo': 'Filtro de inativos e período atual em destaque',
+        'grupos': [
+            ('Adicionado', [
+                'Botão "Mostrar/Esconder inativos" nas páginas de Cursos e Disciplinas, como já existia na listagem de usuários: por padrão as páginas exibem apenas os registros ativos e o botão revela também os desativados. A escolha é preservada ao reordenar a listagem e a ordenação continua funcionando com os inativos visíveis.',
+                'No cronograma público de aulas (/cronograma), o cartão do período em curso (Manhã/Tarde/Noite, mesmos cortes do totem) recebe destaque visual — borda e ícone em destaque, selo "Agora" e contador sólido — quando a consulta é do dia de hoje; em outros dias nenhum período é destacado.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.17.2',
+        'data': '2026-09-21',
+        'titulo': 'Textos de formulário aceitam números, ordinais e pontuação',
+        'grupos': [
+            ('Corrigido', [
+                'O título/assunto da reserva volta a aceitar números, ordinais e pontuação comuns ("2º Concurso de Integração", "Reunião de pais 1º semestre"): o filtro "apenas alfabético" herdado dos formulários antigos recusava qualquer dígito ou ponto e bloqueava o envio do formulário.',
+                'O nome completo de Professor/Funcionário aceita pontuação e números ("Senac T.I.", "2º Sargento João"), no cadastro e na edição — o mesmo filtro recusava nomes legítimos já gravados no sistema.',
+                'O mesmo filtro permissivo passa a valer para todos os campos de texto que ainda usavam o validador antigo: nomes de curso, disciplina, feriado, unidade, categoria de sala e papel, além da justificativa da hora extra — valores como "7 de Setembro" e "Coord. Geral" não são mais rejeitados.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.17.1',
+        'data': '2026-09-19',
+        'titulo': 'Manual do usuário e documentação',
+        'grupos': [
+            ('Adicionado', [
+                'Manual do Usuário em PDF (docs/manual-do-usuario.pdf, 23 páginas): guia de operação de todos os módulos — acesso, reservas, salas, calendário, portal público, totem, financeiro (hora extra e vale-transporte), cozinha, administração e API — com passo a passo, campos dos formulários, regras de negócio, mensagens comuns e solução de problemas.',
+            ]),
+            ('Alterado', [
+                'README: manual do usuário incluído na tabela de Documentação; seção Vale-Transporte reescrita com o fluxo atual (formulário público, Pedidos VT, relatório e administração), URL correta da exportação da planilha de pagamento e permissões vt:* incluídas no catálogo de permissões.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.17.0',
+        'data': '2026-09-19',
+        'titulo': 'Menu lateral reorganizado e carga horária em hora e minuto',
+        'grupos': [
+            ('Alterado', [
+                'Menu lateral reorganizado: itens em pílulas arredondadas com respiro das bordas, item ativo em pílula clara que acompanha todos os temas de cor e o modo escuro, fios divisórios entre as seções, linha-guia ligando os itens de cada submenu e marca fixa no topo com o menu rolando de forma independente, com barra de rolagem discreta.',
+                'A carga horária semanal do formulário de hora extra passa a ser informada em dois campos (hora e minuto), com dica mostrando o valor já convertido para hora decimal (ex.: 4h30 = 4,5) — o decimal é o que fica gravado, é exportado na coluna Horas da planilha e exibido na consulta e no modal. A coluna vira Numeric(5,2) em migração; lançamentos antigos (inteiros) continuam válidos.',
+                'Detalhes do lançamento de hora extra exibem a carga horária nos dois formatos — "4,5 h (4h30)" — com a conversão de decimal para minutos centralizada em um helper reaproveitado pela edição.',
+            ]),
+            ('Corrigido', [
+                'Editar uma hora extra não zera mais o professor do lançamento: o select voltava para o primeiro professor da lista porque o campo do formulário colidia com o relationship do modelo no repovoamento do WTForms.',
+                'Implantação: cliente Python do Redis incluído no requirements (apontar o rate limit para Redis sem o pacote quebrava o startup), Redis com teste de conectividade no instalador interativo e criação da pasta instance/uploads; a documentação de atualização sai do sudo -u www-data, que descartava as variáveis de ambiente e tornava o .env ilegível.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.16.0',
+        'data': '2026-09-18',
+        'titulo': 'Permissões do Vale-Transporte revisadas',
+        'grupos': [
+            ('Adicionado', [
+                'Nova permissão "vt:config" (Configurar o pedido público de VT: vales base e data de fechamento) — as configurações deixam de emprestar a permissão de empresas de ônibus, permitindo separar quem gerencia tarifas de quem define prazos. O papel Administrador recebe a permissão nova automaticamente na sincronização.',
+            ]),
+            ('Alterado', [
+                'Descrições das permissões do Vale-Transporte atualizadas para o produto atual (Pedidos VT, relatório e correção individual) — a sincronização de permissões (flask sync-permissions, executada também no startup) passou a atualizar descrições de permissões já existentes, não só criar as novas.',
+            ]),
+            ('Removido', [
+                'A permissão "vt:create" (importação do Pedido de Compra) saiu do catálogo junto com a funcionalidade que foi desativada; a sincronização a aposenta dos bancos existentes, removendo os vínculos com papéis.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.15.0',
+        'data': '2026-09-18',
+        'titulo': 'Temas de cor personalizáveis',
+        'grupos': [
+            ('Adicionado', [
+                'Nova paleta de temas na topbar (botão de paleta, ao lado do claro/escuro): Azul Senac (padrão), Verde, Roxo, Laranja e Grafite — a cor escolhida tinge botões, links, foco de campos, paginação, sidebar e os gráficos do relatório, nos modos claro e escuro.',
+                'A escolha do tema e do modo fica salva no navegador (localStorage) e é aplicada antes da página renderizar, sem piscar a paleta padrão.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.14.1',
+        'data': '2026-09-18',
+        'titulo': 'Grupos da planilha de pagamento simplificados',
+        'grupos': [
+            ('Alterado', [
+                'Os grupos de colaboradores da planilha de pagamento do Vale-Transporte passam a ser apenas "Técnico-Administrativo" e "Professores", definidos pelo vínculo do pedido — técnicos de todas as unidades entram no grupo único de Técnico-Administrativo.',
+            ]),
+            ('Removido', [
+                'O grupo "Técnico-Administrativo (Restaurante/Lanchonete)" da exportação — a divisão por unidade (Faculdade / Restaurante/Lanchonete) herdada do gerador original saiu da planilha.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.14.0',
+        'data': '2026-09-18',
+        'titulo': 'Relatório visual do Vale-Transporte',
+        'grupos': [
+            ('Adicionado', [
+                'Nova página "Relatório" no módulo Vale Transporte: panorama dos pedidos da unidade com indicadores de pedidos recebidos, adesão ao benefício, vales necessários e investimento estimado; gráficos de optantes (deseja VT, vínculo, trajetos, empresas por pedido) e investimento por empresa de ônibus; resumo por empresa e por grupo da planilha de pagamento; conferências do RH (maior pedido, e-mails e matrículas repetidas).',
+                'O relatório tem versão para impressão/PDF pronta para apresentação — botão "Imprimir / PDF" que removes o painel de navegação e preserva as cores — e atalho no menu Vale Transporte e na página Pedidos VT.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.4',
+        'data': '2026-09-18',
+        'titulo': 'Planilha de pagamento reconhece as unidades reais',
+        'grupos': [
+            ('Corrigido', [
+                'A exportação da planilha de pagamento voltou a encontrar pedidos elegíveis: a classificação por grupo comparava o nome da unidade a textos exatos do sistema antigo ("Faculdade", "Restaurante - ALESC/…") e unidades com o nome real, como "Faculdade Senac Florianópolis", ficavam fora de todos os grupos — o reconhecimento agora é pelo trecho do nome da unidade do pedido.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.3',
+        'data': '2026-09-18',
+        'titulo': 'Tarifas fantasmas no cadastro de empresas eliminadas',
+        'grupos': [
+            ('Corrigido', [
+                'O cadastro de empresas de ônibus não mostra mais tarifas "fantasma": linhas deixadas no banco por exclusões feitas fora do aplicativo (o SQLite não valida a chave estrangeira por padrão) reapareciam numa empresa nova quando o id dela era reutilizado, como uma tarifa extra sem identificação — a atualização remove as órfãs e as duplicatas sem identificação, e o formulário de edição deixa de exibir o texto "None" no lugar da identificação.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.2',
+        'data': '2026-09-18',
+        'titulo': 'Cadastro de empresas sem valores repetidos pelo navegador',
+        'grupos': [
+            ('Corrigido', [
+                'No cadastro de empresas de ônibus, os campos de tarifa voltaram a abrir vazios: o navegador estava repetindo neles valores armazenados de envios anteriores (autocomplete e retorno pelo cache ao botão Voltar) quando uma empresa nova era cadastrada.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.1',
+        'data': '2026-09-18',
+        'titulo': 'Filtro de vínculo atual e exportação única em Pedidos VT',
+        'grupos': [
+            ('Corrigido', [
+                'O filtro de Vínculo da listagem Pedidos VT voltou a oferecer apenas os vínculos do formulário atual (Técnico - Administrativo e Professor(a)) — o select listava também valores antigos gravados na base, que não filtravam nada.',
+            ]),
+            ('Removido', [
+                'O botão "Exportar respostas (.xlsx)" saiu da página Pedidos VT — a exportação da listagem fica apenas com a planilha de pagamento por grupo.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.13.0',
+        'data': '2026-09-17',
+        'titulo': 'Página única Pedidos VT',
+        'grupos': [
+            ('Adicionado', [
+                'A listagem "Pedidos VT" (respostas do formulário público) ganhou o layout completo da antiga página de Colaboradores: card de exportação da planilha de pagamento por grupo — agora calculada dos pedidos, com valor = tarifa × vales —, filtros de nome/vínculo/deseja VT, ordenação (mais recentes, nome, matrícula, valor) e opção de esconder não optantes.',
+                'Correção individual dos pedidos: editar (mesmo formulário do colaborador, com as tarifas do cadastro da unidade) e excluir, conforme as permissões vt:edit e vt:delete.',
+            ]),
+            ('Removido', [
+                'A importação do "Pedido de Compra" (.xlsx) e a listagem de colaboradores importados saíram do ar — o formulário público alimenta a listagem diretamente; /vt/ e /vt/colaboradores viraram redirecionamentos para Pedidos VT.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.12.2',
+        'data': '2026-09-18',
+        'titulo': 'Nº de vales livre com botão de valor base',
+        'grupos': [
+            ('Alterado', [
+                'O nº de vales do pedido público voltou a ser um campo livre (somente número, menor que 50); quando a unidade configura os números base, o botão "Usar valor base" preenche o campo com um clique conforme o trajeto escolhido.',
+                'O botão "Usar valor base" é oferecido apenas para o vínculo Técnico-Administrativo — professores digitam o número.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.12.1',
+        'data': '2026-09-18',
+        'titulo': 'Identificação do colaborador travada pelo cadastro',
+        'grupos': [
+            ('Alterado', [
+                'No pedido público de VT, ao informar um e-mail de conta ativa do sistema, nome, matrícula e vínculo passam a vir direto do cadastro e ficam travados (o vínculo é derivado do perfil: funcionário é Técnico-Administrativo e professor é Professor(a)); e-mail sem cadastro mantém a digitação manual.',
+            ]),
+            ('Corrigido', [
+                'Valores enviados por POST para nome, matrícula ou vínculo diferentes do cadastro são ignorados quando o e-mail corresponde a uma conta ativa.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.12.0',
+        'data': '2026-09-18',
+        'titulo': 'Painel Administrativo como central de gestão e configurações do pedido de VT',
+        'grupos': [
+            ('Adicionado', [
+                'Nova página "Configurações do Pedido de VT" na administração (por unidade): números base de vales para Somente Volta e Ida e Volta — quando definidos, o pedido público aplica o número automaticamente conforme o trajeto, sem o colaborador digitar — e data de fechamento do formulário, que passa a ser bloqueado após o prazo, com aviso do último dia durante o período aberto.',
+                'O Painel Administrativo virou a central de gestão: cards de acesso a Unidades, Tokens da API, Empresas de Ônibus e Configurações do Pedido de VT, cada um exibido conforme a permissão.',
+            ]),
+            ('Alterado', [
+                'As páginas de Unidades e Tokens da API saíram da barra lateral e passam a ser acessadas pelo Painel Administrativo; quem tem qualquer uma das permissões de administração acessa o painel, mesmo sem a permissão de painel do sistema.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.4',
+        'data': '2026-09-17',
+        'titulo': 'Pergunta de unidade removida do pedido de VT',
+        'grupos': [
+            ('Removido', [
+                'A pergunta "Unidade" (Faculdade / Restaurante / Lanchonete) saiu do pedido público — o pedido já fica registrado na unidade do link usado pelo colaborador, e a coluna Unidade da listagem passa a mostrar essa unidade.',
+            ]),
+            ('Alterado', [
+                'Com a pergunta de unidade removida, o vínculo (Técnico-Administrativo ou Professor) passou a ser perguntado para todos os colaboradores, sem exceção por unidade.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.3',
+        'data': '2026-09-17',
+        'titulo': 'Empresas de ônibus exclusivas de cada unidade',
+        'grupos': [
+            ('Alterado', [
+                'As empresas de ônibus do pedido de VT deixaram de ser compartilhadas entre unidades: cada empresa pertence exclusivamente à unidade que a cadastrou, aparece apenas no formulário e na administração dela, e as de outras unidades ficam invisíveis.',
+            ]),
+            ('Removido', [
+                'O conceito de empresa compartilhada (visível/editável por todas as unidades) — as empresas cadastradas antes da atualização foram atribuídas à primeira unidade ativa.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.2',
+        'data': '2026-09-17',
+        'titulo': 'Identificação da tarifa no lugar do trajeto',
+        'grupos': [
+            ('Alterado', [
+                'No cadastro de empresas, o primeiro campo da linha de tarifa passou a ser a identificação da tarifa aplicada, em texto livre (ex.: "Patamar 3", da tabela Metropolis) — no pedido público, a opção aparece como "Patamar 3 — R$ 7,38".',
+                'A pergunta de trajeto (Somente Volta / Ida e Volta) voltou ao pedido público, agora independente da tarifa escolhida.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.1',
+        'data': '2026-09-17',
+        'titulo': 'Tarifa por trajeto e ajuste no pedido de VT',
+        'grupos': [
+            ('Alterado', [
+                'No cadastro de empresas de ônibus, as tarifas passaram a ser linhas dinâmicas com trajeto e valor (botão "Adicionar tarifa") — cada empresa informa a tarifa de cada trajeto.',
+                'No pedido público, a opção de "Valor do vale" mostra o trajeto junto ("Ida e Volta — R$ 7,24") e já define o trajeto do pedido; a pergunta separada de trajeto foi incorporada a essa escolha.',
+            ]),
+            ('Corrigido', [
+                'No pedido público, ao selecionar uma empresa o select de tarifa continuava exibindo as tarifas de todas as empresas (o autocomplete Tom Select guardava as opções do carregamento inicial).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.11.0',
+        'data': '2026-09-17',
+        'titulo': 'Vale-Transporte gerenciável por unidade',
+        'grupos': [
+            ('Adicionado', [
+                'O pedido público de Vale-Transporte passou a pertencer a uma unidade: o link enviado aos colaboradores leva a unidade (/vt/pedido?unity=N, exibida no topo do formulário) e as respostas ficam na listagem e na exportação da unidade ativa.',
+                'O cadastro de empresas de ônibus ficou por unidade — cada uma mantém as próprias empresas e tarifas. As cadastradas antes da atualização viraram "compartilhadas", valendo para todas as unidades e editáveis apenas por contas globais ou super-admin.',
+                'Nomes de empresa podem se repetir entre unidades diferentes; a checagem de duplicidade é dentro da unidade.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.10.0',
+        'data': '2026-09-17',
+        'titulo': 'Empresas de ônibus gerenciáveis na administração',
+        'grupos': [
+            ('Adicionado', [
+                'Nova área Administração → Empresas de Ônibus (permissão "vt:empresas", concedida ao papel Administrador): cadastro de empresas e tarifas vigentes usadas pelo pedido público de Vale-Transporte, com criação, edição, exclusão e ativação/desativação — excluí-las não afeta pedidos antigos.',
+            ]),
+            ('Alterado', [
+                'As empresas e tarifas do pedido público de VT deixaram de ser fixas no código e passaram a vir desse cadastro; papel "Administrador" padrão recebe a permissão de gerenciá-las.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.9.1',
+        'data': '2026-09-17',
+        'titulo': 'Empresa e tarifa separadas no pedido de VT',
+        'grupos': [
+            ('Alterado', [
+                'No pedido público de Vale-Transporte, a empresa de ônibus passou a mostrar apenas o nome; logo abaixo, um campo de valor oferece as tarifas vigentes da empresa escolhida (7,20 a 12,08, conforme a empresa).',
+                'A tarifa escolhida agora é gravada e exportada separadamente nas respostas (colunas Valor A e Valor B da exportação .xlsx).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.9.0',
+        'data': '2026-09-17',
+        'titulo': 'Ajustes no pedido público de Vale-Transporte',
+        'grupos': [
+            ('Adicionado', [
+                'O formulário público de VT em tela cheia, sem a barra lateral do painel.',
+                'Ao informar o e-mail, nome e matrícula são preenchidos automaticamente quando existe conta ativa com aquele e-mail.',
+                'O botão de envio só é habilitado quando os campos obrigatórios da ramificação visível estão preenchidos.',
+            ]),
+            ('Alterado', [
+                'A pergunta de vínculo agora aparece apenas quando a unidade é a Faculdade; Restaurante e Lanchonete assumem Técnico-Administrativo no pedido.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.8.0',
+        'data': '2026-09-17',
+        'titulo': 'Pedido público de Vale-Transporte dentro do sistema',
+        'grupos': [
+            ('Adicionado', [
+                'O "Pedido de Vale-Transporte" (antes no Microsoft Forms) virou página do sistema: /vt/pedido é pública, com acesso identificado apenas pelo e-mail, e replica as perguntas originais — deseja VT no mês, unidade, vínculo, empresas de ônibus (com tarifas), número de vales e trajetos, com a mesma ramificação do formulário original.',
+                'As respostas recebidas aparecem em Vale Transporte → "Pedidos do Formulário", com busca e filtro por quem deseja VT, e exportação para .xlsx para a conferência do RH.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.7.0',
+        'data': '2026-09-16',
+        'titulo': 'Conta super-administrador protegida e tokens da API sem reenvio',
+        'grupos': [
+            ('Adicionado', [
+                'A conta super-administrador ficou protegida: operadores sem a permissão universal não podem editá-la, desativá-la nem redefinir sua senha — a listagem de usuários exibe o selo "Protegida" nessas linhas.',
+                'Atribuir papéis com permissão universal (*) passou a ser exclusivo do super-administrador, na criação e na edição de usuários; a permissão "*" também saiu da grade do formulário de papéis para quem não é super-admin, e POST forjado é rejeitado.',
+                'Alternar a unidade ativa de operação agora é exclusivo do super-administrador: a permissão "unity:switch" deixou de liberar o seletor do topo e saiu do papel padrão Administrador.',
+            ]),
+            ('Corrigido', [
+                'A criação de token da API voltou a seguir o padrão Post/Redirect/Get: recarregar a página logo após gerar um token não cria mais tokens extras, e a primeira revogação/exclusão depois da criação não falha mais com erro 405.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.6.1',
+        'data': '2026-09-16',
+        'titulo': 'Correção de layout no seletor de ícone da categoria',
+        'grupos': [
+            ('Corrigido', [
+                'Na edição de categorias, o seletor de ícone voltou ao layout correto — o campo de busca automática quebrava o campo quando ele estava dentro de um grupo com botão anexo; selects nesse formato seguem nativos.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.6.0',
+        'data': '2026-09-16',
+        'titulo': 'Unidade ativa no topo à esquerda, com botão de troca',
+        'grupos': [
+            ('Adicionado', [
+                'A unidade ativa mudou para o lado esquerdo do topo, ao lado da barra lateral, exibindo o nome completo.',
+                'Botão "Trocar" ao lado do nome abre a lista de unidades — visível apenas para quem tem permissão de alternar unidade; quem não tem vê apenas o nome.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.5.6',
+        'data': '2026-09-16',
+        'titulo': 'Seletor de unidade compatível com Firefox',
+        'grupos': [
+            ('Corrigido', [
+                'No Firefox, a seta do seletor de unidade continuava sobreposta ao nome — a seta foi movida para fora do select (ícone externo com espaço reservado pelo padding), eliminando a sobreposição em qualquer navegador.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.5.5',
+        'data': '2026-09-16',
+        'titulo': 'Menu lateral sinaliza corretamente a página visitada',
+        'grupos': [
+            ('Corrigido', [
+                'Unidades agora fica sinalizado no menu ao acessar qualquer tela de unidades — antes o destaque ficava preso no Painel Admin.',
+                'Painel, Calendário, itens do submenu (Nova/Minhas/Todas as Reservas, Hora Extra, Vale-Transporte) e Cozinha também mantêm o destaque nas respectivas páginas, incluindo telas de detalhe e edição.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.5.4',
+        'data': '2026-09-16',
+        'titulo': 'Seletor de unidade sem sobreposição da seta',
+        'grupos': [
+            ('Corrigido', [
+                'Nomes longos de unidade não são mais cobertos pela seta do seletor no topo da página — o nome é exibido abreviado com reticências e o nome completo aparece no tooltip.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.5.3',
+        'data': '2026-09-16',
+        'titulo': 'Ordenação nas demais listagens administrativas',
+        'grupos': [
+            ('Adicionado', [
+                'Filtro "Ordenar por" na listagem de usuários (papel+nome, nome A–Z/Z–A, matrícula com vazias por último, ativas primeiro), salas (código, nome, capacidade maior primeiro, prédio/andar), categorias de sala e papéis (nome A–Z/Z–A).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.5.2',
+        'data': '2026-09-16',
+        'titulo': 'Mostrar/esconder desativados na listagem de usuários',
+        'grupos': [
+            ('Adicionado', [
+                'Botão na página Gerenciar Usuários para exibir ou ocultar as contas desativadas — por padrão a listagem mostra apenas as contas ativas, e o estado persiste ao filtrar e paginar.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.5.1',
+        'data': '2026-09-16',
+        'titulo': 'Importação legada: quadro lotado entra como funcionário',
+        'grupos': [
+            ('Alterado', [
+                'Na importação do sistema antigo, usuário com setor, departamento ou função preenchidos passa a ser importado como funcionário — mesmo com função de professor, que segue podendo ser designado nas reservas (flag "também professor").',
+                'Professor passa a ser apenas quem não tem nenhum vínculo administrativo: os importados só da tabela de professores ou os que chegam sem setor/departamento/função.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.5.0',
+        'data': '2026-09-16',
+        'titulo': 'Perfil do usuário (Meu Perfil)',
+        'grupos': [
+            ('Adicionado', [
+                'Nova área "Meu Perfil" no menu do usuário: cada pessoa atualiza o próprio nome completo e departamento e troca a própria senha sem depender da administração.',
+                'A troca de senha pelo perfil exige a senha atual, recusa a repetição da senha vigente e pede confirmação da nova senha.',
+            ]),
+            ('Alterado', [
+                'O e-mail (login) aparece como somente leitura no perfil — mudança de e-mail continua exclusividade da administração.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.4.2',
+        'data': '2026-09-16',
+        'titulo': 'Ordenação nas páginas de Cursos e Disciplinas',
+        'grupos': [
+            ('Adicionado', [
+                'Filtro "Ordenar por" nas páginas de Cursos e Disciplinas: nome (A–Z/Z–A), código e — nos cursos — quantidade de disciplinas; nas disciplinas, agrupamento por curso (sem curso por último).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.4.1',
+        'data': '2026-09-16',
+        'titulo': 'Editar reservas direto da página da sala',
+        'grupos': [
+            ('Adicionado', [
+                'A lista de próximas reservas na página de detalhes da sala ganhou botão de edição — visível para quem tem permissão de editar qualquer reserva ou para o dono da reserva.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.4.0',
+        'data': '2026-09-16',
+        'titulo': 'Todas as Reservas com filtros do calendário',
+        'grupos': [
+            ('Adicionado', [
+                'A página Todas as Reservas ganhou os mesmos filtros do calendário — datas inicial/final, período do dia (manhã/tarde/noite), sala, professor, curso e disciplina — além de filtro por status e de ordenação (data crescente/decrescente, sala ou professor).',
+                'Filtro de ordenamento com padrão "Data — da atual para a futura"; abas e filtros continuam aplicados ao trocar de página da paginação.',
+            ]),
+            ('Alterado', [
+                'A barra de abas Todas/Aprovadas/Pendentes/Canceladas foi substituída por duas abas — Atuais e Futuras, e Passadas — com contagem de registros; o status virou filtro comum na barra de filtros.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.3.1',
+        'data': '2026-09-16',
+        'titulo': 'Busca limpa nas caixas de seleção',
+        'grupos': [
+            ('Corrigido', [
+                'Ao digitar para buscar em uma caixa de seleção simples, o texto do item selecionado não fica mais preso ao lado da busca — só o que está sendo digitado aparece; ao fechar, o item volta ao normal.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.3.0',
+        'data': '2026-09-16',
+        'titulo': 'Busca nas caixas de seleção',
+        'grupos': [
+            ('Adicionado', [
+                'Caixas de seleção com muitas opções (a partir de 6) ganharam busca digitável em todo o sistema — papéis, unidades, módulos, salas, cursos, disciplinas e professores — com seleção múltipla em etiquetas removíveis e tema claro/escuro integrado.',
+            ]),
+            ('Alterado', [
+                'O filtro curso → disciplina das reservas atualiza também a caixa com busca, mantendo a disciplina já escolhida quando ela continua válida.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.2.2',
+        'data': '2026-09-16',
+        'titulo': 'Setor e Função aceitam siglas e abreviações',
+        'grupos': [
+            ('Corrigido', [
+                'Cadastro/edição de usuários: Setor e Função (e Departamento) passam a aceitar pontos, números e pontuação — valores reais como "T.I" e "Assist. Suporte em TI" eram recusados pela validação "apenas alfabética".',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.2.1',
+        'data': '2026-09-16',
+        'titulo': 'Entrada única de cadastro de usuário',
+        'grupos': [
+            ('Alterado', [
+                'A tela "Gerenciar Usuários" agora abre o formulário único por um único botão "Cadastrar Usuário" — o tipo (Professor/Funcionário) é escolhido dentro do formulário, que abre pedindo a seleção.',
+            ]),
+            ('Corrigido', [
+                'O seletor de tipo de perfil vinha renderizado desabilitado na criação, impedindo a troca do perfil no navegador.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.2.0',
+        'data': '2026-09-15',
+        'titulo': 'Cadastro unificado de Professor e Funcionário',
+        'grupos': [
+            ('Adicionado', [
+                'Formulário único e dinâmico de cadastro de usuários: o tipo de perfil (Professor/Funcionário) alterna os campos específicos e pode ser trocado antes de salvar; as telas "Cadastrar Professor" e "Cadastrar Funcionário" continuam existindo e apenas abrem o formulário com o tipo pré-escolhido.',
+                'Matrícula obrigatória com mensagem que cita o perfil escolhido ("Informe a matrícula/ID do professor / do funcionário").',
+            ]),
+            ('Alterado', [
+                'A edição de usuário usa o mesmo formulário único, com o tipo de perfil travado (não pode ser alterado, nem por envio forjado do formulário).',
+                'Mapeamento entre tipo de perfil e papel interno centralizado em um único lugar do código, aplicado igualmente na criação e na edição.',
+            ]),
+            ('Corrigido', [
+                'Cadastro de salas: nome e prédio passam a aceitar números e pontuação (SA212, Lab 101-B, Prédio 2) — a validação anterior bloqueava inclusive a edição de salas com o próprio código gerado.',
+                'Tela de edição de usuário exibe o cabeçalho em português ("Editar Professor"/"Editar Funcionário") em vez do valor interno em inglês.',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.1.0',
+        'data': '2026-09-15',
+        'titulo': 'Migração do sistema legado (Django/MySQL)',
+        'grupos': [
+            ('Adicionado', [
+                'Comando flask import-legacy: importa o banco do sistema antigo (dump MySQL do phpMyAdmin) em uma única operação — usuários, salas, cursos, disciplinas, reservas de sala e de auditório e hora extra, tudo na unidade Faculdade Senac Florianópolis.',
+                'Senhas do sistema antigo aproveitadas: quem tinha senha válida entra com ela e a troca é obrigatória no primeiro acesso.',
+                'Documentação da migração (docs/migracao-legado.md) com o mapeamento das tabelas, decisões de importação e checklist pós-migração.',
+            ]),
+            ('Corrigido', [
+                'Teste do filtro de disciplinas não falha mais quando executado depois das 14h (usava horário do próprio dia e esbarrava na validação de horário no passado).',
+            ]),
+        ],
+    },
+    {
+        'versao': '1.0.0',
+        'data': '2026-09-14',
+        'titulo': 'Primeira versão estável',
+        'grupos': [
+            ('Adicionado', [
+                'Login pelo e-mail do usuário — o campo "nome de usuário" foi removido do sistema.',
+                'Tela de novidades (changelog) com o histórico de versões e o número no rodapé.',
+                'Papéis adicionais por usuário (ex.: Módulo Cozinha para professores de gastronomia).',
+                'Detecção automática da unidade mais próxima pela geolocalização no cronograma e na busca de aulas.',
+                'Cenário de demonstração completo (flask seed-demo) com datas relativas a hoje.',
+            ]),
+            ('Removido', [
+                'Papéis "Visualizador" e "Administrador Financeiro" (substituídos pelos novos papéis padrão).',
+            ]),
+        ],
+    },
+    {
+        'versao': '0.5.0',
+        'data': '2026-09-12',
+        'titulo': 'API pública de reservas e módulos opcionais por unidade',
+        'grupos': [
+            ('Adicionado', [
+                'API REST de leitura de reservas (/api/v1) com tokens Bearer gerados no painel.',
+                'App de exemplo de quadro de porta consumindo a API, com CORS liberado.',
+                'Módulos Cozinha e Financeiro que ligam/desligam por unidade (reservas seguem sempre ativas).',
+                'Botão de compartilhar reserva por e-mail ou WhatsApp no detalhe da reserva.',
+                'Cozinha: ficha técnica em tabelas, relatório de ingredientes em tela e requisição de compra em grade.',
+                'Salas: disponibilidade com visões por dia, semana e mês, com exportação fiel à visão atual.',
+            ]),
+        ],
+    },
+    {
+        'versao': '0.4.0',
+        'data': '2026-09-10',
+        'titulo': 'Permissões por módulo e portal público',
+        'grupos': [
+            ('Adicionado', [
+                'Permissões agrupadas por módulo na tela de papéis, com marcar/limpar por grupo.',
+                'Checklist de configuração inicial no primeiro acesso do super-admin.',
+                'Menu lateral dividido em seções por módulo.',
+                'Importação das unidades do Senac SC pelo comando seed-unidades, com botão "Reler arquivo" no painel.',
+                'Listagem de unidades com ordenação por coluna e exibição do ID (usado pelo totem).',
+            ]),
+        ],
+    },
+    {
+        'versao': '0.3.0',
+        'data': '2026-09-03',
+        'titulo': 'Módulo Cozinha e multi-unidade',
+        'grupos': [
+            ('Adicionado', [
+                'Módulo Cozinha: fichas técnicas, preparações e requisições de compra.',
+                'Suporte a múltiplas unidades educacionais com seletor de unidade ativa.',
+            ]),
+        ],
+    },
+    {
+        'versao': '0.2.0',
+        'data': '2026-08-14',
+        'titulo': 'Novo design e pagamento extra',
+        'grupos': [
+            ('Adicionado', [
+                'Lançamentos de Pagamento Extra (hora extra) para professores.',
+            ]),
+            ('Alterado', [
+                'Renovação visual completa das páginas, com tema claro/escuro.',
+            ]),
+        ],
+    },
+    {
+        'versao': '0.1.0',
+        'data': '2026-07-20',
+        'titulo': 'Núcleo de reservas de salas',
+        'grupos': [
+            ('Adicionado', [
+                'Autenticação com troca de senha obrigatória no primeiro acesso.',
+                'Cadastro de salas, categorias, cursos, disciplinas e feriados.',
+                'Reservas com fluxo de aprovação, conflitos de sala/professor e calendário.',
+            ]),
+        ],
+    },
+]

@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+{% block title %}Painel Administrativo{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h3 class="fw-bold mb-1">Painel Administrativo</h3>
+    <p class="text-muted mb-0">Gerencie usuários, salas, cursos e configurações do sistema.</p>
+</div>
+
+{% if setup_checklist %}
+{% set concluidos = setup_checklist | selectattr('concluido') | list | length %}
+{% set total = setup_checklist | length %}
+<!-- Checklist de configuração inicial (super-admin, some quando completo) -->
+<div class="card border-primary shadow-sm mb-4">
+    <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h5 class="mb-0"><i class="bi bi-list-check text-primary me-2"></i> Configuração inicial</h5>
+        <span class="small text-muted">{{ concluidos }} de {{ total }} concluídos</span>
+    </div>
+    <div class="card-body py-3">
+        <div class="progress mb-3" style="height: 6px;">
+            <div class="progress-bar bg-success"
+                 style="width: {{ ((concluidos / total * 100) | round(1)) }}%"></div>
+        </div>
+        <div class="list-group list-group-flush">
+            {% for passo in setup_checklist %}
+            <div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2 px-0 bg-transparent {% if passo.concluido %}text-muted{% endif %}">
+                <div>
+                    {% if passo.concluido %}
+                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                    <span class="text-decoration-line-through">{{ passo.titulo }}</span>
+                    {% else %}
+                    <i class="bi bi-circle me-2"></i>
+                    <span class="fw-semibold">{{ passo.titulo }}</span>
+                    <div class="small text-muted ms-4">{{ passo.descricao }}</div>
+                    {% endif %}
+                </div>
+                {% if not passo.concluido %}
+                <a href="{{ passo.url }}" class="btn btn-sm btn-outline-primary flex-shrink-0">
+                    <i class="bi bi-plus-lg me-1"></i> Cadastrar
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Hub em grade única: cards compactos e clicáveis por inteiro, ordenados
+   do operacional ao sistêmico; os cards de sistema aparecem conforme a
+   permissão de quem acessa. #}
+<div class="row g-3">
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_users') }}">
+            <span class="painel-card-icon"><i class="bi bi-people"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ users_count }}</span>
+                <span class="painel-card-label">Usuários</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_roles') }}">
+            <span class="painel-card-icon"><i class="bi bi-shield-lock"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Papéis</span>
+                <span class="painel-card-sub">Perfis e permissões</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_courses') }}">
+            <span class="painel-card-icon"><i class="bi bi-mortarboard"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ courses_count }}</span>
+                <span class="painel-card-label">Cursos</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_subjects') }}">
+            <span class="painel-card-icon"><i class="bi bi-journal-text"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ subjects_count }}</span>
+                <span class="painel-card-label">Disciplinas</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_rooms') }}">
+            <span class="painel-card-icon"><i class="bi bi-door-open"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ rooms_count }}</span>
+                <span class="painel-card-label">Salas</span>
+                <span class="painel-card-sub">{{ active_rooms }} ativas</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_categories') }}">
+            <span class="painel-card-icon"><i class="bi bi-tags"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Categorias</span>
+                <span class="painel-card-sub">Tipos de sala</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% if current_user.has_permission('course_type:read') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_course_types') }}">
+            <span class="painel-card-icon"><i class="bi bi-mortarboard-fill"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-value">{{ course_types_count }}</span>
+                <span class="painel-card-label">Tipos de Curso</span>
+                <span class="painel-card-sub">Hora Extra</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_holidays') }}">
+            <span class="painel-card-icon"><i class="bi bi-calendar-x"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Feriados</span>
+                <span class="painel-card-sub">Bloqueiam reservas</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% if current_user.has_permission('unity:read') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_unities') }}">
+            <span class="painel-card-icon"><i class="bi bi-buildings"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Unidades</span>
+                <span class="painel-card-sub">Campus e sedes</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
+    {% if current_user.has_permission('api:manage') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_api_tokens') }}">
+            <span class="painel-card-icon"><i class="bi bi-key"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Tokens da API</span>
+                <span class="painel-card-sub">Integrações externas</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
+    {% if current_user.has_permission('vt:empresas') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.list_vt_empresas') }}">
+            <span class="painel-card-icon"><i class="bi bi-bus-front"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Empresas de Ônibus</span>
+                <span class="painel-card-sub">Tarifas e trajetos</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
+    {% if current_user.has_permission('vt:config') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.vt_configuracao') }}">
+            <span class="painel-card-icon"><i class="bi bi-ui-checks"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Configurações do Pedido VT</span>
+                <span class="painel-card-sub">Formulário público</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
+    {% if current_user.has_permission('notification:manage') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.notificacoes_config') }}">
+            <span class="painel-card-icon"><i class="bi bi-bell"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Notificações</span>
+                <span class="painel-card-sub">Sobrecarga de professor</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
+    {% if current_user.has_permission('notification:groups') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.notificacoes_grupos') }}">
+            <span class="painel-card-icon"><i class="bi bi-collection"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Grupos de Notificação</span>
+                <span class="painel-card-sub">Destinatários por unidade</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    /* Card-atalho do hub: inteiro clicável, ícone em selo suave e seta que
+       desliza no hover. Herda o raio/sombra dos cards do sistema. */
+    .painel-card {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+        height: 100%;
+        padding: 1rem;
+        background: var(--topbar-bg);
+        border-radius: 12px;
+        box-shadow: var(--card-shadow);
+        color: var(--text-color);
+        text-decoration: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .painel-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0.75rem 1.25rem rgba(0, 0, 0, 0.12);
+    }
+
+    .painel-card:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+
+    .painel-card-icon {
+        flex-shrink: 0;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 1.35rem;
+        color: var(--primary-color);
+        background: rgba(var(--primary-color-rgb), 0.1);
+    }
+
+    .painel-card-body {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .painel-card-value {
+        font-size: 1.45rem;
+        font-weight: 700;
+        line-height: 1.15;
+    }
+
+    .painel-card-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        line-height: 1.25;
+    }
+
+    .painel-card-sub {
+        font-size: 0.74rem;
+        color: var(--text-muted);
+    }
+
+    .painel-card-arrow {
+        margin-left: auto;
+        color: #adb5bd;
+        transition: color 0.2s, transform 0.2s;
+    }
+
+    .painel-card:hover .painel-card-arrow {
+        color: var(--primary-color);
+        transform: translateX(2px);
+    }
+
+    /* Em celular o card ocupa metade da largura: encolhe o selo e a tipografia */
+    @media (max-width: 575.98px) {
+        .painel-card { gap: 0.6rem; padding: 0.7rem; }
+        .painel-card-icon { width: 38px; height: 38px; border-radius: 10px; font-size: 1.05rem; }
+        .painel-card-value { font-size: 1.2rem; }
+        .painel-card-label { font-size: 0.76rem; }
+        .painel-card-sub { font-size: 0.68rem; }
+    }
+</style>
+{% endblock %}

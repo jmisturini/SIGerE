@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}Cozinha — Compras{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h3 class="fw-bold mb-1"><i class="bi bi-cart-check text-primary me-2"></i>Compras</h3>
+    <p class="text-muted mb-0">Selecione as preparações e abra o <strong>Relatório de Ingredientes</strong>: os
+        ingredientes serão somados por similaridade, com quantidades convertidas para <strong>KG</strong>,
+        <strong>L</strong> e <strong>UN</strong>. A exportação da requisição de compra (.xlsx) fica na página do
+        relatório.</p>
+</div>
+
+{% if recipes %}
+<form method="POST" action="{{ url_for('kitchen.shopping_report') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card">
+        <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h6 class="fw-bold mb-0"><i class="bi bi-basket me-2"></i>Preparações ({{ recipes|length }})</h6>
+            <div class="form-check mb-0">
+                <input type="checkbox" class="form-check-input" id="select-all">
+                <label class="form-check-label small fw-semibold" for="select-all">Selecionar todas</label>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <tbody>
+                    {% for recipe in recipes %}
+                        <tr>
+                            <td class="ps-4" style="width: 40px;">
+                                <input type="checkbox" class="form-check-input recipe-check" name="recipe_ids"
+                                       value="{{ recipe.id }}" id="recipe-{{ recipe.id }}">
+                            </td>
+                            <td>
+                                <label class="form-check-label fw-semibold text-decoration-none w-100" for="recipe-{{ recipe.id }}">
+                                    {{ recipe.name }}
+                                    {% if recipe.scale_factor != 1.0 %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle ms-1"
+                                          title="Recálculo salvo na preparação: a requisição usa as quantidades para esta quantidade de porções">
+                                        <i class="bi bi-calculator me-1"></i>quantidades para {{ recipe.scaled_portions|qtyfmt }} porç{{ 'ões' if recipe.scaled_portions != 1 else 'ão' }}
+                                    </span>
+                                    {% endif %}
+                                    <div class="small text-muted fw-normal">
+                                        {{ recipe.preparations|length }} preparação(ões) ·
+                                        {{ recipe.ingredient_count }} ingrediente(s) ·
+                                        {{ recipe.yield_info or 'rendimento não informado' }}
+                                    </div>
+                                </label>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% if can_export %}
+    <button type="submit" id="report-btn" class="btn btn-primary mt-4" disabled
+            title="Selecione ao menos uma preparação para ver o relatório">
+        <i class="bi bi-file-earmark-text me-1"></i> Relatório de Ingredientes
+    </button>
+    {% else %}
+    <button type="submit" id="report-btn" class="btn btn-primary mt-4" disabled
+            title="Você não tem permissão para exportar a requisição de compra">
+        <i class="bi bi-lock me-1"></i> Relatório de Ingredientes
+    </button>
+    {% endif %}
+</form>
+{% else %}
+<div class="card">
+    <div class="card-body text-center text-muted p-5">
+        <i class="bi bi-basket fs-2 d-block mb-2"></i>
+        <h5 class="mb-1">Nenhuma preparação disponível</h5>
+        <p class="small mb-0">Salve fichas técnicas no menu <strong>Ficha Técnica</strong> para gerar preparações e
+            montar a requisição de compra.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const selectAll = document.getElementById('select-all');
+    const checks = document.querySelectorAll('.recipe-check');
+    const reportBtn = document.getElementById('report-btn');
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            checks.forEach(c => c.checked = selectAll.checked);
+        });
+        checks.forEach(c => c.addEventListener('change', () => {
+            selectAll.checked = [...checks].every(c => c.checked);
+        }));
+    }
+    // O relatório depende da seleção: só fica ativo com ao menos uma
+    // preparação marcada ("Selecionar todas" não dispara change nos checks).
+    if (reportBtn) {
+        const syncReportButton = () => {
+            const anySelected = [...checks].some(c => c.checked);
+            reportBtn.disabled = !anySelected;
+            reportBtn.title = anySelected
+                ? 'Mostra em tela os ingredientes que serão exportados e as preparações em que cada um é utilizado'
+                : 'Selecione ao menos uma preparação para ver o relatório';
+        };
+        syncReportButton();
+        checks.forEach(c => c.addEventListener('change', syncReportButton));
+        if (selectAll) selectAll.addEventListener('change', syncReportButton);
+    }
+</script>
+{% endblock %}

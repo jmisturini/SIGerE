@@ -1,0 +1,109 @@
+from flask import Blueprint, render_template, redirect, url_for, request, session, flash
+from flask_login import login_required
+from app.models import Reservation, Unity
+from app.extensions import db
+from app.unity_context import (current_unity_id, can_switch_unity,
+                               switchable_unities, reset_unity_cache)
+from datetime import datetime, date, time
+import re
+
+bp = Blueprint('main', __name__)
+
+
+def _sala_order_key(r):
+    # Ordem natural do código da sala ("LI9" antes de "LI10"): compara os
+    # trechos numéricos como inteiros e os textuais sem diferenciar maiúsculas.
+    code = r.classroom.code or ''
+    trechos = [(0, int(p)) if p.isdigit() else (1, p.lower())
+               for p in re.split(r'(\d+)', code)]
+    return (trechos, r.start_time, r.end_time)
+
+# Dashboard route: Shows today's schedule split by Auditoriums and Classrooms
+@bp.route('/dashboard')
+@login_required
+def index():
+    today = date.today()
+    now = datetime.now()
+
+    # Determine current period based on time of day (Portuguese labels)
+    if now.hour < 12:
+        period_start, period_end = time(0, 0), time(12, 0)
+        current_period = "Manhã"
+    elif now.hour < 18:
+        period_start, period_end = time(12, 0), time(18, 0)
+        current_period = "Tarde"
+    else:
+        period_start, period_end = time(18, 0), time(23, 59)
+        current_period = "Noite"
+
+    # Format today's date in Portuguese manually to avoid server locale issues
+    dias_semana = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
+    meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+
+    formatted_today = f"{dias_semana[today.weekday()]}, {today.day} de {meses[today.month - 1]}"
+
+    # Fetch approved reservations for the ACTIVE UNIT overlapping the current period
+    today_reservations = Reservation.query.filter(
+        Reservation.unity_id == current_unity_id(),
+        Reservation.date == today,
+        Reservation.status == 'approved',
+        Reservation.start_time < period_end,
+        Reservation.end_time > period_start
+    ).order_by(Reservation.start_time).all()
+
+    # Seções montadas a partir das categorias cadastradas (nome, ícone e cor
+    # vêm do banco) — nenhuma categoria é citada no código, então cadastrar
+    # uma nova (ex: Quadra de Esportes) já a exibe no painel.
+    sections_by_cat = {}
+    for r in today_reservations:
+        cat = r.classroom.category
+        if cat is None:  # defensivo: o schema exige category_id na sala
+            continue
+        sections_by_cat.setdefault(cat, []).append(r)
+
+    for res in sections_by_cat.values():
+        res.sort(key=_sala_order_key)
+
+    category_sections = [
+        {'category': cat, 'reservations': res}
+        for cat, res in sorted(sections_by_cat.items(), key=lambda kv: kv[0].name.lower())
+    ]
+
+    return render_template(
+        'index.html',
+        category_sections=category_sections,
+        current_period=current_period,
+        formatted_today=formatted_today # Pass the pre-formatted string
+    )
+
+# Tela de novidades: histórico de versões da aplicação (app/version.py).
+# Pública — o rodapé (com o link) aparece também para quem não está logado.
+@bp.route('/changelog')
+def changelog():
+    from app.version import APP_VERSION, RELEASES
+    return render_template('changelog.html',
+                           versao_atual=APP_VERSION, releases=RELEASES)
+
+# Multi-unidade: alterna a unidade ativa de operação (armazenada na sessão)
+@bp.route('/unity/switch', methods=['POST'])
+@login_required
+def switch_unity():
+    if not can_switch_unity():
+        flash('Você não tem permissão para alternar de unidade.', 'danger')
+        return redirect(url_for('main.index'))
+
+    unity_id = request.form.get('unity_id', type=int)
+    unity = db.session.get(Unity, unity_id) if unity_id else None
+    if not unity or not unity.is_active:
+        flash('Unidade inválida ou desativada.', 'danger')
+        return redirect(request.referrer or url_for('main.index'))
+    # O seletor só oferece unidades do escopo do usuário (próprias vínculos ou
+    # todas para o super-admin) — um POST forjado com unidade estranha é recusado.
+    if unity.id not in {u.id for u in switchable_unities()}:
+        flash('Você não tem acesso a essa unidade.', 'danger')
+        return redirect(request.referrer or url_for('main.index'))
+
+    session['unity_id'] = unity.id
+    reset_unity_cache()
+    flash(f'Unidade ativa alterada para "{unity.name}".', 'info')
+    return redirect(request.referrer or url_for('main.index'))

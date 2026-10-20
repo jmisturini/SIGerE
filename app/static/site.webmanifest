@@ -1,0 +1,24 @@
+{
+  "name": "SIGerE — Sistema Integrado de Gerenciamento Educacional",
+  "short_name": "SIGerE",
+  "description": "Reserva e gerenciamento de salas e espaços do campus.",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#004b8d",
+  "background_color": "#004b8d",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/"
+}
