@@ -601,9 +601,10 @@ BLOCOS = [
     ('h2', '6.4 Minhas Reservas'),
     ('p', 'Em <b>Reservas &gt; Minhas Reservas</b> ficam as reservas criadas por você, com abas '
           '<b>Todas</b>, <b>Aprovadas</b>, <b>Pendentes</b> e <b>Canceladas</b> (25 registros '
-          'por página). A listagem é dividida em <b>Reservas Atuais e Futuras</b> e <b>Reservas '
-          'Passadas</b> (exibidas em cinza, como histórico). Cada linha mostra data, horário, '
-          'sala, título, professor, situação e o botão de detalhes.'),
+          'por página). As abas <b>Atuais e Futuras</b> e <b>Passadas</b> separam a listagem '
+          'por período — a segunda exibe as reservas em cinza, como histórico — e cada uma tem '
+          'paginação própria. Cada linha mostra data, horário, sala, título, professor, '
+          'situação e o botão de detalhes.'),
     ('h2', '6.5 Todas as Reservas'),
     ('p', 'Quem tem permissão global de leitura acessa <b>Reservas &gt; Todas as Reservas</b>, '
           'com as abas <b>Atuais e Futuras</b> e <b>Passadas</b> (esta última somente leitura). '
