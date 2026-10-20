@@ -323,6 +323,13 @@ def create():
 @login_required
 @require_permission('reservation:read_own')
 def my_reservations():
+    """Reservas do usuário em duas abas — Atuais/Futuras (hoje em diante) e
+    Passadas — cada uma com paginação própria: o período entra no filtro
+    antes do paginate."""
+    # Aba de período (padrão: atuais e futuras)
+    periodo = request.args.get('periodo', 'atuais')
+    if periodo not in ('atuais', 'passadas'):
+        periodo = 'atuais'
     status = request.args.get('status', 'all')
     # Ordenação escolhida na página (padrão: mais recentes primeiro)
     ordem = request.args.get('ordem', 'data_desc')
@@ -336,6 +343,10 @@ def my_reservations():
                Reservation.teacher_id == current_user.id))
     if status != 'all':
         query = query.filter_by(status=status)
+    if periodo == 'passadas':
+        query = query.filter(Reservation.date < date.today())
+    else:
+        query = query.filter(Reservation.date >= date.today())
     query = query.join(Classroom, Reservation.classroom_id == Classroom.id)
     if ordem == 'data_asc':
         query = query.order_by(Reservation.date, Reservation.start_time)
@@ -352,13 +363,9 @@ def my_reservations():
         .paginate(page=request.args.get('page', 1, type=int),
                   per_page=RESERVATIONS_PER_PAGE, error_out=False)
 
-    today = date.today()
-    upcoming_reservations = [r for r in pagination.items if r.date >= today]
-    past_reservations = [r for r in pagination.items if r.date < today]
-
     return render_template('reservations/my_reservations.html', pagination=pagination,
-                           upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status,
-                           ordem=ordem)
+                           reservas=pagination.items, periodo=periodo,
+                           current_status=status, ordem=ordem)
 
 # Admin route to view all reservations
 # Períodos do dia com os mesmos limites do filtro do calendário (schedule.events)
