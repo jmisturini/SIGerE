@@ -202,6 +202,9 @@ def configurar_env():
             return ler_env(ARQUIVO_ENV)
         backup = RAIZ / '.env.bak'
         backup.write_text(ARQUIVO_ENV.read_text(encoding='utf-8'), encoding='utf-8')
+        if os.name != 'nt':
+            # Segredos no backup: leitura apenas do dono.
+            os.chmod(backup, 0o600)
         print(f"   Cópia de segurança salva em {backup.name}.")
 
     ambiente = escolher(
@@ -277,6 +280,9 @@ def configurar_env():
     linhas.append(f'TOTEM_LONGITUDE="{lon}"')
 
     ARQUIVO_ENV.write_text('\n'.join(linhas) + '\n', encoding='utf-8')
+    if os.name != 'nt':
+        # O .env carrega a SECRET_KEY: leitura apenas do dono.
+        os.chmod(ARQUIVO_ENV, 0o600)
     ok(f".env criado (perfil {'desenvolvimento' if desenvolvimento else 'produção'}).")
     if not desenvolvimento:
         aviso('Proteja o arquivo .env — contém a SECRET_KEY e nunca deve ser versionado.')

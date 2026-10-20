@@ -136,7 +136,10 @@ def _scoped_unity_id():
             abort(404, description=f'Unidade {param} fora do escopo do token '
                                    f'ou inexistente/inativa.')
         return param
-    if len(allowed) == 1:
+    # Sem unity_id explícito: usa a primeira unidade do PRÓPRIO escopo do
+    # token — nunca uma unidade qualquer do sistema, que ficaria fora do
+    # escopo concedido (IDOR).
+    if allowed:
         return allowed[0]
     unity = _first_active_unity()
     if unity is None:

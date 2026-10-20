@@ -6,11 +6,20 @@ on:
   push:
     branches: [main, dev]
 
+# O job só precisa ler o repositório — sem isso, o GITHUB_TOKEN recebe as
+# permissões padrão do repo.
+permissions:
+  contents: read
+
 jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Não deixa o token do checkout gravado em .git/config enquanto
+          # pip/pytest executam código de terceiros.
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:

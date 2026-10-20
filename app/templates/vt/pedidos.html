@@ -168,7 +168,9 @@
                             </a>
                             {% endif %}
                             {% if can_delete %}
-                            <form method="POST" action="{{ url_for('vt.delete_request', request_id=p.id) }}" class="d-inline" onsubmit="return confirm('Excluir o pedido de {{ p.full_name }}?');">
+                            <form method="POST" action="{{ url_for('vt.delete_request', request_id=p.id) }}" class="d-inline"
+                                  data-nome="{{ p.full_name }}"
+                                  onsubmit="return confirm('Excluir o pedido de ' + this.dataset.nome + '?');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button class="btn btn-sm btn-outline-danger" title="Excluir">
                                     <i class="bi bi-trash"></i>

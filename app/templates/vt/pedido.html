@@ -57,7 +57,7 @@
                             {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
                             <div class="form-text text-success" id="cadastro-aviso" hidden>
                                 <i class="bi bi-check-circle-fill me-1"></i> Identificado pelo cadastro —
-                                nome, matrícula e vínculo ficam travados.
+                                vínculo travado; nome e matrícula serão confirmados pelo cadastro no envio.
                             </div>
                             {{ erro(form.email) }}
                         </div>
@@ -263,8 +263,14 @@
         function preencherValores(empresaSelect, valorSelect) {
             const linhas = EMPRESAS_VALORES[empresaSelect.value] || [];
             const anterior = valorSelect.value;
-            valorSelect.innerHTML = '<option value="">Selecione…</option>' + linhas.map(l =>
-                `<option value="${l.id}" ${String(l.id) === anterior ? 'selected' : ''}>${l.rotulo}</option>`).join('');
+            // new Option em vez de innerHTML: o rótulo vem do cadastro e não
+            // pode ser interpretado como HTML (XSS armazenado no formulário
+            // público, que consome esses dados anonimamente).
+            const manterAnterior = linhas.some(l => String(l.id) === anterior);
+            valorSelect.replaceChildren(
+                new Option('Selecione…', '', true, !manterAnterior),
+                ...linhas.map(l => new Option(l.rotulo, l.id, false, String(l.id) === anterior))
+            );
             valorSelect.disabled = linhas.length === 0;
         }
 
@@ -335,17 +341,12 @@
 
         // ── Auto-preenchimento pelo e-mail (conta ativa) ──
         let timer = null;
-        // Identificação pelo cadastro: nome, matrícula e vínculo vêm do
-        // sistema e ficam travados (readonly/disabled). E-mail sem cadastro
-        // devolve os campos para a digitação manual.
+        // O endpoint devolve apenas found/vínculo (nome e matrícula ficam de
+        // fora para não expor o cadastro a visitantes anônimos): identificado
+        // trava o vínculo e avisa — nome e matrícula o servidor preenche pelo
+        // cadastro no envio. E-mail sem cadastro libera a digitação manual.
         let identificado = false;
         function identificar(dados) {
-            const nome = document.getElementById('full_name');
-            const matricula = document.getElementById('registration');
-            if (dados.full_name) nome.value = dados.full_name;
-            if (dados.registration) matricula.value = dados.registration;
-            nome.readOnly = true;
-            matricula.readOnly = true;
             document.querySelectorAll('input[name="link"]').forEach(radio => {
                 radio.checked = radio.value === dados.vinculo;
                 radio.disabled = true;
@@ -356,9 +357,6 @@
 
         function liberarCampos() {
             if (!identificado) return;
-            ['full_name', 'registration'].forEach(id => {
-                document.getElementById(id).readOnly = false;
-            });
             document.querySelectorAll('input[name="link"]').forEach(radio => {
                 radio.disabled = false;
             });

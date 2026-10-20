@@ -192,25 +192,25 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertIn('<nav class="sidebar">', page)
 
     def test_busca_colaborador_por_email(self):
-        """Auto-preenchimento: e-mail de conta ativa devolve nome e
-        matrícula (busca sem diferenciar maiúsculas); e-mail desconhecido
+        """Auto-preenchimento: e-mail de conta ativa devolve apenas found e
+        vínculo (nome e matrícula não são expostos a visitantes anônimos —
+        no POST o servidor preenche pelo cadastro); e-mail desconhecido
         devolve found=false."""
         response = self.client.get(
             '/vt/pedido/colaborador?email=GESTOR-VT@escola.edu')
         self.assertEqual(response.status_code, 200)
         dados = response.get_json()
         self.assertTrue(dados['found'])
-        self.assertEqual(dados['full_name'], 'Gestor VT')
-        self.assertEqual(dados['vinculo'], 'Técnico - Administrativo')
+        self.assertEqual(dados, {'found': True,
+                                 'vinculo': 'Técnico - Administrativo'})
 
         response = self.client.get('/vt/pedido/colaborador?email=prof@escola.edu')
-        self.assertEqual(response.get_json()['vinculo'], 'Professor(a)')
+        self.assertEqual(response.get_json(), {'found': True,
+                                               'vinculo': 'Professor(a)'})
 
         response = self.client.get(
             '/vt/pedido/colaborador?email=desconhecido@senac.sc.br')
         self.assertEqual(response.get_json(), {'found': False,
-                                               'full_name': None,
-                                               'registration': None,
                                                'vinculo': None})
 
     # ---------- POST público ----------

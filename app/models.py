@@ -86,6 +86,12 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_active_user = db.Column(db.Boolean, default=True)
 
+    @property
+    def is_active(self):
+        # Sobrescreve o UserMixin (sempre True): para o Flask-Login, conta
+        # desativada é inativa em toda a sessão, não apenas no POST do login.
+        return bool(self.is_active_user)
+
     # Unidades às quais o usuário está vinculado — professor ou funcionário
     # pode atuar em mais de uma. Sem vínculos = conta global (ex: super admin,
     # que pode operar em qualquer unidade via seletor). A unidade ativa de
@@ -175,7 +181,12 @@ class User(UserMixin, db.Model):
 def load_user(user_id):
     # CORREÇÃO: User.query.get() é API legada removida no SQLAlchemy 2.x.
     # db.session.get() é a forma correta desde SQLAlchemy 1.4+.
-    return db.session.get(User, int(user_id))
+    user = db.session.get(User, int(user_id))
+    # Conta desativada perde a sessão imediatamente: sem isso, o bloqueio do
+    # login não derruba sessões já abertas (alinhado ao _token_by_value da API).
+    if user is None or not user.is_active_user:
+        return None
+    return user
 
 # Model representing the physical rooms (Classrooms, Auditoriums, Labs)
 class Classroom(db.Model):
