@@ -265,17 +265,20 @@ def notificar_sobrecarga_professor(reservation):
     return criadas
 
 
-def notificar_mudanca_status(reservation, status_anterior, ator_id=None):
+def notificar_mudanca_status(reservation, status_anterior, ator_id=None,
+                             motivo=None):
     """Aviso ao criador quando a reserva dele é aprovada ou cancelada por
     outra pessoa (rotas approve/cancel e cancelamento de série). Criado no
     momento da ação, dentro da transação da rota — não passa pela varredura
     notify-scan nem pelos silenciamentos do perfil: é sobre a própria reserva
-    de quem a criou.
+    de quem a criou. Também serve ao cancelamento automático de pendências
+    (autocancelar_pendentes), que não tem ator — o criador sempre recebe —
+    e usa motivo para explicar a regra no corpo do aviso.
 
     A ação do próprio criador não gera aviso (ator_id == criador — cobre
     também a exclusão de série feita por quem a criou). Sem criador ativo,
     ninguém recebe. Idempotente pela unicidade de (destinatário, evento,
-    reserva, marco): reaprovar a reserva não duplica o aviso de aprovação.
+    reserva, marco): reaprovar a reserva não duplica o aviso.
     Retorna quantos avisos criou. Chamar após a mudança de status, com a
     reserva em flush (id preenchido).
     """
@@ -302,6 +305,8 @@ def notificar_mudanca_status(reservation, status_anterior, ator_id=None):
              f'{reservation.start_time.strftime("%H:%M")}–'
              f'{reservation.end_time.strftime("%H:%M")}. '
              f'A reserva "{reservation.title}" foi {situacao}.')
+    if motivo:
+        corpo += f' {motivo}'
 
     if Notification.query.filter_by(
             user_id=criador.id, event_type=evento,

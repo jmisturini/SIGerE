@@ -15,7 +15,7 @@ Mecanismos de proteção por ambiente:
 """
 import threading
 from contextlib import contextmanager
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from sqlalchemy import text
 
@@ -163,3 +163,57 @@ def check_schedule_restrictions(res_date, start_time, end_time=None):
             return False, "Aos sábados, as reservas são permitidas apenas pela manhã e tarde (até 18:00)."
 
     return True, ""
+
+
+# ── Cancelamento automático de pendências ────────────────────────────────────
+# Pendência sem aprovação até 1 hora antes do início vira cancelada: a esta
+# altura uma aprovação tardia não tem mais função prática (avisos de 1h já
+# teriam saído para os participantes de uma reserva que ninguém confirmou).
+ANTECEDENCIA_AUTOCANCEL = timedelta(hours=1)
+
+
+def autocancelar_pendentes(agora=None, dry_run=False):
+    """Cancela as reservas pending não aprovadas até ANTECEDENCIA_AUTOCANCEL
+    (1h) antes do início — inclui as cujo início já passou (timer parado ou
+    fim de semana: pendência vencida nunca mais será aprovada).
+
+    Cada cancelamento avisa o criador pelo mesmo aviso de mudança de status
+    dos cancelamentos manuais (notificar_mudanca_status), com o motivo do
+    cancelamento automático no corpo — é uma ação do sistema, então o criador
+    sempre recebe (não há ator). Com dry_run=True nada é gravado. Retorna
+    estatísticas para o log do comando; idempotente (rodar de novo não faz
+    nada — as pendências vencidas já saíram da fila).
+    """
+    # Import local: notifications importa este módulo (count_teacher_reservations).
+    from app.services.notifications import notificar_mudanca_status
+
+    agora = agora or datetime.now()
+    limite = agora + ANTECEDENCIA_AUTOCANCEL
+    stats = {'avaliadas': 0, 'canceladas': 0, 'avisos': 0}
+
+    # Candidatos pré-filtrados por data (portátil SQLite/PostgreSQL); o corte
+    # fino por (data, hora de início) é feito em Python no combine.
+    candidatos = Reservation.query.filter(
+        Reservation.status == 'pending',
+        Reservation.date <= limite.date(),
+    ).all()
+
+    for reservation in candidatos:
+        inicio = datetime.combine(reservation.date, reservation.start_time)
+        if inicio > limite:
+            continue
+        stats['avaliadas'] += 1
+        if dry_run:
+            stats['canceladas'] += 1
+            continue
+        reservation.status = 'cancelled'
+        db.session.flush()  # id da reserva para o aviso
+        stats['avisos'] += notificar_mudanca_status(
+            reservation, 'pending',
+            motivo='Cancelada automaticamente por não ter sido aprovada até '
+                   '1 hora antes do horário agendado.')
+        stats['canceladas'] += 1
+
+    if not dry_run:
+        db.session.commit()
+    return stats

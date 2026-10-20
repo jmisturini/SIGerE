@@ -173,6 +173,7 @@ Menu próprio na barra lateral, logo depois da Agenda, com as duas visões (aces
 - **Opt-in por reserva:** seção **"Notificações"** nos formulários de criar/editar reserva ativa os marcos e define os destinatários — usuários individuais e **Grupos de Notificação** cadastrados no painel
 - **Configuração por unidade** (Painel Admin): interruptor geral, antecedências em dias e destinatários fixos
 - **Varredura agendada:** comando idempotente `flask --app run notify-scan` (systemd timer a cada 15 minutos em produção; `--dry-run` para prévia)
+- **Cancelamento automático de pendências:** comando idempotente `flask --app run autocancel-pendentes` (mesmo timer do `notify-scan`; `--dry-run` para prévia) cancela a reserva pendente que não foi aprovada até 1 hora antes do horário agendado — inclui pendências cujo início já passou — e avisa o criador com o motivo
 
 ### 💰 Financeiro
 - **Horas Extras:** com nível de ensino, valor hora, turno e dias selecionados no calendário (gravados apenas como dia, separados por vírgula — o mês/ano vêm do Mês Base)
