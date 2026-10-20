@@ -15,12 +15,12 @@ Mecanismos de proteção por ambiente:
 """
 import threading
 from contextlib import contextmanager
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from sqlalchemy import text
 
 from app.extensions import db
-from app.models import Reservation, Holiday
+from app.models import Reservation, Holiday, EVENT_RESERVATION_CANCELLED
 from app.unity_context import current_unity_id
 
 # ── Locks por (sala, data) ───────────────────────────────────────────────────
@@ -163,3 +163,82 @@ def check_schedule_restrictions(res_date, start_time, end_time=None):
             return False, "Aos sábados, as reservas são permitidas apenas pela manhã e tarde (até 18:00)."
 
     return True, ""
+
+
+# ── Cancelamento automático de pendências ────────────────────────────────────
+# Pendência sem aprovação até 1 hora antes do início vira cancelada: a esta
+# altura uma aprovação tardia não tem mais função prática (avisos de 1h já
+# teriam saído para os participantes de uma reserva que ninguém confirmou).
+ANTECEDENCIA_AUTOCANCEL = timedelta(hours=1)
+
+
+def autocancelar_pendentes(agora=None, dry_run=False):
+    """Cancela as reservas pending não aprovadas até ANTECEDENCIA_AUTOCANCEL
+    (1h) antes do início — inclui as cujo início já passou (timer parado ou
+    fim de semana: pendência vencida nunca mais será aprovada).
+
+    Cada cancelamento avisa o criador pelo mesmo aviso de mudança de status
+    dos cancelamentos manuais (notificar_mudanca_status), com o motivo do
+    cancelamento automático no corpo — é uma ação do sistema, então o criador
+    sempre recebe (não há ator). Com dry_run=True nada é gravado, mas a
+    prévia conta os avisos exatamente como a execução real os criaria.
+    A gravação revalida o status no próprio UPDATE (só pendência vira
+    cancelada), então uma reserva aprovada por outra sessão durante a
+    varredura não é sobrescrita. Retorna estatísticas para o log do comando;
+    idempotente (rodar de novo não faz nada — as pendências vencidas já
+    saíram da fila).
+    """
+    # Import local: notifications importa este módulo (count_teacher_reservations).
+    from app.services.notifications import (_MILESTONE_STATUS,
+                                            _notificacao_existente,
+                                            notificar_mudanca_status)
+
+    agora = agora or datetime.now()
+    limite = agora + ANTECEDENCIA_AUTOCANCEL
+    stats = {'avaliadas': 0, 'canceladas': 0, 'avisos': 0}
+
+    # Candidatos pré-filtrados por data (portátil SQLite/PostgreSQL); o corte
+    # fino por (data, hora de início) é feito em Python no combine.
+    candidatos = Reservation.query.filter(
+        Reservation.status == 'pending',
+        Reservation.date <= limite.date(),
+    ).all()
+
+    for reservation in candidatos:
+        inicio = datetime.combine(reservation.date, reservation.start_time)
+        if inicio > limite:
+            continue
+        stats['avaliadas'] += 1
+        if dry_run:
+            stats['canceladas'] += 1
+            # Elegibilidade do aviso, sem gravar: mesmo critério da função
+            # de notificação (criador ativo e sem aviso de cancelamento).
+            criador = reservation.user
+            if (criador is not None and criador.is_active_user
+                    and not _notificacao_existente(
+                        criador.id, reservation.id, _MILESTONE_STATUS,
+                        EVENT_RESERVATION_CANCELLED)):
+                stats['avisos'] += 1
+            continue
+        # Revalidação atômica na gravação: entre a consulta dos candidatos e
+        # aqui a reserva pode ter sido aprovada em outra sessão — ou remarcada
+        # (editar muda date/start_time mantendo pending). O filtro repete id,
+        # status E o horário avaliado: só cancela quem continua sendo a
+        # pendência vencida, e o rowcount diz se a linha mudou ('fetch'
+        # espelha o novo status na instância da sessão para o aviso).
+        afetadas = Reservation.query.filter(
+            Reservation.id == reservation.id,
+            Reservation.status == 'pending',
+            Reservation.date == reservation.date,
+            Reservation.start_time == reservation.start_time,
+        ).update({'status': 'cancelled'}, synchronize_session='fetch')
+        if not afetadas:
+            continue
+        stats['canceladas'] += 1
+        stats['avisos'] += notificar_mudanca_status(
+            reservation, 'pending',
+            motivo='Não houve aprovação até 1 hora antes do horário agendado.')
+
+    if not dry_run:
+        db.session.commit()
+    return stats
