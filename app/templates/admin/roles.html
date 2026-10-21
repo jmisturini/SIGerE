@@ -15,7 +15,7 @@
 </div>
 
 <form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <label class="form-label small fw-bold text-muted mb-0" for="ordem-papel">Ordenar por</label>
+    <label class="form-label small mb-0" for="ordem-papel">Ordenar por</label>
     <select name="ordem" id="ordem-papel" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
         <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
         <option value="nome_desc" {{ 'selected' if ordem == 'nome_desc' }}>Nome (Z–A)</option>
@@ -79,8 +79,8 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted p-5">
-                            <i class="bi bi-shield-lock fs-2 d-block mb-2"></i>
+                        <td colspan="5" class="empty-cell">
+                            <i class="bi bi-shield-lock"></i>
                             <h5 class="mb-1">Nenhum papel encontrado</h5>
                             <p class="small mb-0">Crie um novo papel para começar a gerenciar permissões.</p>
                         </td>

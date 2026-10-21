@@ -53,21 +53,21 @@
                     {# ── Identificação (sempre visível) ── #}
                     <div class="row g-3">
                         <div class="col-md-6">
-                            {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.email.label(class="form-label small mb-1") }}
                             {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
                             <div class="form-text text-success" id="cadastro-aviso" hidden>
                                 <i class="bi bi-check-circle-fill me-1"></i> Identificado pelo cadastro —
-                                nome, matrícula e vínculo ficam travados.
+                                vínculo travado; nome e matrícula serão confirmados pelo cadastro no envio.
                             </div>
                             {{ erro(form.email) }}
                         </div>
                         <div class="col-md-6">
-                            {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.full_name.label(class="form-label small mb-1") }}
                             {{ form.full_name(class="form-control") }}
                             {{ erro(form.full_name) }}
                         </div>
                         <div class="col-md-6">
-                            {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.registration.label(class="form-label small mb-1") }}
                             {{ form.registration(class="form-control", inputmode="numeric") }}
                             <div class="form-text small">
                                 Para verificar sua matrícula, acesse o MyPlace —
@@ -113,12 +113,12 @@
                                 <div class="card-body">
                                     <h6 class="fw-bold mb-3"><i class="bi bi-1-circle me-1"></i> Primeira empresa de ônibus</h6>
                                     <div class="mb-3">
-                                        {{ form.company_a_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_name.label(class="form-label small mb-1") }}
                                         {{ form.company_a_name(class="form-select") }}
                                         {{ erro(form.company_a_name) }}
                                     </div>
                                     <div class="mb-3">
-                                        {{ form.company_a_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_value.label(class="form-label small mb-1") }}
                                         {{ form.company_a_value(class="form-select", **{"data-nativo": "true"}) }}
                                         <div class="form-text small">Cada opção identifica a tarifa aplicada com o valor vigente.</div>
                                         {{ erro(form.company_a_value) }}
@@ -128,7 +128,7 @@
                                         {{ radios_lista(form.company_a_route, 'company_a_route') }}
                                     </div>
                                     <div class="mb-3">
-                                        {{ form.company_a_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_passes.label(class="form-label small mb-1") }}
                                         <div class="input-group input-group-sm" style="max-width: 15rem">
                                             {{ form.company_a_passes(class="form-control", min=1, max=49) }}
                                             {% if vales_base %}
@@ -149,12 +149,12 @@
                                 <div class="card-body">
                                     <h6 class="fw-bold mb-3"><i class="bi bi-2-circle me-1"></i> Segunda empresa de ônibus</h6>
                                     <div class="mb-3">
-                                        {{ form.company_b_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_name.label(class="form-label small mb-1") }}
                                         {{ form.company_b_name(class="form-select") }}
                                         {{ erro(form.company_b_name) }}
                                     </div>
                                     <div class="mb-3">
-                                        {{ form.company_b_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_value.label(class="form-label small mb-1") }}
                                         {{ form.company_b_value(class="form-select", **{"data-nativo": "true"}) }}
                                         {{ erro(form.company_b_value) }}
                                     </div>
@@ -163,7 +163,7 @@
                                         {{ radios_lista(form.company_b_route, 'company_b_route') }}
                                     </div>
                                     <div class="mb-3">
-                                        {{ form.company_b_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_passes.label(class="form-label small mb-1") }}
                                         <div class="input-group input-group-sm" style="max-width: 15rem">
                                             {{ form.company_b_passes(class="form-control", min=1, max=49) }}
                                             {% if vales_base %}
@@ -263,8 +263,14 @@
         function preencherValores(empresaSelect, valorSelect) {
             const linhas = EMPRESAS_VALORES[empresaSelect.value] || [];
             const anterior = valorSelect.value;
-            valorSelect.innerHTML = '<option value="">Selecione…</option>' + linhas.map(l =>
-                `<option value="${l.id}" ${String(l.id) === anterior ? 'selected' : ''}>${l.rotulo}</option>`).join('');
+            // new Option em vez de innerHTML: o rótulo vem do cadastro e não
+            // pode ser interpretado como HTML (XSS armazenado no formulário
+            // público, que consome esses dados anonimamente).
+            const manterAnterior = linhas.some(l => String(l.id) === anterior);
+            valorSelect.replaceChildren(
+                new Option('Selecione…', '', true, !manterAnterior),
+                ...linhas.map(l => new Option(l.rotulo, l.id, false, String(l.id) === anterior))
+            );
             valorSelect.disabled = linhas.length === 0;
         }
 
@@ -335,17 +341,12 @@
 
         // ── Auto-preenchimento pelo e-mail (conta ativa) ──
         let timer = null;
-        // Identificação pelo cadastro: nome, matrícula e vínculo vêm do
-        // sistema e ficam travados (readonly/disabled). E-mail sem cadastro
-        // devolve os campos para a digitação manual.
+        // O endpoint devolve apenas found/vínculo (nome e matrícula ficam de
+        // fora para não expor o cadastro a visitantes anônimos): identificado
+        // trava o vínculo e avisa — nome e matrícula o servidor preenche pelo
+        // cadastro no envio. E-mail sem cadastro libera a digitação manual.
         let identificado = false;
         function identificar(dados) {
-            const nome = document.getElementById('full_name');
-            const matricula = document.getElementById('registration');
-            if (dados.full_name) nome.value = dados.full_name;
-            if (dados.registration) matricula.value = dados.registration;
-            nome.readOnly = true;
-            matricula.readOnly = true;
             document.querySelectorAll('input[name="link"]').forEach(radio => {
                 radio.checked = radio.value === dados.vinculo;
                 radio.disabled = true;
@@ -356,9 +357,6 @@
 
         function liberarCampos() {
             if (!identificado) return;
-            ['full_name', 'registration'].forEach(id => {
-                document.getElementById(id).readOnly = false;
-            });
             document.querySelectorAll('input[name="link"]').forEach(radio => {
                 radio.disabled = false;
             });

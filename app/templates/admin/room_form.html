@@ -6,7 +6,7 @@
     <div class="col-lg-8 col-md-10">
         <div class="card">
             <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="mb-0"><i class="bi bi-door-closed text-primary me-2"></i> {{ title }}</h5>
+                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-door-closed"></i></span> {{ title }}</h5>
                 <a href="{{ url_for('admin.list_rooms') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
@@ -17,51 +17,51 @@
                     
                     <div class="row g-3">
                         <div class="col-md-6">
-                            {{ form.room_number.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.room_number.label(class="form-label small mb-1") }}
                             {{ form.room_number(class="form-control") }}
                             {% for err in form.room_number.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                             <div class="form-text small">O código será gerado automaticamente (ex: CR101).</div>
                         </div>
 
                         <div class="col-md-6">
-                            {{ form.category_id.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.category_id.label(class="form-label small mb-1") }}
                             {{ form.category_id(class="form-select") }}
                             {% for err in form.category_id.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
                         <div class="col-12">
-                            {{ form.name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.name.label(class="form-label small mb-1") }}
                             {{ form.name(class="form-control") }}
                             <div class="form-text small">Sem nome, a sala será identificada pelo código gerado.</div>
                             {% for err in form.name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-4">
-                            {{ form.building.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.building.label(class="form-label small mb-1") }}
                             {{ form.building(class="form-control") }}
                             {% for err in form.building.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-4">
-                            {{ form.floor.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.floor.label(class="form-label small mb-1") }}
                             {{ form.floor(class="form-control") }}
                             {% for err in form.floor.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-4">
-                            {{ form.capacity.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.capacity.label(class="form-label small mb-1") }}
                             {{ form.capacity(class="form-control", min="0") }}
                             {% for err in form.capacity.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-12 d-none" id="compCountDiv">
-                            {{ form.computer_count.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.computer_count.label(class="form-label small mb-1") }}
                             {{ form.computer_count(class="form-control", min="0") }}
                             {% for err in form.computer_count.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-12">
-                            {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.description.label(class="form-label small mb-1") }}
                             {{ form.description(class="form-control", rows="3") }}
                             {% for err in form.description.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>

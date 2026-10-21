@@ -6,7 +6,7 @@
     <div class="col-lg-8 col-md-10">
         <div class="card">
             <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="mb-0"><i class="bi bi-pencil text-primary me-2"></i> Editar Lançamento</h5>
+                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-pencil"></i></span> Editar Lançamento</h5>
                 <a href="{{ url_for('an.registros') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
@@ -20,42 +20,42 @@
                     {{ form.hidden_tag() }}
                     <div class="row g-3">
                         <div class="col-md-6">
-                            {{ form.month_base.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.month_base.label(class="form-label small mb-1") }}
                             {{ form.month_base(class="form-select") }}
                             {% for err in form.month_base.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.teacher.label(class="form-label small mb-1") }}
                             {{ form.teacher(class="form-select") }}
                             {% for err in form.teacher.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6 d-none" id="bloco-nome-manual">
-                            {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.full_name.label(class="form-label small mb-1") }}
                             {{ form.full_name(class="form-control") }}
                             {% for err in form.full_name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.registration.label(class="form-label small mb-1") }}
                             {{ form.registration(class="form-control") }}
                             {% for err in form.registration.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.entitled.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.entitled.label(class="form-label small mb-1") }}
                             {{ form.entitled(class="form-select") }}
                             {% for err in form.entitled.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.class_hours.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.class_hours.label(class="form-label small mb-1") }}
                             {{ form.class_hours(class="form-control", placeholder="Ex.: 58,91") }}
                             {% for err in form.class_hours.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.night_minutes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.night_minutes.label(class="form-label small mb-1") }}
                             {{ form.night_minutes(class="form-control", min=0) }}
                             {% for err in form.night_minutes.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.uo_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.uo_code.label(class="form-label small mb-1") }}
                             {{ form.uo_code(class="form-control", min=1) }}
                             {% for err in form.uo_code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>

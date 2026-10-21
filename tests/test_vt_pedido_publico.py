@@ -186,31 +186,36 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertIn('name="link"', page)
 
     def test_outras_paginas_mantem_sidebar(self):
-        """O esconderijo da sidebar vale só para a página do pedido."""
-        response = self.client.get('/login')
+        """O esconderijo da sidebar vale só para a página do pedido e para o
+        login (tela de foco total desde o redesenho visual) — as demais
+        páginas públicas seguem com a navegação lateral."""
+        response = self.client.get('/')
         page = response.get_data(as_text=True)
         self.assertIn('<nav class="sidebar">', page)
+        response = self.client.get('/login')
+        page = response.get_data(as_text=True)
+        self.assertNotIn('<nav class="sidebar">', page)
 
     def test_busca_colaborador_por_email(self):
-        """Auto-preenchimento: e-mail de conta ativa devolve nome e
-        matrícula (busca sem diferenciar maiúsculas); e-mail desconhecido
+        """Auto-preenchimento: e-mail de conta ativa devolve apenas found e
+        vínculo (nome e matrícula não são expostos a visitantes anônimos —
+        no POST o servidor preenche pelo cadastro); e-mail desconhecido
         devolve found=false."""
         response = self.client.get(
             '/vt/pedido/colaborador?email=GESTOR-VT@escola.edu')
         self.assertEqual(response.status_code, 200)
         dados = response.get_json()
         self.assertTrue(dados['found'])
-        self.assertEqual(dados['full_name'], 'Gestor VT')
-        self.assertEqual(dados['vinculo'], 'Técnico - Administrativo')
+        self.assertEqual(dados, {'found': True,
+                                 'vinculo': 'Técnico - Administrativo'})
 
         response = self.client.get('/vt/pedido/colaborador?email=prof@escola.edu')
-        self.assertEqual(response.get_json()['vinculo'], 'Professor(a)')
+        self.assertEqual(response.get_json(), {'found': True,
+                                               'vinculo': 'Professor(a)'})
 
         response = self.client.get(
             '/vt/pedido/colaborador?email=desconhecido@senac.sc.br')
         self.assertEqual(response.get_json(), {'found': False,
-                                               'full_name': None,
-                                               'registration': None,
                                                'vinculo': None})
 
     # ---------- POST público ----------
@@ -384,6 +389,38 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             pedido_bd = VtRequest.query.first()
             self.assertEqual(pedido_bd.full_name, 'Prof Identificado')
             self.assertEqual(pedido_bd.link, 'Professor(a)')
+
+    def test_post_conta_ativa_sem_nome_matricula_e_vinculo(self):
+        """O auto-preenchimento não devolve nome/matrícula (só found/vínculo):
+        com conta ativa o POST chega sem esses campos e a identificação ocorre
+        ANTES dos validadores DataRequired — o pedido entra com os dados do
+        cadastro em vez de ser rejeitado."""
+        payload = self._payload_sim_uma_empresa(email='maria@escola.edu')
+        for campo in ('full_name', 'registration', 'link'):
+            payload.pop(campo)
+        response = self.client.post('/vt/pedido', data=payload,
+                                    follow_redirects=True)
+        self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
+
+        with self.app.app_context():
+            pedido_bd = VtRequest.query.first()
+            self.assertEqual(pedido_bd.full_name, 'Maria Identificada')
+            self.assertEqual(pedido_bd.registration, '555777')
+            self.assertEqual(pedido_bd.link, 'Técnico - Administrativo')
+
+    def test_erro_no_post_nao_exibe_dados_do_cadastro(self):
+        """POST com e-mail de conta ativa e campo inválido: a página de erro
+        re-renderiza com o que o visitante digitou, nunca com nome/matrícula
+        lidos do cadastro (enumeração por e-mail conhecido)."""
+        payload = self._payload_sim_uma_empresa(email='maria@escola.edu',
+                                                full_name='', registration='')
+        payload.pop('company_a_value')  # provoca o erro de validação
+        response = self.client.post('/vt/pedido', data=payload)
+        page = response.get_data(as_text=True)
+        self.assertIn('Selecione o valor do vale.', page)
+        self.assertNotIn('Maria Identificada', page)
+        self.assertNotIn('555777', page)
+        self.assertEqual(self._pedidos(), [])
 
     def test_vales_acima_de_49_rejeitados(self):
         """O nº de vales é livre, mas sempre menor que 50."""

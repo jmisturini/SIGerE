@@ -6,7 +6,7 @@
     <div class="col-lg-8 col-md-10">
         <div class="card">
             <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="mb-0"><i class="bi bi-bell text-primary me-2"></i> Notificações</h5>
+                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-bell"></i></span> Notificações</h5>
                 <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
@@ -36,7 +36,7 @@
                         são avisados na hora. Sem seleção, ninguém recebe o aviso.</p>
                     {% if grupos %}
                     <div class="mb-3">
-                        {{ form.overload_groups.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.overload_groups.label(class="form-label small mb-1") }}
                         {{ form.overload_groups(class="form-select", size=grupos|length if grupos|length <= 8 else 8, multiple=true) }}
                         {% for err in form.overload_groups.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         <div class="form-text">Segure Ctrl (ou toque e arraste no celular) para selecionar vários.</div>

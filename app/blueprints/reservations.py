@@ -277,7 +277,8 @@ def create():
                 course_id=form.course.data if form.course.data > 0 else None,
                 subject_id=form.subject.data if form.subject.data > 0 else None,
                 teacher_id=teacher_id, title=_titulo_reserva(form),
-                description=form.description.data, date=form.date.data,
+                description=(form.description.data or '').strip() or None,
+                date=form.date.data,
                 start_time=form.start_time.data, end_time=form.end_time.data,
                 status=status,
                 unity_id=classroom.unity_id,
@@ -323,6 +324,13 @@ def create():
 @login_required
 @require_permission('reservation:read_own')
 def my_reservations():
+    """Reservas do usuário em duas abas — Atuais/Futuras (hoje em diante) e
+    Passadas — cada uma com paginação própria: o período entra no filtro
+    antes do paginate."""
+    # Aba de período (padrão: atuais e futuras)
+    periodo = request.args.get('periodo', 'atuais')
+    if periodo not in ('atuais', 'passadas'):
+        periodo = 'atuais'
     status = request.args.get('status', 'all')
     # Ordenação escolhida na página (padrão: mais recentes primeiro)
     ordem = request.args.get('ordem', 'data_desc')
@@ -336,6 +344,10 @@ def my_reservations():
                Reservation.teacher_id == current_user.id))
     if status != 'all':
         query = query.filter_by(status=status)
+    if periodo == 'passadas':
+        query = query.filter(Reservation.date < date.today())
+    else:
+        query = query.filter(Reservation.date >= date.today())
     query = query.join(Classroom, Reservation.classroom_id == Classroom.id)
     if ordem == 'data_asc':
         query = query.order_by(Reservation.date, Reservation.start_time)
@@ -352,13 +364,9 @@ def my_reservations():
         .paginate(page=request.args.get('page', 1, type=int),
                   per_page=RESERVATIONS_PER_PAGE, error_out=False)
 
-    today = date.today()
-    upcoming_reservations = [r for r in pagination.items if r.date >= today]
-    past_reservations = [r for r in pagination.items if r.date < today]
-
     return render_template('reservations/my_reservations.html', pagination=pagination,
-                           upcoming_reservations=upcoming_reservations, past_reservations=past_reservations, current_status=status,
-                           ordem=ordem)
+                           reservas=pagination.items, periodo=periodo,
+                           current_status=status, ordem=ordem)
 
 # Admin route to view all reservations
 # Períodos do dia com os mesmos limites do filtro do calendário (schedule.events)
@@ -566,16 +574,29 @@ def edit(reservation_id):
                 flash(f'Conflito de sala com "{conflict.title}"', 'danger')
                 return render_template('reservations/edit.html', form=form, reservation=reservation)
 
-            reservation.classroom_id = classroom_id
-            reservation.unity_id = classroom.unity_id
-            reservation.course_id = form.course.data if form.course.data > 0 else None
-            reservation.subject_id = form.subject.data if form.subject.data > 0 else None
-            reservation.teacher_id = form.teacher.data if form.teacher.data > 0 else None
-            reservation.title = _titulo_reserva(form)
-            reservation.description = form.description.data
-            reservation.date = form.date.data
-            reservation.start_time = form.start_time.data
-            reservation.end_time = form.end_time.data
+            # Valores-alvo calculados antes de atribuir: a comparação diz se
+            # a edição muda algum dado da reserva — reenviar o formulário
+            # sem alterações não pode custar a aprovação ao professor.
+            novos_dados = {
+                'classroom_id': classroom_id,
+                'unity_id': classroom.unity_id,
+                'course_id': form.course.data if form.course.data > 0 else None,
+                'subject_id': form.subject.data if form.subject.data > 0 else None,
+                'teacher_id': form.teacher.data if form.teacher.data > 0 else None,
+                'title': _titulo_reserva(form),
+                'description': (form.description.data or '').strip() or None,
+                'date': form.date.data,
+                'start_time': form.start_time.data,
+                'end_time': form.end_time.data,
+            }
+            atuais = {campo: getattr(reservation, campo) for campo in novos_dados}
+            # Descrição legada pode guardar '': vazio e None são a mesma
+            # ausência de descrição na comparação.
+            atuais['description'] = (reservation.description or '').strip() or None
+            dados_alterados = any(atuais[campo] != valor
+                                  for campo, valor in novos_dados.items())
+            for campo, valor in novos_dados.items():
+                setattr(reservation, campo, valor)
             # Notificações por reserva: interruptor, marcos e destinatários
             # da seção do formulário (desligado remove a configuração).
             reservation.notify_enabled = form.notify_enabled.data
@@ -594,7 +615,14 @@ def edit(reservation_id):
                 excede_limite_diario = teacher_exceeds_daily_limit(
                     reservation.teacher_id, reservation.date,
                     exclude_id=reservation.id)
-            if (teacher_conflict or excede_limite_diario) and reservation.status == 'approved':
+            # Fluxo de professor (mesma regra da criação): quem tem
+            # reservation:create_pending não carrega a aprovação anterior ao
+            # editar — dados novos voltam à avaliação; sem mudança de dados,
+            # a aprovação permanece.
+            criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
+            if ((criador_pendente and dados_alterados)
+                    or teacher_conflict or excede_limite_diario) \
+                    and reservation.status == 'approved':
                 reservation.status = 'pending'
             if excede_limite_diario:
                 notificar_sobrecarga_professor(reservation)
@@ -608,6 +636,8 @@ def edit(reservation_id):
                   f'{TEACHER_DAILY_RESERVATION_LIMIT} reservas em '
                   f'{reservation.date.strftime("%d/%m/%Y")}. Os grupos '
                   f'personalizados da unidade foram notificados.', 'warning')
+        elif criador_pendente and reservation.status == 'pending':
+            flash('Reserva atualizada como PENDENTE: aguardando nova aprovação.', 'warning')
         else:
             flash('Reserva atualizada com sucesso.', 'success')
         return redirect(url_for('reservations.detail', reservation_id=reservation.id))
@@ -794,6 +824,13 @@ def repeat_schedule(reservation_id):
         flash('Data inválida.', 'danger')
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
+    # A tela já limita a max(data da reserva, hoje) + 1; o servidor repete a
+    # regra — um POST forjado não pode criar reserva no passado.
+    minimo = max(res.date + timedelta(days=1), date.today() + timedelta(days=1))
+    if new_date < minimo:
+        flash('A repetição precisa ser em data futura (após a reserva e após hoje).', 'danger')
+        return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+
     excede_limite_diario = False
     with slot_locks(res.classroom_id, [new_date]):
         allowed, msg = check_schedule_restrictions(new_date, res.start_time, res.end_time)
@@ -860,6 +897,14 @@ def repeat_schedule_all(reservation_id):
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
     except ValueError:
         flash('Datas inválidas.', 'danger')
+        return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+
+    # Mesma janela mínima da tela (max(data da reserva, hoje) + 1) e fim não
+    # pode anteceder o início — POST forjado não cria reservas no passado.
+    minimo = max(res.date + timedelta(days=1), date.today() + timedelta(days=1))
+    if start_date < minimo or end_date < start_date:
+        flash('Intervalo de datas inválido: a repetição começa após a reserva '
+              'e após hoje, e o fim não antecede o início.', 'danger')
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
     if (end_date - start_date).days + 1 > MAX_REPEAT_RANGE_DAYS:
@@ -1068,6 +1113,9 @@ def series_edit(reservation_id):
         by_classroom.setdefault(classroom.id if classroom else m.classroom_id, []).append(m)
 
     updated, skipped = [], []
+    voltaram_pending = 0
+    criador_pendente_serie = current_user.has_explicit_permission(
+        'reservation:create_pending')
     with ExitStack() as stack:
         for room_id, room_targets in by_classroom.items():
             stack.enter_context(slot_locks(room_id, [m.date for m in room_targets]))
@@ -1084,6 +1132,14 @@ def series_edit(reservation_id):
                 if conflict:
                     skipped.append((m, f'Sala ocupada por "{conflict.title}"'))
                     continue
+                # Reserva muda de fato? Campos vazios mantêm o valor atual —
+                # a edição sem nenhuma mudança não pode custar a aprovação.
+                mudou = (m.start_time != start or m.end_time != end
+                         or (classroom is not None
+                             and m.classroom_id != classroom.id)
+                         or (title is not None and m.title != title)
+                         or (description is not None
+                             and ((m.description or '').strip() or None) != description))
                 if classroom:
                     m.classroom_id = classroom.id
                     m.unity_id = classroom.unity_id
@@ -1094,16 +1150,25 @@ def series_edit(reservation_id):
                 if description:
                     m.description = description
                 # Docente sobreposto após a mudança → mesma regra da edição
-                # individual: a reserva volta a PENDENTE para revisão.
-                if m.teacher_id and check_teacher_conflict(
-                        m.teacher_id, m.date, m.start_time, m.end_time,
-                        exclude_id=m.id) and m.status == 'approved':
+                # individual: a reserva volta a PENDENTE para revisão. No
+                # fluxo de professor (reservation:create_pending), a edição
+                # que muda dados devolve à avaliação — a aprovação anterior
+                # não cobre os dados novos.
+                if m.status == 'approved' and (
+                        (criador_pendente_serie and mudou)
+                        or (m.teacher_id and check_teacher_conflict(
+                            m.teacher_id, m.date, m.start_time, m.end_time,
+                            exclude_id=m.id))):
                     m.status = 'pending'
+                    voltaram_pending += 1
                 updated.append(m)
         db.session.commit()
 
     if updated:
         flash(f'{len(updated)} reservas da série atualizadas.', 'success')
+    if voltaram_pending:
+        flash(f'{voltaram_pending} reserva(s) da série voltaram a PENDENTE: '
+              f'aguardando nova aprovação.', 'warning')
     if skipped:
         datas = ', '.join(m.date.strftime('%d/%m') for m, _ in skipped)
         flash(f'{len(skipped)} reserva(s) não alterada(s) ({datas}).', 'warning')

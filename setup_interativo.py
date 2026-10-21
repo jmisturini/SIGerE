@@ -7,7 +7,7 @@ Guia a implantação e a manutenção do sistema em um único comando:
 O menu inicial oferece três modos:
 
   1. Instalação completa — do zero, em uma máquina nova:
-     1. Confere o Python (3.10+) e cria/reaproveita o ambiente virtual .venv;
+     1. Confere o Python (3.11+) e cria/reaproveita o ambiente virtual .venv;
      2. Instala as dependências (requirements.txt);
      3. Gera o arquivo .env (SECRET_KEY, banco de dados, Redis do rate limit, clima
         do totem);
@@ -38,6 +38,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs, unquote
 
@@ -115,15 +116,28 @@ def python_da_venv():
 def preparar_venv(rotulo='1. Ambiente virtual (Python)'):
     titulo(rotulo)
 
-    if sys.version_info < (3, 10):
-        erro(f"Python 3.10 ou superior é necessário (encontrado {sys.version.split()[0]}).\n"
-             "   As dependências fixadas no requirements.txt (limits, redis) exigem 3.10+.")
+    if sys.version_info < (3, 11):
+        erro(f"Python 3.11 ou superior é necessário (encontrado {sys.version.split()[0]}).\n"
+             "   As dependências fixadas no requirements.txt (pillow 13) exigem 3.11+.")
         raise SystemExit(1)
     print(f"   Python {sys.version.split()[0]} — ok.")
 
     venv_python = python_da_venv()
     if venv_python.exists():
-        print(f"   Ambiente virtual existente reaproveitado: {venv_python}")
+        versao = subprocess.run([str(venv_python), '--version'],
+                                capture_output=True, text=True).stdout.strip()
+        # O piso vale para o interpretador da .venv reaproveitada, não só
+        # para o do sistema: uma .venv criada com Python 3.10 passa na
+        # checagem acima, mas as dependências (pillow 13) não instalam.
+        compativel = subprocess.run(
+            [str(venv_python), '-c',
+             'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'],
+        ).returncode == 0
+        if not compativel:
+            erro(f"O ambiente .venv existente usa {versao}, anterior ao Python 3.11.\n"
+                 "   Apague a pasta .venv e rode este setup novamente para recriá-la.")
+            raise SystemExit(1)
+        print(f"   Ambiente virtual existente reaproveitado: {venv_python} ({versao})")
         return str(venv_python)
 
     aviso('Ambiente virtual .venv não encontrado — ele será criado agora.')
@@ -190,6 +204,25 @@ def host_porta_da_url_redis(url):
     return host or 'localhost', int(porta) if porta.isdigit() else 6379
 
 
+def _gravar_segredos(caminho, conteudo):
+    """Grava arquivo com segredos já protegido: o temporário vem do
+    tempfile.mkstemp — nome aleatório exclusivo (um processo interrompido
+    não deixa resto que trave a próxima chamada, mesmo com PID reusado) e
+    criado já 0o600, sem janela legível entre a criação e um chmod.
+    Substitui o destino de uma vez — sem janela em que o .env fica legível
+    no meio da gravação."""
+    fd, nome = tempfile.mkstemp(dir=caminho.parent,
+                                prefix=caminho.name + '.', suffix='.tmp')
+    temporario = Path(nome)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as arquivo:
+            arquivo.write(conteudo)
+        os.replace(temporario, caminho)
+    finally:
+        if temporario.exists():
+            temporario.unlink()
+
+
 def configurar_env():
     titulo('3. Configuração do ambiente (.env)')
 
@@ -201,7 +234,8 @@ def configurar_env():
             print('   .env mantido sem alterações.')
             return ler_env(ARQUIVO_ENV)
         backup = RAIZ / '.env.bak'
-        backup.write_text(ARQUIVO_ENV.read_text(encoding='utf-8'), encoding='utf-8')
+        # Segredos no backup: leitura apenas do dono (gravação protegida).
+        _gravar_segredos(backup, ARQUIVO_ENV.read_text(encoding='utf-8'))
         print(f"   Cópia de segurança salva em {backup.name}.")
 
     ambiente = escolher(
@@ -276,7 +310,8 @@ def configurar_env():
     lon = entrada('Longitude do totem (vazio usa -46.6333)', '-46.6333')
     linhas.append(f'TOTEM_LONGITUDE="{lon}"')
 
-    ARQUIVO_ENV.write_text('\n'.join(linhas) + '\n', encoding='utf-8')
+    # O .env carrega a SECRET_KEY: gravação já protegida (leitura só do dono).
+    _gravar_segredos(ARQUIVO_ENV, '\n'.join(linhas) + '\n')
     ok(f".env criado (perfil {'desenvolvimento' if desenvolvimento else 'produção'}).")
     if not desenvolvimento:
         aviso('Proteja o arquivo .env — contém a SECRET_KEY e nunca deve ser versionado.')

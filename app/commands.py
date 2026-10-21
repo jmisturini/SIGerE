@@ -231,7 +231,7 @@ def seed_command():
         db.session.commit()
         click.echo(click.style("✅ Administrador criado com sucesso!", fg="green", bold=True))
         click.echo(click.style(
-            "   Login: admin/admin123",
+            "   Login: admin@school.edu / admin123",
             fg="cyan"
         ))
 
@@ -247,7 +247,7 @@ def seed_command():
             db.session.commit()
             click.echo(click.style("✅ Dados de demonstração criados com sucesso!", fg="green", bold=True))
             click.echo(click.style(
-                "   Logins adicionais: teacher1/teacher123 | employee1/employee123",
+                "   Logins adicionais: teacher1@school.edu/teacher123 | employee1@school.edu/employee123",
                 fg="cyan"
             ))
         else:
@@ -945,3 +945,32 @@ def notify_cleanup_command(dias_lidas, dias_passadas, dry_run):
     click.echo(f"  Lidas há mais de {dias_lidas} dias {rotulo}: {qtde_lidas}")
     click.echo(f"  De reservas passadas há mais de {dias_passadas} dias "
                f"{rotulo}: {qtde_passadas}")
+
+
+@click.command('autocancel-pendentes')
+@with_appcontext
+@click.option('--dry-run', is_flag=True,
+              help='Mostra o que seria cancelado sem gravar nada.')
+def autocancel_pendentes_command(dry_run):
+    """Cancela reservas pendentes não aprovadas até 1h antes do início.
+
+    Regra de autocancelamento: reserva pendente de aprovação cujo horário
+    agendado está a menos de 1 hora (ou já passou) é cancelada pelo sistema
+    — aprovação tardia não teria mais função. O criador recebe o mesmo aviso
+    de cancelamento dos cancelamentos manuais, com o motivo automático no
+    corpo. Idempotente: pode rodar no mesmo timer do notify-scan (15 min).
+
+    Uso: flask --app run autocancel-pendentes [--dry-run]
+    """
+    from app.services.scheduling import autocancelar_pendentes
+
+    stats = autocancelar_pendentes(dry_run=dry_run)
+    rotulo = 'seriam canceladas' if dry_run else 'canceladas'
+    rotulo_avisos = 'seriam criados' if dry_run else 'criados'
+    click.echo(f"Autocancelamento de pendências concluído"
+               f"{' (dry-run)' if dry_run else ''}:")
+    click.echo(f"  Pendências vencidas avaliadas: {stats['avaliadas']}")
+    click.echo(f"  Reservas {rotulo}: {stats['canceladas']}")
+    click.echo(f"  Avisos ao criador {rotulo_avisos}: {stats['avisos']}")
+    if dry_run and stats['canceladas']:
+        click.echo("Rode sem --dry-run para gravar.")

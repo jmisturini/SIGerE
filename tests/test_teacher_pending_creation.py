@@ -233,6 +233,46 @@ class TeacherPendingCreationTestCase(unittest.TestCase):
         self.assertIn('conflito de professor', pagina)
         self.assertEqual(self._status_reserva(dia, '09:30'), 'pending')
 
+    def _reserva_aprovada(self, dia, start, end, description=None):
+        """Cria como professor (nasce pendente) e aprova direto no banco,
+        simulando a aprovação de quem tem reservation:approve."""
+        self.client.post('/reservations/create',
+                         data=self._payload(dia, start, end),
+                         follow_redirects=True)
+        with self.app.app_context():
+            reserva = Reservation.query.filter_by(date=dia).first()
+            reserva.status = 'approved'
+            reserva.description = description
+            db.session.commit()
+            return reserva.id
+
+    def test_professor_edita_sem_mudanca_mantem_aprovada(self):
+        """Reenviar a edição sem alterar nada não devolve a reserva aprovada
+        à fila — nem descrição vazia ('' no POST) vs. None (banco) conta como
+        mudança."""
+        dia = self._dia_futuro()
+        reserva_id = self._reserva_aprovada(dia, '09:00', '10:00',
+                                            description=None)
+        response = self.client.post(f'/reservations/{reserva_id}/edit',
+                                    data=self._payload(dia, '09:00', '10:00'),
+                                    follow_redirects=True)
+        pagina = response.get_data(as_text=True)
+        self.assertIn('Reserva atualizada com sucesso', pagina)
+        self.assertNotIn('PENDENTE', pagina)
+        self.assertEqual(self._status_reserva(dia, '09:00'), 'approved')
+
+    def test_professor_edita_mudando_dados_volta_a_pendente(self):
+        """Edição que muda dados segue exigindo nova aprovação no fluxo de
+        professor."""
+        dia = self._dia_futuro()
+        reserva_id = self._reserva_aprovada(dia, '09:00', '10:00')
+        response = self.client.post(f'/reservations/{reserva_id}/edit',
+                                    data=self._payload(dia, '11:00', '12:00'),
+                                    follow_redirects=True)
+        pagina = response.get_data(as_text=True)
+        self.assertIn('aguardando nova aprovação', pagina)
+        self.assertEqual(self._status_reserva(dia, '11:00'), 'pending')
+
 
 if __name__ == '__main__':
     unittest.main()

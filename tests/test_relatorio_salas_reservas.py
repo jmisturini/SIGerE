@@ -82,7 +82,9 @@ class RelatorioSalasReservasTestCase(unittest.TestCase):
             db.session.flush()
 
             hoje = date.today()
-            mes_que_vem = date(hoje.year, hoje.month % 12 + 1, 1)
+            # Virada do ano: em dezembro, "mês que vem" é janeiro do ano seguinte.
+            mes_que_vem = (date(hoje.year + 1, 1, 1) if hoje.month == 12
+                           else date(hoje.year, hoje.month + 1, 1))
 
             # Mês corrente: 2 aprovadas na S1 (2h no total, 1 com curso/docente),
             # 1 pendente e 1 cancelada na S2

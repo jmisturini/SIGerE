@@ -6,7 +6,7 @@
     <div class="col-lg-8 col-md-10">
         <div class="card">
             <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="mb-0"><i class="bi bi-cash-stack text-primary me-2"></i> {{ title }}</h5>
+                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-cash-stack"></i></span> {{ title }}</h5>
                 <a href="{{ url_for('payments.list_overtime') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
@@ -27,7 +27,7 @@
                            conjunto rótulo + campo. #}
                         <div class="row g-2 align-items-center">
                             <div class="col-12">
-                                <label class="form-label small fw-bold text-uppercase text-muted mb-0" for="reference_month">
+                                <label class="form-label small mb-0" for="reference_month">
                                     <i class="bi bi-calendar-event text-primary me-1"></i>Mês de Referência
                                 </label>
                             </div>
@@ -55,32 +55,32 @@
 
                     <div class="row g-3">
                         <div class="col-12">
-                            {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
+                            {{ form.teacher.label(class="form-label small mb-1") }} 
                             {{ form.teacher(class="form-select") }}
                             {% for err in form.teacher.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.teaching_level.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
+                            {{ form.teaching_level.label(class="form-label small mb-1") }} 
                             {{ form.teaching_level(class="form-select") }}
                             {% for err in form.teaching_level.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.shift.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.shift.label(class="form-label small mb-1") }}
                             {{ form.shift(class="form-select") }}
                             {% for err in form.shift.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
                         <div class="col-md-6">
-                            {{ form.course_type.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.course_type.label(class="form-label small mb-1") }}
                             {{ form.course_type(class="form-select") }}
                             {% for err in form.course_type.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                             <div class="form-text small">Tipos de curso cadastrados no Painel Admin.</div>
                         </div>
                         
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold text-uppercase text-muted mb-1">Carga Horária Semanal</label>
+                            <label class="form-label small mb-1">Carga Horária Semanal</label>
                             {# Dois campos (hora e minuto): a dica abaixo mostra o
                                formato gravado e exibido — hora e minutos
                                inteiros, sem conversão para decimal. #}
@@ -100,13 +100,13 @@
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.hourly_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
+                            {{ form.hourly_value.label(class="form-label small mb-1") }} 
                             {{ form.hourly_value(class="form-control") }}
                             {% for err in form.hourly_value.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="dates_month">Mês</label>
+                            <label class="form-label small mb-1" for="dates_month">Mês</label>
                             {# No lugar do antigo Mês de Referência: define o mês
                                das datas trabalhadas — o calendário fica limitado
                                a ele. Oferece o mês anterior ao Mês de Referência
@@ -121,25 +121,25 @@
                         </div>
 
                         <div class="col-md-6">
-                            {{ form.budget_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.budget_code.label(class="form-label small mb-1") }}
                             {{ form.budget_code(class="form-control", maxlength=18, inputmode="numeric", placeholder="Ex: 95.00.0123.4") }}
                             <div class="form-text small">Máscara automática: 9 ou 14 dígitos.</div>
                             {% for err in form.budget_code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-12">
-                            {{ form.multiple_dates.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }} 
+                            {{ form.multiple_dates.label(class="form-label small mb-1") }} 
                             {{ form.multiple_dates(class="form-control", placeholder="Clique aqui para abrir o calendário") }}
                             <div class="form-text small">O calendário se limita ao Mês selecionado; apenas os dias são gravados, separados por vírgula (ex: 10, 17, 25).</div>
                         </div>
                         
                         <div class="col-12">
-                            {{ form.justification.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.justification.label(class="form-label small mb-1") }}
                             {{ form.justification(class="form-control") }}
                         </div>
 
                         <div class="col-12">
-                            {{ form.observation.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.observation.label(class="form-label small mb-1") }}
                             {{ form.observation(class="form-control", rows="2") }}
                             {% for err in form.observation.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
@@ -157,9 +157,11 @@
 {% endblock %}
 
 {% block scripts %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://npmcdn.com/flatpickr/dist/l10n/pt.js"></script>
+{# Versão fixa e um único CDN (npmcdn.com é domínio legado que só
+   redireciona para o unpkg; sem versão, um major novo quebraria a tela). #}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/pt.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

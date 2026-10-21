@@ -6,7 +6,10 @@
     <div class="col-lg-8 col-md-10">
         <div class="card">
             <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="mb-0"><i class="bi bi-pencil-square text-primary me-2"></i> Editar Reserva</h5>
+                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold">
+                    <span class="section-icon section-icon-default"><i class="bi bi-pencil-square"></i></span>
+                    Editar Reserva
+                </h5>
                 <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
@@ -19,53 +22,53 @@
                     
                     <div class="row g-3">
                         <div class="col-12">
-                            {{ form.classroom.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.classroom.label(class="form-label small mb-1") }}
                             {{ form.classroom(class="form-select") }}
                             {% for err in form.classroom.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.course.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.course.label(class="form-label small mb-1") }}
                             {{ form.course(class="form-select") }}
                             {% for err in form.course.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.subject.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.subject.label(class="form-label small mb-1") }}
                             {{ form.subject(class="form-select") }}
                         </div>
                         
                         <div class="col-md-6">
-                            {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.teacher.label(class="form-label small mb-1") }}
                             {{ form.teacher(class="form-select") }}
                         </div>
                         
                         <div class="col-12">
-                            {{ form.title.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.title.label(class="form-label small mb-1") }}
                             {{ form.title(class="form-control") }}
                             {% for err in form.title.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-12">
-                            {{ form.description.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.description.label(class="form-label small mb-1") }}
                             {{ form.description(class="form-control", rows="3") }}
                         </div>
                         
                         <div class="col-md-4">
-                            {{ form.date.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.date.label(class="form-label small mb-1") }}
                             {{ form.date(class="form-control") }}
                             <div id="dateWarning" class="alert alert-warning mt-2 p-2 small align-items-center" style="display: none;"></div>
                             {% for err in form.date.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-4">
-                            {{ form.start_time.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.start_time.label(class="form-label small mb-1") }}
                             {{ form.start_time(class="form-control") }}
                             {% for err in form.start_time.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
                         <div class="col-md-4">
-                            {{ form.end_time.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.end_time.label(class="form-label small mb-1") }}
                             {{ form.end_time(class="form-control") }}
                             {% for err in form.end_time.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
@@ -81,7 +84,7 @@
                         {% for err in form.notify_enabled.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                     </div>
                     <div id="notificacoesDetalhes" class="{{ 'd-none' if not form.notify_enabled.data }}">
-                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">Avisar antes da atividade</label>
+                        <label class="form-label small mb-1">Avisar antes da atividade</label>
                         <div class="d-flex flex-wrap gap-4 mb-3">
                             <div class="form-check">
                                 {{ form.notify_7d(class="form-check-input", id="notify_7d_check") }}
@@ -107,13 +110,13 @@
                         </div>
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                {{ form.notify_groups.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                {{ form.notify_groups.label(class="form-label small mb-1") }}
                                 {{ form.notify_groups(class="form-select", multiple=true) }}
                                 <div class="form-text">Grupos personalizados cadastrados no painel admin.</div>
                                 {% for err in form.notify_groups.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                             </div>
                             <div class="col-md-6">
-                                {{ form.notify_users.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                {{ form.notify_users.label(class="form-label small mb-1") }}
                                 {{ form.notify_users(class="form-select", multiple=true) }}
                                 <div class="form-text">Adicione usuários individualmente, além dos grupos.</div>
                                 {% for err in form.notify_users.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}

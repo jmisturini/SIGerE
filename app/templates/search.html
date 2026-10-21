@@ -13,18 +13,18 @@
             <div class="card-body">
                 <form method="GET" class="row g-3 align-items-end">
                     <div class="col-md-3">
-                        <label class="form-label small fw-bold">Tipo de Busca</label>
+                        <label class="form-label small">Tipo de Busca</label>
                         <select name="type" class="form-select" id="searchType" onchange="togglePlaceholder(); toggleOrdem()">
                             <option value="classroom" {{ 'selected' if search_type == 'classroom' }}>Sala</option>
                             <option value="teacher" {{ 'selected' if search_type == 'teacher' }}>Professor</option>
                         </select>
                     </div>
                     <div class="col-md-5">
-                        <label class="form-label small fw-bold">Consulta</label>
+                        <label class="form-label small">Consulta</label>
                         <input type="text" name="q" id="searchInput" class="form-control" value="{{ query }}" placeholder="Digite o nome ou código...">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small fw-bold">Ordenar por</label>
+                        <label class="form-label small">Ordenar por</label>
                         <select name="ordem" id="searchOrdem" class="form-select">
                             <option value="codigo" class="opt-classroom" {{ 'selected' if ordem == 'codigo' }}>Código</option>
                             <option value="nome" class="opt-classroom" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
@@ -72,8 +72,8 @@
                                     </tr>
                                 {% else %}
                                     <tr>
-                                        <td colspan="5" class="text-center text-muted p-5">
-                                            <i class="bi bi-emoji-frown fs-2 d-block mb-2"></i>
+                                        <td colspan="5" class="empty-cell">
+                                            <i class="bi bi-emoji-frown"></i>
                                             <h5 class="mb-1">Nenhuma sala encontrada</h5>
                                             <p class="small mb-0">Não foi possível encontrar salas ativas para "{{ query }}".</p>
                                         </td>
@@ -101,8 +101,8 @@
                                     </tr>
                                 {% else %}
                                     <tr>
-                                        <td colspan="3" class="text-center text-muted p-5">
-                                            <i class="bi bi-emoji-frown fs-2 d-block mb-2"></i>
+                                        <td colspan="3" class="empty-cell">
+                                            <i class="bi bi-emoji-frown"></i>
                                             <h5 class="mb-1">Nenhum professor encontrado</h5>
                                             <p class="small mb-0">Não foi possível encontrar professores ativos para "{{ query }}".</p>
                                         </td>
@@ -113,7 +113,7 @@
                         </div>
                     {% endif %}
                 {% else %}
-                    <div class="text-center text-muted p-5">
+                    <div class="empty-state">
                         <div class="feature-icon bg-primary-subtle text-primary mb-4 mx-auto">
                             <i class="bi bi-search"></i>
                         </div>

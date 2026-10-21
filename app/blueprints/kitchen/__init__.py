@@ -316,13 +316,19 @@ def save_all_sheets():
         return redirect(url_for('kitchen.sheets'))
     saved_names = []
     for sheet in pending:
+        # Savepoint por ficha: o rollback de uma ficha com erro não pode
+        # desfazer as anteriores já processadas neste POST. O nome entra em
+        # saved_names só depois do commit do savepoint — a mensagem de
+        # sucesso não pode citar ficha que voltou a pendente.
+        savepoint = db.session.begin_nested()
         try:
-            saved_names.append(_create_recipe_from_sheet(sheet).name)
+            nome = _create_recipe_from_sheet(sheet).name
+            savepoint.commit()
+            saved_names.append(nome)
         except (ValueError, KeyError) as exc:
-            db.session.rollback()
+            savepoint.rollback()
             sheet.status = 'error'
             sheet.parse_error = str(exc)
-            db.session.add(sheet)
     db.session.commit()
     flash(f'{len(saved_names)} ficha(s) salva(s): {", ".join(saved_names)}.', 'success')
     return redirect(url_for('kitchen.sheets'))

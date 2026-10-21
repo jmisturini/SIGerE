@@ -4,7 +4,7 @@
 {% block content %}
 <div class="card">
     <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-        <h5 class="mb-0"><i class="bi bi-collection text-primary me-2"></i> Gerenciar Série de Repetição</h5>
+        <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-collection"></i></span> Gerenciar Série de Repetição</h5>
         <a href="{{ url_for('reservations.detail', reservation_id=res.id) }}" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
@@ -32,15 +32,15 @@
             </h6>
             <div class="row g-3 align-items-end mb-4">
                 <div class="col-6 col-md-2">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Início</label>
+                    <label class="form-label small mb-1">Início</label>
                     <input type="time" name="start_time" class="form-control">
                 </div>
                 <div class="col-6 col-md-2">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Término</label>
+                    <label class="form-label small mb-1">Término</label>
                     <input type="time" name="end_time" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Sala</label>
+                    <label class="form-label small mb-1">Sala</label>
                     <select name="classroom_id" class="form-select">
                         <option value="">Manter sala atual</option>
                         {% for c in classrooms %}
@@ -49,7 +49,7 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Título</label>
+                    <label class="form-label small mb-1">Título</label>
                     <input type="text" name="title" class="form-control" maxlength="200" placeholder="Manter atual">
                 </div>
                 <div class="col-md-2 d-grid">

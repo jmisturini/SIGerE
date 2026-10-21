@@ -76,7 +76,7 @@ O papel de cada componente — e por que ele é recomendado:
 ## 📋 Requisitos
 
 - Servidor **Debian/Ubuntu** (ou derivado) com acesso root (`sudo`)
-- **Python 3.10+** (`python3 --version`) — exigido pelas dependências fixadas no `requirements.txt`
+- **Python 3.11+** (`python3 --version`) — exigido pelas dependências fixadas no `requirements.txt` (o Pillow 13 exige 3.11 ou superior)
 - Um **domínio** apontando para o servidor (ex.: `sigere.sua-instituicao.edu.br`) — necessário para o certificado HTTPS
 - **Internet de saída** para os serviços externos usados pelo sistema:
 
@@ -669,17 +669,29 @@ Type=oneshot
 User=SEU_USUARIO
 WorkingDirectory=/var/www/sigere
 EnvironmentFile=/var/www/sigere/.env
+ExecStart=/var/www/sigere/venv/bin/flask --app run autocancel-pendentes
 ExecStart=/var/www/sigere/venv/bin/flask --app run notify-scan
 ExecStart=/var/www/sigere/venv/bin/flask --app run notify-email
 ```
 
-O segundo `ExecStart` drena a fila de e-mail (espelho por e-mail das
+O último `ExecStart` drena a fila de e-mail (espelho por e-mail das
 notificações do sino). Sem `MAIL_SMTP_HOST`/`MAIL_FROM` no `.env`, ele apenas
 registra que está desativado — o resto do sistema segue funcionando. O envio é
 um **digest por destinatário**: as notificações de um mesmo usuário numa
-rodada saem num único e-mail. Falhas de SMTP contam tentativas
-(`MAIL_MAX_ATTEMPTS`, padrão 10) e, esgotadas, a notificação sai da fila.
+rodada saem num único e-mail. Falha no envio para um destinatário conta tentativa
+(`MAIL_MAX_ATTEMPTS`, padrão 10) e, esgotadas, a notificação sai da fila;
+falha de conexão/autenticação (SMTP fora do ar, STARTTLS/login) mantém a
+fila inteira para a rodada seguinte, sem contar tentativas — o comando
+termina em sucesso para não marcar a unidade como falha.
 Para testar sem enviar nada: `flask --app run notify-email --dry-run`.
+
+O primeiro `ExecStart` executa o cancelamento automático de pendências
+(a reserva pendente sem aprovação até 1 hora antes do início vira
+cancelada e o criador recebe o aviso com o motivo). Vem primeiro de
+propósito: num serviço `Type=oneshot`, um `ExecStart` que termina com
+erro pula os seguintes — e o cancelamento não pode perder a rodada por
+falha de envio de e-mail. Também idempotente; prévia com
+`flask --app run autocancel-pendentes --dry-run`.
 
 E `/etc/systemd/system/sigere-notify.timer` (a cada 15 minutos — a precisão
 do aviso “no próprio dia” depende dessa frequência):
@@ -735,7 +747,7 @@ Para conferir o que a varredura criaria sem gravar nada:
 | Upload falha com `500` / ficha não aparece | `instance/uploads/` inexistente ou sem permissão de escrita para `www-data` | Recrie com o dono certo: `sudo mkdir -p /var/www/sigere/instance/uploads && sudo chown -R www-data:www-data /var/www/sigere/instance` |
 | Clima do totem "N/A" | Unidade sem coordenadas e/ou sem internet para Open-Meteo | Configure o clima por unidade no painel; teste a saída para `api.open-meteo.com` |
 | API responde `401` para um token que funcionava | Token revogado/expirado ou conta do criador desativada | Reemita o token em Painel Admin → Tokens da API ([detalhes](api-reservas.md)) |
-| `⚠️ Banco de dados vazio` no log após atualizar | Migração não aplicada | `sudo -u www-data venv/bin/flask --app run db upgrade` |
+| `⚠️ Banco de dados vazio` no log após atualizar | Migração não aplicada | Como o seu usuário: `set -a; source .env; set +a` e `venv/bin/flask --app run db upgrade` (passo 5) |
 | Exportações Excel com erro de permissão | Diretório temporário/`static` sem permissão para `www-data` | Revise `chown` de `/var/www/sigere` (arquivos pertencem a `www-data`) |
 
 Para investigar a fundo, o par mais útil é

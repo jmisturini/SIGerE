@@ -33,17 +33,17 @@
             {{ form.hidden_tag() }}
             <div class="row g-3 align-items-end">
                 <div class="col-md-6">
-                    {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.teacher.label(class="form-label small mb-1") }}
                     {{ form.teacher(class="form-select") }}
                     {% for err in form.teacher.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
                 <div class="col-md-2">
-                    {{ form.month_base.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.month_base.label(class="form-label small mb-1") }}
                     {{ form.month_base(class="form-select") }}
                     {% for err in form.month_base.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
                 <div class="col-md-2">
-                    {{ form.days.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.days.label(class="form-label small mb-1") }}
                     {{ form.days(class="form-control", min=1, placeholder="Ex.: 12") }}
                     {% for err in form.days.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
@@ -64,7 +64,7 @@
               class="row g-3 align-items-end">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-8">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="month">Mês dos Agendamentos</label>
+                <label class="form-label small mb-1" for="month">Mês dos Agendamentos</label>
                 <select id="month" name="month" class="form-select">
                     {% for valor, rotulo in meses_agendamentos %}
                         <option value="{{ valor }}" {{ 'selected' if valor == mes_importacao }}>{{ rotulo }}</option>
@@ -91,7 +91,7 @@
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-md-6">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="teacher_filter">Professor</label>
+                <label class="form-label small mb-1" for="teacher_filter">Professor</label>
                 <select id="teacher_filter" name="teacher_filter" class="form-select">
                     <option value="">Todos os Professores</option>
                     {% for t in list_teachers %}
@@ -100,7 +100,7 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="month_filter">Mês</label>
+                <label class="form-label small mb-1" for="month_filter">Mês</label>
                 <select id="month_filter" name="month_base" class="form-select">
                     <option value="">Todos os Meses</option>
                     {% for valor, rotulo in meses_opcoes %}
@@ -109,7 +109,7 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="ordem-vale">Ordenar por</label>
+                <label class="form-label small mb-1" for="ordem-vale">Ordenar por</label>
                 <select name="ordem" id="ordem-vale" class="form-select">
                     <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Lançamento (mais recentes)</option>
                     <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Lançamento (mais antigas)</option>
@@ -123,8 +123,8 @@
                     <i class="bi bi-funnel me-1"></i> Filtrar
                 </button>
                 <a href="{{ url_for('payments.list_meal_allowance') }}"
-                   class="btn btn-outline-secondary {{ '' if filter_teacher else 'disabled' }}"
-                   {{ '' if filter_teacher else 'aria-disabled="true" tabindex="-1"' }}
+                   class="btn btn-outline-secondary {{ '' if (filter_teacher or filter_month) else 'disabled' }}"
+                   {{ '' if (filter_teacher or filter_month) else 'aria-disabled="true" tabindex="-1"' }}
                    title="Limpar o filtro aplicado">
                     <i class="bi bi-x-circle me-1"></i> Limpar
                 </a>
@@ -177,8 +177,8 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted p-5">
-                            <i class="bi bi-basket2 fs-2 d-block mb-2"></i>
+                        <td colspan="5" class="empty-cell">
+                            <i class="bi bi-basket2"></i>
                             <h5 class="mb-1">{{ 'Nenhum lançamento para os filtros aplicados' if filter_teacher or filter_month else 'Nenhum lançamento adicionado' }}</h5>
                             <p class="small mb-0">Use o formulário acima para lançar os dias trabalhados de um professor.</p>
                         </td>

@@ -19,14 +19,14 @@
                     {{ form.hidden_tag() }}
 
                     <div class="mb-3">
-                        {{ form.name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.name.label(class="form-label small mb-1") }}
                         {{ form.name(class="form-control") }}
                         {% for err in form.name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         <div class="form-text">Ex.: “Coordenação Gastronomia”, “Secretaria Acadêmica”.</div>
                     </div>
 
                     <div class="mb-3">
-                        {{ form.members.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.members.label(class="form-label small mb-1") }}
                         {{ form.members(class="form-select", size=10, multiple=true) }}
                         {% for err in form.members.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         <div class="form-text">Segure Ctrl (ou toque e arraste no celular) para selecionar vários membros.</div>

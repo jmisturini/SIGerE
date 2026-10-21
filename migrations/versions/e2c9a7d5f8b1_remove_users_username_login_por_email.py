@@ -46,10 +46,15 @@ def downgrade():
                   sa.Column('username', sa.String(length=64), nullable=False,
                             server_default=''))
     # Repõe usernames pela convenção antiga (prefixo do e-mail) e desambigua
-    # colisões com o id — o índice único exige valores distintos.
+    # colisões com o id — o índice único exige valores distintos. instr() é
+    # SQLite; o PostgreSQL tem split_part.
     bind = op.get_bind()
-    bind.execute(sa.text(
-        "UPDATE users SET username = substr(email, 1, instr(email, '@') - 1)"))
+    if bind.dialect.name == 'postgresql':
+        bind.execute(sa.text(
+            "UPDATE users SET username = split_part(email, '@', 1)"))
+    else:
+        bind.execute(sa.text(
+            "UPDATE users SET username = substr(email, 1, instr(email, '@') - 1)"))
     bind.execute(sa.text(
         "UPDATE users SET username = username || '_' || id "
         "WHERE id NOT IN (SELECT MIN(id) FROM users GROUP BY username)"))

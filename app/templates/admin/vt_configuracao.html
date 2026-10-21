@@ -6,7 +6,7 @@
     <div class="col-lg-8 col-md-10">
         <div class="card">
             <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="mb-0"><i class="bi bi-sliders text-primary me-2"></i> Configurações do Pedido de VT</h5>
+                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-sliders"></i></span> Configurações do Pedido de VT</h5>
                 <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
@@ -26,12 +26,12 @@
                     <h6 class="fw-bold mb-3"><i class="bi bi-ticket-perforated me-1"></i> Números base de vales</h6>
                     <div class="row g-3">
                         <div class="col-md-6">
-                            {{ form.vales_somente_ida.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.vales_somente_ida.label(class="form-label small mb-1") }}
                             {{ form.vales_somente_ida(class="form-control") }}
                             {% for err in form.vales_somente_ida.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.vales_ida_e_volta.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.vales_ida_e_volta.label(class="form-label small mb-1") }}
                             {{ form.vales_ida_e_volta(class="form-control") }}
                             {% for err in form.vales_ida_e_volta.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
@@ -47,7 +47,7 @@
                     <h6 class="fw-bold mb-3"><i class="bi bi-calendar-event me-1"></i> Fechamento do formulário</h6>
                     <div class="row g-3">
                         <div class="col-md-6">
-                            {{ form.fecha_em.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.fecha_em.label(class="form-label small mb-1") }}
                             {{ form.fecha_em(class="form-control", type="date") }}
                             <div class="form-text small">Último dia em que o pedido pode ser preenchido.
                                 Deixe vazio para deixar o formulário sempre aberto.</div>

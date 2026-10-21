@@ -13,7 +13,7 @@
 </div>
 
 <form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <label class="form-label small fw-bold text-muted mb-0" for="ordem-sala">Ordenar por</label>
+    <label class="form-label small mb-0" for="ordem-sala">Ordenar por</label>
     <select name="ordem" id="ordem-sala" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
         <option value="codigo" {{ 'selected' if ordem == 'codigo' }}>Código</option>
         <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>
@@ -76,8 +76,8 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="8" class="text-center text-muted p-5">
-                            <i class="bi bi-door-closed fs-2 d-block mb-2"></i>
+                        <td colspan="8" class="empty-cell">
+                            <i class="bi bi-door-closed"></i>
                             <h5 class="mb-1">Nenhuma sala encontrada</h5>
                             <p class="small mb-0">Clique em "Adicionar Sala" para começar.</p>
                         </td>

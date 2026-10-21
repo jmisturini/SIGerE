@@ -162,8 +162,8 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
             {% endfor %}
         </div>
         {% else %}
-        <div class="text-center text-muted p-5">
-            <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
+        <div class="empty-state">
+            <i class="bi bi-calendar-x"></i>
             <h5 class="mb-1">Nenhuma reserva neste dia</h5>
             <p class="small mb-0">Todos os horários da sala estão livres para reservas aprovadas.</p>
         </div>

@@ -6,7 +6,7 @@
     <div class="col-lg-8 col-md-10">
         <div class="card">
             <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="mb-0"><i class="bi bi-building text-primary me-2"></i> {{ title }}</h5>
+                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-building"></i></span> {{ title }}</h5>
                 <a href="{{ url_for('admin.list_unities') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
@@ -17,25 +17,25 @@
 
                     <div class="row g-3">
                         <div class="col-md-8">
-                            {{ form.name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.name.label(class="form-label small mb-1") }}
                             {{ form.name(class="form-control") }}
                             {% for err in form.name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
                         <div class="col-md-4">
-                            {{ form.code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.code.label(class="form-label small mb-1") }}
                             {{ form.code(class="form-control text-uppercase") }}
                             {% for err in form.code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
                         <div class="col-md-8">
-                            {{ form.address.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.address.label(class="form-label small mb-1") }}
                             {{ form.address(class="form-control") }}
                             {% for err in form.address.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
                         <div class="col-md-4">
-                            {{ form.phone.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.phone.label(class="form-label small mb-1") }}
                             {{ form.phone(class="form-control") }}
                             {% for err in form.phone.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
@@ -52,7 +52,7 @@
 
                             <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="geocode-search">
+                                    <label class="form-label small mb-1" for="geocode-search">
                                         Buscar endereço
                                     </label>
                                     <div class="input-group">
@@ -67,19 +67,19 @@
                                 </div>
 
                                 <div class="col-md-3">
-                                    {{ form.weather_latitude.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.weather_latitude.label(class="form-label small mb-1") }}
                                     {{ form.weather_latitude(class="form-control", id="weather-lat") }}
                                     {% for err in form.weather_latitude.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                                 </div>
 
                                 <div class="col-md-3">
-                                    {{ form.weather_longitude.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.weather_longitude.label(class="form-label small mb-1") }}
                                     {{ form.weather_longitude(class="form-control", id="weather-lon") }}
                                     {% for err in form.weather_longitude.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                                 </div>
 
                                 <div class="col-md-6">
-                                    {{ form.weather_city.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                    {{ form.weather_city.label(class="form-label small mb-1") }}
                                     {{ form.weather_city(class="form-control", id="weather-city", placeholder="Ex: Florianópolis, SC") }}
                                     {% for err in form.weather_city.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                                 </div>

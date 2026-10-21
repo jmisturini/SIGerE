@@ -61,7 +61,9 @@
         <i class="bi bi-file-earmark-text me-1"></i> Relatório de Ingredientes
     </button>
     {% else %}
-    <button type="submit" id="report-btn" class="btn btn-primary mt-4" disabled
+    {# Sem o id: o script syncReportButton não deve habilitar o botão de
+       quem não tem permissão (o clique terminaria em 403). #}
+    <button type="submit" class="btn btn-primary mt-4" disabled
             title="Você não tem permissão para exportar a requisição de compra">
         <i class="bi bi-lock me-1"></i> Relatório de Ingredientes
     </button>
@@ -69,8 +71,8 @@
 </form>
 {% else %}
 <div class="card">
-    <div class="card-body text-center text-muted p-5">
-        <i class="bi bi-basket fs-2 d-block mb-2"></i>
+    <div class="card-body empty-state">
+        <i class="bi bi-basket"></i>
         <h5 class="mb-1">Nenhuma preparação disponível</h5>
         <p class="small mb-0">Salve fichas técnicas no menu <strong>Ficha Técnica</strong> para gerar preparações e
             montar a requisição de compra.</p>

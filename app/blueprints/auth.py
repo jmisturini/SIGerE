@@ -32,16 +32,22 @@ def login():
             login_user(user)
             flash(f'Bem-vindo de volta, {user.full_name}!', 'success')
             
-            # Redirect to requested page or dashboard.
-            # SECURITY: validate the 'next' parameter to prevent open redirect attacks.
-            # Only allow relative URLs (no external domain in netloc).
+            # SECURITY: validate the 'next' parameter to prevent open redirect
+            # attacks. Only allow relative paths starting with a single '/' —
+            # scheme, netloc, '\' (treated as '/' by browsers) and '//' point
+            # to another origin.
             next_page = request.args.get('next')
-            if next_page and urlparse(next_page).netloc != '':
+            parsed = urlparse(next_page or '')
+            if (not next_page or '\\' in next_page or parsed.scheme
+                    or parsed.netloc or not next_page.startswith('/')
+                    or next_page.startswith('//')):
                 next_page = None
             return redirect(next_page or url_for('main.index'))
             
         flash('E-mail ou senha inválidos.', 'danger')
-    return render_template('auth/login.html', form=form)
+    # ocultar_sidebar: tela de login em foco total, sem a navegação do painel
+    # (mesmo padrão do pedido público de VT).
+    return render_template('auth/login.html', form=form, ocultar_sidebar=True)
 
 # Route to force password change on first login
 @bp.route('/change-password', methods=['GET', 'POST'])

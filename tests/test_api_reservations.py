@@ -146,6 +146,7 @@ class ApiReservationsTestCase(unittest.TestCase):
             self.classroom2_id = self.classroom2.id
             self.super_user_id = self.super_user.id
             self.comum_user_id = self.comum_user.id
+            self.teacher_id = self.teacher.id
 
     def tearDown(self):
         with self.app.app_context():
@@ -325,6 +326,32 @@ class ApiReservationsTestCase(unittest.TestCase):
         self.assertEqual(data['unity_id'], self.unity1_id)
         self.assertEqual([r['title'] for r in data['reservations']],
                          ['Aula de Matemática'])
+
+    def test_token_sem_unidade_no_escopo_responde_404(self):
+        """Isolamento entre unidades: token de usuário sem unidade no escopo
+        (sem vínculo algum ou só com vínculo inativo) e sem permissão de
+        alternar unidade NÃO cai na primeira unidade ativa do sistema — o
+        escopo vazio responde 404. O fallback global segue só para anônimos."""
+        sem_vinculo = self._make_token(self.teacher_id)
+        response, data = self._get_json('/api/v1/reservations',
+                                        headers=self._token_headers(sem_vinculo))
+        self.assertEqual(response.status_code, 404)
+        self.assertIn('error', data)
+
+        # Anônimo sem parâmetro: fallback da primeira unidade ativa mantido.
+        response, data = self._get_json('/api/v1/reservations')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data['unity_id'], self.unity1_id)
+
+        # Vínculo que ficou inativo também esvazia o escopo do token.
+        with self.app.app_context():
+            db.session.get(Unity, self.unity1_id).is_active = False
+            db.session.commit()
+        vinculo_inativo = self._make_token(self.comum_user_id)
+        response, data = self._get_json('/api/v1/reservations',
+                                        headers=self._token_headers(vinculo_inativo))
+        self.assertEqual(response.status_code, 404)
+        self.assertIn('error', data)
 
     def test_token_admin_escolhe_outra_unidade(self):
         raw = self._make_token(self.super_user_id)

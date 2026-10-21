@@ -4,7 +4,7 @@
 {% block content %}
 <div class="card">
     <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-        <h5 class="mb-0"><i class="bi bi-arrow-repeat text-primary me-2"></i> Repetir Reserva</h5>
+        <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-arrow-repeat"></i></span> Repetir Reserva</h5>
         <a href="{{ url_for('reservations.detail', reservation_id=res.id) }}" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Voltar
         </a>
@@ -33,13 +33,13 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="row g-3 align-items-end justify-content-center">
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Inicial</label>
+                    <label class="form-label small mb-1">Data Inicial</label>
                     <input type="date" class="form-control" value="{{ start_date.strftime('%Y-%m-%d') }}" disabled>
                     <input type="hidden" name="start_date" value="{{ start_date.strftime('%Y-%m-%d') }}">
                 </div>
                 <div class="col-md-1 text-center pb-2"><i class="bi bi-arrow-right fs-4 text-muted"></i></div>
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Selecione a Data Final</label>
+                    <label class="form-label small mb-1">Selecione a Data Final</label>
                     <input type="date" name="end_date" class="form-control" min="{{ start_date.strftime('%Y-%m-%d') }}" required>
                 </div>
                 <div class="col-md-3 d-flex flex-column justify-content-end">

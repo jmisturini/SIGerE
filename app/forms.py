@@ -909,7 +909,9 @@ class FormVtPedido(BaseForm):
     def _identificar_por_email(self):
         """Quando o e-mail informado é de uma conta ATIVA, nome, matrícula e
         vínculo vêm do cadastro e sobrescrevem o POST (no navegador os campos
-        ficam travados; aqui é a trava de verdade)."""
+        ficam travados; aqui é a trava de verdade). Guarda os valores do POST:
+        na resposta de erro do formulário público, nome/matrícula renderizados
+        são os digitados pelo visitante — nunca os lidos do cadastro."""
         if not self.email.data:
             return None
         usuario = (User.query
@@ -918,6 +920,8 @@ class FormVtPedido(BaseForm):
                    .first())
         if usuario is None:
             return None
+        self._antes_da_identificacao = (self.full_name.data,
+                                        self.registration.data)
         self.full_name.data = usuario.full_name
         self.registration.data = usuario.registration or self.registration.data
         self.link.data = ('Professor(a)' if usuario.profile_type == 'teacher'
@@ -925,9 +929,22 @@ class FormVtPedido(BaseForm):
         return usuario
 
     def validate(self, extra_validators=None):
+        # Identificação ANTES dos validadores: o endpoint de auto-preenchimento
+        # só devolve found/vínculo, então o navegador não envia nome/matrícula
+        # de conta ativa — DataRequired falharia antes de o servidor preencher.
+        self._identificar_por_email()
+        valido = self._validar_pedido(extra_validators)
+        # Erro no formulário público: nome/matrícula voltam ao que o visitante
+        # digitou (dados do cadastro não podem ser renderizados para quem só
+        # conhece o e-mail — enumeração). A re-submissão identifica de novo.
+        if not valido and getattr(self, '_antes_da_identificacao', None) is not None:
+            self.full_name.data, self.registration.data = self._antes_da_identificacao
+            self._antes_da_identificacao = None
+        return valido
+
+    def _validar_pedido(self, extra_validators=None):
         if not super().validate(extra_validators):
             return False
-        self._identificar_por_email()
         if self.optant.data != 'Sim':
             return True
 
