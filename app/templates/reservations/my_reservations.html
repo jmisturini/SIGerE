@@ -87,7 +87,10 @@
                 <tr {% if periodo == 'passadas' %}class="text-muted"{% endif %}>
                     <td class="ps-4 text-nowrap fw-bold">{{ r.date.strftime('%d/%m/%Y') }}</td>
                     <td class="text-nowrap">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
-                    <td>{{ r.classroom.name }} <small class="text-muted">({{ r.classroom.code }})</small></td>
+                    <td>
+                        <span class="badge me-1 badge-codigo-sala bg-primary-subtle text-primary border border-primary-subtle">{{ r.classroom.code }}</span>
+                        {{ r.classroom.name }}
+                    </td>
                     <td>{{ r.title }}</td>
                     <td>{{ r.teacher.full_name if r.teacher else '-' }}</td>
                     <td>
@@ -119,13 +122,13 @@
             </table>
         </div>
     {% else %}
-        <div class="text-center text-muted p-5">
+        <div class="empty-state">
             {% if periodo == 'passadas' %}
-                <i class="bi bi-archive fs-2 d-block mb-2"></i>
+                <i class="bi bi-archive"></i>
                 <h5 class="mb-1">Nenhum histórico</h5>
                 <p class="small mb-0">Você ainda não possui reservas passadas.</p>
             {% else %}
-                <i class="bi bi-calendar-check fs-2 d-block mb-2"></i>
+                <i class="bi bi-calendar-check"></i>
                 <h5 class="mb-1">Nenhuma reserva futura</h5>
                 <p class="small mb-0">Você não possui reservas atuais ou futuras no momento.</p>
             {% endif %}

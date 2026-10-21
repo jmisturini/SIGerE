@@ -186,10 +186,15 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertIn('name="link"', page)
 
     def test_outras_paginas_mantem_sidebar(self):
-        """O esconderijo da sidebar vale só para a página do pedido."""
-        response = self.client.get('/login')
+        """O esconderijo da sidebar vale só para a página do pedido e para o
+        login (tela de foco total desde o redesenho visual) — as demais
+        páginas públicas seguem com a navegação lateral."""
+        response = self.client.get('/')
         page = response.get_data(as_text=True)
         self.assertIn('<nav class="sidebar">', page)
+        response = self.client.get('/login')
+        page = response.get_data(as_text=True)
+        self.assertNotIn('<nav class="sidebar">', page)
 
     def test_busca_colaborador_por_email(self):
         """Auto-preenchimento: e-mail de conta ativa devolve apenas found e

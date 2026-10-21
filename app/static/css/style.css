@@ -7,10 +7,18 @@
     --primary-color-rgb: 0, 75, 141;
     --topbar-bg: #ffffff;
     --body-bg: #f4f6f9;
-    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    --card-shadow: var(--shadow-soft);
     --text-color: #333;
     --text-muted: #6c757d;
     --border-color: rgba(0, 0, 0, 0.05);
+    /* Tokens de forma (Fase 1 do redesenho visual): escala única de raios e
+       sombras em duas camadas (contato + difusão) — componentes novos e
+       refinados (cards, painel, login) referenciam estes tokens. */
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 16px;
+    --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -8px rgba(16, 24, 40, 0.1);
+    --shadow-raised: 0 2px 4px rgba(16, 24, 40, 0.05), 0 16px 40px -12px rgba(16, 24, 40, 0.18);
     /* Tons derivados do accent: hover/ativo do botão sólido (mais escuros
        que o base) — cada tema de cor sobrescreve estes tokens. */
     --primary-hover: #003d70;
@@ -37,7 +45,9 @@
     --sidebar-bg: #0a1624;
     --topbar-bg: #161b22;
     --body-bg: #0d1117;
-    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    --card-shadow: var(--shadow-soft);
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px -8px rgba(0, 0, 0, 0.45);
+    --shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 40px -12px rgba(0, 0, 0, 0.55);
     --primary-color: #2c7be5;
     --primary-color-rgb: 44, 123, 229;
     /* Tons derivados do accent no escuro: hover/ativo do botão sólido
@@ -428,7 +438,7 @@ body {
 /* Senac Style overrides */
 .card {
     border: none;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     box-shadow: var(--card-shadow);
     background-color: var(--topbar-bg);
     color: var(--text-color);
@@ -450,7 +460,7 @@ body {
     --bs-btn-disabled-border-color: var(--primary-color);
     background-color: var(--primary-color);
     border-color: var(--primary-color);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
 }
 
 .btn-outline-primary {
@@ -464,7 +474,7 @@ body {
     --bs-btn-active-border-color: var(--primary-color);
     --bs-btn-disabled-color: var(--primary-color);
     --bs-btn-disabled-border-color: var(--primary-color);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
 }
 
 [data-theme="dark"] .btn-outline-primary {
@@ -1040,4 +1050,476 @@ h1, h2, h3, h4, h5, h6 {
 
 .notif-lista .dropdown-item-text + .dropdown-item-text {
     border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* ══ Fase 1 do redesenho visual — componentes ═════════════════════════
+   Piloto (login + painel): refinamentos globais discretos e componentes
+   de página (login em painel duplo, resumo do painel, cabeçalho de
+   seção, estado vazio). Todas as cores vêm dos tokens de tema/accent —
+   nada de azul fixo, para seguir funcionando nos acentos e no escuro. */
+
+/* — Refinamentos globais — */
+.form-control,
+.form-select {
+    border-radius: var(--radius-sm);
+}
+
+.btn {
+    font-weight: 500;
+    transition: transform 0.12s ease, box-shadow 0.2s ease,
+                background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-primary {
+    box-shadow: 0 1px 2px rgba(var(--primary-color-rgb), 0.35);
+}
+
+.btn-primary:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.35);
+}
+
+.btn:not(:disabled):active {
+    transform: translateY(0);
+}
+
+/* Cabeçalhos de tabela: rótulos discretos em versalete — moderniza as
+   listagens sem tocar nos templates. */
+.table thead th {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* A regra escura de tabelas ([data-theme="dark"] .table > :not(caption)...)
+    pinta TODAS as células com a mesma cor — reposta o tom de rótulo no th. */
+[data-theme="dark"] .table thead th {
+    color: var(--text-muted);
+}
+
+/* Elevação suave ao pairar (cartões do painel em visão de cartões) */
+.hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-raised);
+}
+
+/* Entrada discreta das áreas novas (card do login, resumo do painel) */
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+.fade-up {
+    animation: fade-up 0.4s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fade-up { animation: none; }
+    .hover-lift, .btn { transition: none; }
+    .hover-lift:hover,
+    .btn-primary:not(:disabled):hover { transform: none; }
+}
+
+/* Estado vazio (painel sem agenda no período; reutilizável nas listagens) */
+.empty-state {
+    text-align: center;
+    padding: 3.5rem 1.5rem;
+    color: var(--text-muted);
+}
+
+.empty-state > i {
+    font-size: 2.75rem;
+    opacity: 0.5;
+    display: block;
+    margin-bottom: 0.75rem;
+}
+
+/* — Tela de login — */
+.login-wrap {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 2.5rem;
+    max-width: 1060px;
+    margin: 0 auto;
+    min-height: max(480px, calc(100vh - 24rem));
+}
+
+/* Painel institucional (desktop): gradiente derivado do accent vigente.
+   O fallback sólido cobre navegadores sem color-mix(). */
+.login-brand {
+    flex: 1 1 460px;
+    max-width: 520px;
+    border-radius: var(--radius-lg);
+    background: var(--primary-hover);
+    background: linear-gradient(165deg,
+        var(--primary-color) 0%,
+        color-mix(in srgb, var(--primary-color), #000 45%) 100%);
+    color: #fff;
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-raised);
+}
+
+/* Círculos decorativos recortados pelos cantos do painel */
+.login-brand::before,
+.login-brand::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.login-brand::before {
+    width: 360px;
+    height: 360px;
+    top: -140px;
+    right: -120px;
+}
+
+.login-brand::after {
+    width: 260px;
+    height: 260px;
+    bottom: -110px;
+    left: -90px;
+}
+
+.login-brand-body,
+.login-brand-footer {
+    position: relative;
+}
+
+.login-brand-logo img {
+    height: 3.4rem;
+    width: auto;
+    display: block;
+}
+
+.login-brand h2 {
+    color: #fff;
+    font-size: 1.9rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 1.25rem 0 0.25rem;
+}
+
+.login-brand-tagline {
+    color: rgba(255, 255, 255, 0.78);
+    margin-bottom: 2.25rem;
+}
+
+.login-benefits {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.9rem;
+}
+
+.login-benefits li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.login-benefits i {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.14);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.login-brand-footer {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.8rem;
+}
+
+.login-area {
+    flex: 1 1 420px;
+    max-width: 460px;
+    display: flex;
+    align-items: center;
+}
+
+.login-card {
+    width: 100%;
+}
+
+/* Marca resumida dentro do card: só aparece no celular/tablet, onde o
+   painel institucional (d-lg-flex) não existe. */
+.login-mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 700;
+    font-size: 1.2rem;
+}
+
+.login-mobile-brand img {
+    height: 2.2rem;
+    width: auto;
+}
+
+.login-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.35rem;
+}
+
+.login-card .form-label {
+    font-size: 0.9rem;
+}
+
+.login-card .form-control {
+    padding: 0.65rem 0.9rem;
+}
+
+.login-card .btn-primary {
+    padding: 0.7rem 1rem;
+}
+
+@media (max-width: 991.98px) {
+    .login-wrap {
+        min-height: auto;
+        padding: 0.5rem 0;
+    }
+}
+
+/* — Painel (dashboard) — */
+.dash-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.dash-hero h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+
+.dash-hero-date {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-top: 0.4rem;
+}
+
+.dash-hero-period {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: rgba(var(--primary-color-rgb), 0.1);
+    color: var(--primary-color);
+}
+
+.dash-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.1rem 1.3rem;
+    border-radius: var(--radius-md);
+    background: var(--topbar-bg);
+    box-shadow: var(--shadow-soft);
+}
+
+.stat-icon {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    background: rgba(var(--primary-color-rgb), 0.12);
+    color: var(--primary-color);
+}
+
+.stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+}
+
+.stat-label {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+/* Cabeçalho de seção genérico (painel por categoria, dia da agenda):
+   ícone em chip tintado + título. A cor do chip vem inline do template
+   (tint de 12% via sufixo alpha do hex #rrggbb + cor cheia no ícone). */
+.section-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    margin-bottom: 0.9rem;
+}
+
+.section-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+}
+
+/* Variante com a cor do accent para seções sem cor própria (filtros) */
+.section-icon-default {
+    background: rgba(var(--primary-color-rgb), 0.12);
+    color: var(--primary-color);
+}
+
+.section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+
+/* Título de card de filtros (agenda, listagens de reservas) */
+.filter-title {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 1rem;
+}
+
+.dash-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(var(--primary-color-rgb), 0.1);
+    color: var(--primary-color);
+}
+
+/* ══ Fase 1 do redesenho — componentes das telas internas ════════════ */
+
+/* Cabeçalho de página: título com respiro + ações à direita (usado com
+   utilitários Bootstrap nos templates: <div class="page-header">…) */
+.page-header h1,
+.page-header h2,
+.page-header h3 {
+    font-size: 1.45rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.2rem;
+}
+
+.page-header p {
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* Abas (nav-tabs) em estilo sublinhado — mais leve que a caixa sólida do
+   Bootstrap padrão; o sublinhado segue o accent em qualquer tema. */
+.nav-tabs {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nav-tabs .nav-link {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 0.55rem 1rem;
+    margin-bottom: -1px;
+    transition: color 0.15s ease, background-color 0.15s ease,
+                border-color 0.15s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--text-color);
+    background: rgba(var(--primary-color-rgb), 0.06);
+    border-color: transparent;
+}
+
+.nav-tabs .nav-link.active,
+.nav-tabs .nav-link.active:hover {
+    color: var(--primary-color);
+    background: transparent;
+    border-color: transparent;
+    border-bottom-color: var(--primary-color);
+    font-weight: 600;
+}
+
+[data-theme="dark"] .nav-tabs .nav-link.active,
+[data-theme="dark"] .nav-tabs .nav-link.active:hover {
+    color: var(--primary-light);
+}
+
+/* Rótulos de formulário: os templates usam "small fw-bold text-uppercase
+   text-muted" — esta regra devolve a caixa normal, peso semibold e cor
+   legível a TODOS os formulários do sistema sem tocar em cada template
+   (especificidade 0-2-0 vence as utilidades individuais 0-1-0). */
+.form-label.small {
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+/* Detalhe da reserva: tabelas de pares rótulo/valor sem grades — só um
+   fio discreto entre as linhas. */
+.info-table th {
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: 0.82rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.info-table td {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.info-table tr:last-child th,
+.info-table tr:last-child td {
+    border-bottom: 0;
 }

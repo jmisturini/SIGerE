@@ -2,12 +2,22 @@
 {% block title %}Painel de Controle{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+{# sum(attribute=..., start=[]) concatena as listas de reservas das seções
+   (o Jinja2 puro não tem filtro flatten). #}
+{% set todas_reservas = category_sections | sum(attribute='reservations', start=[]) %}
+{% set espacos_usados = todas_reservas | map(attribute='classroom.code') | list | unique | list %}
+
+<header class="dash-hero">
     <div>
-        <h1 class="h3 mb-1">Bem-vindo, {{ current_user.full_name }} 👋</h1>
-        <p class="text-muted mb-0">Aqui está o resumo das reservas de hoje, {{ formatted_today }}.</p>
+        <h1>Bem-vindo, {{ current_user.full_name }} 👋</h1>
+        <div class="dash-hero-date">
+            <i class="bi bi-calendar3"></i> {{ formatted_today }}
+            <span class="dash-hero-period">
+                <i class="bi bi-clock"></i> Período: {{ current_period }}
+            </span>
+        </div>
     </div>
-    
+
     <div class="d-flex flex-wrap gap-2">
         <!-- Novidades: abre a tela de changelog da versão atual -->
         <a href="{{ url_for('main.changelog') }}" class="btn btn-outline-secondary"
@@ -32,20 +42,50 @@
         </a>
         {% endif %}
     </div>
+</header>
+
+{% if todas_reservas %}
+<!-- Resumo do dia: contagens simples derivadas das seções já consultadas -->
+<div class="dash-stats fade-up">
+    <div class="stat-card">
+        <span class="stat-icon"><i class="bi bi-calendar2-check"></i></span>
+        <div>
+            <div class="stat-value">{{ todas_reservas | length }}</div>
+            <div class="stat-label">reservas no período da {{ current_period|lower }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon"><i class="bi bi-door-open"></i></span>
+        <div>
+            <div class="stat-value">{{ espacos_usados | length }}</div>
+            <div class="stat-label">espaços em uso agora</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon"><i class="bi bi-collection"></i></span>
+        <div>
+            <div class="stat-value">{{ category_sections | length }}</div>
+            <div class="stat-label">categorias com agenda hoje</div>
+        </div>
+    </div>
 </div>
+{% endif %}
 
 <!-- ================= LIST VIEW ================= -->
 <div id="listView">
     {% for sec in category_sections %}
     {% set cat = sec.category %}
-    <div class="card mb-4">
-        <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-            <h5 class="mb-0"><i class="bi {{ cat.display_icon }} me-2" style="color: {{ cat.display_color }};"></i> Agenda de {{ cat.name }}</h5>
-            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ current_period }}</span>
+    <section class="mb-4">
+        <div class="section-head">
+            <span class="section-icon" style="color: {{ cat.display_color }}; background-color: {{ cat.display_color }}1f;">
+                <i class="bi {{ cat.display_icon }}"></i>
+            </span>
+            <h5 class="section-title">Agenda de {{ cat.name }}</h5>
+            <span class="dash-count">{{ sec.reservations|length }} {{ 'reserva' if sec.reservations|length == 1 else 'reservas' }}</span>
         </div>
-        <div class="card-body p-0">
+        <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover mb-0 align-middle">
+                <table class="table table-hover align-middle mb-0">
                     <thead>
                         <tr>
                             <th class="ps-4">Horário</th>
@@ -57,7 +97,7 @@
                     <tbody>
                     {% for r in sec.reservations %}
                         <tr>
-                            <td class="fw-bold text-nowrap ps-4">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
+                            <td class="fw-semibold text-nowrap ps-4">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
                             <td>
                                 <span class="badge me-2 badge-codigo-sala" style="background-color: {{ cat.display_color }};">{{ r.classroom.code }}</span>
                                 {{ r.classroom.name }}
@@ -70,13 +110,7 @@
                 </table>
             </div>
         </div>
-    </div>
-    {% else %}
-    <div class="card text-center text-muted p-5">
-        <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
-        <h5 class="mb-1">Nenhum espaço agendado</h5>
-        <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
-    </div>
+    </section>
     {% endfor %}
 </div>
 
@@ -84,15 +118,18 @@
 <div id="cardView" style="display: none;">
     {% for sec in category_sections %}
     {% set cat = sec.category %}
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <h5 class="mb-0"><i class="bi {{ cat.display_icon }} me-2" style="color: {{ cat.display_color }};"></i> Agenda de {{ cat.name }}</h5>
-        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ current_period }}</span>
+    <div class="section-head mt-3">
+        <span class="section-icon" style="color: {{ cat.display_color }}; background-color: {{ cat.display_color }}1f;">
+            <i class="bi {{ cat.display_icon }}"></i>
+        </span>
+        <h5 class="section-title">Agenda de {{ cat.name }}</h5>
+        <span class="dash-count">{{ sec.reservations|length }} {{ 'reserva' if sec.reservations|length == 1 else 'reservas' }}</span>
     </div>
 
-    <div class="row g-3 {% if not loop.last %}mb-5{% endif %}">
+    <div class="row g-3 mb-4">
         {% for r in sec.reservations %}
         <div class="col-md-6 col-xl-4">
-            <div class="card h-100 hover-shadow border-start border-4 border-top-0 border-end-0 border-bottom-0" style="border-left-color: {{ cat.display_color }};">
+            <div class="card h-100 hover-lift border-start border-4 border-top-0 border-end-0 border-bottom-0" style="border-left-color: {{ cat.display_color }};">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <span class="fs-4 fw-bold" style="color: {{ cat.display_color }};"><i class="bi {{ cat.display_icon }}"></i> {{ r.classroom.code }}</span>
@@ -113,14 +150,17 @@
         </div>
         {% endfor %}
     </div>
-    {% else %}
-    <div class="card text-center text-muted p-5">
-        <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
-        <h5 class="mb-1">Nenhum espaço agendado</h5>
-        <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
-    </div>
     {% endfor %}
 </div>
+
+{% if not category_sections %}
+<!-- Estado vazio único para as duas visões (list/card não têm seções) -->
+<div class="card empty-state fade-up">
+    <i class="bi bi-emoji-smile"></i>
+    <h5 class="mb-1">Nenhum espaço agendado</h5>
+    <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
+</div>
+{% endif %}
 
 {% endblock %}
 
@@ -159,13 +199,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-<style>
-    .hover-shadow { 
-        transition: transform 0.2s ease, box-shadow 0.2s ease; 
-    }
-    .hover-shadow:hover { 
-        transform: translateY(-4px); 
-        box-shadow: 0 1rem 1.5rem rgba(0,0,0,0.1) !important; 
-    }
-</style>
 {% endblock %}
