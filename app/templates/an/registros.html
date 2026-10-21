@@ -36,44 +36,44 @@
             {{ form.hidden_tag() }}
             <div class="row g-3">
                 <div class="col-md-3">
-                    {{ form.month_base.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.month_base.label(class="form-label small mb-1") }}
                     {{ form.month_base(class="form-select") }}
                     {% for err in form.month_base.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
                 <div class="col-md-6">
-                    {{ form.teacher.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.teacher.label(class="form-label small mb-1") }}
                     {{ form.teacher(class="form-select") }}
                     {% for err in form.teacher.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
                 <div class="col-md-3">
-                    {{ form.entitled.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.entitled.label(class="form-label small mb-1") }}
                     {{ form.entitled(class="form-select") }}
                     {% for err in form.entitled.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
                 <div class="col-md-6 d-none" id="bloco-nome-manual">
-                    {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.full_name.label(class="form-label small mb-1") }}
                     {{ form.full_name(class="form-control", placeholder="Nome do professor fora do cadastro") }}
                     {% for err in form.full_name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
             </div>
             <div class="row g-3 mt-0">
                 <div class="col-md-3">
-                    {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.registration.label(class="form-label small mb-1") }}
                     {{ form.registration(class="form-control", placeholder="Auto ao selecionar") }}
                     {% for err in form.registration.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
                 <div class="col-md-3">
-                    {{ form.class_hours.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.class_hours.label(class="form-label small mb-1") }}
                     {{ form.class_hours(class="form-control", placeholder="Ex.: 58,91") }}
                     {% for err in form.class_hours.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
                 <div class="col-md-3">
-                    {{ form.night_minutes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.night_minutes.label(class="form-label small mb-1") }}
                     {{ form.night_minutes(class="form-control", min=0, placeholder="Ex.: 160") }}
                     {% for err in form.night_minutes.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
                 <div class="col-md-3">
-                    {{ form.uo_code.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                    {{ form.uo_code.label(class="form-label small mb-1") }}
                     {{ form.uo_code(class="form-control", min=1, placeholder="Ex.: 2") }}
                     {% for err in form.uo_code.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                 </div>
@@ -137,11 +137,11 @@
               class="row g-3 align-items-end">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-6">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="planilha">Planilha (.xlsx)</label>
+                <label class="form-label small mb-1" for="planilha">Planilha (.xlsx)</label>
                 <input type="file" id="planilha" name="planilha" accept=".xlsx" class="form-control" required>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="month">Mês dos Lançamentos</label>
+                <label class="form-label small mb-1" for="month">Mês dos Lançamentos</label>
                 <select id="month" name="month_base" class="form-select">
                     {% for valor, rotulo in meses_opcoes %}
                         <option value="{{ valor }}" {{ 'selected' if valor == mes_corrente }}>{{ rotulo }}</option>
@@ -169,7 +169,7 @@
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-md-6">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="month_filter">Mês</label>
+                <label class="form-label small mb-1" for="month_filter">Mês</label>
                 <select id="month_filter" name="month_base" class="form-select">
                     <option value="">Todos os Meses</option>
                     {% for valor, rotulo in meses_opcoes %}
@@ -178,7 +178,7 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1" for="ordem-registro">Ordenar por</label>
+                <label class="form-label small mb-1" for="ordem-registro">Ordenar por</label>
                 <select name="ordem" id="ordem-registro" class="form-select">
                     <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Lançamento (mais recentes)</option>
                     <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Lançamento (mais antigas)</option>

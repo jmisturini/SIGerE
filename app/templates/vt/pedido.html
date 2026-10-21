@@ -53,7 +53,7 @@
                     {# ── Identificação (sempre visível) ── #}
                     <div class="row g-3">
                         <div class="col-md-6">
-                            {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.email.label(class="form-label small mb-1") }}
                             {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
                             <div class="form-text text-success" id="cadastro-aviso" hidden>
                                 <i class="bi bi-check-circle-fill me-1"></i> Identificado pelo cadastro —
@@ -62,12 +62,12 @@
                             {{ erro(form.email) }}
                         </div>
                         <div class="col-md-6">
-                            {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.full_name.label(class="form-label small mb-1") }}
                             {{ form.full_name(class="form-control") }}
                             {{ erro(form.full_name) }}
                         </div>
                         <div class="col-md-6">
-                            {{ form.registration.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.registration.label(class="form-label small mb-1") }}
                             {{ form.registration(class="form-control", inputmode="numeric") }}
                             <div class="form-text small">
                                 Para verificar sua matrícula, acesse o MyPlace —
@@ -113,12 +113,12 @@
                                 <div class="card-body">
                                     <h6 class="fw-bold mb-3"><i class="bi bi-1-circle me-1"></i> Primeira empresa de ônibus</h6>
                                     <div class="mb-3">
-                                        {{ form.company_a_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_name.label(class="form-label small mb-1") }}
                                         {{ form.company_a_name(class="form-select") }}
                                         {{ erro(form.company_a_name) }}
                                     </div>
                                     <div class="mb-3">
-                                        {{ form.company_a_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_value.label(class="form-label small mb-1") }}
                                         {{ form.company_a_value(class="form-select", **{"data-nativo": "true"}) }}
                                         <div class="form-text small">Cada opção identifica a tarifa aplicada com o valor vigente.</div>
                                         {{ erro(form.company_a_value) }}
@@ -128,7 +128,7 @@
                                         {{ radios_lista(form.company_a_route, 'company_a_route') }}
                                     </div>
                                     <div class="mb-3">
-                                        {{ form.company_a_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_a_passes.label(class="form-label small mb-1") }}
                                         <div class="input-group input-group-sm" style="max-width: 15rem">
                                             {{ form.company_a_passes(class="form-control", min=1, max=49) }}
                                             {% if vales_base %}
@@ -149,12 +149,12 @@
                                 <div class="card-body">
                                     <h6 class="fw-bold mb-3"><i class="bi bi-2-circle me-1"></i> Segunda empresa de ônibus</h6>
                                     <div class="mb-3">
-                                        {{ form.company_b_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_name.label(class="form-label small mb-1") }}
                                         {{ form.company_b_name(class="form-select") }}
                                         {{ erro(form.company_b_name) }}
                                     </div>
                                     <div class="mb-3">
-                                        {{ form.company_b_value.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_value.label(class="form-label small mb-1") }}
                                         {{ form.company_b_value(class="form-select", **{"data-nativo": "true"}) }}
                                         {{ erro(form.company_b_value) }}
                                     </div>
@@ -163,7 +163,7 @@
                                         {{ radios_lista(form.company_b_route, 'company_b_route') }}
                                     </div>
                                     <div class="mb-3">
-                                        {{ form.company_b_passes.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                                        {{ form.company_b_passes.label(class="form-label small mb-1") }}
                                         <div class="input-group input-group-sm" style="max-width: 15rem">
                                             {{ form.company_b_passes(class="form-control", min=1, max=49) }}
                                             {% if vales_base %}

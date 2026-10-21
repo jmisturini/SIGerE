@@ -33,13 +33,13 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="row g-3 align-items-end justify-content-center">
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Inicial</label>
+                    <label class="form-label small mb-1">Data Inicial</label>
                     <input type="date" class="form-control" value="{{ start_date.strftime('%Y-%m-%d') }}" disabled>
                     <input type="hidden" name="start_date" value="{{ start_date.strftime('%Y-%m-%d') }}">
                 </div>
                 <div class="col-md-1 text-center pb-2"><i class="bi bi-arrow-right fs-4 text-muted"></i></div>
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Selecione a Data Final</label>
+                    <label class="form-label small mb-1">Selecione a Data Final</label>
                     <input type="date" name="end_date" class="form-control" min="{{ start_date.strftime('%Y-%m-%d') }}" required>
                 </div>
                 <div class="col-md-3 d-flex flex-column justify-content-end">

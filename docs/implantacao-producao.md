@@ -76,7 +76,7 @@ O papel de cada componente — e por que ele é recomendado:
 ## 📋 Requisitos
 
 - Servidor **Debian/Ubuntu** (ou derivado) com acesso root (`sudo`)
-- **Python 3.10+** (`python3 --version`) — exigido pelas dependências fixadas no `requirements.txt`
+- **Python 3.11+** (`python3 --version`) — exigido pelas dependências fixadas no `requirements.txt` (o Pillow 13 exige 3.11 ou superior)
 - Um **domínio** apontando para o servidor (ex.: `sigere.sua-instituicao.edu.br`) — necessário para o certificado HTTPS
 - **Internet de saída** para os serviços externos usados pelo sistema:
 
@@ -671,6 +671,7 @@ WorkingDirectory=/var/www/sigere
 EnvironmentFile=/var/www/sigere/.env
 ExecStart=/var/www/sigere/venv/bin/flask --app run notify-scan
 ExecStart=/var/www/sigere/venv/bin/flask --app run notify-email
+ExecStart=/var/www/sigere/venv/bin/flask --app run autocancel-pendentes
 ```
 
 O segundo `ExecStart` drena a fila de e-mail (espelho por e-mail das
@@ -680,6 +681,11 @@ um **digest por destinatário**: as notificações de um mesmo usuário numa
 rodada saem num único e-mail. Falhas de SMTP contam tentativas
 (`MAIL_MAX_ATTEMPTS`, padrão 10) e, esgotadas, a notificação sai da fila.
 Para testar sem enviar nada: `flask --app run notify-email --dry-run`.
+
+O terceiro `ExecStart` executa o cancelamento automático de pendências
+(a reserva pendente sem aprovação até 1 hora antes do início vira
+cancelada e o criador recebe o aviso com o motivo). Também idempotente;
+prévia com `flask --app run autocancel-pendentes --dry-run`.
 
 E `/etc/systemd/system/sigere-notify.timer` (a cada 15 minutos — a precisão
 do aviso “no próprio dia” depende dessa frequência):

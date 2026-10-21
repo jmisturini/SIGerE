@@ -25,23 +25,23 @@
             {% endfor %}
             <div class="row g-3 align-items-end">
                 <div class="col-6 col-lg-3">
-                    <label for="professor" class="form-label small text-muted mb-1">Prof</label>
+                    <label for="professor" class="form-label small mb-1">Prof</label>
                     <input type="text" class="form-control" id="professor" name="professor"
                            value="{{ professor }}" maxlength="120">
                 </div>
                 <div class="col-6 col-lg-3">
-                    <label for="class_date" class="form-label small text-muted mb-1">Data da aula</label>
+                    <label for="class_date" class="form-label small mb-1">Data da aula</label>
                     <input type="date" class="form-control" id="class_date" name="class_date"
                            value="{{ class_date.strftime('%Y-%m-%d') }}">
                 </div>
                 <div class="col-6 col-lg-3">
-                    <label for="course" class="form-label small text-muted mb-1">Curso</label>
+                    <label for="course" class="form-label small mb-1">Curso</label>
                     <input type="text" class="form-control" id="course" name="course"
                            value="{{ course }}" maxlength="200"
                            placeholder="Ex: TURISMO - GRADUAÇÃO - 090001009">
                 </div>
                 <div class="col-6 col-lg-3">
-                    <label for="period" class="form-label small text-muted mb-1">Período</label>
+                    <label for="period" class="form-label small mb-1">Período</label>
                     <select class="form-select" id="period" name="period">
                         <option value="" {% if not period %}selected{% endif %}>—</option>
                         <option value="Matutino" {% if period == 'Matutino' %}selected{% endif %}>Matutino</option>

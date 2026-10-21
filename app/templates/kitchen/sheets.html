@@ -147,7 +147,7 @@
         <h6 class="fw-bold mb-0"><i class="bi bi-archive me-2"></i>Fichas salvas</h6>
         <div class="d-flex flex-wrap align-items-center gap-2">
             <form method="GET" class="d-flex align-items-center gap-2">
-                <label class="form-label small fw-bold text-muted mb-0" for="ordem-ficha">Ordenar por</label>
+                <label class="form-label small mb-0" for="ordem-ficha">Ordenar por</label>
                 <select name="ordem" id="ordem-ficha" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
                     <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Envio (mais recentes)</option>
                     <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Envio (mais antigas)</option>

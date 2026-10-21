@@ -13,19 +13,19 @@
                     {{ form.hidden_tag() }}
 
                     <div class="mb-3">
-                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">E-mail (login)</label>
+                        <label class="form-label small mb-1">E-mail (login)</label>
                         <input type="text" class="form-control" value="{{ current_user.email }}" disabled>
                         <div class="form-text small">Este e-mail é o seu login — apenas um administrador pode alterá-lo.</div>
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
-                            {{ form.full_name.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.full_name.label(class="form-label small mb-1") }}
                             {{ form.full_name(class="form-control") }}
                             {% for err in form.full_name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.department.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.department.label(class="form-label small mb-1") }}
                             {{ form.department(class="form-control") }}
                             {% for err in form.department.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
@@ -46,7 +46,7 @@
                     </div>
 
                     <div class="mb-3">
-                        {{ form.notify_muted_categories.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.notify_muted_categories.label(class="form-label small mb-1") }}
                         {{ form.notify_muted_categories(class="form-select", multiple=true) }}
                         <div class="form-text small">Silencia os avisos apenas das salas dos tipos marcados
                             (ex.: laboratórios). Segure Ctrl (ou toque e arraste no celular) para selecionar vários.</div>
@@ -65,7 +65,7 @@
                     </h6>
 
                     <div class="mb-3">
-                        {{ form.current_password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.current_password.label(class="form-label small mb-1") }}
                         <div class="input-group">
                             {{ form.current_password(class="form-control", id="current_password-input") }}
                             <button class="btn btn-outline-secondary" type="button" data-password-toggle="current_password-input"
@@ -78,7 +78,7 @@
 
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            {{ form.password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.password.label(class="form-label small mb-1") }}
                             <div class="input-group">
                                 {{ form.password(class="form-control", id="new_password-input") }}
                                 <button class="btn btn-outline-secondary" type="button" data-password-toggle="new_password-input"
@@ -89,7 +89,7 @@
                             {% for err in form.password.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.confirm_password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.confirm_password.label(class="form-label small mb-1") }}
                             {{ form.confirm_password(class="form-control") }}
                             {% for err in form.confirm_password.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>

@@ -14,7 +14,7 @@
 
 {% macro texto(field, col='col-md-6', extras={}) %}
 <div class="{{ col }}">
-    {{ field.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+    {{ field.label(class="form-label small mb-1") }}
     {{ field(class="form-control" if field.type != 'SelectField' else 'form-select', **extras) }}
     {% for err in field.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
 </div>
@@ -46,7 +46,7 @@
                         {{ texto(form.full_name, 'col-md-4') }}
                         {{ texto(form.registration, 'col-md-2') }}
                         <div class="col-md-2">
-                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.optant.label.text }}</span>
+                            <span class="form-label small mb-1 d-block">{{ form.optant.label.text }}</span>
                             {{ radios_lista(form.optant, 'optant') }}
                         </div>
                     </div>
@@ -56,11 +56,11 @@
                     </h6>
                     <div class="row g-3">
                         <div class="col-md-4">
-                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.link.label.text }}</span>
+                            <span class="form-label small mb-1 d-block">{{ form.link.label.text }}</span>
                             {{ radios_lista(form.link, 'link') }}
                         </div>
                         <div class="col-md-4">
-                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.company_count.label.text }}</span>
+                            <span class="form-label small mb-1 d-block">{{ form.company_count.label.text }}</span>
                             {{ radios_lista(form.company_count, 'company_count') }}
                         </div>
                     </div>
@@ -72,7 +72,7 @@
                         {{ texto(form.company_a_name, 'col-md-4') }}
                         {{ texto(form.company_a_value, 'col-md-4', {"data-nativo": "true"}) }}
                         <div class="col-md-2">
-                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.company_a_route.label.text }}</span>
+                            <span class="form-label small mb-1 d-block">{{ form.company_a_route.label.text }}</span>
                             {{ radios_lista(form.company_a_route, 'company_a_route') }}
                         </div>
                         {{ texto(form.company_a_passes, 'col-md-2') }}
@@ -85,7 +85,7 @@
                         {{ texto(form.company_b_name, 'col-md-4') }}
                         {{ texto(form.company_b_value, 'col-md-4', {"data-nativo": "true"}) }}
                         <div class="col-md-2">
-                            <span class="form-label small fw-bold text-uppercase text-muted mb-1 d-block">{{ form.company_b_route.label.text }}</span>
+                            <span class="form-label small mb-1 d-block">{{ form.company_b_route.label.text }}</span>
                             {{ radios_lista(form.company_b_route, 'company_b_route') }}
                         </div>
                         {{ texto(form.company_b_passes, 'col-md-2') }}

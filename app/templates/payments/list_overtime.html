@@ -47,7 +47,7 @@
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-md-4">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Mês Base</label>
+                <label class="form-label small mb-1">Mês Base</label>
                 <select id="month_base" name="month_base" class="form-select">
                     <option value="">Todos os meses</option>
                     {% for value, label in month_options %}
@@ -56,7 +56,7 @@
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Professor</label>
+                <label class="form-label small mb-1">Professor</label>
                 <select id="teacher_filter" name="teacher_filter" class="form-select">
                     <option value="">Todos os Professores</option>
                     {% for t in list_teachers %}
@@ -65,7 +65,7 @@
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Ordenar por</label>
+                <label class="form-label small mb-1">Ordenar por</label>
                 <select name="ordem" class="form-select">
                     <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Lançamento (mais recentes)</option>
                     <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Lançamento (mais antigas)</option>

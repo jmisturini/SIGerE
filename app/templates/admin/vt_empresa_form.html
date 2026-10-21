@@ -17,7 +17,7 @@
 
                     <div class="row g-3">
                         <div class="col-md-7">
-                            {{ form.nome.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.nome.label(class="form-label small mb-1") }}
                             {{ form.nome(class="form-control") }}
                             {% for err in form.nome.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
@@ -31,7 +31,7 @@
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label small fw-bold text-uppercase text-muted mb-1">Tarifas vigentes</label>
+                            <label class="form-label small mb-1">Tarifas vigentes</label>
                             <div class="form-text small mb-2">Cada linha é uma opção de "Valor do vale" no pedido
                                 público: a identificação da tarifa aplicada (ex.: Patamar 3, da tabela da empresa)
                                 e o valor correspondente.</div>

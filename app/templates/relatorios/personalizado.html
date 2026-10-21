@@ -35,22 +35,22 @@
         <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-funnel me-1"></i> Filtros</h6>
         <form method="GET" class="row g-3">
             <div class="col-sm-4 col-lg-2">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Inicial</label>
+                <label class="form-label small mb-1">Data Inicial</label>
                 <input type="date" name="start" class="form-control" value="{{ inicio.isoformat() }}">
             </div>
             <div class="col-sm-4 col-lg-2">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Final</label>
+                <label class="form-label small mb-1">Data Final</label>
                 <input type="date" name="end" class="form-control" value="{{ fim.isoformat() }}">
             </div>
             <div class="col-sm-4 col-lg-2">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Ordenação</label>
+                <label class="form-label small mb-1">Ordenação</label>
                 <select name="ordem" class="form-select">
                     <option value="asc" {{ 'selected' if ordem == 'asc' }}>Crescente (antiga primeiro)</option>
                     <option value="desc" {{ 'selected' if ordem == 'desc' }}>Decrescente (recente primeiro)</option>
                 </select>
             </div>
             <div class="col-sm-6 col-lg-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Status</label>
+                <label class="form-label small mb-1">Status</label>
                 <div class="d-flex flex-wrap gap-3 pt-2" role="group" aria-label="Status">
                     {% for valor, rotulo in [('approved', 'Aprovadas'), ('pending', 'Pendentes'), ('cancelled', 'Canceladas')] %}
                     <div class="form-check mb-0">
@@ -64,7 +64,7 @@
                 <div class="form-text">Nada marcado inclui todos os status.</div>
             </div>
             <div class="col-sm-6 col-lg-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Período do dia</label>
+                <label class="form-label small mb-1">Período do dia</label>
                 <div class="d-flex flex-wrap gap-3 pt-2" role="group" aria-label="Período do dia">
                     {% for valor, rotulo in [('morning', 'Manhã'), ('afternoon', 'Tarde'), ('night', 'Noite')] %}
                     <div class="form-check mb-0">
@@ -78,35 +78,35 @@
                 <div class="form-text">Nada marcado inclui o dia inteiro.</div>
             </div>
             <div class="col-sm-6 col-lg-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Sala</label>
+                <label class="form-label small mb-1">Sala</label>
                 <select name="room_id" class="form-select">
                     <option value="">Todas</option>
                     {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('room_id') == c.id|string }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-sm-6 col-lg-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Professor</label>
+                <label class="form-label small mb-1">Professor</label>
                 <select name="teacher_id" class="form-select">
                     <option value="">Todos</option>
                     {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('teacher_id') == t.id|string }}>{{ t.full_name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-sm-6 col-lg-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Curso</label>
+                <label class="form-label small mb-1">Curso</label>
                 <select name="course_id" class="form-select">
                     <option value="">Todos</option>
                     {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('course_id') == c.id|string }}>{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-sm-6 col-lg-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Disciplina</label>
+                <label class="form-label small mb-1">Disciplina</label>
                 <select name="subject_id" class="form-select">
                     <option value="">Todas</option>
                     {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if request.args.get('subject_id') == s.id|string }}>{{ s.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-sm-6 col-lg-2">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Agrupar por</label>
+                <label class="form-label small mb-1">Agrupar por</label>
                 <select name="agrupar" class="form-select">
                     {% for valor, rotulo in [('data', 'Data'), ('sala', 'Sala'), ('professor', 'Professor'), ('curso', 'Curso'), ('disciplina', 'Disciplina'), ('nenhum', 'Sem agrupamento')] %}
                     <option value="{{ valor }}" {{ 'selected' if agrupar == valor }}>{{ rotulo }}</option>
@@ -114,7 +114,7 @@
                 </select>
             </div>
             <div class="col-lg-4">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Buscar no título</label>
+                <label class="form-label small mb-1">Buscar no título</label>
                 <input type="text" name="texto" class="form-control" value="{{ texto }}" placeholder="Ex.: laboratório, formatura…">
             </div>
             <div class="col-12 d-flex flex-wrap gap-2">

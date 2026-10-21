@@ -2,7 +2,7 @@
 
 # 🏫 SIGerE — Sistema Integrado de Gerenciamento Educacional
 
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com)
 [![Bootstrap](https://img.shields.io/badge/Bootstrap-5-7952B3?logo=bootstrap&logoColor=white)](https://getbootstrap.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -233,7 +233,7 @@ Adaptação web do gerador local "Gerador-Ad-Noturno-SENAC-FL": o formulário re
 
 | Camada | Tecnologia |
 |--------|-----------|
-| **Backend** | Python 3.10+, Flask 3.x, Flask-SQLAlchemy, Flask-Login, Flask-WTF |
+| **Backend** | Python 3.11+, Flask 3.x, Flask-SQLAlchemy, Flask-Login, Flask-WTF |
 | **Banco de Dados** | SQLite (padrão), compatível com PostgreSQL (driver incluído) |
 | **Migrações** | Flask-Migrate (Alembic) |
 | **Frontend** | Bootstrap 5, Bootstrap Icons, Jinja2 |
@@ -263,7 +263,7 @@ Guias detalhados disponíveis no diretório [`docs/`](docs/):
 > 🛠️ **Guia completo de desenvolvimento** (modo debug, banco local, migrações, testes e depuração): [docs/desenvolvimento-debug.md](docs/desenvolvimento-debug.md)
 
 ### Pré-requisitos
-- Python 3.10 ou superior (exigido pelas dependências do `requirements.txt`)
+- Python 3.11 ou superior (exigido pelas dependências do `requirements.txt` — o Pillow 13 não instala em 3.10)
 - pip
 
 ### Setup interativo (atalho)
