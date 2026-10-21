@@ -1142,18 +1142,27 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Estado vazio dentro de tabela (célula colspan das listagens): mesmo
-   tratamento, com respiro menor para não esticar a linha. */
-.empty-cell {
+   tratamento, com respiro menor para não esticar a linha. A especificidade
+   .table td.empty-cell empata com a regra de célula do Bootstrap
+   (.table > :not(caption) > * > *) e vence pela ordem de carga do CSS. */
+.table td.empty-cell {
     text-align: center;
     color: var(--text-muted);
     padding: 2.5rem 1.5rem;
 }
 
-.empty-cell > i {
+.table td.empty-cell > i {
     font-size: 2.2rem;
     opacity: 0.5;
     display: block;
     margin-bottom: 0.7rem;
+}
+
+/* No tema escuro, a regra de células ([data-theme="dark"] .table >
+   :not(caption) > * > *) repinta o texto — repõe o tom de estado vazio
+   (mesmo padrão do thead). */
+[data-theme="dark"] .table td.empty-cell {
+    color: var(--text-muted);
 }
 
 /* — Tela de login — */
