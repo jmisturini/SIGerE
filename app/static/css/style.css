@@ -1141,6 +1141,21 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 0.75rem;
 }
 
+/* Estado vazio dentro de tabela (célula colspan das listagens): mesmo
+   tratamento, com respiro menor para não esticar a linha. */
+.empty-cell {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 2.5rem 1.5rem;
+}
+
+.empty-cell > i {
+    font-size: 2.2rem;
+    opacity: 0.5;
+    display: block;
+    margin-bottom: 0.7rem;
+}
+
 /* — Tela de login — */
 .login-wrap {
     display: flex;
