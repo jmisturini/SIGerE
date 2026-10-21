@@ -65,6 +65,33 @@ class FixedDatetimeDia25(datetime):
         return cls(today.year, today.month, 25, 12, 0)
 
 
+class FixedDatetimeDia20(datetime):
+    """now() fixado no dia 20 do mês corrente real: último dia da janela que
+    ainda conta para o mês atual (a partir do dia 21, vira a janela)."""
+    @classmethod
+    def now(cls):
+        today = datetime.now()
+        return cls(today.year, today.month, 20, 12, 0)
+
+
+class FixedDatetimeDia21(datetime):
+    """now() fixado no dia 21 do mês corrente real: primeiro dia que já conta
+    para o mês seguinte."""
+    @classmethod
+    def now(cls):
+        today = datetime.now()
+        return cls(today.year, today.month, 21, 12, 0)
+
+
+class FixedDatetimeDez21(datetime):
+    """now() fixado em 21/dezembro: a janela aponta para janeiro do ano
+    seguinte (virada do ano)."""
+    @classmethod
+    def now(cls):
+        today = datetime.now()
+        return cls(today.year, 12, 21, 12, 0)
+
+
 class PaymentsTestCase(unittest.TestCase):
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix='.db')
@@ -233,6 +260,39 @@ class PaymentsTestCase(unittest.TestCase):
         with self.app.app_context():
             record = db.session.query(TeacherOvertimePay).first()
             self.assertEqual(record.month_base, self._mes_seguinte())
+
+    def test_create_no_dia_20_conta_para_o_mes_corrente(self):
+        """Limite inferior da janela: o dia 20 ainda pertence ao mês
+        corrente."""
+        with patch('app.blueprints.payments.datetime', FixedDatetimeDia20):
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(), follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.month_base, self._mes_atual())
+
+    def test_create_no_dia_21_conta_para_o_mes_seguinte(self):
+        """Limite superior da janela: a partir do dia 21, o lançamento conta
+        para o mês seguinte."""
+        with patch('app.blueprints.payments.datetime', FixedDatetimeDia21):
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(), follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.month_base, self._mes_seguinte())
+
+    def test_create_no_dia_21_de_dezembro_vira_o_ano(self):
+        """Virada do ano: lançamento em 21/dezembro conta para janeiro do ano
+        seguinte."""
+        with patch('app.blueprints.payments.datetime', FixedDatetimeDez21):
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(), follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.month_base, f'{datetime.now().year + 1}-01')
 
     def test_create_current_month_succeeds_and_formats_budget_code(self):
         response = self.client.post('/payments/overtime/create',

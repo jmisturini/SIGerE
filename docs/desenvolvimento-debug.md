@@ -272,7 +272,7 @@ módulo `run.py`, onde vive a factory `create_app()`).
 | `db upgrade` | Aplica as migrações pendentes (cria o schema do zero num banco vazio) | Seguro com múltiplos processos |
 | `db migrate -m "..."` | Gera um arquivo de migração a partir dos modelos | Revise antes de aplicar |
 | `db stamp head` | Marca o banco como "na versão atual" sem aplicar nada | Para bancos legados pré-Alembic |
-| `seed` | Cria permissões/papéis + admin (`admin`/`admin123`) e **pergunta interativamente** se quer dados de demonstração | Recusa-se a rodar em banco já populado |
+| `seed` | Cria permissões/papéis + admin (`admin@school.edu`/`admin123`) e **pergunta interativamente** se quer dados de demonstração | Recusa-se a rodar em banco já populado |
 | `seed-admin` | Cria **apenas** o admin, com senha digitada (mín. 8 caracteres, oculta) | Fluxo de implantação real; sem demonstração |
 | `seed-unidades` | Cadastra/atualiza as unidades do Senac SC a partir de `docs/unidades-senac-sc.json` | Idempotente; opção `--file CAMINHO` aceita outro JSON |
 | `seed-demo` | Cenário de demonstração **completo**: unidades (uma sem Cozinha, uma inativa), todos os papéis, 7 tipos de sala, reservas em todas as situações (datas relativas a hoje), feriados, hora extra, vale-transporte, cozinha e token da API | Recusa duplicar — `--reset` apaga a demonstração anterior e recria; [contas na seção abaixo](#-contas-de-demonstração) |
