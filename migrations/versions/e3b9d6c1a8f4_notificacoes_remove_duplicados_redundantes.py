@@ -31,7 +31,10 @@ def upgrade():
                'AND n2.reservation_id = notifications.reservation_id '
                'AND n2.event_type = notifications.event_type '
                'AND n2.title = notifications.title '
-               'AND n2.body IS NOT DISTINCT FROM notifications.body '
+               # Igualdade tratando NULL (equivalente ao IS NOT DISTINCT FROM,
+               # que o SQLite só aceita a partir da 3.39.0)
+               'AND (n2.body = notifications.body '
+               'OR (n2.body IS NULL AND notifications.body IS NULL)) '
                'AND CAST(rtrim(n2.milestone, \'d\') AS INTEGER) '
                '< CAST(rtrim(notifications.milestone, \'d\') AS INTEGER))')
 

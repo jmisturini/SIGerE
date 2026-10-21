@@ -116,8 +116,14 @@
         function preencherValores(empresaSelect, valorSelect) {
             const linhas = EMPRESAS_VALORES[empresaSelect.value] || [];
             const anterior = valorSelect.value;
-            valorSelect.innerHTML = '<option value="">Selecione…</option>' + linhas.map(l =>
-                `<option value="${l.id}" ${String(l.id) === anterior ? 'selected' : ''}>${l.rotulo}</option>`).join('');
+            // new Option em vez de innerHTML: o rótulo vem do cadastro e não
+            // pode ser interpretado como HTML (XSS armazenado — mesmo
+            // comportamento do pedido público).
+            const manterAnterior = linhas.some(l => String(l.id) === anterior);
+            valorSelect.replaceChildren(
+                new Option('Selecione…', '', true, !manterAnterior),
+                ...linhas.map(l => new Option(l.rotulo, l.id, false, String(l.id) === anterior))
+            );
             valorSelect.disabled = linhas.length === 0;
         }
 

@@ -41,6 +41,11 @@ def redirect_back(default_endpoint, anchor=None, **fixed_args):
     if ref:
         parts = urlsplit(ref)
         if parts.netloc == request.host:
+            # Caminho precisa ser relativo ao host: "//host" e "\" são
+            # interpretados como outra origem pelo navegador (open redirect).
+            if ('\\' in parts.path or not parts.path.startswith('/')
+                    or parts.path.startswith('//')):
+                return redirect(url_for(default_endpoint, **fixed_args))
             destino = parts.path + (f'?{parts.query}' if parts.query else '')
             if anchor:
                 destino += f'#{anchor}'
@@ -55,6 +60,8 @@ def redirect_preserving_args(endpoint, **fixed_args):
     POST para a própria URL (com a query de onde o usuário veio), então
     request.args carrega a página e os filtros da listagem de origem.
     """
-    args = request.args.to_dict()
+    # Chaves com "_" prefixadas são reservadas do url_for (_external, _scheme,
+    # _anchor, _method) e não podem vir da query string — controlariam o redirect.
+    args = {k: v for k, v in request.args.items() if not k.startswith('_')}
     args.update(fixed_args)
     return redirect(url_for(endpoint, **args))

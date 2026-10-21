@@ -123,8 +123,8 @@
                     <i class="bi bi-funnel me-1"></i> Filtrar
                 </button>
                 <a href="{{ url_for('payments.list_meal_allowance') }}"
-                   class="btn btn-outline-secondary {{ '' if filter_teacher else 'disabled' }}"
-                   {{ '' if filter_teacher else 'aria-disabled="true" tabindex="-1"' }}
+                   class="btn btn-outline-secondary {{ '' if (filter_teacher or filter_month) else 'disabled' }}"
+                   {{ '' if (filter_teacher or filter_month) else 'aria-disabled="true" tabindex="-1"' }}
                    title="Limpar o filtro aplicado">
                     <i class="bi bi-x-circle me-1"></i> Limpar
                 </a>

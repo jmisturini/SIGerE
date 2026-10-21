@@ -190,6 +190,23 @@ def host_porta_da_url_redis(url):
     return host or 'localhost', int(porta) if porta.isdigit() else 6379
 
 
+def _gravar_segredos(caminho, conteudo):
+    """Grava arquivo com segredos já protegido: o temporário nasce 0o600
+    (não depende da umask nem das permissões do arquivo anterior) e substitui
+    o destino de uma vez — sem janela em que o .env fica legível no meio da
+    gravação."""
+    temporario = caminho.with_name(caminho.name + '.tmp')
+    try:
+        with open(temporario, 'x', encoding='utf-8') as arquivo:
+            if os.name != 'nt':
+                os.chmod(temporario, 0o600)
+            arquivo.write(conteudo)
+        os.replace(temporario, caminho)
+    finally:
+        if temporario.exists():
+            temporario.unlink()
+
+
 def configurar_env():
     titulo('3. Configuração do ambiente (.env)')
 
@@ -201,7 +218,8 @@ def configurar_env():
             print('   .env mantido sem alterações.')
             return ler_env(ARQUIVO_ENV)
         backup = RAIZ / '.env.bak'
-        backup.write_text(ARQUIVO_ENV.read_text(encoding='utf-8'), encoding='utf-8')
+        # Segredos no backup: leitura apenas do dono (gravação protegida).
+        _gravar_segredos(backup, ARQUIVO_ENV.read_text(encoding='utf-8'))
         print(f"   Cópia de segurança salva em {backup.name}.")
 
     ambiente = escolher(
@@ -276,7 +294,8 @@ def configurar_env():
     lon = entrada('Longitude do totem (vazio usa -46.6333)', '-46.6333')
     linhas.append(f'TOTEM_LONGITUDE="{lon}"')
 
-    ARQUIVO_ENV.write_text('\n'.join(linhas) + '\n', encoding='utf-8')
+    # O .env carrega a SECRET_KEY: gravação já protegida (leitura só do dono).
+    _gravar_segredos(ARQUIVO_ENV, '\n'.join(linhas) + '\n')
     ok(f".env criado (perfil {'desenvolvimento' if desenvolvimento else 'produção'}).")
     if not desenvolvimento:
         aviso('Proteja o arquivo .env — contém a SECRET_KEY e nunca deve ser versionado.')

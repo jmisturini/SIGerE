@@ -1,5 +1,6 @@
 import click
 from flask import Flask, render_template, redirect, url_for, request, flash
+from werkzeug.middleware.proxy_fix import ProxyFix
 from app.config import Config
 from app.extensions import db, login_manager, csrf, limiter, migrate
 from datetime import datetime
@@ -25,6 +26,14 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     debug_mode = debug_enabled()
+
+    # Atrás do Nginx em produção, remote_addr seria sempre o do proxy e o rate
+    # limit (ex.: 5/min no login) valeria para a instituição inteira. x_for=1
+    # = um proxy confiável na frente, conforme o setup do README. Só nesse
+    # cenário: servindo direto (desenvolvimento com FLASK_DEBUG), quem alcança
+    # o servidor forjaria X-Forwarded-* para girar a chave do rate limit.
+    if not debug_mode:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Fail-fast de segurança: sem SECRET_KEY forte, sessões podem ser forjadas.
     # Vale apenas para quem SERVE requisições (python run.py, gunicorn...):
@@ -231,9 +240,9 @@ def create_app(config_class=Config):
                   '"flask --app run db stamp head" se o schema já estiver atualizado.',
                   file=sys.stderr)
 
-        # Permissões/papéis novos em bancos já existentes (idempotente)
-        if 'permissions' in tables:
-            from app.commands import sync_permissions_impl
-            sync_permissions_impl(verbose=False)
+        # Permissões/papéis novos: aplicados por `flask --app run
+        # sync-permissions` no deploy (passo documentado). Fora do boot porque
+        # o DML concorrente derruba workers paralelos do Gunicorn
+        # (IntegrityError na constraint única de Permission.code).
 
     return app

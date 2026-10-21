@@ -64,7 +64,8 @@
                                     </a>
                                     <form method="POST" class="d-inline"
                                           action="{{ url_for('admin.delete_notificacao_grupo', group_id=grupo.id) }}"
-                                          onsubmit="return confirm('Excluir o grupo {{ grupo.name }}? As configurações que o selecionam deixam de avisá-lo.');">
+                                          data-nome="{{ grupo.name }}"
+                                          onsubmit="return confirm('Excluir o grupo ' + this.dataset.nome + '? As configurações que o selecionam deixam de avisá-lo.');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir">
                                             <i class="bi bi-trash"></i>

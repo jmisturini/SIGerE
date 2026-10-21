@@ -421,10 +421,14 @@ def _aplicar_form_em_pedido(pedido, form, unity):
     pedido.company_a_value = linha_a.valor if linha_a else None
     pedido.company_a_passes = form.company_a_passes.data
     pedido.company_a_route = form.company_a_route.data
-    pedido.company_b_name = form.company_b_name.data or None
-    pedido.company_b_value = linha_b.valor if linha_b else None
-    pedido.company_b_passes = form.company_b_passes.data
-    pedido.company_b_route = form.company_b_route.data
+    # Campos da empresa B só valem com duas empresas: o JavaScript do
+    # formulário limpa os campos ao trocar 2→1, mas o servidor não pode
+    # depender disso — um POST com resíduos não pode inflar o total_value.
+    usa_b = pedido.company_count == 2
+    pedido.company_b_name = (form.company_b_name.data or None) if usa_b else None
+    pedido.company_b_value = linha_b.valor if (usa_b and linha_b) else None
+    pedido.company_b_passes = form.company_b_passes.data if usa_b else None
+    pedido.company_b_route = form.company_b_route.data if usa_b else None
     return pedido
 
 
@@ -534,18 +538,19 @@ def _vinculo_por_perfil(user):
 @limiter.limit('30 per minute')
 def request_form_colaborador():
     """Auto-preenchimento do formulário público: dado o e-mail informado,
-    devolve nome, matrícula e vínculo da conta ATIVA correspondente (found
-    false quando não há — o colaborador preenche à mão)."""
+    devolve apenas a existência da conta ATIVA e o vínculo (found false
+    quando não há — o colaborador preenche à mão). Nome e matrícula não são
+    expostos: o endpoint é anônimo e não pode servir de enumeração de
+    cadastros; no POST, o servidor preenche esses dados pelo cadastro
+    (FormVtPedido._identificar_por_email)."""
     email = (request.args.get('email') or '').strip().lower()
     user = None
     if email:
         user = (User.query
                 .filter(func.lower(User.email) == email,
-                        User.is_active_user == True)
+                        User.is_active_user == True)  # noqa: E712
                 .first())
     return jsonify({
         'found': user is not None,
-        'full_name': user.full_name if user else None,
-        'registration': user.registration if user else None,
         'vinculo': _vinculo_por_perfil(user) if user else None,
     })

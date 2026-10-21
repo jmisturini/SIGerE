@@ -813,7 +813,7 @@ h1, h2, h3, h4, h5, h6 {
     border-bottom-color: #30363d;
 }
 
-[data-theme="dark"] .ts-wrapper.multi .ts-control > item {
+[data-theme="dark"] .ts-wrapper.multi .ts-control > .item {
     background-color: rgba(var(--primary-color-rgb), 0.25);
     border: 1px solid rgba(var(--primary-color-rgb), 0.45);
     color: #c9d1d9;

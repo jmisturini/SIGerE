@@ -735,7 +735,7 @@ Para conferir o que a varredura criaria sem gravar nada:
 | Upload falha com `500` / ficha não aparece | `instance/uploads/` inexistente ou sem permissão de escrita para `www-data` | Recrie com o dono certo: `sudo mkdir -p /var/www/sigere/instance/uploads && sudo chown -R www-data:www-data /var/www/sigere/instance` |
 | Clima do totem "N/A" | Unidade sem coordenadas e/ou sem internet para Open-Meteo | Configure o clima por unidade no painel; teste a saída para `api.open-meteo.com` |
 | API responde `401` para um token que funcionava | Token revogado/expirado ou conta do criador desativada | Reemita o token em Painel Admin → Tokens da API ([detalhes](api-reservas.md)) |
-| `⚠️ Banco de dados vazio` no log após atualizar | Migração não aplicada | `sudo -u www-data venv/bin/flask --app run db upgrade` |
+| `⚠️ Banco de dados vazio` no log após atualizar | Migração não aplicada | Como o seu usuário: `set -a; source .env; set +a` e `venv/bin/flask --app run db upgrade` (passo 5) |
 | Exportações Excel com erro de permissão | Diretório temporário/`static` sem permissão para `www-data` | Revise `chown` de `/var/www/sigere` (arquivos pertencem a `www-data`) |
 
 Para investigar a fundo, o par mais útil é
