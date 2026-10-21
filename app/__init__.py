@@ -32,8 +32,11 @@ def create_app(config_class=Config):
     # = um proxy confiável na frente, conforme o setup do README. Só nesse
     # cenário: servindo direto (desenvolvimento com FLASK_DEBUG), quem alcança
     # o servidor forjaria X-Forwarded-* para girar a chave do rate limit.
+    # x_host fica de fora: nada no código usa request.host e o Nginx do setup
+    # não define X-Forwarded-Host — confiar nesse cabeçalho sem sanitização
+    # pelo proxy (CWE-348) não compra nada.
     if not debug_mode:
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     # Fail-fast de segurança: sem SECRET_KEY forte, sessões podem ser forjadas.
     # Vale apenas para quem SERVE requisições (python run.py, gunicorn...):

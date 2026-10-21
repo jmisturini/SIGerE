@@ -7,7 +7,7 @@ Guia a implantação e a manutenção do sistema em um único comando:
 O menu inicial oferece três modos:
 
   1. Instalação completa — do zero, em uma máquina nova:
-     1. Confere o Python (3.10+) e cria/reaproveita o ambiente virtual .venv;
+     1. Confere o Python (3.11+) e cria/reaproveita o ambiente virtual .venv;
      2. Instala as dependências (requirements.txt);
      3. Gera o arquivo .env (SECRET_KEY, banco de dados, Redis do rate limit, clima
         do totem);
@@ -115,9 +115,9 @@ def python_da_venv():
 def preparar_venv(rotulo='1. Ambiente virtual (Python)'):
     titulo(rotulo)
 
-    if sys.version_info < (3, 10):
-        erro(f"Python 3.10 ou superior é necessário (encontrado {sys.version.split()[0]}).\n"
-             "   As dependências fixadas no requirements.txt (limits, redis) exigem 3.10+.")
+    if sys.version_info < (3, 11):
+        erro(f"Python 3.11 ou superior é necessário (encontrado {sys.version.split()[0]}).\n"
+             "   As dependências fixadas no requirements.txt (pillow 13) exigem 3.11+.")
         raise SystemExit(1)
     print(f"   Python {sys.version.split()[0]} — ok.")
 
@@ -192,12 +192,20 @@ def host_porta_da_url_redis(url):
 
 def _gravar_segredos(caminho, conteudo):
     """Grava arquivo com segredos já protegido: o temporário nasce 0o600
-    (não depende da umask nem das permissões do arquivo anterior) e substitui
-    o destino de uma vez — sem janela em que o .env fica legível no meio da
+    (o opener cria o arquivo já com a permissão final — sem janela legível
+    entre a criação e um chmod posterior) e com nome único por chamada —
+    um processo interrompido não deixa um .env.tmp fixo para trás, que
+    travaria a próxima execução no modo exclusivo 'x'. Substitui o destino
+    de uma vez — sem janela em que o .env fica legível no meio da
     gravação."""
-    temporario = caminho.with_name(caminho.name + '.tmp')
+    temporario = caminho.with_name(f'{caminho.name}.{os.getpid()}.tmp')
     try:
-        with open(temporario, 'x', encoding='utf-8') as arquivo:
+        with open(
+            temporario,
+            'x',
+            encoding='utf-8',
+            opener=lambda caminho, flags: os.open(caminho, flags, 0o600),
+        ) as arquivo:
             if os.name != 'nt':
                 os.chmod(temporario, 0o600)
             arquivo.write(conteudo)
