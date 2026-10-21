@@ -26,12 +26,12 @@
                     <h6 class="fw-bold mb-3"><i class="bi bi-ticket-perforated me-1"></i> Números base de vales</h6>
                     <div class="row g-3">
                         <div class="col-md-6">
-                            {{ form.vales_somente_ida.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.vales_somente_ida.label(class="form-label small mb-1") }}
                             {{ form.vales_somente_ida(class="form-control") }}
                             {% for err in form.vales_somente_ida.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         <div class="col-md-6">
-                            {{ form.vales_ida_e_volta.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.vales_ida_e_volta.label(class="form-label small mb-1") }}
                             {{ form.vales_ida_e_volta(class="form-control") }}
                             {% for err in form.vales_ida_e_volta.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
@@ -47,7 +47,7 @@
                     <h6 class="fw-bold mb-3"><i class="bi bi-calendar-event me-1"></i> Fechamento do formulário</h6>
                     <div class="row g-3">
                         <div class="col-md-6">
-                            {{ form.fecha_em.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                            {{ form.fecha_em.label(class="form-label small mb-1") }}
                             {{ form.fecha_em(class="form-control", type="date") }}
                             <div class="form-text small">Último dia em que o pedido pode ser preenchido.
                                 Deixe vazio para deixar o formulário sempre aberto.</div>

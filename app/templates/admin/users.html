@@ -27,11 +27,11 @@
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-md-5">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Buscar por Nome</label>
+                <label class="form-label small mb-1">Buscar por Nome</label>
                 <input type="text" name="name" class="form-control" value="{{ search_name }}" placeholder="Digite o nome...">
             </div>
             <div class="col-md-4">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Filtrar por Tipo</label>
+                <label class="form-label small mb-1">Filtrar por Tipo</label>
                 <select name="type" class="form-select">
                     <option value="">Todos os Tipos</option>
                     <option value="teacher" {{ 'selected' if filter_type == 'teacher' }}>Professor</option>
@@ -39,7 +39,7 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Ordenar por</label>
+                <label class="form-label small mb-1">Ordenar por</label>
                 <select name="ordem" class="form-select">
                     <option value="padrao" {{ 'selected' if ordem == 'padrao' }}>Papel, depois nome</option>
                     <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>

@@ -25,7 +25,7 @@
         </div>
     </div>
     <div class="col-sm-4 col-md-3">
-        <label class="form-label small fw-bold text-muted mb-1" for="ordem-preparacao">Ordenar por</label>
+        <label class="form-label small mb-1" for="ordem-preparacao">Ordenar por</label>
         <select name="ordem" id="ordem-preparacao" class="form-select" onchange="this.form.submit()">
             <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Criação (mais recentes)</option>
             <option value="nome" {{ 'selected' if ordem == 'nome' }}>Nome (A–Z)</option>

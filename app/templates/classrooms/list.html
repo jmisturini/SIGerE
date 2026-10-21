@@ -32,11 +32,11 @@
              abaixo de si sem empurrar os outros campos para baixo -->
         <div class="row g-3 align-items-start">
             <div class="col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Disponível</label>
+                <label class="form-label small mb-1">Data Disponível</label>
                 <input type="date" id="available_date" name="available_date" class="form-control" value="{{ request.args.get('available_date', '') }}">
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Períodos</label>
+                <label class="form-label small mb-1">Períodos</label>
                 <div class="d-flex flex-wrap gap-3 pt-2" role="group" aria-label="Períodos">
                     {% for valor, rotulo in [('morning', 'Manhã'), ('afternoon', 'Tarde'), ('evening', 'Noite')] %}
                     <div class="form-check mb-0">
@@ -50,7 +50,7 @@
                 <div class="form-text">A sala precisa estar livre em todos os períodos marcados.</div>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Tipo de Sala</label>
+                <label class="form-label small mb-1">Tipo de Sala</label>
                 <select id="category_select" name="category" class="form-select">
                     <option value="">Todos os Tipos</option>
                     {% for cat in categories %}
@@ -61,7 +61,7 @@
             <div class="col-md">
                 {# Rótulo invisível: ocupa a mesma altura dos títulos das outras colunas
                    para o botão nascer alinhado com os campos, e não com os títulos #}
-                <label class="form-label small fw-bold text-uppercase text-muted mb-1 invisible d-none d-md-inline-block" aria-hidden="true">&nbsp;</label>
+                <label class="form-label small mb-1 invisible d-none d-md-inline-block" aria-hidden="true">&nbsp;</label>
                 <div class="d-flex flex-wrap gap-2">
                     <button type="submit" id="filterBtn" class="btn btn-outline-primary flex-fill" disabled>
                         <i class="bi bi-funnel me-1"></i> Filtrar

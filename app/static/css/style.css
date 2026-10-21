@@ -1439,6 +1439,15 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--primary-color);
 }
 
+/* Contraste do tema escuro: o accent escuro sobre o fundo tintado fica
+   em ~3,8:1 — abaixo do 4,5:1 do WCAG AA para texto pequeno. O token
+   --primary-light é o tom criado para texto sobre superfícies escuras
+   (mesma regra das abas ativas). */
+[data-theme="dark"] .dash-hero-period,
+[data-theme="dark"] .dash-count {
+    color: var(--primary-light);
+}
+
 /* ══ Fase 1 do redesenho — componentes das telas internas ════════════ */
 
 /* Cabeçalho de página: título com respiro + ações à direita (usado com

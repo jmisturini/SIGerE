@@ -32,15 +32,15 @@
             </h6>
             <div class="row g-3 align-items-end mb-4">
                 <div class="col-6 col-md-2">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Início</label>
+                    <label class="form-label small mb-1">Início</label>
                     <input type="time" name="start_time" class="form-control">
                 </div>
                 <div class="col-6 col-md-2">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Término</label>
+                    <label class="form-label small mb-1">Término</label>
                     <input type="time" name="end_time" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Sala</label>
+                    <label class="form-label small mb-1">Sala</label>
                     <select name="classroom_id" class="form-select">
                         <option value="">Manter sala atual</option>
                         {% for c in classrooms %}
@@ -49,7 +49,7 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold text-uppercase text-muted mb-1">Título</label>
+                    <label class="form-label small mb-1">Título</label>
                     <input type="text" name="title" class="form-control" maxlength="200" placeholder="Manter atual">
                 </div>
                 <div class="col-md-2 d-grid">

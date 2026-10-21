@@ -54,7 +54,7 @@
 <form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <input type="hidden" name="periodo" value="{{ periodo }}">
     <input type="hidden" name="status" value="{{ current_status }}">
-    <label class="form-label small fw-bold text-muted mb-0" for="ordem-minhas">Ordenar por</label>
+    <label class="form-label small mb-0" for="ordem-minhas">Ordenar por</label>
     <select name="ordem" id="ordem-minhas" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
         <option value="data_desc" {{ 'selected' if ordem == 'data_desc' }}>Data (mais recentes)</option>
         <option value="data_asc" {{ 'selected' if ordem == 'data_asc' }}>Data (mais antigas)</option>

@@ -36,7 +36,7 @@
                         são avisados na hora. Sem seleção, ninguém recebe o aviso.</p>
                     {% if grupos %}
                     <div class="mb-3">
-                        {{ form.overload_groups.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.overload_groups.label(class="form-label small mb-1") }}
                         {{ form.overload_groups(class="form-select", size=grupos|length if grupos|length <= 8 else 8, multiple=true) }}
                         {% for err in form.overload_groups.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         <div class="form-text">Segure Ctrl (ou toque e arraste no celular) para selecionar vários.</div>

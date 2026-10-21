@@ -41,15 +41,15 @@
         <form method="GET" class="row g-3 align-items-end">
             <input type="hidden" name="periodo" value="{{ periodo }}">
             <div class="col-md-3">
-                <label class="form-label small fw-bold">Data Inicial</label>
+                <label class="form-label small">Data Inicial</label>
                 <input type="date" name="start" class="form-control" value="{{ request.args.get('start', '') }}">
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold">Data Final</label>
+                <label class="form-label small">Data Final</label>
                 <input type="date" name="end" class="form-control" value="{{ request.args.get('end', '') }}">
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Período</label>
+                <label class="form-label small">Período</label>
                 <select name="period" class="form-select">
                     <option value="">Todos</option>
                     <option value="morning" {{ 'selected' if request.args.get('period') == 'morning' }}>Manhã</option>
@@ -58,7 +58,7 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Status</label>
+                <label class="form-label small">Status</label>
                 <select name="status" class="form-select">
                     <option value="">Todos os status</option>
                     <option value="approved" {{ 'selected' if request.args.get('status') == 'approved' }}>Aprovada</option>
@@ -67,35 +67,35 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Sala</label>
+                <label class="form-label small">Sala</label>
                 <select name="room_id" class="form-select">
                     <option value="">Todas</option>
                     {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('room_id') == c.id|string }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Professor</label>
+                <label class="form-label small">Professor</label>
                 <select name="teacher_id" class="form-select">
                     <option value="">Todos</option>
                     {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('teacher_id') == t.id|string }}>{{ t.full_name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Curso</label>
+                <label class="form-label small">Curso</label>
                 <select name="course_id" class="form-select">
                     <option value="">Todos</option>
                     {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('course_id') == c.id|string }}>{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Disciplina</label>
+                <label class="form-label small">Disciplina</label>
                 <select name="subject_id" class="form-select">
                     <option value="">Todas</option>
                     {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if request.args.get('subject_id') == s.id|string }}>{{ s.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-bold">Ordenar por</label>
+                <label class="form-label small">Ordenar por</label>
                 <select name="ordem" class="form-select">
                     <option value="data_asc" {{ 'selected' if ordem == 'data_asc' }}>Data — da atual para a futura</option>
                     <option value="data_desc" {{ 'selected' if ordem == 'data_desc' }}>Data — da futura para a atual</option>

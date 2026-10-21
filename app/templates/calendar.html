@@ -16,15 +16,15 @@
         </h5>
         <form id="filterForm" class="row g-3 align-items-end">
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Data Inicial</label>
+                <label class="form-label small">Data Inicial</label>
                 <input type="date" id="initialDate" class="form-control">
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Data Final</label>
+                <label class="form-label small">Data Final</label>
                 <input type="date" id="finalDate" class="form-control">
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Período</label>
+                <label class="form-label small">Período</label>
                 <select id="filterPeriod" class="form-select">
                     <option value="">Todos</option>
                     <option value="morning">Manhã</option>
@@ -33,28 +33,28 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Sala</label>
+                <label class="form-label small">Sala</label>
                 <select id="filterRoom" class="form-select">
                     <option value="">Todas</option>
                     {% for c in classrooms %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Professor</label>
+                <label class="form-label small">Professor</label>
                 <select id="filterTeacher" class="form-select">
                     <option value="">Todos</option>
                     {% for t in teachers %}<option value="{{ t.id }}">{{ t.full_name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Curso</label>
+                <label class="form-label small">Curso</label>
                 <select id="filterCourse" class="form-select">
                     <option value="">Todos</option>
                     {% for c in courses %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold">Disciplina</label>
+                <label class="form-label small">Disciplina</label>
                 <select id="filterSubject" class="form-select">
                     <option value="">Todas</option>
                     {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}

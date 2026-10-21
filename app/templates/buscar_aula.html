@@ -18,17 +18,17 @@
                     <input type="hidden" name="unity" value="{{ public_unity.id }}">
                     {% endif %}
                     <div class="col-md">
-                        <label class="form-label small fw-bold" for="searchInput">O que procurar</label>
+                        <label class="form-label small" for="searchInput">O que procurar</label>
                         <input type="text" name="q" id="searchInput" class="form-control" value="{{ query }}"
                                placeholder="Ex.: Curso 18, Disciplina 28, Barbara Wilson ou SA210">
                     </div>
                     <div class="col-md-4 col-lg-3">
-                        <label class="form-label small fw-bold" for="searchDate">Data da aula</label>
+                        <label class="form-label small" for="searchDate">Data da aula</label>
                         <input type="date" name="data" id="searchDate" class="form-control" value="{{ schedule_date.isoformat() }}">
                     </div>
                     {% if public_unity and public_unities|length > 1 %}
                     <div class="col-md-auto">
-                        <span class="form-label small fw-bold d-block">Unidade</span>
+                        <span class="form-label small d-block">Unidade</span>
                         {{ unidade_publica.seletor(public_unity, public_unities, 'public.class_search', params={'data': schedule_date.isoformat(), 'q': query}) }}
                     </div>
                     {% endif %}
