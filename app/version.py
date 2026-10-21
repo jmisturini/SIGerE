@@ -19,33 +19,33 @@ RELEASES = [
     {
         'versao': '1.35.0',
         'data': '2026-10-21',
-        'titulo': 'Redesign visual da interface, cancelamento automatico de pendencias e correcoes de seguranca',
+        'titulo': 'Redesign visual da interface, cancelamento automático de pendências e correções de segurança',
         'grupos': [
             ('Adicionado', [
-                'Cancelamento automatico de pendencias: reserva pendente sem aprovacao ate 1 hora '
-                'antes do inicio vira cancelada e avisa o criador com o motivo (comando '
-                'autocancel-pendentes, incluido no timer de producao).',
-                'Abas de periodo (Atuais e Futuras / Passadas) em Minhas Reservas, com paginacao '
-                'propria por aba e ordenacao.',
+                'Cancelamento automático de pendências: reserva pendente sem aprovação até 1 hora '
+                'antes do início vira cancelada e avisa o criador com o motivo (comando '
+                'autocancel-pendentes, incluído no timer de produção).',
+                'Abas de período (Atuais e Futuras / Passadas) em Minhas Reservas, com paginação '
+                'própria por aba e ordenação.',
             ]),
             ('Alterado', [
                 'Interface redesenhada (fases 1 e 2): login em painel duplo, painel com resumo do '
-                'dia, agenda e modulo de reservas, telas administrativas, RH e financeiro - novos '
-                'componentes, rotulos legiveis, tabelas e estados vazios padronizados, mantendo os '
-                'temas claro/escuro e as cores de destaque configuraveis.',
-                'Python minimo exigido passa a 3.11 (o Pillow 13, com as correcoes de seguranca, '
-                'nao instala em 3.10).',
+                'dia, agenda e módulo de reservas, telas administrativas, RH e financeiro - novos '
+                'componentes, rótulos legíveis, tabelas e estados vazios padronizados, mantendo os '
+                'temas claro/escuro e as cores de destaque configuráveis.',
+                'Python mínimo exigido passa a 3.11 (o Pillow 13, com as correções de segurança, '
+                'não instala em 3.10).',
             ]),
             ('Corrigido', [
-                'Seguranca: XSS em templates, open redirect no login, IDOR da API de reservas, '
-                'sessao de conta desativada, ProxyFix sem confianca no X-Forwarded-Host e .env do '
-                'setup gravado 0600 sem janela legivel; Pillow 13.0.0 e certifi 2026.10.19 corrigem '
+                'Segurança: XSS em templates, open redirect no login, IDOR da API de reservas, '
+                'sessão de conta desativada, ProxyFix sem confiança no X-Forwarded-Host e .env do '
+                'setup gravado 0600 sem janela legível; Pillow 13.0.0 e certifi 2026.10.19 corrigem '
                 'CVEs apontadas pelo pip-audit.',
-                'Espelho de e-mail das notificacoes: falha de conexao/autenticacao do SMTP mantem a '
-                'fila para a proxima rodada, sem contar tentativas, e nao interrompe o timer de '
-                'producao.',
-                'Revisao de codigo do legado: data local no calendario, exportacao condicionada a '
-                'permissao, repeticao de reservas rejeita datas passadas, professor volta a pendente '
+                'Espelho de e-mail das notificações: falha de conexão/autenticação do SMTP mantém a '
+                'fila para a próxima rodada, sem contar tentativas, e não interrompe o timer de '
+                'produção.',
+                'Revisão de código do legado: data local no calendário, exportação condicionada à '
+                'permissão, repetição de reservas rejeita datas passadas, professor volta a pendente '
                 'ao editar e savepoint na cozinha.',
             ]),
         ],
