@@ -277,7 +277,8 @@ def create():
                 course_id=form.course.data if form.course.data > 0 else None,
                 subject_id=form.subject.data if form.subject.data > 0 else None,
                 teacher_id=teacher_id, title=_titulo_reserva(form),
-                description=form.description.data, date=form.date.data,
+                description=(form.description.data or '').strip() or None,
+                date=form.date.data,
                 start_time=form.start_time.data, end_time=form.end_time.data,
                 status=status,
                 unity_id=classroom.unity_id,
@@ -583,14 +584,17 @@ def edit(reservation_id):
                 'subject_id': form.subject.data if form.subject.data > 0 else None,
                 'teacher_id': form.teacher.data if form.teacher.data > 0 else None,
                 'title': _titulo_reserva(form),
-                'description': form.description.data,
+                'description': (form.description.data or '').strip() or None,
                 'date': form.date.data,
                 'start_time': form.start_time.data,
                 'end_time': form.end_time.data,
             }
-            dados_alterados = any(
-                getattr(reservation, campo) != valor
-                for campo, valor in novos_dados.items())
+            atuais = {campo: getattr(reservation, campo) for campo in novos_dados}
+            # Descrição legada pode guardar '': vazio e None são a mesma
+            # ausência de descrição na comparação.
+            atuais['description'] = (reservation.description or '').strip() or None
+            dados_alterados = any(atuais[campo] != valor
+                                  for campo, valor in novos_dados.items())
             for campo, valor in novos_dados.items():
                 setattr(reservation, campo, valor)
             # Notificações por reserva: interruptor, marcos e destinatários
@@ -1135,7 +1139,7 @@ def series_edit(reservation_id):
                              and m.classroom_id != classroom.id)
                          or (title is not None and m.title != title)
                          or (description is not None
-                             and m.description != description))
+                             and ((m.description or '').strip() or None) != description))
                 if classroom:
                     m.classroom_id = classroom.id
                     m.unity_id = classroom.unity_id
