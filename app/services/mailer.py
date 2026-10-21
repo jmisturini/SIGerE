@@ -168,7 +168,8 @@ def drenar_fila_email(limite=200, dry_run=False):
     except Exception:
         if handshake_ok:
             # Erro inesperado no meio dos envios: mantém o comportamento
-            # antigo de propagar (as tentativas contadas ficam gravadas).
+            # antigo de propagar — sem commit até aqui, a sessão do banco
+            # é descartada (nada desta rodada é gravado).
             raise
         # Handshake falhou e o QUIT/close do __exit__ também (conexão
         # morta) — a sessão já foi dada por perdida; o comando segue 0.
