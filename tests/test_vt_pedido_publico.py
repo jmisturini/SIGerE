@@ -403,6 +403,20 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             self.assertEqual(pedido_bd.registration, '555777')
             self.assertEqual(pedido_bd.link, 'Técnico - Administrativo')
 
+    def test_erro_no_post_nao_exibe_dados_do_cadastro(self):
+        """POST com e-mail de conta ativa e campo inválido: a página de erro
+        re-renderiza com o que o visitante digitou, nunca com nome/matrícula
+        lidos do cadastro (enumeração por e-mail conhecido)."""
+        payload = self._payload_sim_uma_empresa(email='maria@escola.edu',
+                                                full_name='', registration='')
+        payload.pop('company_a_value')  # provoca o erro de validação
+        response = self.client.post('/vt/pedido', data=payload)
+        page = response.get_data(as_text=True)
+        self.assertIn('Selecione o valor do vale.', page)
+        self.assertNotIn('Maria Identificada', page)
+        self.assertNotIn('555777', page)
+        self.assertEqual(self._pedidos(), [])
+
     def test_vales_acima_de_49_rejeitados(self):
         """O nº de vales é livre, mas sempre menor que 50."""
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
