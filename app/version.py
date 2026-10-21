@@ -10,12 +10,46 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.34.1'
+APP_VERSION = '1.35.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.35.0',
+        'data': '2026-10-21',
+        'titulo': 'Redesign visual da interface, cancelamento automatico de pendencias e correcoes de seguranca',
+        'grupos': [
+            ('Adicionado', [
+                'Cancelamento automatico de pendencias: reserva pendente sem aprovacao ate 1 hora '
+                'antes do inicio vira cancelada e avisa o criador com o motivo (comando '
+                'autocancel-pendentes, incluido no timer de producao).',
+                'Abas de periodo (Atuais e Futuras / Passadas) em Minhas Reservas, com paginacao '
+                'propria por aba e ordenacao.',
+            ]),
+            ('Alterado', [
+                'Interface redesenhada (fases 1 e 2): login em painel duplo, painel com resumo do '
+                'dia, agenda e modulo de reservas, telas administrativas, RH e financeiro - novos '
+                'componentes, rotulos legiveis, tabelas e estados vazios padronizados, mantendo os '
+                'temas claro/escuro e as cores de destaque configuraveis.',
+                'Python minimo exigido passa a 3.11 (o Pillow 13, com as correcoes de seguranca, '
+                'nao instala em 3.10).',
+            ]),
+            ('Corrigido', [
+                'Seguranca: XSS em templates, open redirect no login, IDOR da API de reservas, '
+                'sessao de conta desativada, ProxyFix sem confianca no X-Forwarded-Host e .env do '
+                'setup gravado 0600 sem janela legivel; Pillow 13.0.0 e certifi 2026.10.19 corrigem '
+                'CVEs apontadas pelo pip-audit.',
+                'Espelho de e-mail das notificacoes: falha de conexao/autenticacao do SMTP mantem a '
+                'fila para a proxima rodada, sem contar tentativas, e nao interrompe o timer de '
+                'producao.',
+                'Revisao de codigo do legado: data local no calendario, exportacao condicionada a '
+                'permissao, repeticao de reservas rejeita datas passadas, professor volta a pendente '
+                'ao editar e savepoint na cozinha.',
+            ]),
+        ],
+    },
     {
         'versao': '1.34.1',
         'data': '2026-10-15',
