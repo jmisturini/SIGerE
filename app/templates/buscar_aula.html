@@ -51,15 +51,15 @@
                     {% for r in search_results %}{{ aulas.aula_item(r) }}{% endfor %}
                 </div>
                 {% else %}
-                <div class="text-center text-muted p-5">
-                    <i class="bi bi-emoji-frown fs-2 d-block mb-2"></i>
+                <div class="empty-state">
+                    <i class="bi bi-emoji-frown"></i>
                     <h5 class="mb-1">Nenhuma aula encontrada</h5>
                     <p class="small mb-0 text-break">Nenhuma aula aprovada corresponde a "{{ query }}" em
                         {{ aulas.rotulo_data(schedule_date, today) }}. Tente outra data ou outro termo.</p>
                 </div>
                 {% endif %}
                 {% else %}
-                <div class="text-center text-muted p-5">
+                <div class="empty-state">
                     <div class="feature-icon bg-primary-subtle text-primary mb-4 mx-auto">
                         <i class="bi bi-search"></i>
                     </div>
