@@ -25,12 +25,12 @@ RELEASES = [
                 'Cancelamento automático de pendências: reserva pendente sem aprovação até 1 hora '
                 'antes do início vira cancelada e avisa o criador com o motivo (comando '
                 'autocancel-pendentes, incluído no timer de produção).',
-                'Abas de periodo (Atuais e Futuras / Passadas) em Minhas Reservas, com paginacao '
+                'Abas de período (Atuais e Futuras / Passadas) em Minhas Reservas, com paginação '
                 'própria por aba e ordenação.',
             ]),
             ('Alterado', [
                 'Interface redesenhada (fases 1 e 2): login em painel duplo, painel com resumo do '
-                'dia, agenda e modulo de reservas, telas administrativas, RH e financeiro - novos '
+                'dia, agenda e módulo de reservas, telas administrativas, RH e financeiro - novos '
                 'componentes, rótulos legíveis, tabelas e estados vazios padronizados, mantendo os '
                 'temas claro/escuro e as cores de destaque configuráveis.',
                 'Python mínimo exigido passa a 3.11 (o Pillow 13, com as correções de segurança, '
