@@ -45,7 +45,9 @@ def login():
             return redirect(next_page or url_for('main.index'))
             
         flash('E-mail ou senha inválidos.', 'danger')
-    return render_template('auth/login.html', form=form)
+    # ocultar_sidebar: tela de login em foco total, sem a navegação do painel
+    # (mesmo padrão do pedido público de VT).
+    return render_template('auth/login.html', form=form, ocultar_sidebar=True)
 
 # Route to force password change on first login
 @bp.route('/change-password', methods=['GET', 'POST'])

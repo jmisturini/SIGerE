@@ -2,25 +2,53 @@
 {% block title %}Entrar - SIGerE{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center mt-4">
-    <div class="col-md-5 col-lg-4">
-        <div class="card">
-            <div class="card-header bg-transparent text-center py-4">
-                <div class="feature-icon bg-primary-subtle text-primary mx-auto mb-3">
-                    <i class="bi bi-building-fill"></i>
-                </div>
-                <h4 class="fw-bold mb-1">SIGerE</h4>
-                <p class="text-muted small mb-0">Faça login para continuar</p>
+<div class="login-wrap">
+    {# Painel institucional (apenas desktop): apresenta o sistema enquanto o
+       formulário fica em foco total no celular/tablet. #}
+    <div class="login-brand d-none d-lg-flex">
+        <div class="login-brand-body">
+            <div class="login-brand-logo">
+                <img src="{{ url_for('static', filename='img/logo-sigere.png') }}" alt="">
             </div>
-            <div class="card-body p-4">
-                <form method="POST" novalidate>
+            <h2>SIGerE</h2>
+            <p class="login-brand-tagline mb-0">Sistema Integrado de Gerenciamento Educacional</p>
+            <ul class="login-benefits mt-4 mt-lg-5">
+                <li>
+                    <i class="bi bi-calendar2-check"></i>
+                    Reserva de salas com detecção automática de conflitos
+                </li>
+                <li>
+                    <i class="bi bi-people"></i>
+                    Cronograma e agenda dos professores em todas as unidades
+                </li>
+                <li>
+                    <i class="bi bi-bell"></i>
+                    Avisos de proximidade das atividades reservadas
+                </li>
+            </ul>
+        </div>
+        <div class="login-brand-footer">v{{ app_version }}</div>
+    </div>
+
+    <div class="login-area">
+        <div class="card login-card fade-up">
+            <div class="card-body p-4 p-md-5">
+                <div class="login-mobile-brand d-lg-none mb-4">
+                    <img src="{{ url_for('static', filename='img/logo-sigere.png') }}" alt="">
+                    <span>SIGerE</span>
+                </div>
+
+                <h1 class="login-title">Bem-vindo de volta</h1>
+                <p class="text-muted">Entre com o seu e-mail para acessar o painel.</p>
+
+                <form method="POST" novalidate class="mt-4">
                     {{ form.hidden_tag() }}
                     <div class="mb-3">
-                        {{ form.email.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
-                        {{ form.email(class="form-control", placeholder="Digite seu e-mail") }}
+                        {{ form.email.label(class="form-label fw-semibold") }}
+                        {{ form.email(class="form-control", placeholder="nome@instituicao.edu.br") }}
                     </div>
                     <div class="mb-4">
-                        {{ form.password.label(class="form-label small fw-bold text-uppercase text-muted mb-1") }}
+                        {{ form.password.label(class="form-label fw-semibold") }}
                         <div class="input-group">
                             {{ form.password(class="form-control", id="login-password", placeholder="Digite sua senha") }}
                             <button class="btn btn-outline-secondary" type="button" data-password-toggle="login-password"
@@ -30,28 +58,16 @@
                         </div>
                     </div>
                     <div class="d-grid">
-                        {{ form.submit(class="btn btn-primary px-4 py-2") }}
+                        {{ form.submit(class="btn btn-primary fw-semibold") }}
                     </div>
                 </form>
             </div>
             <div class="card-footer bg-transparent text-center py-3">
-                <a href="{{ url_for('public.home') }}" class="small text-decoration-none mt-2 d-inline-block">
+                <a href="{{ url_for('public.home') }}" class="small text-decoration-none d-inline-block">
                     <i class="bi bi-arrow-left"></i> Voltar para o site
                 </a>
             </div>
         </div>
     </div>
 </div>
-
-<style>
-    .feature-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.8rem;
-    }
-</style>
 {% endblock %}
