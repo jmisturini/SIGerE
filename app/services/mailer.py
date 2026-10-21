@@ -118,48 +118,67 @@ def drenar_fila_email(limite=200, dry_run=False):
         stats['falhas'] += len(pendentes)
         return stats
 
-    with smtp_cm as smtp:
-        try:
-            if starttls:
-                smtp.starttls()
-            if usuario and senha:
-                smtp.login(usuario, senha)
-        except Exception:
-            logger.exception('Falha no STARTTLS/autenticação do SMTP %s:%d '
-                             '— fila mantida para a próxima rodada', host, porta)
-            stats['falhas'] += len(pendentes)
-            return stats
-        for itens in por_usuario.values():
-            user = itens[0].user
-            pref = user.notification_pref if user is not None else None
-            if (user is None or not user.is_active_user
-                    or (pref is not None and not pref.email_enabled)
-                    or not user.email):
-                # Opt-out no perfil (ou conta sem sentido): tira da fila para
-                # sempre — carimba sent_at sem enviar, para não reprocessar.
-                stats['puladas'] += len(itens)
-                if not dry_run:
+    # Handshake com flag: o retorno de falha acontece FORA do with — sair
+    # de dentro dispararia o __exit__ do SMTP, que em conexão morta lança
+    # no QUIT e trocaria o status 0 prometido por um erro de comando.
+    handshake_ok = False
+    try:
+        with smtp_cm as smtp:
+            try:
+                if starttls:
+                    smtp.starttls()
+                if usuario and senha:
+                    smtp.login(usuario, senha)
+            except Exception:
+                logger.exception('Falha no STARTTLS/autenticação do SMTP %s:%d '
+                                 '— fila mantida para a próxima rodada', host, porta)
+            else:
+                handshake_ok = True
+                for itens in por_usuario.values():
+                    user = itens[0].user
+                    pref = user.notification_pref if user is not None else None
+                    if (user is None or not user.is_active_user
+                            or (pref is not None and not pref.email_enabled)
+                            or not user.email):
+                        # Opt-out no perfil (ou conta sem sentido): tira da fila para
+                        # sempre — carimba sent_at sem enviar, para não reprocessar.
+                        stats['puladas'] += len(itens)
+                        if not dry_run:
+                            for n in itens:
+                                n.sent_at = agora
+                        continue
+                    msg = _montar_digest(user, itens, remetente, base_url)
+                    if dry_run:
+                        stats['emails'] += 1
+                        stats['notificacoes'] += len(itens)
+                        continue
+                    try:
+                        smtp.send_message(msg)
+                    except Exception:
+                        logger.exception('Falha ao enviar e-mail para %s com %d '
+                                         'notificação(ões)', user.email, len(itens))
+                        stats['falhas'] += len(itens)
+                        for n in itens:
+                            n.send_attempts = (n.send_attempts or 0) + 1
+                        continue
                     for n in itens:
                         n.sent_at = agora
-                continue
-            msg = _montar_digest(user, itens, remetente, base_url)
-            if dry_run:
-                stats['emails'] += 1
-                stats['notificacoes'] += len(itens)
-                continue
-            try:
-                smtp.send_message(msg)
-            except Exception:
-                logger.exception('Falha ao enviar e-mail para %s com %d '
-                                 'notificação(ões)', user.email, len(itens))
-                stats['falhas'] += len(itens)
-                for n in itens:
-                    n.send_attempts = (n.send_attempts or 0) + 1
-                continue
-            for n in itens:
-                n.sent_at = agora
-            stats['emails'] += 1
-            stats['notificacoes'] += len(itens)
+                    stats['emails'] += 1
+                    stats['notificacoes'] += len(itens)
+    except Exception:
+        if handshake_ok:
+            # Erro inesperado no meio dos envios: mantém o comportamento
+            # antigo de propagar — sem commit até aqui, a sessão do banco
+            # é descartada (nada desta rodada é gravado).
+            raise
+        # Handshake falhou e o QUIT/close do __exit__ também (conexão
+        # morta) — a sessão já foi dada por perdida; o comando segue 0.
+        logger.exception('Encerramento da sessão SMTP %s:%d falhou — fila '
+                         'mantida para a próxima rodada', host, porta)
+
+    if not handshake_ok:
+        stats['falhas'] += len(pendentes)
+        return stats
 
     if not dry_run:
         db.session.commit()
