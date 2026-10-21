@@ -925,9 +925,12 @@ class FormVtPedido(BaseForm):
         return usuario
 
     def validate(self, extra_validators=None):
+        # Identificação ANTES dos validadores: o endpoint de auto-preenchimento
+        # só devolve found/vínculo, então o navegador não envia nome/matrícula
+        # de conta ativa — DataRequired falharia antes de o servidor preencher.
+        self._identificar_por_email()
         if not super().validate(extra_validators):
             return False
-        self._identificar_por_email()
         if self.optant.data != 'Sim':
             return True
 

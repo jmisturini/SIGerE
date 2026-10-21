@@ -573,16 +573,26 @@ def edit(reservation_id):
                 flash(f'Conflito de sala com "{conflict.title}"', 'danger')
                 return render_template('reservations/edit.html', form=form, reservation=reservation)
 
-            reservation.classroom_id = classroom_id
-            reservation.unity_id = classroom.unity_id
-            reservation.course_id = form.course.data if form.course.data > 0 else None
-            reservation.subject_id = form.subject.data if form.subject.data > 0 else None
-            reservation.teacher_id = form.teacher.data if form.teacher.data > 0 else None
-            reservation.title = _titulo_reserva(form)
-            reservation.description = form.description.data
-            reservation.date = form.date.data
-            reservation.start_time = form.start_time.data
-            reservation.end_time = form.end_time.data
+            # Valores-alvo calculados antes de atribuir: a comparação diz se
+            # a edição muda algum dado da reserva — reenviar o formulário
+            # sem alterações não pode custar a aprovação ao professor.
+            novos_dados = {
+                'classroom_id': classroom_id,
+                'unity_id': classroom.unity_id,
+                'course_id': form.course.data if form.course.data > 0 else None,
+                'subject_id': form.subject.data if form.subject.data > 0 else None,
+                'teacher_id': form.teacher.data if form.teacher.data > 0 else None,
+                'title': _titulo_reserva(form),
+                'description': form.description.data,
+                'date': form.date.data,
+                'start_time': form.start_time.data,
+                'end_time': form.end_time.data,
+            }
+            dados_alterados = any(
+                getattr(reservation, campo) != valor
+                for campo, valor in novos_dados.items())
+            for campo, valor in novos_dados.items():
+                setattr(reservation, campo, valor)
             # Notificações por reserva: interruptor, marcos e destinatários
             # da seção do formulário (desligado remove a configuração).
             reservation.notify_enabled = form.notify_enabled.data
@@ -603,9 +613,11 @@ def edit(reservation_id):
                     exclude_id=reservation.id)
             # Fluxo de professor (mesma regra da criação): quem tem
             # reservation:create_pending não carrega a aprovação anterior ao
-            # editar — sala/data/horário novos voltam à avaliação.
+            # editar — dados novos voltam à avaliação; sem mudança de dados,
+            # a aprovação permanece.
             criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
-            if (criador_pendente or teacher_conflict or excede_limite_diario) \
+            if ((criador_pendente and dados_alterados)
+                    or teacher_conflict or excede_limite_diario) \
                     and reservation.status == 'approved':
                 reservation.status = 'pending'
             if excede_limite_diario:
@@ -1097,6 +1109,7 @@ def series_edit(reservation_id):
         by_classroom.setdefault(classroom.id if classroom else m.classroom_id, []).append(m)
 
     updated, skipped = [], []
+    voltaram_pending = 0
     criador_pendente_serie = current_user.has_explicit_permission(
         'reservation:create_pending')
     with ExitStack() as stack:
@@ -1115,6 +1128,14 @@ def series_edit(reservation_id):
                 if conflict:
                     skipped.append((m, f'Sala ocupada por "{conflict.title}"'))
                     continue
+                # Reserva muda de fato? Campos vazios mantêm o valor atual —
+                # a edição sem nenhuma mudança não pode custar a aprovação.
+                mudou = (m.start_time != start or m.end_time != end
+                         or (classroom is not None
+                             and m.classroom_id != classroom.id)
+                         or (title is not None and m.title != title)
+                         or (description is not None
+                             and m.description != description))
                 if classroom:
                     m.classroom_id = classroom.id
                     m.unity_id = classroom.unity_id
@@ -1126,20 +1147,24 @@ def series_edit(reservation_id):
                     m.description = description
                 # Docente sobreposto após a mudança → mesma regra da edição
                 # individual: a reserva volta a PENDENTE para revisão. No
-                # fluxo de professor (reservation:create_pending), qualquer
-                # edição devolve à avaliação — a aprovação anterior não cobre
-                # os dados novos.
+                # fluxo de professor (reservation:create_pending), a edição
+                # que muda dados devolve à avaliação — a aprovação anterior
+                # não cobre os dados novos.
                 if m.status == 'approved' and (
-                        criador_pendente_serie
+                        (criador_pendente_serie and mudou)
                         or (m.teacher_id and check_teacher_conflict(
                             m.teacher_id, m.date, m.start_time, m.end_time,
                             exclude_id=m.id))):
                     m.status = 'pending'
+                    voltaram_pending += 1
                 updated.append(m)
         db.session.commit()
 
     if updated:
         flash(f'{len(updated)} reservas da série atualizadas.', 'success')
+    if voltaram_pending:
+        flash(f'{voltaram_pending} reserva(s) da série voltaram a PENDENTE: '
+              f'aguardando nova aprovação.', 'warning')
     if skipped:
         datas = ', '.join(m.date.strftime('%d/%m') for m, _ in skipped)
         flash(f'{len(skipped)} reserva(s) não alterada(s) ({datas}).', 'warning')

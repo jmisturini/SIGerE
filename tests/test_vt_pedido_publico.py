@@ -385,6 +385,24 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             self.assertEqual(pedido_bd.full_name, 'Prof Identificado')
             self.assertEqual(pedido_bd.link, 'Professor(a)')
 
+    def test_post_conta_ativa_sem_nome_matricula_e_vinculo(self):
+        """O auto-preenchimento não devolve nome/matrícula (só found/vínculo):
+        com conta ativa o POST chega sem esses campos e a identificação ocorre
+        ANTES dos validadores DataRequired — o pedido entra com os dados do
+        cadastro em vez de ser rejeitado."""
+        payload = self._payload_sim_uma_empresa(email='maria@escola.edu')
+        for campo in ('full_name', 'registration', 'link'):
+            payload.pop(campo)
+        response = self.client.post('/vt/pedido', data=payload,
+                                    follow_redirects=True)
+        self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
+
+        with self.app.app_context():
+            pedido_bd = VtRequest.query.first()
+            self.assertEqual(pedido_bd.full_name, 'Maria Identificada')
+            self.assertEqual(pedido_bd.registration, '555777')
+            self.assertEqual(pedido_bd.link, 'Técnico - Administrativo')
+
     def test_vales_acima_de_49_rejeitados(self):
         """O nº de vales é livre, mas sempre menor que 50."""
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
