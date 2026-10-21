@@ -38,7 +38,7 @@
         <div class="row g-4">
             <div class="col-md-6">
                 <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-info-circle me-1"></i> Informações Gerais</h6>
-                <table class="table table-borderless mb-0">
+                <table class="table table-borderless mb-0 info-table">
                     <tr>
                         <th class="text-muted small text-uppercase fw-bold border-0 ps-0" style="width: 140px;">Sala</th>
                         <td class="border-0 fw-medium">{{ reservation.classroom.code }} - {{ reservation.classroom.name }}</td>
@@ -76,7 +76,7 @@
             </div>
             <div class="col-md-6">
                 <h6 class="text-muted text-uppercase small fw-bold mb-3"><i class="bi bi-calendar3 me-1"></i> Data e Horário</h6>
-                <table class="table table-borderless mb-0">
+                <table class="table table-borderless mb-0 info-table">
                     <tr>
                         <th class="text-muted small text-uppercase fw-bold border-0 ps-0" style="width: 140px;">Data</th>
                         <td class="border-0 fw-medium">{{ reservation.date.strftime('%d/%m/%Y') }}</td>

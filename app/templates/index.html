@@ -76,11 +76,11 @@
     {% for sec in category_sections %}
     {% set cat = sec.category %}
     <section class="mb-4">
-        <div class="dash-section-head">
-            <span class="dash-section-icon" style="color: {{ cat.display_color }}; background-color: {{ cat.display_color }}1f;">
+        <div class="section-head">
+            <span class="section-icon" style="color: {{ cat.display_color }}; background-color: {{ cat.display_color }}1f;">
                 <i class="bi {{ cat.display_icon }}"></i>
             </span>
-            <h5 class="dash-section-title">Agenda de {{ cat.name }}</h5>
+            <h5 class="section-title">Agenda de {{ cat.name }}</h5>
             <span class="dash-count">{{ sec.reservations|length }} {{ 'reserva' if sec.reservations|length == 1 else 'reservas' }}</span>
         </div>
         <div class="card">
@@ -118,11 +118,11 @@
 <div id="cardView" style="display: none;">
     {% for sec in category_sections %}
     {% set cat = sec.category %}
-    <div class="dash-section-head mt-3">
-        <span class="dash-section-icon" style="color: {{ cat.display_color }}; background-color: {{ cat.display_color }}1f;">
+    <div class="section-head mt-3">
+        <span class="section-icon" style="color: {{ cat.display_color }}; background-color: {{ cat.display_color }}1f;">
             <i class="bi {{ cat.display_icon }}"></i>
         </span>
-        <h5 class="dash-section-title">Agenda de {{ cat.name }}</h5>
+        <h5 class="section-title">Agenda de {{ cat.name }}</h5>
         <span class="dash-count">{{ sec.reservations|length }} {{ 'reserva' if sec.reservations|length == 1 else 'reservas' }}</span>
     </div>
 
