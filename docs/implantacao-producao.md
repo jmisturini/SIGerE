@@ -669,12 +669,12 @@ Type=oneshot
 User=SEU_USUARIO
 WorkingDirectory=/var/www/sigere
 EnvironmentFile=/var/www/sigere/.env
+ExecStart=/var/www/sigere/venv/bin/flask --app run autocancel-pendentes
 ExecStart=/var/www/sigere/venv/bin/flask --app run notify-scan
 ExecStart=/var/www/sigere/venv/bin/flask --app run notify-email
-ExecStart=/var/www/sigere/venv/bin/flask --app run autocancel-pendentes
 ```
 
-O segundo `ExecStart` drena a fila de e-mail (espelho por e-mail das
+O último `ExecStart` drena a fila de e-mail (espelho por e-mail das
 notificações do sino). Sem `MAIL_SMTP_HOST`/`MAIL_FROM` no `.env`, ele apenas
 registra que está desativado — o resto do sistema segue funcionando. O envio é
 um **digest por destinatário**: as notificações de um mesmo usuário numa
@@ -682,10 +682,13 @@ rodada saem num único e-mail. Falhas de SMTP contam tentativas
 (`MAIL_MAX_ATTEMPTS`, padrão 10) e, esgotadas, a notificação sai da fila.
 Para testar sem enviar nada: `flask --app run notify-email --dry-run`.
 
-O terceiro `ExecStart` executa o cancelamento automático de pendências
+O primeiro `ExecStart` executa o cancelamento automático de pendências
 (a reserva pendente sem aprovação até 1 hora antes do início vira
-cancelada e o criador recebe o aviso com o motivo). Também idempotente;
-prévia com `flask --app run autocancel-pendentes --dry-run`.
+cancelada e o criador recebe o aviso com o motivo). Vem primeiro de
+propósito: num serviço `Type=oneshot`, um `ExecStart` que termina com
+erro pula os seguintes — e o cancelamento não pode perder a rodada por
+falha de envio de e-mail. Também idempotente; prévia com
+`flask --app run autocancel-pendentes --dry-run`.
 
 E `/etc/systemd/system/sigere-notify.timer` (a cada 15 minutos — a precisão
 do aviso “no próprio dia” depende dessa frequência):

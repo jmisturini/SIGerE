@@ -64,8 +64,11 @@ def drenar_fila_email(limite=200, dry_run=False):
     um e-mail por usuário com todas as notificações dele na rodada. Sem SMTP
     configurado, não faz nada. Falha no envio de um usuário não trava os
     demais; as notificações dele contam uma tentativa e saem da fila ao
-    atingir MAIL_MAX_ATTEMPTS. Com dry_run=True nada é enviado nem gravado.
-    Retorna estatísticas para o log do comando."""
+    atingir MAIL_MAX_ATTEMPTS. Falha de conexão/autenticação mantém a fila
+    inteira para a próxima rodada, sem contar tentativas (indisponibilidade
+    de infra não esgota o limite) e sem propagar o erro — o comando corre no
+    timer systemd com outros ExecStarts em seguida. Com dry_run=True nada é
+    enviado nem gravado. Retorna estatísticas para o log do comando."""
     stats = {'pendentes': 0, 'emails': 0, 'notificacoes': 0,
              'falhas': 0, 'puladas': 0, 'excedidas': 0}
 
@@ -104,11 +107,28 @@ def drenar_fila_email(limite=200, dry_run=False):
     for notification in pendentes:
         por_usuario.setdefault(notification.user_id, []).append(notification)
 
-    with smtplib.SMTP(host, porta, timeout=30) as smtp:
-        if starttls:
-            smtp.starttls()
-        if usuario and senha:
-            smtp.login(usuario, senha)
+    try:
+        smtp_cm = smtplib.SMTP(host, porta, timeout=30)
+    except Exception:
+        # Conexão recusada/timeout: registra, mantém a fila e devolve o
+        # comando com status 0 — um ExecStart com erro num serviço
+        # Type=oneshot pula os seguintes (ex.: autocancel-pendentes).
+        logger.exception('Falha ao conectar no SMTP %s:%d — fila mantida '
+                         'para a próxima rodada', host, porta)
+        stats['falhas'] += len(pendentes)
+        return stats
+
+    with smtp_cm as smtp:
+        try:
+            if starttls:
+                smtp.starttls()
+            if usuario and senha:
+                smtp.login(usuario, senha)
+        except Exception:
+            logger.exception('Falha no STARTTLS/autenticação do SMTP %s:%d '
+                             '— fila mantida para a próxima rodada', host, porta)
+            stats['falhas'] += len(pendentes)
+            return stats
         for itens in por_usuario.values():
             user = itens[0].user
             pref = user.notification_pref if user is not None else None

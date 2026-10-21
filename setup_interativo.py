@@ -38,6 +38,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs, unquote
 
@@ -123,7 +124,20 @@ def preparar_venv(rotulo='1. Ambiente virtual (Python)'):
 
     venv_python = python_da_venv()
     if venv_python.exists():
-        print(f"   Ambiente virtual existente reaproveitado: {venv_python}")
+        versao = subprocess.run([str(venv_python), '--version'],
+                                capture_output=True, text=True).stdout.strip()
+        # O piso vale para o interpretador da .venv reaproveitada, não só
+        # para o do sistema: uma .venv criada com Python 3.10 passa na
+        # checagem acima, mas as dependências (pillow 13) não instalam.
+        compativel = subprocess.run(
+            [str(venv_python), '-c',
+             'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'],
+        ).returncode == 0
+        if not compativel:
+            erro(f"O ambiente .venv existente usa {versao}, anterior ao Python 3.11.\n"
+                 "   Apague a pasta .venv e rode este setup novamente para recriá-la.")
+            raise SystemExit(1)
+        print(f"   Ambiente virtual existente reaproveitado: {venv_python} ({versao})")
         return str(venv_python)
 
     aviso('Ambiente virtual .venv não encontrado — ele será criado agora.')
@@ -191,23 +205,17 @@ def host_porta_da_url_redis(url):
 
 
 def _gravar_segredos(caminho, conteudo):
-    """Grava arquivo com segredos já protegido: o temporário nasce 0o600
-    (o opener cria o arquivo já com a permissão final — sem janela legível
-    entre a criação e um chmod posterior) e com nome único por chamada —
-    um processo interrompido não deixa um .env.tmp fixo para trás, que
-    travaria a próxima execução no modo exclusivo 'x'. Substitui o destino
-    de uma vez — sem janela em que o .env fica legível no meio da
-    gravação."""
-    temporario = caminho.with_name(f'{caminho.name}.{os.getpid()}.tmp')
+    """Grava arquivo com segredos já protegido: o temporário vem do
+    tempfile.mkstemp — nome aleatório exclusivo (um processo interrompido
+    não deixa resto que trave a próxima chamada, mesmo com PID reusado) e
+    criado já 0o600, sem janela legível entre a criação e um chmod.
+    Substitui o destino de uma vez — sem janela em que o .env fica legível
+    no meio da gravação."""
+    fd, nome = tempfile.mkstemp(dir=caminho.parent,
+                                prefix=caminho.name + '.', suffix='.tmp')
+    temporario = Path(nome)
     try:
-        with open(
-            temporario,
-            'x',
-            encoding='utf-8',
-            opener=lambda caminho, flags: os.open(caminho, flags, 0o600),
-        ) as arquivo:
-            if os.name != 'nt':
-                os.chmod(temporario, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as arquivo:
             arquivo.write(conteudo)
         os.replace(temporario, caminho)
     finally:
