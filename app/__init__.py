@@ -25,12 +25,15 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    debug_mode = debug_enabled()
+
     # Atrás do Nginx em produção, remote_addr seria sempre o do proxy e o rate
     # limit (ex.: 5/min no login) valeria para a instituição inteira. x_for=1
-    # = um proxy confiável na frente, conforme o setup do README.
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-
-    debug_mode = debug_enabled()
+    # = um proxy confiável na frente, conforme o setup do README. Só nesse
+    # cenário: servindo direto (desenvolvimento com FLASK_DEBUG), quem alcança
+    # o servidor forjaria X-Forwarded-* para girar a chave do rate limit.
+    if not debug_mode:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Fail-fast de segurança: sem SECRET_KEY forte, sessões podem ser forjadas.
     # Vale apenas para quem SERVE requisições (python run.py, gunicorn...):

@@ -297,8 +297,9 @@ O SIGerE é multi-unidade e a API respeita o isolamento de dados:
 |----------|-------------------|
 | **Anônimo** sem `unity_id` | Primeira unidade **ativa** (ordem alfabética de nome) — mesma regra do totem |
 | **Anônimo** com `?unity_id=<id>` | A unidade indicada, se existir e estiver ativa (`404` caso contrário) |
-| **Token de usuário comum** | **Sempre a própria unidade** — `?unity_id` é ignorado |
+| **Token de usuário comum** | A própria unidade por padrão; `?unity_id=<id>` só é aceito quando está dentro do escopo da conta (contas multi-unidade) — fora dele, responde `404`, não ignora o parâmetro |
 | **Token de super-admin (`*`) ou de conta com mais de um vínculo de unidade** | A primeira unidade do escopo por padrão; `?unity_id=<id>` troca o escopo |
+| **Token de usuário sem unidade ativa no escopo** | `404` — o escopo vazio não cai na primeira unidade do sistema |
 
 Cada resposta inclui o campo `unity_id` no topo para o cliente confirmar o escopo
 que recebeu. Reservas de outra unidade jamais aparecem — e o detalhe delas responde

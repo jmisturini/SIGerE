@@ -108,8 +108,9 @@ def _scoped_unity_id():
     Escopo do usuário autenticado: todas as unidades ativas para quem tem '*'
     e os próprios vínculos (User.unities) para os demais. ?unity_id=<id> vale
     para anônimos e para qualquer usuário DENTRO do próprio escopo — pedido
-    fora dele é 404; anônimo/escopo vazio sem parâmetro cai na primeira
-    unidade ativa (mesma regra do totem).
+    fora dele é 404. Anônimo sem parâmetro cai na primeira unidade ativa
+    (mesma regra do totem); token autenticado sem unidade no escopo também é
+    404 — nunca uma unidade qualquer do sistema (IDOR).
     """
     user = g.api_user
     param = request.args.get('unity_id', type=int)
@@ -137,14 +138,11 @@ def _scoped_unity_id():
                                    f'ou inexistente/inativa.')
         return param
     # Sem unity_id explícito: usa a primeira unidade do PRÓPRIO escopo do
-    # token — nunca uma unidade qualquer do sistema, que ficaria fora do
-    # escopo concedido (IDOR).
+    # token — escopo vazio é 404, nunca uma unidade qualquer do sistema,
+    # que ficaria fora do escopo concedido (IDOR).
     if allowed:
         return allowed[0]
-    unity = _first_active_unity()
-    if unity is None:
-        abort(404, description='Nenhuma unidade ativa cadastrada.')
-    return unity.id
+    abort(404, description='Nenhuma unidade ativa no escopo do token.')
 
 
 def _hora(t):
