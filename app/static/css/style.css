@@ -1124,10 +1124,12 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 1.8rem;
 }
 
-/* Variante das telas de erro (403/500): 80px */
+/* Variante das telas de erro (403/500): 80px, raio proporcional ao da
+   base (20px — mantém o visual que essas telas já tinham) */
 .feature-icon-lg {
     width: 80px;
     height: 80px;
+    border-radius: 20px;
     font-size: 2.2rem;
 }
 
