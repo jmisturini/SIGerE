@@ -92,8 +92,9 @@ Só há release quando houver bump: mudança de código visível ou entrada de c
 2. PR → `dev` (CI verde) → PR `dev` → `main` (CI verde).
 3. **Tag anotada no commit de merge dev→main da main** (não no merge na dev):
    `git tag -a vX.Y.Z <sha-do-merge> -m "SIGerE vX.Y.Z"` + `git push origin vX.Y.Z`.
-4. **GitHub Release** a partir da tag: `gh release create vX.Y.Z --title "SIGerE vX.Y.Z"
-   — <título da entrada>" --notes "<notas>"` — copie o título e os grupos da entrada
+4. **GitHub Release** a partir da tag: `gh release create vX.Y.Z --notes-file notas.md`
+   com `notas.md` contendo título via `--title "SIGerE vX.Y.Z — <título da entrada>"`
+   e as notas — copie título e grupos da entrada
    correspondente de `RELEASES` em `app/version.py` (Notas geradas por IA e changelog
    automático não substituem a entrada curada). Desde a v1.36.0, toda release publicada
    ganha o objeto GitHub Release; a tag anotada continua sendo a referência primária.
