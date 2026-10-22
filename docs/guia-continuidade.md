@@ -1,0 +1,194 @@
+# Guia de continuidade do SIGerE
+
+> **Para que serve:** ponto de partida para continuar o desenvolvimento deste projeto
+> em outra instância do ZCode ou em outro computador. A memória local do ZCode
+> (memórias automáticas por projeto) **não viaja com o git** — este arquivo é o
+> subconjunto transportável: o que uma sessão nova precisa saber para não recomeçar
+> do zero.
+>
+> **Última atualização:** 2026-10-21, logo após a release **v1.35.0** (main e dev alinhadas).
+> Ao fechar cada release, atualize a seção [Estado e pendências](#8-estado-e-pendências)
+> e a data acima.
+
+---
+
+## 1. O projeto em 60 segundos
+
+**SIGerE** — Sistema Integrado de Gerenciamento Educacional. Plataforma web em
+**Flask 3 + Bootstrap 5** para gestão de reservas de salas, cronogramas acadêmicos,
+pagamentos docentes (hora extra), vale transporte/RH, operação de cozinha e
+notificações, com suporte a **múltiplas unidades educacionais**. Possui API pública
+de reservas (`/api/v1`) e página de totem.
+
+- **Banco de dados:** SQLite em desenvolvimento (`reservation.db`, já no repo);
+  **PostgreSQL** em produção (o `setup_interativo.py` não cria o banco, só grava a
+  `DATABASE_URL` no `.env`). Toda migration precisa funcionar nos dois dialetos
+  (ver seção 6).
+- **Multi-unidade:** relação N:N usuário↔unidades (tabela `user_unities`). Para
+  consultar usuários por unidade, usar `User.escopo_unidade(uid)` — a antiga coluna
+  `users.unity_id` não existe mais. Super-admin tem escopo `*`.
+- **Notificações:** por reserva (config 24h/1h + destinatários por reserva, mutes no
+  perfil), consumidas por um timer externo `sigere-notify` na VM — não usa
+  APScheduler/Celery/SSE.
+- **Docs do repo:** `README.md` (visão, instalação, permissões, contas demo),
+  `CONTRIBUTING.md` (fluxo de branches e PRs — autoridade nesta matéria),
+  `docs/implantacao-producao.md` (deploy passo a passo), `docs/desenvolvimento-debug.md`,
+  `docs/api-reservas.md`, `docs/permissoes.md`, `docs/migracao-legado.md`.
+
+## 2. Preparando o ambiente (máquina nova)
+
+1. `git clone` e entre no diretório; crie um virtualenv.
+2. **Python 3.14** — é a versão do CI (`.github/workflows/tests.yml`); alinhe a local.
+3. `pip install -r requirements.txt -r requirements-dev.txt`.
+4. Banco local: `flask --app run db upgrade` (aplica todas as migrations no
+   `reservation.db`) e, para dados de demonstração, `flask --app run seed-demo`
+   (usuários demo, senha `demo1234`; `admin@school.edu` tem escopo `*`).
+5. `SECRET_KEY` é obrigatória fora de `FLASK_DEBUG`.
+6. Servidor de dev: `python run.py` (ou `flask --app run run`).
+7. Conferir a suíte: `pytest` (~766 testes, alguns minutos).
+
+## 3. Fluxo de trabalho: branches e PRs
+
+O detalhamento oficial está no `CONTRIBUTING.md`. O que não se deriva dele:
+
+- `main` e `dev` são **protegidas com `enforce_admins`**: push direto do próprio
+  owner é rejeitado (erro GH006). **Tudo vai por PR**, mesmo ajuste pequeno de docs.
+- Branches temporárias `feature/`, `fix/`, `hotfix/`, `release/` sempre a partir da
+  `dev` atualizada; **apagar local e remotamente** após o merge e realinhar a dev
+  local com `git pull --ff-only`. Manter a working tree 100% limpa no fim de cada ciclo.
+- CI: job `tests` (pytest, ~4 min) e job `qualidade` (**bandit + pip-audit** — CVE em
+  dependência do `requirements.txt` derruba o CI mesmo com testes verdes; resolver
+  com bump da versão pinada). Num PR, podem existir **2 check-runs** (push da dev +
+  o PR em si): conferir todos antes de mesclar.
+- Padrão de commits: prefixos em português (`ui:`, `fix:`, `docs:`, `release:`, `notificacoes:` …).
+
+### Sem `gh` CLI — API do GitHub via curl
+
+O `gh` **não está instalado/autenticado** nas máquinas usadas até agora. Caminho comprovado:
+
+- Token: `git credential fill` (host `github.com`) do Git Credential Manager — nunca
+  ecoar o token; ler para uma variável com `sed`.
+- Criar PR: `POST /repos/jmisturini/SIGerE/pulls`; mesclar:
+  `PUT /repos/jmisturini/SIGerE/pulls/{n}/merge` com `merge_method: "merge"` (estilo
+  do histórico) e, se quiser, `sha` + `commit_title` customizados.
+- **Armadilha Windows:** o `curl.exe` não entende caminhos `/tmp` do Git Bash — usar
+  caminhos Windows (`C:/Users/.../AppData/Local/Temp/...`) ou um arquivo temporário no
+  próprio diretório do repo (apagar depois). Payloads JSON de PR/merge em **arquivo
+  UTF-8** evitam erro 400 com acentos no `-d` inline.
+- Deletar branch remota: `DELETE /repos/jmisturini/SIGerE/git/refs/heads/...` (retorna 204).
+
+## 4. Ciclo de release
+
+Só há release quando houver bump: mudança de código visível ou entrada de changelog.
+
+1. Branch `release/vX.Y.Z` a partir da `dev` → bump de `APP_VERSION` + entrada no
+   **topo** de `RELEASES` em `app/version.py` → commit `release: vX.Y.Z`.
+2. PR → `dev` (CI verde) → PR `dev` → `main` (CI verde).
+3. **Tag anotada no commit de merge dev→main da main** (não no merge na dev):
+   `git tag -a vX.Y.Z <sha-do-merge> -m "SIGerE vX.Y.Z"` + `git push origin vX.Y.Z`.
+4. PR `main` → `dev` para realinhar (o merge da main traz a tag de volta à dev).
+
+O projeto **não usa objetos GitHub Release** — somente tags anotadas. Mudança só de
+docs pode ir direto por PR sem release.
+
+## 5. Produção (Oracle Cloud)
+
+- VM OCI **140.238.191.127**, servida como **`sigere.pixelping.cc`** (nginx + gunicorn
+  no socket `unix:/run/sigere/sigere.sock` via `sigere.service`). O IP/domínio não
+  constam nas demais docs do repo de propósito — este guia é o registro.
+- **Firewall em duas camadas:** Security List da VCN no console OCI **e** iptables da
+  instância (imagem Ubuntu da Oracle só libera a 22; persistência via
+  `/etc/iptables/rules.v4` com `netfilter-persistent save`). Abrir só uma não resolve.
+- **Update oficial** (`docs/implantacao-producao.md` seção 10): `git status` limpo →
+  `venv/bin/pip install -r requirements.txt gunicorn` → `flask --app run db upgrade` →
+  restart do serviço. Migrations pendentes **não derrubam o boot** (o app sobe com
+  aviso), mas o `db upgrade` é obrigatório para as features novas funcionarem.
+- **Diagnóstico de crash do serviço:** o journal fica mudo — o gunicorn loga em
+  **`/var/log/sigere/error.log`** (`--error-logfile` no unit). Ir direto lá e confirmar
+  o ExecStart real com `systemctl cat sigere`.
+- **Duas venvs distintas:** o `setup_interativo.py` mantém `.venv`, mas o serviço
+  documentado executa `venv/bin/gunicorn` — update via setup não atualiza o ambiente
+  que serve (causa provável do incidente de 2026-10-07, exit 1 após update).
+- **`/run` é tmpfs:** o unit precisa de `RuntimeDirectory=sigere` (+
+  `RuntimeDirectoryMode=0755`); sem isso, após reboot o socket some e o serviço morre
+  com sintoma idêntico a crash de código. A doc já foi corrigida (v1.31.1), mas o unit
+  na VM pode continuar o antigo — corrigir à mão se necessário.
+- A máquina de desenvolvimento usual **não tinha chave SSH** para a VM; diagnóstico
+  remoto dependia de acesso pelo console da Oracle.
+
+## 6. Armadilhas técnicas conhecidas
+
+- **Migrations portáveis SQLite/PostgreSQL** (o projeto roda nos dois):
+  - Booleano **nunca** como literal `1`/`0` em SQL cru — usar `sa.text(...)` com
+    parâmetros Python (`{'v': True}`) para atribuição e a coluna nua como predicado
+    (`WHERE is_active`).
+  - `cursor.lastrowid` não existe no psycopg2 — usar `sa.Table` com PK declarada e
+    `inserted_primary_key`.
+  - Funções SQLite (`instr`, `strftime`) não existem no PG (`strpos`); alter
+    numérico→integer no PG exige `postgresql_using='col::integer'`.
+  - Validar a cadeia sempre com `DATABASE_URL=sqlite:///<temp>` +
+    `flask --app run db upgrade` em banco temporário.
+- **Testes dependentes de data:** agendar "amanhã" quebra no sábado (domingo é
+  bloqueado por `check_schedule_restrictions`). Padrão a vigiar em testes novos.
+- **Flask-SQLAlchemy 3.1.x:** `db.paginate(Query)` está quebrado — usar
+  `query.paginate()` (5 call sites já convertidos).
+- **Fix de segurança pode abrir vazamento adjacente:** identificar usuário por email
+  antes de validar o POST fez página de erro vazar nome/matrícula (CWE-200, PR #136) —
+  guardar o valor do POST e restaurá-lo em qualquer resposta de erro.
+- **Teste visual no navegador** (receita completa nas memórias locais; resumo):
+  subir banco demo descartável via `DATABASE_URL` sqlite temporário na porta 5001;
+  campos com **TomSelect** não aceitam `selectOption` (usar `evaluate` no `<select>` +
+  evento change); **screenshot fullPage quebra** com a sidebar fixa (usar viewport +
+  `scrollIntoView`); trocar de usuário exige `GET /logout` antes do POST `/login`;
+  servidor sem `FLASK_DEBUG` não recarrega templates (matar o processo **por PID** —
+  `taskkill //F //IM python.exe` mata todo Python).
+- **Manual do usuário:** regenerar com `python docs/gerar_manual.py` (pipeline
+  versionado; conteúdo na lista `BLOCOS`; valida visualmente com `pymupdf`).
+
+## 7. Decisões de design já tomadas (não refazer a roda)
+
+- **Home pública:** opção C "cards funcionais" (PR #62). Os mockups A/B/C das
+  propostas estão arquivados na tag anotada `archive/redesign-home-previews`
+  (recuperar com `git switch -c <nome> archive/redesign-home-previews`).
+- **Notificações:** redesign por reserva publicado na v1.30.0 (migrations
+  `c2a9e7b5d4f1`; tabelas `reservation_notification_configs`, `user_notification_prefs`
+  + mutes). A junção de categorias silenciadas referencia
+  `user_notification_prefs.user_id` (não `users.id`) de propósito. Sobrecarga de
+  professor (`notificar_sobrecarga_professor`) ficou intocada.
+- **Sidebar:** Vale Transporte no bloco **RH**; Financeiro só com Hora Extra;
+  visibilidade sob `vt:read` + `unity_module_enabled('finance')`.
+- **Formulário de reserva:** Disciplina **não** depende mais do curso (desacoplado na
+  v1.30.0); o modelo (`Subject.course_id`) continua existindo no cadastro.
+- **Favicons:** já commitados desde a v1.19.0 (prédio branco sobre Azul Senac
+  `#004b8d`; fonte vetorial em `app/static/favicon.svg`).
+- **Redesign visual por fases:** fases 1 e 2 na v1.35.0 (design system em
+  `app/static/css/style.css`, tokens de tema/accent). Escopo excluído da fase 2:
+  `home.html` pública.
+
+## 8. Estado e pendências
+
+Estado em **2026-10-21** (v1.35.0 publicada; PR #144 mergeado; main = dev):
+
+| Item | Situação |
+|---|---|
+| Fase 3 do redesign visual | **Não fechar escopo novo sem checar**: foi iniciada em OUTRA instância do ZCode. Antes de começar do zero, procurar branches remotos/trabalho em andamento. Candidatos apontados por varredura (não confirmado): páginas de erro, changelog, totem, notifications, kitchens (`recipe_form`, `sheet_form`), `relatorios/geral`, `reservations/pending_conflict`, `vt/pedido*`. |
+| Manual do usuário (`docs/manual-do-usuario.pdf`) | Desatualizado desde o redesign de notificações (v1.30.0) e do redesign visual — regenerar com `python docs/gerar_manual.py` após próxima release relevante. |
+| Produção (VM OCI) | Confirmar na VM: `db upgrade` (há migrations novas desde a v1.30.0 — hora extra/notificações dependem delas), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós update; ver seção 5). |
+| Branch `fix/coderabbit-review-legacy` | Não deletada (local e remota) — a strategy manda apagar temporárias; remover se ninguém estiver usando. |
+| CI | Status check do `tests` ainda não é *required* — pode ser endurecido em Settings depois de comprovado estável. |
+
+## 9. Memória local do ZCode (não viaja com o git)
+
+Nas máquinas usadas até agora, as memórias automáticas do projeto ficam em:
+
+```
+%USERPROFILE%\.zcode\cli\memories\projects\sigere-<hash>\memory\
+```
+
+com índice em `MEMORY.md` (um resumo por arquivo). **Ao migrar de computador**, esse
+diretório pode ser copiado para o mesmo caminho na nova máquina. Este guia cobre o
+essencial; as memórias guardam detalhes extras (receitas completas de teste visual,
+histórico de PRs com números de commit, hipóteses descartadas em incidentes).
+
+Ao concluir trabalho relevante, **atualize este arquivo** (seção 8 principalmente) —
+é ele o ponto de partida da próxima sessão, em qualquer máquina.
