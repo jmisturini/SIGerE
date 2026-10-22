@@ -10,12 +10,31 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.35.0'
+APP_VERSION = '1.36.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.36.0',
+        'data': '2026-10-22',
+        'titulo': 'Redesign visual completo: telas administrativas, portal, salas e relatórios',
+        'grupos': [
+            ('Alterado', [
+                'Telas administrativas, RH, financeiro e cozinha no design system (fase 2): '
+                'estados vazios unificados (empty-state e empty-cell) e cabeçalhos de formulários '
+                'e listagens com chip de ícone; rótulos de formulário legíveis em todo o sistema.',
+                'Portal público, salas, relatórios e telas de erro acabados (fase 3): componente '
+                'de ícone global (.feature-icon), cards com hover-lift e estados vazios no padrão '
+                'do sistema. Totem mantido com HTML/CSS próprios por restrição de hardware.',
+            ]),
+            ('Corrigido', [
+                'Contraste WCAG AA dos selos do painel no tema escuro e raio dos ícones das telas '
+                'de erro preservado na deduplicação.',
+            ]),
+        ],
+    },
     {
         'versao': '1.35.0',
         'data': '2026-10-21',
