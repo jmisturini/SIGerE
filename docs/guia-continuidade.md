@@ -6,7 +6,7 @@
 > subconjunto transportável: o que uma sessão nova precisa saber para não recomeçar
 > do zero.
 >
-> **Última atualização:** 2026-10-21, logo após a release **v1.35.0** (main e dev alinhadas).
+> **Última atualização:** 2026-10-22, logo após a release **v1.36.0** (fases 2 e 3 do redesign publicadas; main e dev alinhadas).
 > Ao fechar cada release, atualize a seção [Estado e pendências](#8-estado-e-pendências)
 > e a data acima.
 
@@ -38,12 +38,15 @@ de reservas (`/api/v1`) e página de totem.
 ## 2. Preparando o ambiente (máquina nova)
 
 1. `git clone` e entre no diretório; crie um virtualenv.
-2. **Python 3.14** — é a versão do CI (`.github/workflows/tests.yml`); alinhe a local.
+2. **Python 3.11 ou superior** — piso das dependências (`pillow==13` exige 3.11+;
+   o setup interativo valida também a `.venv` reaproveitada). O CI usa 3.14; alinhe a
+   local com 3.11+.
 3. `pip install -r requirements.txt -r requirements-dev.txt`.
 4. Banco local: `flask --app run db upgrade` (aplica todas as migrations no
    `reservation.db`) e, para dados de demonstração, `flask --app run seed-demo`
    (usuários demo, senha `demo1234`; `admin@school.edu` tem escopo `*`).
-5. `SECRET_KEY` é obrigatória fora de `FLASK_DEBUG`.
+5. `SECRET_KEY` é obrigatória ao **servir requisições** fora de `FLASK_DEBUG` —
+   comandos CLI (`flask db upgrade`, `seed-demo`…) são isentos pela fábrica.
 6. Servidor de dev: `python run.py` (ou `flask --app run run`).
 7. Conferir a suíte: `pytest` (~766 testes, alguns minutos).
 
@@ -93,9 +96,10 @@ docs pode ir direto por PR sem release.
 
 ## 5. Produção (Oracle Cloud)
 
-- VM OCI **140.238.191.127**, servida como **`sigere.pixelping.cc`** (nginx + gunicorn
-  no socket `unix:/run/sigere/sigere.sock` via `sigere.service`). O IP/domínio não
-  constam nas demais docs do repo de propósito — este guia é o registro.
+- VM OCI (IP e domínio **fora do repo público** — apontados pelo CodeRabbit como
+  exposição de infraestrutura, CWE-200, no PR #148; registre-os no gerenciador de
+  segredos/nota privada do operador; recuperáveis no console OCI e no DNS). Stack:
+  nginx + gunicorn no socket `unix:/run/sigere/sigere.sock` via `sigere.service`.
 - **Firewall em duas camadas:** Security List da VCN no console OCI **e** iptables da
   instância (imagem Ubuntu da Oracle só libera a 22; persistência via
   `/etc/iptables/rules.v4` com `netfilter-persistent save`). Abrir só uma não resolve.
@@ -161,20 +165,23 @@ docs pode ir direto por PR sem release.
   v1.30.0); o modelo (`Subject.course_id`) continua existindo no cadastro.
 - **Favicons:** já commitados desde a v1.19.0 (prédio branco sobre Azul Senac
   `#004b8d`; fonte vetorial em `app/static/favicon.svg`).
-- **Redesign visual por fases:** fases 1 e 2 na v1.35.0 (design system em
-  `app/static/css/style.css`, tokens de tema/accent). Escopo excluído da fase 2:
-  `home.html` pública.
+- **Redesign visual por fases:** concluído na v1.36.0 — fase 1 (login, painel, agenda,
+  reservas) e fase 2 (admin/RH/financeiro/cozinha) na v1.35.0–v1.36.0; fase 3 (portal,
+  salas, relatórios, erros, deduplicação de CSS) no PR #146. Design system em
+  `app/static/css/style.css` (tokens de tema/accent). Mantidos de propósito: `home.html`
+  (componentes próprios sobre os tokens) e `totem.html` (HTML/CSS próprios por
+  restrição de hardware — Raspberry Pi).
 
 ## 8. Estado e pendências
 
-Estado em **2026-10-21** (v1.35.0 publicada; PR #144 mergeado; main = dev):
+Estado em **2026-10-22** (v1.36.0 publicada via PR #148; main = dev):
 
 | Item | Situação |
 |---|---|
-| Fase 3 do redesign visual | **Não fechar escopo novo sem checar**: foi iniciada em OUTRA instância do ZCode. Antes de começar do zero, procurar branches remotos/trabalho em andamento. Candidatos apontados por varredura (não confirmado): páginas de erro, changelog, totem, notifications, kitchens (`recipe_form`, `sheet_form`), `relatorios/geral`, `reservations/pending_conflict`, `vt/pedido*`. |
+| Fase 3 do redesign visual | **Concluída** (PR #146, v1.36.0): portal, salas, relatórios e páginas de erro com o design system; totem e home mantidos por decisão de projeto. |
 | Manual do usuário (`docs/manual-do-usuario.pdf`) | Desatualizado desde o redesign de notificações (v1.30.0) e do redesign visual — regenerar com `python docs/gerar_manual.py` após próxima release relevante. |
 | Produção (VM OCI) | Confirmar na VM: `db upgrade` (há migrations novas desde a v1.30.0 — hora extra/notificações dependem delas), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós update; ver seção 5). |
-| Branch `fix/coderabbit-review-legacy` | Não deletada (local e remota) — a strategy manda apagar temporárias; remover se ninguém estiver usando. |
+| Branch `fix/coderabbit-review-legacy` | Resolvido: deletada (local e remota) na limpeza pré-fase 2. |
 | CI | Status check do `tests` ainda não é *required* — pode ser endurecido em Settings depois de comprovado estável. |
 
 ## 9. Memória local do ZCode (não viaja com o git)
