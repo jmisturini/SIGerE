@@ -45,9 +45,12 @@ de reservas (`/api/v1`) e página de totem.
 4. Banco local: `flask --app run db upgrade` (aplica todas as migrations no
    `reservation.db`) e, para dados de demonstração, `flask --app run seed-demo`
    (usuários demo, senha `demo1234`; `admin@school.edu` tem escopo `*`).
-5. `SECRET_KEY` é obrigatória ao **servir requisições** fora de `FLASK_DEBUG` —
-   comandos CLI (`flask db upgrade`, `seed-demo`…) são isentos pela fábrica.
-6. Servidor de dev: `python run.py` (ou `flask --app run run`).
+5. Ao servir requisições fora de `FLASK_DEBUG`, defina uma `SECRET_KEY` forte.
+   Comandos CLI de manutenção (`flask db upgrade`, `seed-demo`…) são isentos
+   pela fábrica. Embora `flask --app run run` seja carregado no contexto CLI,
+   ele serve HTTP; fora de `FLASK_DEBUG`, defina `SECRET_KEY` manualmente
+   antes de usar esse comando.
+6. Servidor de dev: `python run.py` (ou `flask --app run run` — ver item 5).
 7. Conferir a suíte: `pytest` (~766 testes, alguns minutos).
 
 ## 3. Fluxo de trabalho: branches e PRs
