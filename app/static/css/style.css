@@ -1110,6 +1110,27 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: var(--shadow-raised);
 }
 
+/* Ícone destacado de estados vazios e telas de erro — 64px com raio da
+   escala do sistema. Cor/fundo via utilidades do chamador
+   (bg-primary-subtle text-primary). Antes vivia duplicado inline em 8
+   templates. */
+.feature-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+}
+
+/* Variante das telas de erro (403/500): 80px */
+.feature-icon-lg {
+    width: 80px;
+    height: 80px;
+    font-size: 2.2rem;
+}
+
 /* Entrada discreta das áreas novas (card do login, resumo do painel) */
 @keyframes fade-up {
     from { opacity: 0; transform: translateY(10px); }
