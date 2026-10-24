@@ -105,6 +105,12 @@
                             {% else %}
                                 <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Inativo</span>
                             {% endif %}
+                            {% if u.is_locked %}
+                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle"
+                                      title="Login bloqueado (excesso de tentativas ou bloqueio manual) — desbloqueie no perfil">
+                                    <i class="bi bi-lock-fill"></i> Bloqueada
+                                </span>
+                            {% endif %}
                         </td>
                         <td class="text-end pe-4">
                             {% if u.has_permission('*') and not current_user.has_permission('*') %}

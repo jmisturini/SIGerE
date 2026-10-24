@@ -66,6 +66,12 @@ class Unity(db.Model):
 # (teacher, admin, super_admin) vindos do sistema antigo.
 ROLE_POR_PERFIL = {'teacher': 'room', 'employee': 'viewer'}
 
+# Bloqueio por excesso de tentativas de login (CWE-307). Não há
+# auto-desbloqueio por tempo: a conta volta só com ação de quem tem
+# user:lock — uma trava de tempo daria ao atacante novas rodadas de
+# tentativas sem intervenção humana.
+MAX_TENTATIVAS_LOGIN = 10
+
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -85,6 +91,12 @@ class User(UserMixin, db.Model):
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_active_user = db.Column(db.Boolean, default=True)
+
+    # Bloqueio de acesso por excesso de tentativas de login (ver
+    # MAX_TENTATIVAS_LOGIN) ou por decisão de um administrador.
+    failed_login_attempts = db.Column(db.Integer, nullable=False, default=0)
+    is_locked = db.Column(db.Boolean, nullable=False, default=False)
+    locked_at = db.Column(db.DateTime, nullable=True)
 
     @property
     def is_active(self):
@@ -117,6 +129,21 @@ class User(UserMixin, db.Model):
     # Method to verify the password during login
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def registrar_falha_login(self):
+        """Conta uma tentativa de senha errada e bloqueia a conta ao atingir
+        o limite. Chamada só quando a senha NÃO confere."""
+        self.failed_login_attempts = (self.failed_login_attempts or 0) + 1
+        if self.failed_login_attempts >= MAX_TENTATIVAS_LOGIN and not self.is_locked:
+            self.is_locked = True
+            self.locked_at = datetime.now(timezone.utc)
+
+    def desbloquear(self):
+        """Desbloqueio administrativo: zera o contador de erros junto —
+        sem isso, o primeiro erro pós-desbloqueio re-bloquearia a conta."""
+        self.is_locked = False
+        self.locked_at = None
+        self.failed_login_attempts = 0
 
     # NOVAS PROPRIEDADES E MÉTODOS:
     @property

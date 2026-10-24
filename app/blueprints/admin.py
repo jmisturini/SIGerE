@@ -11,7 +11,7 @@ from flask_login import login_required, current_user
 from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permission,
                         RoomCategory, Unity, ApiToken, VtConfig, VtEmpresa,
                         VtEmpresaValor, ROLE_POR_PERFIL, NotificationGroup,
-                        UnityNotificationConfig, CourseType)
+                        UnityNotificationConfig, CourseType, MAX_TENTATIVAS_LOGIN)
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
                    FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm,
@@ -346,7 +346,8 @@ def edit_user(user_id):
             return redirect_preserving_args('admin.list_users')
     return render_template('admin/user_form.html', form=form,
                            title=f"Editar {_PERFIL_LABEL[user.profile_type]}",
-                           modo_edicao=True, user=user)
+                           modo_edicao=True, user=user,
+                           max_tentativas=MAX_TENTATIVAS_LOGIN)
 
 @bp.route('/users/<int:user_id>/toggle', methods=['POST'])
 @login_required
@@ -361,6 +362,46 @@ def toggle_user(user_id):
     db.session.commit()
     flash(f'Usuário {user.full_name} {"ativado" if user.is_active_user else "desativado"}.', 'success')
     return redirect_back('admin.list_users', anchor=f'user-{user_id}')
+
+
+@bp.route('/users/<int:user_id>/lock', methods=['POST'])
+@login_required
+@require_permission('user:lock')
+def lock_user(user_id):
+    """Bloqueio administrativo do acesso: nenhum login é aceito até que
+    alguém com user:lock desbloqueie (independe do contador de tentativas)."""
+    user = _usuario_escopo_or_404(db.get_or_404(User, user_id))
+    _proteger_super_admin(user)
+    if user.id == current_user.id:
+        flash('Você não pode bloquear sua própria conta.', 'danger')
+        return redirect_back('admin.edit_user', user_id=user_id)
+    if user.is_locked:
+        flash(f'A conta de {user.full_name} já está bloqueada.', 'info')
+        return redirect_back('admin.edit_user', user_id=user_id)
+    user.is_locked = True
+    user.locked_at = datetime.now(timezone.utc)
+    db.session.commit()
+    flash(f'Conta de {user.full_name} bloqueada. Nenhum login será aceito '
+          'até o desbloqueio.', 'warning')
+    return redirect_back('admin.edit_user', user_id=user_id)
+
+
+@bp.route('/users/<int:user_id>/unlock', methods=['POST'])
+@login_required
+@require_permission('user:lock')
+def unlock_user(user_id):
+    user = _usuario_escopo_or_404(db.get_or_404(User, user_id))
+    _proteger_super_admin(user)
+    if not user.is_locked:
+        flash(f'A conta de {user.full_name} não está bloqueada.', 'info')
+        return redirect_back('admin.edit_user', user_id=user_id)
+    # desbloquear() zera também o contador de erros — sem isso, o primeiro
+    # erro de senha pós-desbloqueio re-bloquearia a conta.
+    user.desbloquear()
+    db.session.commit()
+    flash(f'Conta de {user.full_name} desbloqueada. O acesso foi restabelecido '
+          'e o contador de tentativas foi zerado.', 'success')
+    return redirect_back('admin.edit_user', user_id=user_id)
 
 def _senha_temporaria():
     """Senha temporária aleatória já aderente à política de senha (8+
