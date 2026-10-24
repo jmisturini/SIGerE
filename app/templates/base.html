@@ -618,7 +618,9 @@
     // servidor revalida de qualquer forma).
     document.querySelectorAll('input[data-password-policy]').forEach(function (input) {
         const requisitos = [
-            { texto: 'No mínimo 8 caracteres', ok: function (s) { return s.length >= 8; } },
+            // Array.from(s): conta code points como o len() do servidor —
+            // s.length conta unidades UTF-16 e emojis contariam dobrado.
+            { texto: 'No mínimo 8 caracteres', ok: function (s) { return Array.from(s).length >= 8; } },
             { texto: 'Pelo menos 1 letra maiúscula', ok: function (s) { return /[A-Z]/.test(s); } },
             { texto: 'Pelo menos 1 número', ok: function (s) { return /[0-9]/.test(s); } }
         ];
