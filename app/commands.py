@@ -402,7 +402,8 @@ def seed_admin_command():
 
     Alternativa ao `seed` para implantações reais: cria as permissões/papéis
     e o usuário 'admin' — sem nenhum dado de demonstração — com a senha
-    definida interativamente (mínimo de 8 caracteres, digitação oculta).
+    definida interativamente (no mínimo 8 caracteres, com 1 letra maiúscula
+    e 1 número; digitação oculta).
     """
     if User.query.filter_by(email='admin@school.edu').first() is not None:
         click.echo(click.style(
@@ -420,10 +421,12 @@ def seed_admin_command():
                 hide_input=True,
                 confirmation_prompt=click.style("Confirme a senha", fg="yellow"),
             )
-            if len(password) >= 8:
+            if (len(password) >= 8 and any(c.isupper() for c in password)
+                    and any(c.isdigit() for c in password)):
                 break
             click.echo(click.style(
-                "❌ A senha deve ter pelo menos 8 caracteres. Tente novamente.",
+                "❌ A senha deve ter no mínimo 8 caracteres, com pelo menos "
+                "1 letra maiúscula e 1 número. Tente novamente.",
                 fg="red"
             ))
 

@@ -1,6 +1,7 @@
 import hashlib
 import os
 import secrets
+import string
 
 import requests
 from datetime import datetime, timedelta, timezone
@@ -356,6 +357,17 @@ def toggle_user(user_id):
     flash(f'Usuário {user.full_name} {"ativado" if user.is_active_user else "desativado"}.', 'success')
     return redirect_back('admin.list_users', anchor=f'user-{user_id}')
 
+def _senha_temporaria():
+    """Senha temporária aleatória já aderente à política de senha (8+
+    caracteres, 1 maiúscula e 1 número). O usuário é forçado a trocá-la no
+    primeiro login, mas ela não pode violar a regra desde a origem."""
+    while True:
+        senha = ''.join(secrets.choice(string.ascii_letters + string.digits)
+                        for _ in range(12))
+        if any(c.isupper() for c in senha) and any(c.isdigit() for c in senha):
+            return senha
+
+
 @bp.route('/users/<int:user_id>/reset-password', methods=['POST'])
 @login_required
 @require_permission('user:edit')
@@ -364,7 +376,7 @@ def reset_user_password(user_id):
     força a troca no próximo login do usuário."""
     user = _usuario_escopo_or_404(db.get_or_404(User, user_id))
     _proteger_super_admin(user)
-    temp_password = secrets.token_urlsafe(9)
+    temp_password = _senha_temporaria()
     user.set_password(temp_password)
     user.force_password_change = True
     db.session.commit()

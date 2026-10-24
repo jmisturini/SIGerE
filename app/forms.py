@@ -105,6 +105,26 @@ def _validar_texto(field, field_name):
             f"Use letras, números, espaços ou . , - ( ) / & ' º ª")
 
 
+# Política de senha: no mínimo 8 caracteres, pelo menos 1 letra maiúscula e
+# 1 número. Aplicada nos três pontos de definição de senha (troca obrigatória
+# do primeiro acesso, perfil e cadastro/edição de usuário). O checklist visual
+# equivalente vive no base.html (inputs com [data-password-policy]).
+_RE_MAISCULA = re.compile(r'[A-Z]')
+_RE_NUMERO = re.compile(r'[0-9]')
+
+
+def validar_politica_senha(form, field):
+    """Exige a política mínima de senha. Em formulários onde a troca é
+    opcional, o Optional() na frente interrompe a cadeia antes deste
+    validador quando o campo vem vazio."""
+    senha = field.data or ''
+    if (len(senha) < 8 or not _RE_MAISCULA.search(senha)
+            or not _RE_NUMERO.search(senha)):
+        raise ValidationError(
+            'A senha deve ter no mínimo 8 caracteres, com pelo menos '
+            '1 letra maiúscula e 1 número.')
+
+
 # =============================================================================
 # LOGIN & PASSWORD FORMS
 # =============================================================================
@@ -118,7 +138,7 @@ class LoginForm(BaseForm):
 
 class ChangePasswordForm(BaseForm):
     current_password = PasswordField('Senha Atual', validators=[DataRequired()])
-    password = PasswordField('Nova Senha', validators=[DataRequired(), Length(min=8, message='A nova senha deve ter pelo menos 8 caracteres.')])
+    password = PasswordField('Nova Senha', validators=[DataRequired(), validar_politica_senha])
     confirm_password = PasswordField('Confirmar Nova Senha', validators=[DataRequired(), EqualTo('password', message='As senhas não coincidem.')])
     submit = SubmitField('Atualizar Senha')
 
@@ -133,7 +153,7 @@ class ProfileForm(BaseForm):
     # validate_current_password (último da cadeia) — a exigência da senha
     # atual quando há troca é coberta no próprio validador inline.
     current_password = PasswordField('Senha Atual')
-    password = PasswordField('Nova Senha', validators=[Optional(), Length(min=8, message='A nova senha deve ter pelo menos 8 caracteres.')])
+    password = PasswordField('Nova Senha', validators=[Optional(), validar_politica_senha])
     confirm_password = PasswordField('Confirmar Nova Senha', validators=[Optional(), EqualTo('password', message='As senhas não coincidem.')])
     # ── Preferências de notificação (autoatendimento) ────────────────────
     # Silenciar os avisos de atividade próxima: todos, ou apenas os de salas
@@ -207,7 +227,7 @@ class UserForm(BaseForm):
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     extra_roles = SelectMultipleField('Módulos Adicionais', coerce=int, validators=[Optional()],
                                       description='Somados ao papel principal (ex.: Módulo Cozinha).')
-    password = PasswordField('Senha', validators=[Length(min=8, message='A senha deve ter pelo menos 8 caracteres.')])
+    password = PasswordField('Senha', validators=[validar_politica_senha])
     is_active_user = BooleanField('Ativo', default=True)
     submit = SubmitField('Salvar')
 

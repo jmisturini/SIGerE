@@ -611,6 +611,52 @@
             btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
         });
     });
+
+    // Checklist ao vivo da política de senha (inputs com [data-password-policy]):
+    // cada requisito marca ✓ conforme atendido e o envio é bloqueado enquanto
+    // a senha preenchida não cumpre todos (vazio passa — troca opcional; o
+    // servidor revalida de qualquer forma).
+    document.querySelectorAll('input[data-password-policy]').forEach(function (input) {
+        const requisitos = [
+            { texto: 'No mínimo 8 caracteres', ok: function (s) { return s.length >= 8; } },
+            { texto: 'Pelo menos 1 letra maiúscula', ok: function (s) { return /[A-Z]/.test(s); } },
+            { texto: 'Pelo menos 1 número', ok: function (s) { return /[0-9]/.test(s); } }
+        ];
+        const lista = document.createElement('ul');
+        lista.className = 'password-policy-checklist list-unstyled small mt-1 mb-0';
+        const itens = requisitos.map(function (req) {
+            const li = document.createElement('li');
+            li.className = 'text-muted';
+            li.textContent = req.texto;
+            li.prepend(document.createElement('i'));
+            lista.appendChild(li);
+            return { req: req, li: li };
+        });
+        (input.closest('.input-group') || input).insertAdjacentElement('afterend', lista);
+
+        function atualizar() {
+            const senha = input.value || '';
+            itens.forEach(function (item) {
+                const ok = item.req.ok(senha);
+                item.li.className = ok ? 'text-success' : 'text-muted';
+                item.li.querySelector('i').className = ok ? 'bi bi-check-circle-fill me-1' : 'bi bi-circle me-1';
+            });
+            input.classList.toggle('is-invalid', Boolean(senha) && itens.some(function (item) { return !item.req.ok(senha); }));
+        }
+        input.addEventListener('input', atualizar);
+        atualizar();
+
+        const form = input.closest('form');
+        if (form) {
+            form.addEventListener('submit', function (ev) {
+                const senha = input.value || '';
+                if (senha && itens.some(function (item) { return !item.req.ok(senha); })) {
+                    ev.preventDefault();
+                    input.focus();
+                }
+            });
+        }
+    });
 </script>
 {% if current_user.is_authenticated %}
 <script>

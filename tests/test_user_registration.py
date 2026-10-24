@@ -137,6 +137,22 @@ class UserRegistrationTestCase(unittest.TestCase):
                                  follow_redirects=True)
         self.assertIn('E-mail ou senha inválidos.', login.get_data(as_text=True))
 
+    def test_senha_sem_politica_rejeitada(self):
+        """Política de senha: no mínimo 8 caracteres, 1 maiúscula e 1 número."""
+        casos = {
+            'curta1A': 'menos de 8 caracteres',
+            'todaminuscula1': 'sem maiúscula',
+            'SemNumeroAqui': 'sem número',
+        }
+        for senha, motivo in casos.items():
+            with self.subTest(senha=senha, motivo=motivo):
+                response = self.client.post('/admin/users/create-teacher',
+                                            data=self._payload(password=senha),
+                                            follow_redirects=True)
+                page = response.get_data(as_text=True)
+                self.assertIn('deve ter no mínimo 8 caracteres', page)
+                self.assertIsNone(self._get_user_by_email('maria.souza@escola.edu'))
+
     def test_duplicate_email_rejected(self):
         self.client.post('/admin/users/create-teacher', data=self._payload())
         response = self.client.post('/admin/users/create-teacher',
