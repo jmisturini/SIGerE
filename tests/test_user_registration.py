@@ -155,20 +155,22 @@ class UserRegistrationTestCase(unittest.TestCase):
 
     def test_edicao_senha_fraca_rejeitada(self):
         """Na edição a senha é opcional (vazio mantém a atual), mas quando
-        preenchida também cumpre a política — regressão do bypass por
-        [Optional()] puro na rota de edição."""
+        preenchida também cumpre a política — regressões do bypass por
+        [Optional()] puro e da senha só de espaços (Optional padrão)."""
         self.client.post('/admin/users/create-teacher', data=self._payload())
         with self.app.app_context():
             user = db.session.query(User).filter_by(email='maria.souza@escola.edu').first()
             user_id = user.id
             hash_antes = user.password_hash
 
-        payload = self._payload(email='maria.souza@escola.edu',
-                                password='fraca1', registration='MAT001')
-        response = self.client.post(f'/admin/users/{user_id}/edit',
-                                    data=payload, follow_redirects=True)
-        self.assertIn('deve ter no mínimo 8 caracteres',
-                      response.get_data(as_text=True))
+        for senha in ('fraca1', '   '):
+            with self.subTest(senha=repr(senha)):
+                payload = self._payload(email='maria.souza@escola.edu',
+                                        password=senha, registration='MAT001')
+                response = self.client.post(f'/admin/users/{user_id}/edit',
+                                            data=payload, follow_redirects=True)
+                self.assertIn('deve ter no mínimo 8 caracteres',
+                              response.get_data(as_text=True))
 
         with self.app.app_context():
             user = db.session.get(User, user_id)

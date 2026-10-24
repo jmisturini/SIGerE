@@ -178,6 +178,19 @@ class UserProfileTestCase(unittest.TestCase):
                                                   'confirm_password': senha})
                 self.assertIn('no mínimo 8 caracteres', response.get_data(as_text=True))
 
+    def test_nova_senha_so_espacos_recusada(self):
+        """Senha só de espaços alcança a política e não é gravada — regressão
+        do Optional padrão (strip_whitespace=True), que interromperia a cadeia
+        sem zerar field.data e a rota gravaria ' ' como senha."""
+        hash_antes = self._usuario()['hash']
+        response = self.client.post('/perfil',
+                                    data={'full_name': 'Maria Souza',
+                                          'current_password': PASSWORD,
+                                          'password': '   ',
+                                          'confirm_password': '   '})
+        self.assertIn('no mínimo 8 caracteres', response.get_data(as_text=True))
+        self.assertEqual(self._usuario()['hash'], hash_antes)
+
 
 if __name__ == '__main__':
     unittest.main()

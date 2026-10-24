@@ -307,7 +307,9 @@ def edit_user(user_id):
     form._obj_id = user.id
     # Optional + política: vazio mantém a senha atual; preenchida, cumpre a
     # regra — sem o validador, a edição aceitaria senha fraca (CWE-521).
-    form.password.validators = [Optional(), validar_politica_senha]
+    # strip_whitespace=False para senha só de espaços alcançar o validador
+    # (o Optional padrão a deixaria passar e a rota gravaria ' ').
+    form.password.validators = [Optional(strip_whitespace=False), validar_politica_senha]
     form.password.flags.required = False
 
     _preparar_form_usuario(form)

@@ -161,7 +161,10 @@ class ProfileForm(BaseForm):
     # validate_current_password (último da cadeia) — a exigência da senha
     # atual quando há troca é coberta no próprio validador inline.
     current_password = PasswordField('Senha Atual')
-    password = PasswordField('Nova Senha', validators=[Optional(), validar_politica_senha])
+    # strip_whitespace=False: com o padrão (True), senha só de espaços ('  ')
+    # interromperia a cadeia sem zerar field.data e a rota gravaria ' ' como
+    # senha — aqui ela precisa alcançar validar_politica_senha e ser rejeitada.
+    password = PasswordField('Nova Senha', validators=[Optional(strip_whitespace=False), validar_politica_senha])
     confirm_password = PasswordField('Confirmar Nova Senha', validators=[Optional(), EqualTo('password', message='As senhas não coincidem.')])
     # ── Preferências de notificação (autoatendimento) ────────────────────
     # Silenciar os avisos de atividade próxima: todos, ou apenas os de salas
