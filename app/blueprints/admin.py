@@ -14,7 +14,8 @@ from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permiss
                         UnityNotificationConfig, CourseType)
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
-                   FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm)
+                   FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm,
+                   validar_politica_senha, senha_cumpre_politica)
 from app.extensions import db
 from sqlalchemy import func
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
@@ -304,7 +305,9 @@ def edit_user(user_id):
 
     form = UserForm(obj=user)
     form._obj_id = user.id
-    form.password.validators = [Optional()]
+    # Optional + política: vazio mantém a senha atual; preenchida, cumpre a
+    # regra — sem o validador, a edição aceitaria senha fraca (CWE-521).
+    form.password.validators = [Optional(), validar_politica_senha]
     form.password.flags.required = False
 
     _preparar_form_usuario(form)
@@ -364,7 +367,7 @@ def _senha_temporaria():
     while True:
         senha = ''.join(secrets.choice(string.ascii_letters + string.digits)
                         for _ in range(12))
-        if any(c.isupper() for c in senha) and any(c.isdigit() for c in senha):
+        if senha_cumpre_politica(senha):
             return senha
 
 

@@ -113,13 +113,21 @@ _RE_MAISCULA = re.compile(r'[A-Z]')
 _RE_NUMERO = re.compile(r'[0-9]')
 
 
+def senha_cumpre_politica(senha):
+    """Predicado da política mínima de senha, com regras ASCII. Compartilhado
+    pelo validador dos formulários, pelo CLI seed-admin e pelo gerador de
+    senha temporária, para que todos aceitem exatamente o mesmo conjunto —
+    str().isdigit()/isupper() aceitam caracteres como '²' e 'Á', que o
+    checklist visual (JS, /[A-Z]/ e /[0-9]/) não conta como válidos."""
+    return (len(senha) >= 8 and bool(_RE_MAISCULA.search(senha))
+            and bool(_RE_NUMERO.search(senha)))
+
+
 def validar_politica_senha(form, field):
     """Exige a política mínima de senha. Em formulários onde a troca é
     opcional, o Optional() na frente interrompe a cadeia antes deste
     validador quando o campo vem vazio."""
-    senha = field.data or ''
-    if (len(senha) < 8 or not _RE_MAISCULA.search(senha)
-            or not _RE_NUMERO.search(senha)):
+    if not senha_cumpre_politica(field.data or ''):
         raise ValidationError(
             'A senha deve ter no mínimo 8 caracteres, com pelo menos '
             '1 letra maiúscula e 1 número.')

@@ -624,24 +624,41 @@
         ];
         const lista = document.createElement('ul');
         lista.className = 'password-policy-checklist list-unstyled small mt-1 mb-0';
+        // Acessibilidade: os formulários usam novalidate, então o estado da
+        // política precisa chegar aos leitores de tela por aqui — o campo
+        // aponta para o checklist (aria-describedby), recebe aria-invalid e
+        // cada item carrega um texto oculto com seu estado.
+        lista.id = (input.id || 'senha') + '-policy';
+        input.setAttribute('aria-describedby', lista.id);
         const itens = requisitos.map(function (req) {
             const li = document.createElement('li');
             li.className = 'text-muted';
             li.textContent = req.texto;
-            li.prepend(document.createElement('i'));
+            const icone = document.createElement('i');
+            icone.setAttribute('aria-hidden', 'true');
+            li.prepend(icone);
+            const estado = document.createElement('span');
+            estado.className = 'visually-hidden';
+            estado.textContent = ' — pendente';
+            li.appendChild(estado);
             lista.appendChild(li);
-            return { req: req, li: li };
+            return { req: req, li: li, estado: estado };
         });
         (input.closest('.input-group') || input).insertAdjacentElement('afterend', lista);
 
         function atualizar() {
             const senha = input.value || '';
+            let faltando = false;
             itens.forEach(function (item) {
                 const ok = item.req.ok(senha);
+                faltando = faltando || !ok;
                 item.li.className = ok ? 'text-success' : 'text-muted';
                 item.li.querySelector('i').className = ok ? 'bi bi-check-circle-fill me-1' : 'bi bi-circle me-1';
+                item.estado.textContent = ok ? ' — atendido' : ' — pendente';
             });
-            input.classList.toggle('is-invalid', Boolean(senha) && itens.some(function (item) { return !item.req.ok(senha); }));
+            const invalido = Boolean(senha) && faltando;
+            input.classList.toggle('is-invalid', invalido);
+            input.setAttribute('aria-invalid', invalido ? 'true' : 'false');
         }
         input.addEventListener('input', atualizar);
         atualizar();

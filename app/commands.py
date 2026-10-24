@@ -5,6 +5,7 @@ import os
 import click
 from flask.cli import with_appcontext
 from app.extensions import db
+from app.forms import senha_cumpre_politica
 from app.models import (
     User, Classroom, Reservation, Course, Subject,
     TeacherOvertimePay, Role, Permission, RoomCategory, Unity
@@ -421,8 +422,7 @@ def seed_admin_command():
                 hide_input=True,
                 confirmation_prompt=click.style("Confirme a senha", fg="yellow"),
             )
-            if (len(password) >= 8 and any(c.isupper() for c in password)
-                    and any(c.isdigit() for c in password)):
+            if senha_cumpre_politica(password):
                 break
             click.echo(click.style(
                 "❌ A senha deve ter no mínimo 8 caracteres, com pelo menos "
