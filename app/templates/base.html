@@ -669,7 +669,12 @@
         if (form) {
             form.addEventListener('submit', function (ev) {
                 const senha = input.value || '';
-                if (senha && itens.some(function (item) { return !item.req.ok(senha); })) {
+                // Vazio bloqueia só quando o campo é obrigatório (criação de
+                // usuário); campos opcionais (perfil, edição) vazios mantêm a
+                // senha atual e enviam normalmente.
+                const falha = ((!senha && input.required) ||
+                    (senha && itens.some(function (item) { return !item.req.ok(senha); })));
+                if (falha) {
                     ev.preventDefault();
                     input.focus();
                 }
