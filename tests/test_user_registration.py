@@ -137,6 +137,46 @@ class UserRegistrationTestCase(unittest.TestCase):
                                  follow_redirects=True)
         self.assertIn('E-mail ou senha inválidos.', login.get_data(as_text=True))
 
+    def test_senha_sem_politica_rejeitada(self):
+        """Política de senha: no mínimo 8 caracteres, 1 maiúscula e 1 número."""
+        casos = {
+            'curta1A': 'menos de 8 caracteres',
+            'todaminuscula1': 'sem maiúscula',
+            'SemNumeroAqui': 'sem número',
+        }
+        for senha, motivo in casos.items():
+            with self.subTest(senha=senha, motivo=motivo):
+                response = self.client.post('/admin/users/create-teacher',
+                                            data=self._payload(password=senha),
+                                            follow_redirects=True)
+                page = response.get_data(as_text=True)
+                self.assertIn('deve ter no mínimo 8 caracteres', page)
+                self.assertIsNone(self._get_user_by_email('maria.souza@escola.edu'))
+
+    def test_edicao_senha_fraca_rejeitada(self):
+        """Na edição a senha é opcional (vazio mantém a atual), mas quando
+        preenchida também cumpre a política — regressões do bypass por
+        [Optional()] puro e da senha só de espaços (Optional padrão)."""
+        self.client.post('/admin/users/create-teacher', data=self._payload())
+        with self.app.app_context():
+            user = db.session.query(User).filter_by(email='maria.souza@escola.edu').first()
+            user_id = user.id
+            hash_antes = user.password_hash
+
+        for senha in ('fraca1', '   '):
+            with self.subTest(senha=repr(senha)):
+                payload = self._payload(email='maria.souza@escola.edu',
+                                        password=senha, registration='MAT001')
+                response = self.client.post(f'/admin/users/{user_id}/edit',
+                                            data=payload, follow_redirects=True)
+                self.assertIn('deve ter no mínimo 8 caracteres',
+                              response.get_data(as_text=True))
+
+        with self.app.app_context():
+            user = db.session.get(User, user_id)
+            self.assertEqual(user.password_hash, hash_antes,
+                             'a senha não pode mudar quando a edição é rejeitada')
+
     def test_duplicate_email_rejected(self):
         self.client.post('/admin/users/create-teacher', data=self._payload())
         response = self.client.post('/admin/users/create-teacher',

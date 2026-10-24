@@ -80,7 +80,7 @@
                         <div class="col-md-6">
                             {{ form.password.label(class="form-label small mb-1") }}
                             <div class="input-group">
-                                {{ form.password(class="form-control", id="new_password-input") }}
+                                {{ form.password(class="form-control", id="new_password-input", **{'data-password-policy': true}) }}
                                 <button class="btn btn-outline-secondary" type="button" data-password-toggle="new_password-input"
                                         title="Mostrar/ocultar senha" tabindex="-1">
                                     <i class="bi bi-eye"></i>

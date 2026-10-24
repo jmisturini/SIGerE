@@ -381,7 +381,8 @@ def popular_dados(venv_python, env):
     )
 
     if opcao == 1:
-        print('   A senha será pedida pelo próprio comando (mínimo 8 caracteres, digitação oculta).')
+        print('   A senha será pedida pelo próprio comando (no mínimo 8 caracteres,')
+        print('   com 1 letra maiúscula e 1 número; digitação oculta).')
         executar_flask(venv_python, env, ['seed-admin'])
         ok('Comando seed-admin executado — a conta admin@school.edu está pronta '
            '(se já existia, foi preservada).')

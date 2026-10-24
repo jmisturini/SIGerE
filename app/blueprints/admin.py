@@ -1,6 +1,7 @@
 import hashlib
 import os
 import secrets
+import string
 
 import requests
 from datetime import datetime, timedelta, timezone
@@ -13,7 +14,8 @@ from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permiss
                         UnityNotificationConfig, CourseType)
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
-                   FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm)
+                   FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm,
+                   validar_politica_senha, senha_cumpre_politica)
 from app.extensions import db
 from sqlalchemy import func
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
@@ -303,7 +305,11 @@ def edit_user(user_id):
 
     form = UserForm(obj=user)
     form._obj_id = user.id
-    form.password.validators = [Optional()]
+    # Optional + política: vazio mantém a senha atual; preenchida, cumpre a
+    # regra — sem o validador, a edição aceitaria senha fraca (CWE-521).
+    # strip_whitespace=False para senha só de espaços alcançar o validador
+    # (o Optional padrão a deixaria passar e a rota gravaria ' ').
+    form.password.validators = [Optional(strip_whitespace=False), validar_politica_senha]
     form.password.flags.required = False
 
     _preparar_form_usuario(form)
@@ -356,6 +362,17 @@ def toggle_user(user_id):
     flash(f'Usuário {user.full_name} {"ativado" if user.is_active_user else "desativado"}.', 'success')
     return redirect_back('admin.list_users', anchor=f'user-{user_id}')
 
+def _senha_temporaria():
+    """Senha temporária aleatória já aderente à política de senha (8+
+    caracteres, 1 maiúscula e 1 número). O usuário é forçado a trocá-la no
+    primeiro login, mas ela não pode violar a regra desde a origem."""
+    while True:
+        senha = ''.join(secrets.choice(string.ascii_letters + string.digits)
+                        for _ in range(12))
+        if senha_cumpre_politica(senha):
+            return senha
+
+
 @bp.route('/users/<int:user_id>/reset-password', methods=['POST'])
 @login_required
 @require_permission('user:edit')
@@ -364,7 +381,7 @@ def reset_user_password(user_id):
     força a troca no próximo login do usuário."""
     user = _usuario_escopo_or_404(db.get_or_404(User, user_id))
     _proteger_super_admin(user)
-    temp_password = secrets.token_urlsafe(9)
+    temp_password = _senha_temporaria()
     user.set_password(temp_password)
     user.force_password_change = True
     db.session.commit()
