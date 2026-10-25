@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
-from sqlalchemy import func
+from sqlalchemy import func, update
 from urllib.parse import urlparse
 from app.models import User, RoomCategory, UserNotificationPref
 from app.forms import LoginForm, ChangePasswordForm, ProfileForm
@@ -36,10 +36,26 @@ def login():
                 flash('Sua conta foi desativada. Por favor, contate um administrador.', 'danger')
                 return redirect(url_for('auth.login'))
 
-            # Acesso confirmado: zera o contador de erros do bloqueio.
-            user.failed_login_attempts = 0
+            # Acesso confirmado: zera o contador de erros do bloqueio. O reset
+            # é condicional no banco (is_locked falso): se uma tentativa
+            # concorrente bloqueou a conta enquanto este request rodava, nada
+            # é zerado e o login é recusado abaixo.
+            reset = db.session.execute(
+                update(User)
+                .where(User.id == user.id, User.is_locked.is_(False))
+                .values(failed_login_attempts=0))
+            if reset.rowcount != 1:
+                db.session.rollback()
+                flash('Sua conta está bloqueada por excesso de tentativas de acesso. '
+                      'Procure um administrador para desbloqueá-la.', 'danger')
+                return redirect(url_for('auth.login'))
             db.session.commit()
-            login_user(user)
+            if not login_user(user):
+                # Barreira dupla: o is_active do User (cobre bloqueio) recusou
+                # a sessão — não confirmar sucesso para quem não entrou.
+                flash('Sua conta está bloqueada por excesso de tentativas de acesso. '
+                      'Procure um administrador para desbloqueá-la.', 'danger')
+                return redirect(url_for('auth.login'))
             flash(f'Bem-vindo de volta, {user.full_name}!', 'success')
             
             # SECURITY: validate the 'next' parameter to prevent open redirect
