@@ -27,7 +27,15 @@ def auditar(evento, **campos):
         actor_id = int(current_user.get_id())
         actor_email = current_user.email
     alvo = campos.pop('alvo', None)
-    detalhes = ' '.join(f'{k}={v}' for k, v in campos.items() if v is not None)
+
+    def _sanitiza(v):
+        # CWE-117: o e-mail logado vem de input não validado contra quebras de
+        # linha (LoginForm aceita qualquer texto até 120) — neutraliza \r/\n
+        # para que uma tentativa não fabrique linhas falsas na auditoria.
+        return str(v).replace('\r', '\\r').replace('\n', '\\n') if v is not None else None
+
+    alvo_log = _sanitiza(alvo)
+    detalhes = ' '.join(f'{k}={_sanitiza(v)}' for k, v in campos.items() if v is not None)
     ip = request.remote_addr or '-'
     try:
         from app.models import AuditLog
@@ -41,7 +49,7 @@ def auditar(evento, **campos):
             '[AUDITORIA] evento=%s gravacao_banco=falha (registro segue no log)', evento)
     current_app.logger.info('[AUDITORIA] evento=%s ator=%s ip=%s alvo=%s %s',
                             evento, f'#{actor_id} <{actor_email}>' if actor_id else 'anonimo',
-                            ip, alvo, detalhes)
+                            ip, alvo_log, detalhes)
 
 
 def gerar_slug(texto):

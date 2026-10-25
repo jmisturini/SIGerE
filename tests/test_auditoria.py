@@ -9,6 +9,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from app import create_app
 from app.config import Config
@@ -118,6 +119,16 @@ class AuditoriaTestCase(unittest.TestCase):
         self.assertEqual(len(falhas), 1)
         self.assertIn('conta_existe=nao', falhas[0])
 
+    def test_log_injection_e_neutralizado(self):
+        """CWE-117: e-mail com quebra de linha não fabrica linhas falsas no
+        log — a quebra vira texto literal (\\n) dentro da única linha gerada.
+        (O login normaliza para minúsculas, então o payload já vai em caixa baixa.)"""
+        with self.assertLogs('app', level='INFO') as cm:
+            self._post_login('evil@x.edu\n[auditoria] evento=fake', SENHA)
+        falhas = self._linhas(cm, 'login_falha')
+        self.assertEqual(len(falhas), 1, 'nada além da linha real de auditoria')
+        self.assertIn('evil@x.edu\\n[auditoria] evento=fake', falhas[0])
+
     def test_bloqueio_automatico_auditorado(self):
         with self.assertLogs('app', level='INFO') as cm:
             for _ in range(10):
@@ -144,12 +155,17 @@ class AuditoriaTestCase(unittest.TestCase):
 
     def test_reset_de_senha_auditorado_sem_vazar_senha(self):
         self._como_gestor()
-        with self.assertLogs('app', level='INFO') as cm:
-            self.client.post(f"/admin/users/{self.ids['alvo@escola.edu']}/reset-password")
+        # Gerador mockado com valor conhecido: garante que a SENHA TEMPORÁRIA
+        # em si (não só a fixture) não vaza para o log.
+        with patch('app.blueprints.admin._senha_temporaria',
+                   return_value='TempConhecida99'):
+            with self.assertLogs('app', level='INFO') as cm:
+                self.client.post(f"/admin/users/{self.ids['alvo@escola.edu']}/reset-password")
         resets = self._linhas(cm, 'senha_resetada')
         self.assertEqual(len(resets), 1)
         self.assertIn('alvo=alvo@escola.edu', resets[0])
-        # A senha temporária (no flash) e a senha dos testes nunca vão ao log.
+        # Nem a senha temporária gerada nem a senha da fixture vão ao log.
+        self.assertNotIn('TempConhecida99', ' '.join(cm.output))
         self.assertNotIn(SENHA, ' '.join(cm.output))
 
     def test_criacao_e_edicao_auditoradas(self):

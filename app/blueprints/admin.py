@@ -134,7 +134,7 @@ def _setup_checklist():
 
 
 PERMS_PAINEL = ('system:dashboard', 'unity:read', 'api:manage', 'vt:empresas',
-                'vt:config')
+                'vt:config', 'system:audit')
 
 # Admin dashboard route
 @bp.route('/')
