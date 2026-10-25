@@ -164,9 +164,12 @@ class AuditoriaTestCase(unittest.TestCase):
         resets = self._linhas(cm, 'senha_resetada')
         self.assertEqual(len(resets), 1)
         self.assertIn('alvo=alvo@escola.edu', resets[0])
-        # Nem a senha temporária gerada nem a senha da fixture vão ao log.
-        self.assertNotIn('TempConhecida99', ' '.join(cm.output))
-        self.assertNotIn(SENHA, ' '.join(cm.output))
+        # Nem a senha temporária gerada nem a senha da fixture vão ao log
+        # nem à tabela (uma regressão só no banco seria pega aqui).
+        registros = self._linhas_db(evento='senha_resetada')
+        self.assertEqual(len(registros), 1)
+        self.assertNotIn('TempConhecida99', ' '.join(cm.output) + ' '.join(registros))
+        self.assertNotIn(SENHA, ' '.join(cm.output) + ' '.join(registros))
 
     def test_criacao_e_edicao_auditoradas(self):
         self._como_gestor()
