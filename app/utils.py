@@ -4,7 +4,44 @@ import unicodedata
 
 from urllib.parse import urlsplit
 
-from flask import redirect, request, url_for
+from flask import current_app, has_request_context, redirect, request, url_for
+from flask_login import current_user
+
+from app.extensions import db
+
+
+def auditar(evento, **campos):
+    """Trilha de auditoria de segurança para eventos sensíveis — login,
+    troca/reset de senha, bloqueios e ciclo de usuários.
+
+    Grava em `audit_logs` (consultável no Painel Admin, /admin/auditoria) e
+    replica no log da aplicação (journal em produção): a linha no log é a
+    cópia de defesa — se o banco falhar, o registro permanece. NUNCA passar
+    senha, hash ou token nos campos.
+    """
+    if not has_request_context():
+        return
+    actor_id = None
+    actor_email = None
+    if current_user.is_authenticated:
+        actor_id = int(current_user.get_id())
+        actor_email = current_user.email
+    alvo = campos.pop('alvo', None)
+    detalhes = ' '.join(f'{k}={v}' for k, v in campos.items() if v is not None)
+    ip = request.remote_addr or '-'
+    try:
+        from app.models import AuditLog
+        db.session.add(AuditLog(evento=evento, actor_id=actor_id,
+                                actor_email=actor_email, alvo=alvo, ip=ip,
+                                detalhes=detalhes or None))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.warning(
+            '[AUDITORIA] evento=%s gravacao_banco=falha (registro segue no log)', evento)
+    current_app.logger.info('[AUDITORIA] evento=%s ator=%s ip=%s alvo=%s %s',
+                            evento, f'#{actor_id} <{actor_email}>' if actor_id else 'anonimo',
+                            ip, alvo, detalhes)
 
 
 def gerar_slug(texto):

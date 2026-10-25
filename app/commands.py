@@ -23,6 +23,7 @@ PERMISSION_DATA = [
     ('user:edit', 'user', 'edit', 'Editar usuários'),
     ('user:toggle', 'user', 'toggle', 'Ativar/desativar usuários'),
     ('user:lock', 'user', 'lock', 'Bloquear/desbloquear acesso de usuários'),
+    ('system:audit', 'system', 'audit', 'Consultar trilha de auditoria'),
     # Módulo de Unidades Educacionais (multi-unidade)
     ('unity:read', 'unity', 'read', 'Visualizar unidades educacionais'),
     ('unity:create', 'unity', 'create', 'Criar unidades educacionais'),
@@ -134,7 +135,7 @@ ROLES_CONFIG = {
             'holiday:read', 'holiday:create', 'holiday:edit', 'holiday:delete', 'holiday:import',
             'reservation:read_all', 'reservation:edit_all', 'reservation:delete_all',
             'reservation:approve', 'reservation:cancel_all',
-            'system:dashboard', 'system:export',
+            'system:dashboard', 'system:export', 'system:audit',
             'api:manage',
             'role:read', 'role:create', 'role:edit', 'role:delete',
             'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export',

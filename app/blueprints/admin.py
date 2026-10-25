@@ -11,17 +11,18 @@ from flask_login import login_required, current_user
 from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permission,
                         RoomCategory, Unity, ApiToken, VtConfig, VtEmpresa,
                         VtEmpresaValor, ROLE_POR_PERFIL, NotificationGroup,
-                        UnityNotificationConfig, CourseType, MAX_TENTATIVAS_LOGIN)
+                        UnityNotificationConfig, CourseType, MAX_TENTATIVAS_LOGIN,
+                        AuditLog)
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
                    FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm,
                    validar_politica_senha, senha_cumpre_politica)
 from app.extensions import db
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
 from wtforms.validators import Optional
 from app.permissions import require_permission
-from app.utils import gerar_slug, slug_unico, redirect_back, redirect_preserving_args
+from app.utils import gerar_slug, slug_unico, redirect_back, redirect_preserving_args, auditar
 from app.unity_context import current_unity_id, unity_module_enabled
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -290,6 +291,7 @@ def _criar_usuario(profile_type):
         user.force_password_change = True
         db.session.add(user)
         db.session.commit()
+        auditar('usuario_criado', alvo=user.email, perfil=user.profile_type)
         flash(f'{_PERFIL_LABEL[user.profile_type]} cadastrado com sucesso.', 'success')
         return redirect_preserving_args('admin.list_users')
     return render_template('admin/user_form.html', form=form,
@@ -342,6 +344,8 @@ def edit_user(user_id):
                 user.set_password(form.password.data)
                 user.force_password_change = True
             db.session.commit()
+            auditar('usuario_editado', alvo=user.email,
+                    senha_alterada='sim' if form.password.data else 'nao')
             flash('Usuário atualizado com sucesso.', 'success')
             return redirect_preserving_args('admin.list_users')
     return render_template('admin/user_form.html', form=form,
@@ -360,6 +364,8 @@ def toggle_user(user_id):
         return redirect_back('admin.list_users')
     user.is_active_user = not user.is_active_user
     db.session.commit()
+    auditar('usuario_ativado' if user.is_active_user else 'usuario_desativado',
+            alvo=user.email)
     flash(f'Usuário {user.full_name} {"ativado" if user.is_active_user else "desativado"}.', 'success')
     return redirect_back('admin.list_users', anchor=f'user-{user_id}')
 
@@ -381,6 +387,7 @@ def lock_user(user_id):
     user.is_locked = True
     user.locked_at = datetime.now(timezone.utc)
     db.session.commit()
+    auditar('conta_bloqueada_manual', alvo=user.email)
     flash(f'Conta de {user.full_name} bloqueada. Nenhum login será aceito '
           'até o desbloqueio.', 'warning')
     return redirect_back('admin.edit_user', user_id=user_id)
@@ -399,6 +406,7 @@ def unlock_user(user_id):
     # erro de senha pós-desbloqueio re-bloquearia a conta.
     user.desbloquear()
     db.session.commit()
+    auditar('conta_desbloqueada', alvo=user.email)
     flash(f'Conta de {user.full_name} desbloqueada. O acesso foi restabelecido '
           'e o contador de tentativas foi zerado.', 'success')
     return redirect_back('admin.edit_user', user_id=user_id)
@@ -426,9 +434,75 @@ def reset_user_password(user_id):
     user.set_password(temp_password)
     user.force_password_change = True
     db.session.commit()
+    auditar('senha_resetada', alvo=user.email)
     flash(f'Senha de {user.full_name} redefinida. Senha temporária '
           f'(exibida apenas agora — copie e envie ao usuário): {temp_password}', 'success')
     return redirect_back('admin.list_users', anchor=f'user-{user_id}')
+
+
+# ================= AUDITORIA =================
+
+AUDIT_PER_PAGE = 50
+
+# Cor do badge por evento (análise rápida na consulta). Eventos novos sem
+# cor definida caem no cinza do template.
+EVENTO_CORES = {
+    'login_sucesso': 'success',
+    'login_falha': 'warning',
+    'login_recusado_conta_bloqueada': 'danger',
+    'login_recusado_conta_desativada': 'secondary',
+    'conta_bloqueada_automatica': 'danger',
+    'conta_bloqueada_manual': 'danger',
+    'conta_desbloqueada': 'success',
+    'senha_trocada': 'info',
+    'senha_resetada': 'warning',
+    'usuario_criado': 'info',
+    'usuario_editado': 'secondary',
+    'usuario_ativado': 'success',
+    'usuario_desativado': 'danger',
+}
+
+
+@bp.route('/auditoria')
+@login_required
+@require_permission('system:audit')
+def auditoria():
+    """Consulta da trilha de auditoria (tabela audit_logs): filtros por
+    evento, texto (ator/alvo) e período, mais recentes primeiro."""
+    evento = request.args.get('evento', '')
+    texto = request.args.get('q', '')
+    de = request.args.get('de', '')
+    ate = request.args.get('ate', '')
+
+    query = AuditLog.query
+    if evento:
+        query = query.filter(AuditLog.evento == evento)
+    if texto:
+        like = f'%{texto}%'
+        query = query.filter(or_(AuditLog.alvo.ilike(like),
+                                 AuditLog.actor_email.ilike(like)))
+    # Período: de/ate em YYYY-MM-DD (input type=date); 'ate' é inclusivo.
+    if de:
+        try:
+            query = query.filter(AuditLog.created_at >= datetime.strptime(de, '%Y-%m-%d'))
+        except ValueError:
+            pass
+    if ate:
+        try:
+            fim = datetime.strptime(ate, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(AuditLog.created_at < fim)
+        except ValueError:
+            pass
+
+    logs = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).paginate(
+        page=request.args.get('page', 1, type=int), per_page=AUDIT_PER_PAGE,
+        error_out=False)
+    eventos_disponiveis = [r[0] for r in
+                           db.session.query(AuditLog.evento).distinct().order_by(AuditLog.evento)]
+    return render_template('admin/auditoria.html', logs=logs, pagination=logs,
+                           evento=evento, texto=texto, de=de, ate=ate,
+                           eventos_disponiveis=eventos_disponiveis,
+                           cores=EVENTO_CORES)
 
 # ================= ROOM MANAGEMENT =================
 
