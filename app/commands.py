@@ -22,6 +22,7 @@ PERMISSION_DATA = [
     ('user:create', 'user', 'create', 'Criar usuários'),
     ('user:edit', 'user', 'edit', 'Editar usuários'),
     ('user:toggle', 'user', 'toggle', 'Ativar/desativar usuários'),
+    ('user:lock', 'user', 'lock', 'Bloquear/desbloquear acesso de usuários'),
     # Módulo de Unidades Educacionais (multi-unidade)
     ('unity:read', 'unity', 'read', 'Visualizar unidades educacionais'),
     ('unity:create', 'unity', 'create', 'Criar unidades educacionais'),
@@ -124,7 +125,7 @@ ROLES_CONFIG = {
         'label': 'Administrador',
         'is_system': True,
         'permissions': [
-            'user:read', 'user:create', 'user:edit', 'user:toggle',
+            'user:read', 'user:create', 'user:edit', 'user:toggle', 'user:lock',
             'unity:read', 'unity:create', 'unity:edit', 'unity:toggle',
             'unity:modules',
             'room:read', 'room:create', 'room:edit', 'room:toggle',
