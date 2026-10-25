@@ -227,6 +227,29 @@ def load_user(user_id):
         return None
     return user
 
+class AuditLog(db.Model):
+    """Trilha de auditoria de segurança (consulta no Painel Admin, /admin/auditoria).
+
+    Preenchida por app.utils.auditar a partir de eventos sensíveis: login,
+    troca/reset de senha, bloqueios e ciclo de usuários. O ator é
+    desnormalizado (actor_email) — se um usuário for removido (SET NULL no
+    FK), o registro mantém quem agiu. Nada aqui contém senha ou token.
+    """
+    __tablename__ = 'audit_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, nullable=False,
+                           default=lambda: datetime.now(timezone.utc), index=True)
+    evento = db.Column(db.String(50), nullable=False, index=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'),
+                         nullable=True)
+    actor_email = db.Column(db.String(120))
+    alvo = db.Column(db.String(120))
+    ip = db.Column(db.String(45))
+    detalhes = db.Column(db.Text)
+
+    actor = db.relationship('User', foreign_keys=[actor_id])
+
+
 # Model representing the physical rooms (Classrooms, Auditoriums, Labs)
 class Classroom(db.Model):
     __tablename__ = 'classrooms'
