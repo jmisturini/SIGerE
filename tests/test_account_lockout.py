@@ -209,6 +209,24 @@ class AccountLockoutTestCase(unittest.TestCase):
         self.assertNotIn('Bem-vindo de volta, Conta Alvo',
                          resp.get_data(as_text=True))
 
+    def test_bloqueio_derruba_sessao_ja_aberta(self):
+        """Regressão CWE-863: usuário logado que tem a conta bloqueada perde
+        a sessão na requisição seguinte (load_user devolve None)."""
+        self._post_login('vitima@escola.edu', SENHA)
+        resp = self.client.get('/dashboard')
+        self.assertEqual(resp.status_code, 200)  # sessão viva antes do bloqueio
+
+        # Ação administrativa em OUTRO client: a sessão da vítima precisa
+        # permanecer intoca neste — é exatamente o que o teste observa.
+        admin_client = self.app.test_client()
+        admin_client.post('/login', data={'email': 'gestor@escola.edu',
+                                          'password': SENHA})
+        admin_client.post(f"/admin/users/{self.ids['vitima@escola.edu']}/lock")
+
+        resp = self.client.get('/dashboard', follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('/login', resp.headers.get('Location', ''))
+
 
 if __name__ == '__main__':
     unittest.main()

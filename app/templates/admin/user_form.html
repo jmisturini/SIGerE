@@ -115,7 +115,7 @@
                             {% endif %}
                             <div class="form-text small">
                                 {% if user.is_locked %}
-                                    Bloqueada{% if user.locked_at %} em {{ user.locked_at.strftime('%d/%m/%Y às %H:%M') }}{% endif %}.
+                                    Bloqueada{% if user.locked_at %} em {{ user.locked_at|horario_local }}{% endif %}.
                                     Desbloquear zera o contador de tentativas.
                                 {% else %}
                                     {{ user.failed_login_attempts or 0 }} de {{ max_tentativas }} tentativas de login incorretas —
@@ -152,7 +152,7 @@
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                     <div class="small text-muted">
                         {% if user.is_locked %}
-                            A conta está <strong>bloqueada</strong>{% if user.locked_at %} desde {{ user.locked_at.strftime('%d/%m/%Y às %H:%M') }}{% endif %}.
+                            A conta está <strong>bloqueada</strong>{% if user.locked_at %} desde {{ user.locked_at|horario_local }}{% endif %}.
                             Nenhuma tentativa de login é aceita — nem com a senha correta — até o desbloqueio.
                         {% else %}
                             O bloqueio manual impede qualquer login nesta conta até que alguém com
