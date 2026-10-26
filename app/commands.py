@@ -1,6 +1,8 @@
 """Comandos CLI customizados para o Flask."""
 import json
 import os
+import secrets
+import string
 
 import click
 from flask.cli import with_appcontext
@@ -230,12 +232,17 @@ def seed_command():
 
     try:
         _seed_permissions()
-        _seed_admin()
+        senha_admin = _seed_admin()
         db.session.commit()
         click.echo(click.style("✅ Administrador criado com sucesso!", fg="green", bold=True))
         click.echo(click.style(
-            "   Login: admin@school.edu / admin123",
+            f"   Login: admin@school.edu / {senha_admin}",
             fg="cyan"
+        ))
+        click.echo(click.style(
+            "   ⚠️  Anote a senha agora — ela não será exibida de novo e a "
+            "troca será exigida no primeiro login.",
+            fg="yellow"
         ))
 
         # Pergunta se deseja popular com dados de teste
@@ -379,9 +386,33 @@ def _seed_permissions():
     click.echo("   ✅ Permissões e roles criadas.")
 
 
-def _seed_admin(password='admin123'):
-    """Cria apenas o usuário administrador."""
+def _senha_temporaria():
+    """Senha aleatória aderente à política (8+ caracteres, 1 maiúscula e
+    1 número) — usada no seed e em qualquer senha criada sem interação."""
+    while True:
+        senha = ''.join(secrets.choice(string.ascii_letters + string.digits)
+                        for _ in range(12))
+        if senha_cumpre_politica(senha):
+            return senha
+
+
+def _seed_admin(password=None):
+    """Cria apenas o usuário administrador.
+
+    Sem password, gera uma senha aleatória (retornada para exibição única) e
+    marca a troca obrigatória no primeiro login: senha fixa conhecida no
+    código é credencial pública — qualquer implantação que rodasse o seed
+    nasceria com o admin acessível por quem lesse o README.
+    """
     click.echo("   Criando usuário administrador...")
+
+    if password is None:
+        # Mesmo gerador da senha temporária do reset administrativo
+        # (aderente à política: 8+ caracteres, 1 maiúscula, 1 número).
+        password = _senha_temporaria()
+        force_password_change = True
+    else:
+        force_password_change = False
 
     super_admin_role = Role.query.filter_by(name='super_admin').first()
 
@@ -389,13 +420,14 @@ def _seed_admin(password='admin123'):
         email='admin@school.edu',
         full_name='Administrador do Sistema', role='admin',
         department='Administration', profile_type='employee',
-        force_password_change=False,
+        force_password_change=force_password_change,
         role_id=super_admin_role.id
     )
     admin.set_password(password)
     db.session.add(admin)
     db.session.flush()
     click.echo("   ✅ Administrador criado.")
+    return password
 
 
 @click.command('seed-admin')

@@ -525,6 +525,13 @@ def importar():
     if not arquivo.filename.lower().endswith('.xlsx'):
         flash('Formato não suportado: envie a planilha em .xlsx.', 'danger')
         return redirect(url_for('an.registros'))
+    # Assinatura do conteúdo (XLSX é um ZIP): a extensão pode ser mentirosa —
+    # o openpyxl rejeitaria o lixo, mas a checagem barata o impede de chegar
+    # ao parser. O stream volta ao início antes do load_workbook.
+    if arquivo.stream.read(4) != b'PK\x03\x04':
+        flash('Arquivo inválido: o conteúdo não é uma planilha .xlsx.', 'danger')
+        return redirect(url_for('an.registros'))
+    arquivo.stream.seek(0)
 
     mes = _mes_valido(request.form.get('month_base')) or _mes_atual()
 

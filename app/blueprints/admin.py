@@ -16,22 +16,41 @@ from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permiss
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
                    FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm,
-                   validar_politica_senha, senha_cumpre_politica)
+                   validar_politica_senha, senha_cumpre_politica, _PADRAO_TEXTO)
 from app.extensions import db
 from sqlalchemy import func, or_
 from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
 from wtforms.validators import Optional
 from app.permissions import require_permission
 from app.utils import gerar_slug, slug_unico, redirect_back, redirect_preserving_args, auditar
-from app.unity_context import current_unity_id, unity_module_enabled
+from app.unity_context import allowed_unity_ids, current_unity_id, unity_module_enabled
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 USERS_PER_PAGE = 25
 
 def _unity_choices():
-    """Opções do select de unidades (todas as ativas)."""
-    return [(u.id, u.name) for u in Unity.query.filter_by(is_active=True).order_by(Unity.name).all()]
+    """Opções do select de unidades: todas as ativas para o super-admin (*)
+    e para contas globais sem vínculo (mesmo critério de
+    _unity_visivel_or_404), os próprios vínculos ativos para os demais.
+    Nunca oferecer unidade fora do escopo do operador: o WTForms valida o
+    POST contra estas choices — com choices globais para todos, um POST
+    forjado vincula o usuário editado a qualquer unidade (e com 2 vínculos
+    ele passa a trocar a unidade ativa e acessar os dados dela)."""
+    todas = Unity.query.filter_by(is_active=True).order_by(Unity.name).all()
+    escopo = _escopo_unidades_operador()
+    if escopo is None:
+        return [(u.id, u.name) for u in todas]
+    return [(u.id, u.name) for u in todas if u.id in escopo]
+
+
+def _escopo_unidades_operador():
+    """IDs das unidades cujo vínculo o operador pode gerenciar no formulário
+    de usuários — None quando não há restrição (super-admin ou conta global
+    sem vínculo, que o restante do painel também trata como visão total)."""
+    if current_user.has_permission('*') or not current_user.unity_ids:
+        return None
+    return set(allowed_unity_ids())
 
 def _unity_scoped_or_404(obj):
     """Garante que o recurso pertence à unidade ativa (contas globais sempre visíveis)."""
@@ -89,6 +108,52 @@ def _negar_papel_super(form, atuais=()):
         return ('Apenas o super-administrador pode atribuir papéis com '
                 'permissão universal (*).')
     return None
+
+
+def _permissoes_do_operador():
+    """Códigos de permissão efetivos do operador — None quando possui '*'
+    (as regras 'não concedo o que não tenho' não se aplicam)."""
+    if current_user.has_permission('*'):
+        return None
+    return set(current_user.permissions)
+
+
+# Permissões do plano de administração: governam o próprio sistema — contas,
+# papéis, unidades, auditoria e integração. Atribuir a alguém um papel com
+# uma delas que o operador não possui é cunhar privilégio: quem cria a conta
+# define a senha inicial (e quem tem user:edit pode reatribuir papéis a si).
+# Tudo que é operacional — reservas, salas, pagamentos, cozinha e até
+# system:export (gerar PDF de agenda) — é provisão legítima do dia a dia.
+MODULOS_PLANO_ADMIN = {'user', 'role', 'unity', 'api'}
+CODIGOS_PLANO_ADMIN = {'system:audit'}
+
+
+def _eh_permissao_plano_admin(permissao):
+    return (permissao.module in MODULOS_PLANO_ADMIN
+            or permissao.code in CODIGOS_PLANO_ADMIN)
+
+
+def _erro_papeis_acima_do_operador(form, ja_atribuidos=()):
+    """Regra 'não cunho privilégio que não tenho' na atribuição de papéis:
+    operador sem '*' não pode dar a ninguém (nem a si) papel que conceda
+    permissão do PLANO DE ADMINISTRAÇÃO que ele próprio não possui (ver
+    MODULOS_PLANO_ADMIN). Papéis que o alvo JÁ possui são ignorados — foram
+    atribuídos por quem podia, e editar outros campos não pode exigir
+    revogação. Retorna mensagem de erro ou None."""
+    limite = _permissoes_do_operador()
+    if limite is None:
+        return None
+    escolhidos = {form.role_id.data, *form.extra_roles.data} - set(ja_atribuidos)
+    excedentes = []
+    for papel in Role.query.filter(Role.id.in_(escolhidos)).all():
+        fora = sorted(p.code for p in papel.permissions
+                      if _eh_permissao_plano_admin(p) and p.code not in limite)
+        if fora:
+            excedentes.append(f"{papel.label} ({', '.join(fora)})")
+    if not excedentes:
+        return None
+    return ('Você não pode atribuir papéis com permissões administrativas '
+            'que você próprio não possui: ' + '; '.join(excedentes) + '.')
 
 
 def _setup_checklist():
@@ -272,7 +337,8 @@ def _criar_usuario(profile_type):
         # Opção vazia: força a escolha do tipo no próprio formulário.
         form.profile_type.choices = [('', 'Selecione o tipo de perfil…')] + list(form.profile_type.choices)
     if form.validate_on_submit():
-        erro_papel = _negar_papel_super(form)
+        erro_papel = (_negar_papel_super(form)
+                      or _erro_papeis_acima_do_operador(form))
         if erro_papel:
             flash(erro_papel, 'danger')
             return render_template('admin/user_form.html', form=form,
@@ -322,7 +388,8 @@ def edit_user(user_id):
         form.extra_roles.data = [r.id for r in user.extra_roles]
     if form.validate_on_submit():
         atuais = {user.role_id, *(r.id for r in user.extra_roles)}
-        erro_papel = _negar_papel_super(form, atuais)
+        erro_papel = (_negar_papel_super(form, atuais)
+                      or _erro_papeis_acima_do_operador(form, atuais))
         if user.id == current_user.id and form.is_active_user.data == False:
             flash('Você não pode desativar sua própria conta.', 'danger')
         elif erro_papel:
@@ -332,7 +399,14 @@ def edit_user(user_id):
             user.full_name = form.full_name.data
             user.registration = form.registration.data
             user.is_active_user = form.is_active_user.data
-            user.unities = Unity.query.filter(Unity.id.in_(form.unities.data)).all()
+            # Vínculos com unidades fora do escopo do operador são preservados:
+            # as choices do form não os exibem, e gravar só o que veio do POST
+            # apagaria o vínculo que admin de outra unidade criou.
+            escopo = _escopo_unidades_operador()
+            fora_do_escopo = ([] if escopo is None
+                              else [u for u in user.unities if u.id not in escopo])
+            user.unities = (Unity.query.filter(Unity.id.in_(form.unities.data)).all()
+                            + fora_do_escopo)
             user.role_id = form.role_id.data
             user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
 
@@ -958,6 +1032,23 @@ def edit_role(role_id):
         form.permissions.data = [p.id for p in role.permissions]
 
     if form.validate_on_submit():
+        # Regra 'não concedo o que não tenho' (plano administrativo): operador
+        # sem '*' não adiciona a nenhum papel permissão de governança que não
+        # possui (contas/papéis/unidades/API/auditoria) — editar um papel que
+        # ele mesmo carrega seria escalada direta. Permissões operacionais
+        # seguem editáveis: compor os poderes dos papéis é a função.
+        limite = _permissoes_do_operador()
+        if limite is not None:
+            enviadas = Permission.query.filter(
+                Permission.id.in_(set(form.permissions.data or []))).all()
+            excedentes = sorted(p.code for p in enviadas
+                                if _eh_permissao_plano_admin(p)
+                                and p.code not in limite)
+            if excedentes:
+                flash('Você não pode conceder permissões administrativas que '
+                      'você mesmo não possui: ' + ', '.join(excedentes) + '.',
+                      'danger')
+                return redirect_back('admin.list_roles', anchor=f'role-{role_id}')
         role.label = form.label.data
         role.description = form.description.data
         selecionadas = set(form.permissions.data or [])
@@ -1473,11 +1564,26 @@ def _token_hash(raw):
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
+def _token_gerido_or_403(token):
+    """Somente o criador do token (ou super-admin) o revoga/apaga: ApiToken é
+    global e o id é sequencial — sem esta checagem, um admin com api:manage
+    derrubaria a integração de outra unidade iterando ids."""
+    if token.created_by_id != current_user.id and not current_user.has_permission('*'):
+        abort(403)
+    return token
+
+
 @bp.route('/api-tokens')
 @login_required
 @require_permission('api:manage')
 def list_api_tokens():
-    tokens = ApiToken.query.all()
+    # Escopo: cada operador gerencia os tokens que criou (super-admin vê
+    # todos). Tokens são globais e o id é sequencial — a listagem aberta
+    # deixaria um admin enumerar nomes/prefixos das integrações alheias.
+    if current_user.has_permission('*'):
+        tokens = ApiToken.query.all()
+    else:
+        tokens = ApiToken.query.filter_by(created_by_id=current_user.id).all()
     # Ordenação escolhida no filtro da página (padrão: criação mais recente);
     # sem expiração/último uso vai para o fim da respectiva ordem.
     ordem = request.args.get('ordem', 'recentes')
@@ -1517,8 +1623,11 @@ def list_api_tokens():
 @require_permission('api:manage')
 def create_api_token():
     name = (request.form.get('name') or '').strip()
-    if len(name) < 3:
-        flash('Informe um nome com pelo menos 3 caracteres para o token.', 'danger')
+    # Mesma whitelist de caracteres dos demais campos de texto (app/forms):
+    # o nome aparece na listagem do painel — nada de tags ou lixo.
+    if len(name) < 3 or len(name) > 100 or not _PADRAO_TEXTO.match(name):
+        flash('Informe um nome de 3 a 100 caracteres (letras, números e '
+              ". , - ( ) / & ' º ª).", 'danger')
         return redirect(url_for('admin.list_api_tokens'))
 
     days = request.form.get('duration', type=int) or 0
@@ -1547,7 +1656,7 @@ def create_api_token():
 @login_required
 @require_permission('api:manage')
 def toggle_api_token(token_id):
-    token = db.get_or_404(ApiToken, token_id)
+    token = _token_gerido_or_403(db.get_or_404(ApiToken, token_id))
     token.is_active = not token.is_active
     db.session.commit()
     flash(f'Token "{token.name}" {"reativado" if token.is_active else "revogado"}.',
@@ -1559,7 +1668,7 @@ def toggle_api_token(token_id):
 @login_required
 @require_permission('api:manage')
 def delete_api_token(token_id):
-    token = db.get_or_404(ApiToken, token_id)
+    token = _token_gerido_or_403(db.get_or_404(ApiToken, token_id))
     db.session.delete(token)
     db.session.commit()
     flash(f'Token "{token.name}" excluído permanentemente.', 'success')

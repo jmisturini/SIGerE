@@ -714,7 +714,9 @@ class AdicionalNoturnoTestCase(unittest.TestCase):
 
     def test_importar_conteudo_invalido(self):
         response = self._importar(BytesIO(b'lixo'), nome='planilha.xlsx')
-        self.assertIn('Não foi possível ler o arquivo',
+        # Conteúdo que não é ZIP (assinatura PK) é rejeitado antes do
+        # openpyxl, com a mensagem da checagem de assinatura.
+        self.assertIn('o conteúdo não é uma planilha .xlsx',
                       response.get_data(as_text=True))
 
     def test_importar_colunas_desconhecidas(self):

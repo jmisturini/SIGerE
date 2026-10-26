@@ -958,6 +958,18 @@ def seed_demo_command(reset):
     da API de reservas. Permissões/papéis e conta 'admin' são criados se o
     banco ainda não os tiver.
     """
+    # O cenário nasce com credenciais públicas (senha e token de demo estão
+    # NESTE arquivo): recusar fora do modo desenvolvimento, a menos que o
+    # operador force com SIGERE_PERMITIR_SEED_DEMO=1 — nunca em produção.
+    from app import debug_enabled
+    if (not debug_enabled()
+            and not os.environ.get('SIGERE_PERMITIR_SEED_DEMO')
+            and not current_app.config.get('TESTING')):
+        raise click.ClickException(
+            'seed-demo cria contas e token com credenciais conhecidas e é '
+            'recusado fora do modo desenvolvimento. Rode com FLASK_DEBUG=true '
+            'ou defina SIGERE_PERMITIR_SEED_DEMO=1 para forçar (não use em '
+            'produção — para implantações reais, use seed-admin).')
     ja_existe = Unity.query.filter(Unity.code.in_(DEMO_UNITY_CODES)).first()
     if ja_existe and not reset:
         click.echo(click.style(

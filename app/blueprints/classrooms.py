@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, make_response, abort
-from flask_login import login_required
+from flask_login import login_required, current_user
 from markupsafe import escape
 from app.models import Classroom, Reservation, RoomCategory
 from app.extensions import db
@@ -104,6 +104,21 @@ def _get_classroom_scoped(classroom_id):
     if classroom.unity_id != current_unity_id():
         abort(404)
     return classroom
+
+
+def _ids_reservas_legiveis(reservas):
+    """IDs das reservas cujo CONTEÚDO o usuário pode ler — a mesma regra de
+    reservations.detail: reservation:read_all, ou reservation:read_own sendo
+    o criador ou o professor designado. As demais aparecem mascaradas
+    ('Reservado') nas telas de sala: a ocupação do horário é visível, mas o
+    título, professor, solicitante e descrição de reserva alheia não saem do
+    servidor (a decisão de permissão não pode morrer no template/JS)."""
+    if current_user.has_permission('reservation:read_all'):
+        return {r.id for r in reservas}
+    pode_own = current_user.has_permission('reservation:read_own')
+    return {r.id for r in reservas
+            if pode_own and (r.user_id == current_user.id
+                             or r.teacher_id == current_user.id)}
 
 # Route to list classrooms with filters
 @bp.route('/')
@@ -248,7 +263,9 @@ def detail(classroom_id):
         Reservation.date >= today,
         Reservation.status.in_(['approved', 'pending'])
     ).order_by(Reservation.date, Reservation.start_time).all()
-    return render_template('classrooms/detail.html', classroom=classroom, upcoming=upcoming)
+    return render_template('classrooms/detail.html', classroom=classroom,
+                           upcoming=upcoming,
+                           ids_legiveis=_ids_reservas_legiveis(upcoming))
 
 def _availability_anchor():
     """Âncora (date) da visão de disponibilidade a partir de year/month/day.
@@ -329,12 +346,20 @@ def availability(classroom_id):
         prev_date, next_date = first_day - timedelta(days=1), last_day + timedelta(days=1)
         title_periodo = f"{MESES_PT[anchor.month - 1]} de {anchor.year}"
 
+    # Conteúdo visível por reserva (título etc.): calculado no servidor com a
+    # mesma regra de leitura de reservations.detail para toda a visão corrente.
+    if view == 'month':
+        reservas_visao = [r for lista in reservations_by_day.values() for r in lista]
+    else:
+        reservas_visao = [r for _, reservas_dia in days for r in reservas_dia]
+
     return render_template(
         'classrooms/availability.html', classroom=classroom, view=view,
         anchor=anchor, today=today, days=days, title_periodo=title_periodo,
         month_days=month_days, reservations_by_day=reservations_by_day,
         prev_date=prev_date, next_date=next_date,
         year=anchor.year, month=anchor.month,
+        ids_legiveis=_ids_reservas_legiveis(reservas_visao),
     )
 
 # Route to export a specific classroom's reservations to PDF, following the

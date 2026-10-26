@@ -329,7 +329,7 @@ class ReservationForm(BaseForm):
     # Título/Assunto opcional: sem preenchimento, a reserva recebe o nome do
     # curso como título (fallback no blueprint).
     title = StringField('Título / Assunto (opcional)', validators=[Optional(), Length(max=200)])
-    description = TextAreaField('Descrição / Finalidade', validators=[Optional()])
+    description = TextAreaField('Descrição / Finalidade', validators=[Optional(), Length(max=1000)])
     date = DateField('Data', validators=[DataRequired()])
     start_time = TimeField('Horário de Início', validators=[DataRequired()])
     end_time = TimeField('Horário de Término', validators=[DataRequired()])
