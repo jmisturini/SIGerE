@@ -4,7 +4,7 @@ vazamento de fill_color nas linhas da tabela.
 """
 import unittest
 
-from app.services.pdf_report import (AZUL_ACENTO, FAIXA_DIA, RelatorioPDF,
+from app.services.pdf_report import (FAIXA_DIA, LARANJA_SENAC, RelatorioPDF,
                                      _texto)
 
 
@@ -87,7 +87,7 @@ class MotorPdfTest(unittest.TestCase):
         pdf = self._pdf_completo()
         conteudos = _conteudos(pdf)
         pdf.output()
-        realce = _rg(AZUL_ACENTO)
+        realce = _rg(LARANJA_SENAC)
         faixa = _rg(FAIXA_DIA)
         for indice, conteudo in conteudos.items():
             # O header desenha a linha de realce da marca em toda página, à

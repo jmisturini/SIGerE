@@ -636,9 +636,9 @@ def _seed_demo_data():
     #    destes cadastros (nenhuma categoria é fixa no código).
     categories = [
         RoomCategory(name="Sala de Aula", code="classroom", abbr="SA",
-                     color="#0d6efd", icon="bi-door-closed"),
+                     color="#004a8d", icon="bi-door-closed"),
         RoomCategory(name="Auditório", code="auditorium", abbr="AU",
-                     color="#004b8d", icon="bi-buildings",
+                     color="#004a8d", icon="bi-buildings",
                      totem_window=RoomCategory.TOTEM_WINDOW_WEEK),
         RoomCategory(name="Cozinha", code="kitchen", abbr="CO",
                      color="#f0ad4e", icon="bi-cup-hot"),

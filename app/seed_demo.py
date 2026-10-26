@@ -222,9 +222,9 @@ def _seed_categorias_demo():
     eventos); laboratórios de informática controlam computadores."""
     defs = [
         dict(name='Sala de Aula', code='classroom', abbr='SA',
-             color='#0d6efd', icon='bi-door-closed'),
+             color='#004a8d', icon='bi-door-closed'),
         dict(name='Auditório', code='auditorium', abbr='AU',
-             color='#004b8d', icon='bi-buildings',
+             color='#004a8d', icon='bi-buildings',
              totem_window=RoomCategory.TOTEM_WINDOW_WEEK),
         dict(name='Cozinha Pedagógica', code='kitchen', abbr='CO',
              color='#f0ad4e', icon='bi-cup-hot'),

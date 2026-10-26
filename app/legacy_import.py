@@ -161,7 +161,7 @@ SHIFT_TIMES = {
 # Categorias de sala derivadas da descrição legada (ordem = precedência).
 ROOM_CATEGORY_RULES = [
     ("lab_info", "Laboratório de Informática", ("INFORMATIC", "INFINITY"),
-     {"abbr": "LI", "controla_computadores": True, "color": "#0d6efd", "icon": "bi-pc-display"}),
+     {"abbr": "LI", "controla_computadores": True, "color": "#004a8d", "icon": "bi-pc-display"}),
     ("lab_saude", "Laboratório de Saúde", ("SAÚDE", "SAUDE", "MASSO", "PODO", "ESTÉTICA", "ESTETICA"),
      {"abbr": "LS", "color": "#d63384", "icon": "bi-heart-pulse"}),
     ("cozinha", "Cozinha Pedagógica", ("COZINHA",),

@@ -824,7 +824,7 @@ class RoomCategory(db.Model):
     TOTEM_WINDOW_WEEK = 'week'
 
     # Fallbacks visuais para categorias cadastradas antes de cor/ícone existirem
-    DEFAULT_COLOR = '#0d6efd'
+    DEFAULT_COLOR = '#004a8d'
     DEFAULT_ICON = 'bi-tag'
 
     @property

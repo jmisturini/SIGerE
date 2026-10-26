@@ -9,7 +9,7 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
     <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}">
-    <meta name="theme-color" content="#004b8d">
+    <meta name="theme-color" content="#004a8d">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css" rel="stylesheet">
     <!-- Totem roda em hardware fraco (Raspberry Pi): sem Bootstrap, sem fontes
          externas, sem backdrop-filter/box-shadow, sem animação — CSS enxuto e
@@ -18,9 +18,12 @@
         /* Tema via custom properties: os componentes só referenciam as
            variáveis; trocar dia/noite é trocar o bloco de variáveis. */
         body {
-            --primary: #2c7be5;
-            --primary-soft: rgba(44, 123, 229, 0.14);
-            --primary-border: rgba(44, 123, 229, 0.45);
+            /* Noite: azul de apoio oficial do Sistema Comércio (Pantone
+               2727 C) — o Azul Senac escuro não tem legibilidade no tema
+               de fundo escuro. */
+            --primary: #4f7afb;
+            --primary-soft: rgba(79, 122, 251, 0.14);
+            --primary-border: rgba(79, 122, 251, 0.45);
             --bg: #0d1117;
             --header-bg: #161b22;
             --card-bg: #161b22;
@@ -31,9 +34,10 @@
             --chip-text: #c9d1d9;
         }
         body.day-theme {
-            --primary: #004b8d;
-            --primary-soft: rgba(0, 75, 141, 0.08);
-            --primary-border: rgba(0, 75, 141, 0.35);
+            /* Dia: Azul Senac oficial (#004A8D — Pantone 288 C) */
+            --primary: #004a8d;
+            --primary-soft: rgba(0, 74, 141, 0.08);
+            --primary-border: rgba(0, 74, 141, 0.35);
             --bg: #f4f6f9;
             --header-bg: #ffffff;
             --card-bg: #ffffff;
