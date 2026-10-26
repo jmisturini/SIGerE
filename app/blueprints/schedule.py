@@ -103,6 +103,11 @@ def _nome_vinculo(campo, valor):
     if campo == 'room_id':
         return f"{entidade.code} — {entidade.name}"
     if campo == 'teacher_id':
+        # Só contas de professor têm o nome revelado (mesmo critério dos
+        # seletores de docente) — um teacher_id forjado de conta comum não
+        # vaza.
+        if not (entidade.profile_type == 'teacher' or entidade.is_teacher):
+            return f'#{valor}'
         # Escopo: professor de outra unidade não tem o nome revelado — o id
         # pode vir de filtro forjado e viraria oráculo de enumeração de contas.
         if (entidade.unity_ids and current_unity_id() not in entidade.unity_ids

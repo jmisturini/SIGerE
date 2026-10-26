@@ -1033,14 +1033,18 @@ def edit_role(role_id):
 
     if form.validate_on_submit():
         # Regra 'não concedo o que não tenho' (plano administrativo): operador
-        # sem '*' não adiciona a nenhum papel permissão de governança que não
+        # sem '*' não ADICIONA a nenhum papel permissão de governança que não
         # possui (contas/papéis/unidades/API/auditoria) — editar um papel que
-        # ele mesmo carrega seria escalada direta. Permissões operacionais
+        # ele mesmo carrega seria escalada direta. Permissões que o papel JÁ
+        # tem são ignoradas (atribuídas por quem podia): alterar só o rótulo
+        # ou permissões operacionais não pode exigir revogá-las. Operacionais
         # seguem editáveis: compor os poderes dos papéis é a função.
         limite = _permissoes_do_operador()
         if limite is not None:
+            adicionadas = set(form.permissions.data or []) - {
+                p.id for p in role.permissions}
             enviadas = Permission.query.filter(
-                Permission.id.in_(set(form.permissions.data or []))).all()
+                Permission.id.in_(adicionadas)).all()
             excedentes = sorted(p.code for p in enviadas
                                 if _eh_permissao_plano_admin(p)
                                 and p.code not in limite)

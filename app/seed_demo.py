@@ -959,11 +959,11 @@ def seed_demo_command(reset):
     banco ainda não os tiver.
     """
     # O cenário nasce com credenciais públicas (senha e token de demo estão
-    # NESTE arquivo): recusar fora do modo desenvolvimento, a menos que o
-    # operador force com SIGERE_PERMITIR_SEED_DEMO=1 — nunca em produção.
+    # NESTE arquivo): recusar fora do modo desenvolvimento. O opt-in aceita
+    # SOMENTE o valor explícito '1' — '0' ou 'false' não podem liberar.
     from app import debug_enabled
     if (not debug_enabled()
-            and not os.environ.get('SIGERE_PERMITIR_SEED_DEMO')
+            and os.environ.get('SIGERE_PERMITIR_SEED_DEMO') != '1'
             and not current_app.config.get('TESTING')):
         raise click.ClickException(
             'seed-demo cria contas e token com credenciais conhecidas e é '

@@ -401,7 +401,12 @@ def personalizado():
                 return valor
         else:
             chaves = {
-                'professor': (lambda r: (r.teacher.full_name if r.teacher
+                # Mesmo critério da linha "Filtros aplicados" (_nome_vinculo):
+                # o importador legado grava teacher_id e unity_id de fontes
+                # independentes — uma reserva pode apontar professor de outra
+                # unidade, e o nome dele não pode vazar no agrupamento.
+                'professor': (lambda r: (_nome_vinculo('teacher_id', r.teacher_id)
+                                         if r.teacher
                                          else ROTULOS_SEM_VINCULO['professor'])),
                 'curso': (lambda r: (r.course.name if r.course
                                      else ROTULOS_SEM_VINCULO['curso'])),
@@ -495,6 +500,11 @@ def _nome_vinculo(campo, valor):
     if campo == 'room_id':
         return f"{entidade.code} — {entidade.name}"
     if campo == 'teacher_id':
+        # Só contas de professor têm o nome revelado (mesmo critério dos
+        # seletores de docente) — um teacher_id forjado de conta comum não
+        # vaza.
+        if not (entidade.profile_type == 'teacher' or entidade.is_teacher):
+            return f'#{valor}'
         # Escopo: professor de outra unidade não tem o nome revelado — o id
         # pode vir de filtro forjado e viraria oráculo de enumeração de contas.
         if (entidade.unity_ids and current_unity_id() not in entidade.unity_ids
