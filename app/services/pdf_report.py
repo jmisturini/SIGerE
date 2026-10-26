@@ -245,24 +245,27 @@ class RelatorioPDF(FPDF):
             grupos[-1].append(linha)
 
         espaco_util = self.page_break_trigger - self.t_margin
-        # Altura total de uma linha: o padding vertical soma à altura do
-        # texto (medido no fpdf2 2.8.9: linha simples = line_height + 2*padding)
-        altura_linha_total = (altura_linha + 2 * PADDING_TABELA + FOLGA_LINHA)
+        # Altura real de uma linha: o padding vertical soma à altura do
+        # texto (medido no fpdf2 2.8.9). A folga cobre células com texto
+        # quebrado nas decisões de espaço restante, mas não entra na conta
+        # de "cabe numa folha nova", onde forçaria quebras desnecessárias
+        altura_linha_real = altura_linha + 2 * PADDING_TABELA
+        altura_linha_total = altura_linha_real + FOLGA_LINHA
         for indice, grupo in enumerate(grupos):
-            # Estimativa com folga: células com texto quebrado ocupam mais
-            # que uma linha; errar para mais só deixa o pé da folha mais alto
-            estimado = 3 + len(grupo) * altura_linha_total
+            # Altura efetiva do grupo: o 1º grupo leva o cabeçalho (+1 linha)
+            altura_efetiva = (len(grupo) + (1 if indice == 0 else 0)) \
+                * altura_linha_real
             # O primeiro grupo e os maiores que uma folha inteira abrem com
             # cabeçalho; o mínimo indecomponível então reserva cabeçalho +
             # faixa + 1ª linha, para a faixa não ficar órfã sob o cabeçalho
-            com_cabecalho = indice == 0 or estimado > espaco_util
+            com_cabecalho = indice == 0 or altura_efetiva > espaco_util
             minimo = 3 + (3 if com_cabecalho else 2) * altura_linha_total
-            # O primeiro grupo também pode não caber no que sobrou da folha
-            # depois do título e dos cartões; a altura extra cobre o cabeçalho
-            # que ele leva (os demais grupos sem cabeçalho dispensam essa linha)
+            # Estimativa conservadora (com folga) para o espaço restante:
+            # errar para mais só deixa o pé da folha mais alto
+            estimado = 3 + len(grupo) * altura_linha_total
             altura_para_quebra = estimado + (
                 altura_linha_total if indice == 0 else 0)
-            if (altura_para_quebra <= espaco_util
+            if (altura_efetiva <= espaco_util
                     and self.will_page_break(altura_para_quebra)):
                 self.add_page()
                 com_cabecalho = True

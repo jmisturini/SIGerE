@@ -156,9 +156,11 @@ class MotorPdfTest(unittest.TestCase):
         """Com cartões de indicadores consumindo a primeira folha, um primeiro
         dia que caiba numa página inteira mas não no espaço restante deve ir
         inteiro para a folha seguinte: as páginas de cada faixa e de suas
-        linhas precisam coincidir, sem continuação sem faixa de data."""
+        linhas precisam coincidir, sem continuação sem faixa de data.
+        12 linhas é o limite: a altura efetiva (142,8mm) cabe nos 147mm
+        úteis, mas a estimativa com folga (154,2mm) não caberia."""
         linhas = [{"faixa": "Dia 1/11/2026"}]
-        for i in range(11):
+        for i in range(12):
             linhas.append({"celulas": ["08:00", "S1", "Curso", "Professor",
                                        f"RV1L{i}"]})
         linhas.append({"faixa": "Dia 2/11/2026"})
@@ -168,7 +170,7 @@ class MotorPdfTest(unittest.TestCase):
 
         pdf = RelatorioPDF("Aulas do Calendário", unidade="U")
         pdf.linha_meta("Primeiro dia cheio depois dos cartões")
-        pdf.cartoes_kpi([("11", "Aulas"), ("22h", "Horas"),
+        pdf.cartoes_kpi([("12", "Aulas"), ("24h", "Horas"),
                          ("1", "Dia"), ("1", "Sala")])
         pdf.tabela(["Horário", "Sala", "Curso", "Professor", "Evento"],
                    linhas, [28, 20, 62, 55, 108],
