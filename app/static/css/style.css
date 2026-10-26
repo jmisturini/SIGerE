@@ -1,10 +1,12 @@
 :root {
-    --sidebar-bg: #002a48;
+    /* Azul Senac oficial (#004A8D — Pantone 288 C, manual da marca 2021):
+       fundo da sidebar e cor primária da interface. */
+    --sidebar-bg: #004a8d;
     --sidebar-color: rgba(255, 255, 255, 0.75);
     --sidebar-active-bg: rgba(255, 255, 255, 0.1);
     --sidebar-active-color: #fff;
-    --primary-color: #004b8d;
-    --primary-color-rgb: 0, 75, 141;
+    --primary-color: #004a8d;
+    --primary-color-rgb: 0, 74, 141;
     --topbar-bg: #ffffff;
     --body-bg: #f4f6f9;
     --card-shadow: var(--shadow-soft);
@@ -26,18 +28,18 @@
     /* Tokens do Bootstrap alinhados à paleta institucional: sem isso, badges,
        links, abas, paginação, checkboxes e foco de campos usam o azul padrão
        do Bootstrap (#0d6efd), dessintonizado do azul Senac dos botões. */
-    --bs-primary: #004b8d;
-    --bs-primary-rgb: 0, 75, 141;
+    --bs-primary: #004a8d;
+    --bs-primary-rgb: 0, 74, 141;
     --bs-primary-bg-subtle: #d4e4f2;
     --bs-primary-border-subtle: #a9c8e4;
-    --bs-link-color: #004b8d;
-    --bs-link-color-rgb: 0, 75, 141;
+    --bs-link-color: #004a8d;
+    --bs-link-color-rgb: 0, 74, 141;
     --bs-link-hover-color: #003a6e;
-    --bs-pagination-active-bg: #004b8d;
-    --bs-pagination-active-border-color: #004b8d;
-    --bs-dropdown-link-active-bg: #004b8d;
+    --bs-pagination-active-bg: #004a8d;
+    --bs-pagination-active-border-color: #004a8d;
+    --bs-dropdown-link-active-bg: #004a8d;
     --bs-dropdown-link-active-color: #fff;
-    --bs-focus-ring-color: rgba(0, 75, 141, 0.25);
+    --bs-focus-ring-color: rgba(0, 74, 141, 0.25);
 }
 
 [data-theme="dark"] {
@@ -48,31 +50,37 @@
     --card-shadow: var(--shadow-soft);
     --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px -8px rgba(0, 0, 0, 0.45);
     --shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 40px -12px rgba(0, 0, 0, 0.55);
-    --primary-color: #2c7be5;
-    --primary-color-rgb: 44, 123, 229;
+    /* Sobre fundo escuro o Azul Senac perde legibilidade: o tema escuro usa
+       o azul de apoio oficial do Sistema Comércio (Pantone 2727 C, #4F7AFB)
+       como accent, com tons derivados na mesma família. */
+    --primary-color: #4f7afb;
+    --primary-color-rgb: 79, 122, 251;
     /* Tons derivados do accent no escuro: hover/ativo do botão sólido
-       (mais claros que o base) e o tom de link/outline legível sobre
-       superfícies escuras — cada tema de cor sobrescreve estes tokens. */
-    --primary-hover: #4a93ec;
-    --primary-active: #61a4f0;
-    --primary-light: #6ea8fe;
-    --primary-light-rgb: 110, 168, 254;
-    --primary-light-hover: #9cc2ff;
+       (mais claros que o base) e o tom de link legível sobre superfícies
+       escuras — cada tema de cor sobrescreve estes tokens. */
+    --primary-hover: #7195fc;
+    --primary-active: #8dabfd;
+    --primary-light: #9db9fe;
+    --primary-light-rgb: 157, 185, 254;
+    --primary-light-hover: #c3d2ff;
     --text-color: #c9d1d9;
     --text-muted: #8b949e;
     --border-color: rgba(255, 255, 255, 0.1);
     --bs-body-color: #c9d1d9;
-    --bs-primary: #2c7be5;
-    --bs-primary-rgb: 44, 123, 229;
-    --bs-primary-bg-subtle: rgba(44, 123, 229, 0.18);
-    --bs-primary-border-subtle: rgba(44, 123, 229, 0.45);
+    --bs-primary: #4f7afb;
+    --bs-primary-rgb: 79, 122, 251;
+    --bs-primary-bg-subtle: rgba(79, 122, 251, 0.18);
+    --bs-primary-border-subtle: rgba(79, 122, 251, 0.45);
     --bs-link-color: var(--primary-light);
     --bs-link-color-rgb: var(--primary-light-rgb);
     --bs-link-hover-color: var(--primary-light-hover);
+    --bs-pagination-active-color: #000;
     --bs-pagination-active-bg: var(--primary-color);
     --bs-pagination-active-border-color: var(--primary-color);
     --bs-dropdown-link-active-bg: var(--primary-color);
-    --bs-dropdown-link-active-color: #fff;
+    /* Accent claro no escuro: texto escuro sobre o item ativo mantém o
+       contraste (o branco ficava entre 2,5:1 e 3,8:1, abaixo dos 4,5:1). */
+    --bs-dropdown-link-active-color: #000;
     --bs-focus-ring-color: rgba(var(--primary-color-rgb), 0.35);
     /* Cinza secundário legível no escuro: botões outline-secondary
        ("Detalhes", "Exportar PDF") usam estes valores no Bootstrap 5.3. */
@@ -484,6 +492,16 @@ body {
     --bs-btn-disabled-color: var(--primary-light);
 }
 
+/* Botão sólido no escuro: o accent é um tom claro, então o rótulo passa a
+   ser escuro — branco sobre o accent claro ficava abaixo dos 4,5:1 do
+   WCAG AA (o Bootstrap usa branco por padrão). */
+[data-theme="dark"] .btn-primary {
+    --bs-btn-color: #000;
+    --bs-btn-hover-color: #000;
+    --bs-btn-active-color: #000;
+    --bs-btn-disabled-color: #000;
+}
+
 /* .btn-link herda --bs-link-color do Bootstrap 5.3 — corrigido pelos tokens
    acima; nada a fazer aqui. Checkbox e foco de formulário seguem a paleta: */
 .form-check-input:checked {
@@ -854,6 +872,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="verde"] {
     --primary-color: #157347;
     --primary-color-rgb: 21, 115, 71;
+    --primary-hover: #115d3a;
+    --primary-active: #0e4f31;
     --sidebar-bg: #0c3a25;
     --bs-primary: #157347;
     --bs-primary-rgb: 21, 115, 71;
@@ -887,6 +907,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="roxo"] {
     --primary-color: #6f42c1;
     --primary-color-rgb: 111, 66, 193;
+    --primary-hover: #5a359c;
+    --primary-active: #4d2e85;
     --sidebar-bg: #2b1a4e;
     --bs-primary: #6f42c1;
     --bs-primary-rgb: 111, 66, 193;
@@ -920,6 +942,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="laranja"] {
     --primary-color: #b45309;
     --primary-color-rgb: 180, 83, 9;
+    --primary-hover: #924307;
+    --primary-active: #7c3906;
     --sidebar-bg: #45230a;
     --bs-primary: #b45309;
     --bs-primary-rgb: 180, 83, 9;
@@ -953,6 +977,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="grafite"] {
     --primary-color: #37474f;
     --primary-color-rgb: 55, 71, 79;
+    --primary-hover: #2d3940;
+    --primary-active: #263137;
     --sidebar-bg: #1c262f;
     --bs-primary: #37474f;
     --bs-primary-rgb: 55, 71, 79;
@@ -981,6 +1007,111 @@ h1, h2, h3, h4, h5, h6 {
     --bs-primary-bg-subtle: rgba(147, 168, 179, 0.18);
     --bs-primary-border-subtle: rgba(147, 168, 179, 0.45);
     --bs-focus-ring-color: rgba(147, 168, 179, 0.35);
+}
+
+[data-accent="vermelho"] {
+    --primary-color: #b02a37;
+    --primary-color-rgb: 176, 42, 55;
+    --primary-hover: #8f222d;
+    --primary-active: #791d26;
+    --sidebar-bg: #47151c;
+    --bs-primary: #b02a37;
+    --bs-primary-rgb: 176, 42, 55;
+    --bs-primary-bg-subtle: #f6dcde;
+    --bs-primary-border-subtle: #e6a7ad;
+    --bs-link-color: #b02a37;
+    --bs-link-color-rgb: 176, 42, 55;
+    --bs-link-hover-color: #8f2230;
+    --bs-pagination-active-bg: #b02a37;
+    --bs-pagination-active-border-color: #b02a37;
+    --bs-dropdown-link-active-bg: #b02a37;
+    --bs-focus-ring-color: rgba(176, 42, 55, 0.25);
+}
+
+[data-theme="dark"][data-accent="vermelho"] {
+    --primary-color: #e56b76;
+    --primary-color-rgb: 229, 107, 118;
+    --primary-hover: #ec8b93;
+    --primary-active: #f1a3a9;
+    --primary-light: #f5bcc1;
+    --primary-light-rgb: 245, 188, 193;
+    --primary-light-hover: #fad9dc;
+    --sidebar-bg: #26090b;
+    --bs-primary: #e56b76;
+    --bs-primary-rgb: 229, 107, 118;
+    --bs-primary-bg-subtle: rgba(229, 107, 118, 0.18);
+    --bs-primary-border-subtle: rgba(229, 107, 118, 0.45);
+    --bs-focus-ring-color: rgba(229, 107, 118, 0.35);
+}
+
+[data-accent="rosa"] {
+    --primary-color: #c2255c;
+    --primary-color-rgb: 194, 37, 92;
+    --primary-hover: #9d1e4b;
+    --primary-active: #861a3f;
+    --sidebar-bg: #4a1128;
+    --bs-primary: #c2255c;
+    --bs-primary-rgb: 194, 37, 92;
+    --bs-primary-bg-subtle: #f7dce8;
+    --bs-primary-border-subtle: #efb3cd;
+    --bs-link-color: #c2255c;
+    --bs-link-color-rgb: 194, 37, 92;
+    --bs-link-hover-color: #9c1c49;
+    --bs-pagination-active-bg: #c2255c;
+    --bs-pagination-active-border-color: #c2255c;
+    --bs-dropdown-link-active-bg: #c2255c;
+    --bs-focus-ring-color: rgba(194, 37, 92, 0.25);
+}
+
+[data-theme="dark"][data-accent="rosa"] {
+    --primary-color: #e64980;
+    --primary-color-rgb: 230, 73, 128;
+    --primary-hover: #ec6d99;
+    --primary-active: #f28bad;
+    --primary-light: #f6aac7;
+    --primary-light-rgb: 246, 170, 199;
+    --primary-light-hover: #faccdc;
+    --sidebar-bg: #290d1a;
+    --bs-primary: #e64980;
+    --bs-primary-rgb: 230, 73, 128;
+    --bs-primary-bg-subtle: rgba(230, 73, 128, 0.18);
+    --bs-primary-border-subtle: rgba(230, 73, 128, 0.45);
+    --bs-focus-ring-color: rgba(230, 73, 128, 0.35);
+}
+
+[data-accent="turquesa"] {
+    --primary-color: #0f766e;
+    --primary-color-rgb: 15, 118, 110;
+    --primary-hover: #0c6059;
+    --primary-active: #0a514c;
+    --sidebar-bg: #0b3d39;
+    --bs-primary: #0f766e;
+    --bs-primary-rgb: 15, 118, 110;
+    --bs-primary-bg-subtle: #d3eeec;
+    --bs-primary-border-subtle: #9bd8d3;
+    --bs-link-color: #0f766e;
+    --bs-link-color-rgb: 15, 118, 110;
+    --bs-link-hover-color: #0a5852;
+    --bs-pagination-active-bg: #0f766e;
+    --bs-pagination-active-border-color: #0f766e;
+    --bs-dropdown-link-active-bg: #0f766e;
+    --bs-focus-ring-color: rgba(15, 118, 110, 0.25);
+}
+
+[data-theme="dark"][data-accent="turquesa"] {
+    --primary-color: #17b8a6;
+    --primary-color-rgb: 23, 184, 166;
+    --primary-hover: #3fcbba;
+    --primary-active: #63d7c9;
+    --primary-light: #86e2d7;
+    --primary-light-rgb: 134, 226, 215;
+    --primary-light-hover: #b3efe8;
+    --sidebar-bg: #062724;
+    --bs-primary: #17b8a6;
+    --bs-primary-rgb: 23, 184, 166;
+    --bs-primary-bg-subtle: rgba(23, 184, 166, 0.18);
+    --bs-primary-border-subtle: rgba(23, 184, 166, 0.45);
+    --bs-focus-ring-color: rgba(23, 184, 166, 0.35);
 }
 
 /* Seletor de tema de cor da topbar: amostras redondas; a escolhida recebe

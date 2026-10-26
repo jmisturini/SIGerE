@@ -8,7 +8,9 @@
     <div class="login-brand d-none d-lg-flex">
         <div class="login-brand-body">
             <div class="login-brand-logo">
-                <img src="{{ url_for('static', filename='img/logo-sigere.png') }}" alt="">
+                {# Versão branca sobre o painel azul (fundo colorido): mantém
+                   contraste, como na faixa de marca dos relatórios PDF. #}
+                <img src="{{ url_for('static', filename='img/logo-sigere-branco.png') }}" alt="">
             </div>
             <h2>SIGerE</h2>
             <p class="login-brand-tagline mb-0">Sistema Integrado de Gerenciamento Educacional</p>

@@ -23,7 +23,7 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
     <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}">
-    <meta name="theme-color" content="#004b8d">
+    <meta name="theme-color" content="#004a8d">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -40,7 +40,9 @@
         <div class="sidebar-header">
             <div class="d-flex justify-content-between align-items-center gap-1">
                 <a class="sidebar-brand" href="{{ url_for('main.index') if current_user.is_authenticated else url_for('public.home') }}">
-                    <img class="brand-logo" src="{{ url_for('static', filename='img/logo-sigere.png') }}" alt="">
+                    {# Versão branca do emblema: aplicação sobre fundo colorido
+                       (azul oficial) — a colorida perde contraste no azul. #}
+                    <img class="brand-logo" src="{{ url_for('static', filename='img/logo-sigere-branco.png') }}" alt="">
                     <span class="brand-text">SIGerE</span>
                 </a>
                 <button type="button" id="sidebar-collapse" class="sidebar-collapse-btn d-none d-lg-block"
@@ -364,13 +366,19 @@
                         </div>
                         <hr class="dropdown-divider my-2">
                         <div class="small text-muted text-uppercase fw-bold mb-2">Cor da interface</div>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 flex-wrap">
                             <button type="button" class="accent-swatch" data-accent-opcao="" title="Azul Senac (padrão)"
-                                    style="--sw: #004b8d"><i class="bi bi-check-lg"></i></button>
+                                    style="--sw: #004a8d"><i class="bi bi-check-lg"></i></button>
                             <button type="button" class="accent-swatch" data-accent-opcao="verde" title="Verde"
                                     style="--sw: #157347"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="turquesa" title="Turquesa"
+                                    style="--sw: #0f766e"><i class="bi bi-check-lg"></i></button>
                             <button type="button" class="accent-swatch" data-accent-opcao="roxo" title="Roxo"
                                     style="--sw: #6f42c1"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="rosa" title="Rosa"
+                                    style="--sw: #c2255c"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="vermelho" title="Vermelho"
+                                    style="--sw: #b02a37"><i class="bi bi-check-lg"></i></button>
                             <button type="button" class="accent-swatch" data-accent-opcao="laranja" title="Laranja"
                                     style="--sw: #b45309"><i class="bi bi-check-lg"></i></button>
                             <button type="button" class="accent-swatch" data-accent-opcao="grafite" title="Grafite"

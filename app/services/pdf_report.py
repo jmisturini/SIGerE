@@ -19,9 +19,10 @@ from pathlib import Path
 from fpdf import FPDF
 from fpdf.fonts import FontFace
 
-# Paleta espelhada em app/static/css/style.css (:root)
-AZUL_SENAC = (0, 75, 141)      # --bs-primary #004b8d
-AZUL_ACENTO = (44, 123, 229)   # realce claro sobre a faixa de marca
+# Paleta institucional (manual da marca Senac, 2021) espelhada em
+# app/static/css/style.css (:root)
+AZUL_SENAC = (0, 74, 141)      # Azul Senac #004A8D (Pantone 288 C)
+LARANJA_SENAC = (247, 148, 29)  # Laranja Senac #F7941D (Pantone 144 C)
 TINTA = (30, 41, 59)           # texto principal (slate-800)
 CINZA = (100, 116, 139)        # texto secundário (slate-500)
 LINHA = (203, 213, 225)        # separadores (slate-300)
@@ -91,7 +92,7 @@ class RelatorioPDF(FPDF):
         # Faixa de marca (sangrando até as bordas da folha)
         self.set_fill_color(*AZUL_SENAC)
         self.rect(0, 0, self.w, 24, style="F")
-        self.set_fill_color(*AZUL_ACENTO)
+        self.set_fill_color(*LARANJA_SENAC)
         self.rect(0, 24, self.w, 1.1, style="F")
 
         # Logotipo (prédio branco do ícone do sistema) na ponta esquerda;
@@ -197,7 +198,7 @@ class RelatorioPDF(FPDF):
                       round_corners=True, corner_radius=2.2)
             # Barra de realce embutida no topo do cartão (inset evita colisão
             # com os cantos arredondados do próprio cartão)
-            self.set_fill_color(*AZUL_ACENTO)
+            self.set_fill_color(*LARANJA_SENAC)
             self.rect(x + 0.9, y + 0.9, largura - 1.8, 0.9, style="F")
             self.set_xy(x, y + 3.4)
             self.set_font(FONTE, "B", 16)
