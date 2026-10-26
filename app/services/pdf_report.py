@@ -224,7 +224,10 @@ class RelatorioPDF(FPDF):
         Cada faixa inicia um grupo desenhado como tabela própria: se o grupo
         não couber inteiro na folha, ele estria a página seguinte com o
         cabeçalho azul — assim uma faixa de data nunca fica órfã no pé da
-        página nem linhas continuam sem o dia a que pertencem.
+        página nem linhas continuam sem o dia a que pertencem. Grupos maiores
+        que uma folha inteira são divididos em pedaços, e cada pedaço repete
+        o cabeçalho das colunas e a faixa de data, para toda folha se
+        identificar sozinha.
         """
         if not linhas:
             return
@@ -244,35 +247,7 @@ class RelatorioPDF(FPDF):
                 grupos.append([])
             grupos[-1].append(linha)
 
-        espaco_util = self.page_break_trigger - self.t_margin
-        # Altura real de uma linha: o padding vertical soma à altura do
-        # texto (medido no fpdf2 2.8.9). A folga cobre células com texto
-        # quebrado nas decisões de espaço restante, mas não entra na conta
-        # de "cabe numa folha nova", onde forçaria quebras desnecessárias
-        altura_linha_real = altura_linha + 2 * PADDING_TABELA
-        altura_linha_total = altura_linha_real + FOLGA_LINHA
-        for indice, grupo in enumerate(grupos):
-            # Altura efetiva do grupo: o 1º grupo leva o cabeçalho (+1 linha)
-            altura_efetiva = (len(grupo) + (1 if indice == 0 else 0)) \
-                * altura_linha_real
-            # O primeiro grupo e os maiores que uma folha inteira abrem com
-            # cabeçalho; o mínimo indecomponível então reserva cabeçalho +
-            # faixa + 1ª linha, para a faixa não ficar órfã sob o cabeçalho
-            com_cabecalho = indice == 0 or altura_efetiva > espaco_util
-            minimo = 3 + (3 if com_cabecalho else 2) * altura_linha_total
-            # Estimativa conservadora (com folga) para o espaço restante:
-            # errar para mais só deixa o pé da folha mais alto
-            estimado = 3 + len(grupo) * altura_linha_total
-            altura_para_quebra = estimado + (
-                altura_linha_total if indice == 0 else 0)
-            if (altura_efetiva <= espaco_util
-                    and self.will_page_break(altura_para_quebra)):
-                self.add_page()
-                com_cabecalho = True
-            elif self.will_page_break(minimo):
-                self.add_page()
-                com_cabecalho = True
-
+        def desenhar_tabela(linhas_grupo, com_cabecalho):
             self.set_font(FONTE, "", 9)
             self.set_text_color(*TINTA)
             self.set_draw_color(*LINHA)
@@ -299,7 +274,7 @@ class RelatorioPDF(FPDF):
                     for coluna in colunas:
                         topo.cell(_texto(coluna))
 
-                for linha in grupo:
+                for linha in linhas_grupo:
                     estilo_passado = linha.get("estilo") == self.PASSADO
                     linha_tabela = tabela.row()
                     if "faixa" in linha:
@@ -314,6 +289,56 @@ class RelatorioPDF(FPDF):
                                 _texto(celula),
                                 style=conteudo if estilo_passado else None,
                             )
+
+        espaco_util = self.page_break_trigger - self.t_margin
+        # Altura real de uma linha: o padding vertical soma à altura do
+        # texto (medido no fpdf2 2.8.9). A folga cobre células com texto
+        # quebrado nas decisões de espaço restante, mas não entra na conta
+        # de "cabe numa folha nova", onde forçaria quebras desnecessárias
+        altura_linha_real = altura_linha + 2 * PADDING_TABELA
+        altura_linha_total = altura_linha_real + FOLGA_LINHA
+        # Linhas de dados por pedaço de folha nova, descontando o cabeçalho
+        # das colunas e a faixa de data que o acompanham
+        por_folha = max(1, int((espaco_util - 4) // altura_linha_real) - 2)
+
+        for indice, grupo in enumerate(grupos):
+            faixa = grupo[0] if "faixa" in grupo[0] else None
+            if faixa is None:
+                # Sem faixa de agrupamento não há linhas a manter juntas: a
+                # tabela flui naturalmente entre folhas (o fpdf2 repete o
+                # cabeçalho das colunas a cada uma)
+                desenhar_tabela(grupo, com_cabecalho=indice == 0)
+                continue
+            corpo = grupo[1:]
+            # Estimativa conservadora (com folga) para o espaço restante;
+            # o 1º grupo abre com cabeçalho (+1 linha). Errar para mais só
+            # deixa o pé da folha mais alto
+            estimado = 3 + (len(grupo) + (1 if indice == 0 else 0)) \
+                * altura_linha_total
+            # Na folha nova o grupo leva o cabeçalho azul: a capacidade
+            # considera essa linha, senão a tabela quebra no meio do grupo
+            cabe_folha_nova = (len(grupo) + 1) * altura_linha_real \
+                <= espaco_util
+            # Já renderizando no topo de uma folha virgem (ex.: 1º grupo sem
+            # cartões acima), não há porquê pular para a seguinte
+            em_folha_nova = (self.page_break_trigger - self.get_y()
+                             >= espaco_util - 4)
+
+            if self.will_page_break(estimado):
+                if not em_folha_nova:
+                    self.add_page()
+                if cabe_folha_nova:
+                    desenhar_tabela(grupo, com_cabecalho=True)
+                else:
+                    # Grupo maior que a folha: divide em pedaços, cada um
+                    # repetindo o cabeçalho e a faixa de data
+                    for inicio in range(0, len(corpo), por_folha):
+                        if inicio:
+                            self.add_page()
+                        pedaco = [faixa] + corpo[inicio:inicio + por_folha]
+                        desenhar_tabela(pedaco, com_cabecalho=True)
+            else:
+                desenhar_tabela(grupo, com_cabecalho=indice == 0)
 
     def mensagem_vazia(self, titulo, subtitulo=None, y=None):
         """Quadro de destaque usado quando o relatório não tem registros."""

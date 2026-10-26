@@ -191,6 +191,42 @@ class MotorPdfTest(unittest.TestCase):
                              f"Dia {g}: faixa e dados em folhas distintas "
                              "(continuação sem faixa de data)")
 
+    def test_grupo_maior_que_a_folha_repete_faixa_nos_pedacos(self):
+        """Grupo intermediário com faixa + 13 linhas não cabe numa folha
+        levando o cabeçalho (153mm > 147mm úteis): é dividido em pedaços e
+        cada pedaço repete a faixa de data — nenhuma linha fica sem o seu
+        dia, em nenhum dos sentidos (folhas da faixa = folhas dos dados)."""
+        linhas = [{"faixa": "Dia 1/11/2026"}]
+        for i in range(4):
+            linhas.append({"celulas": ["08:00", "S1", "Curso", "Professor",
+                                       f"RV1L{i}"]})
+        linhas.append({"faixa": "Dia 2/11/2026"})
+        for i in range(13):
+            linhas.append({"celulas": ["09:00", "S2", "Curso", "Professor",
+                                       f"RV2L{i}"]})
+
+        pdf = RelatorioPDF("Aulas do Calendário", unidade="U")
+        pdf.linha_meta("Grupo maior que a folha")
+        pdf.tabela(["Horário", "Sala", "Curso", "Professor", "Evento"],
+                   linhas, [28, 20, 62, 55, 108],
+                   ("CENTER", "CENTER", "LEFT", "LEFT", "LEFT"))
+        conteudos = _conteudos(pdf)
+        pdf.output()
+
+        for g in ("1", "2"):
+            faixa = f"Dia {g}/11/2026".encode()
+            marcador = f"RV{g}L".encode()
+            paginas_faixa = {n for n, c in conteudos.items() if faixa in c}
+            paginas_dados = {n for n, c in conteudos.items()
+                             if marcador in c}
+            self.assertTrue(paginas_faixa,
+                            f"Faixa do dia {g} não foi renderizada")
+            self.assertEqual(paginas_faixa, paginas_dados,
+                             f"Dia {g}: faixa e dados em folhas distintas")
+        # O grupo de 13 linhas virou mais de um pedaço, todos com faixa
+        self.assertGreater(len({n for n, c in conteudos.items()
+                                if b"Dia 2/11/2026" in c}), 1)
+
     def test_mensagem_vazia_e_elision_nao_explode(self):
         pdf = RelatorioPDF("Agenda de Reservas", unidade="U" * 120)
         pdf.linha_meta("Sala muito comprida " * 12)
