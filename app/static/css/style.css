@@ -74,10 +74,13 @@
     --bs-link-color: var(--primary-light);
     --bs-link-color-rgb: var(--primary-light-rgb);
     --bs-link-hover-color: var(--primary-light-hover);
+    --bs-pagination-active-color: #000;
     --bs-pagination-active-bg: var(--primary-color);
     --bs-pagination-active-border-color: var(--primary-color);
     --bs-dropdown-link-active-bg: var(--primary-color);
-    --bs-dropdown-link-active-color: #fff;
+    /* Accent claro no escuro: texto escuro sobre o item ativo mantém o
+       contraste (o branco ficava entre 2,5:1 e 3,8:1, abaixo dos 4,5:1). */
+    --bs-dropdown-link-active-color: #000;
     --bs-focus-ring-color: rgba(var(--primary-color-rgb), 0.35);
     /* Cinza secundário legível no escuro: botões outline-secondary
        ("Detalhes", "Exportar PDF") usam estes valores no Bootstrap 5.3. */
@@ -489,6 +492,16 @@ body {
     --bs-btn-disabled-color: var(--primary-light);
 }
 
+/* Botão sólido no escuro: o accent é um tom claro, então o rótulo passa a
+   ser escuro — branco sobre o accent claro ficava abaixo dos 4,5:1 do
+   WCAG AA (o Bootstrap usa branco por padrão). */
+[data-theme="dark"] .btn-primary {
+    --bs-btn-color: #000;
+    --bs-btn-hover-color: #000;
+    --bs-btn-active-color: #000;
+    --bs-btn-disabled-color: #000;
+}
+
 /* .btn-link herda --bs-link-color do Bootstrap 5.3 — corrigido pelos tokens
    acima; nada a fazer aqui. Checkbox e foco de formulário seguem a paleta: */
 .form-check-input:checked {
@@ -859,6 +872,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="verde"] {
     --primary-color: #157347;
     --primary-color-rgb: 21, 115, 71;
+    --primary-hover: #115d3a;
+    --primary-active: #0e4f31;
     --sidebar-bg: #0c3a25;
     --bs-primary: #157347;
     --bs-primary-rgb: 21, 115, 71;
@@ -892,6 +907,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="roxo"] {
     --primary-color: #6f42c1;
     --primary-color-rgb: 111, 66, 193;
+    --primary-hover: #5a359c;
+    --primary-active: #4d2e85;
     --sidebar-bg: #2b1a4e;
     --bs-primary: #6f42c1;
     --bs-primary-rgb: 111, 66, 193;
@@ -925,6 +942,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="laranja"] {
     --primary-color: #b45309;
     --primary-color-rgb: 180, 83, 9;
+    --primary-hover: #924307;
+    --primary-active: #7c3906;
     --sidebar-bg: #45230a;
     --bs-primary: #b45309;
     --bs-primary-rgb: 180, 83, 9;
@@ -958,6 +977,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="grafite"] {
     --primary-color: #37474f;
     --primary-color-rgb: 55, 71, 79;
+    --primary-hover: #2d3940;
+    --primary-active: #263137;
     --sidebar-bg: #1c262f;
     --bs-primary: #37474f;
     --bs-primary-rgb: 55, 71, 79;
@@ -991,6 +1012,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="vermelho"] {
     --primary-color: #b02a37;
     --primary-color-rgb: 176, 42, 55;
+    --primary-hover: #8f222d;
+    --primary-active: #791d26;
     --sidebar-bg: #47151c;
     --bs-primary: #b02a37;
     --bs-primary-rgb: 176, 42, 55;
@@ -1024,6 +1047,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="rosa"] {
     --primary-color: #c2255c;
     --primary-color-rgb: 194, 37, 92;
+    --primary-hover: #9d1e4b;
+    --primary-active: #861a3f;
     --sidebar-bg: #4a1128;
     --bs-primary: #c2255c;
     --bs-primary-rgb: 194, 37, 92;
@@ -1057,6 +1082,8 @@ h1, h2, h3, h4, h5, h6 {
 [data-accent="turquesa"] {
     --primary-color: #0f766e;
     --primary-color-rgb: 15, 118, 110;
+    --primary-hover: #0c6059;
+    --primary-active: #0a514c;
     --sidebar-bg: #0b3d39;
     --bs-primary: #0f766e;
     --bs-primary-rgb: 15, 118, 110;

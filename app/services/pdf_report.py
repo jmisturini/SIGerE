@@ -22,7 +22,7 @@ from fpdf.fonts import FontFace
 # Paleta institucional (manual da marca Senac, 2021) espelhada em
 # app/static/css/style.css (:root)
 AZUL_SENAC = (0, 74, 141)      # Azul Senac #004A8D (Pantone 288 C)
-LARANJA_SENAC = (247, 148, 30)  # Laranja Senac #F7941D (Pantone 144 C)
+LARANJA_SENAC = (247, 148, 29)  # Laranja Senac #F7941D (Pantone 144 C)
 TINTA = (30, 41, 59)           # texto principal (slate-800)
 CINZA = (100, 116, 139)        # texto secundário (slate-500)
 LINHA = (203, 213, 225)        # separadores (slate-300)
