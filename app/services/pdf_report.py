@@ -31,6 +31,8 @@ CINZA_PASSADO = (148, 163, 184)  # reservas que já ocorreram
 FUNDO_PASSADO = (235, 238, 242)  # faixa de data de dias passados
 
 FONTE = "helvetica"
+PADDING_TABELA = 2.1  # respiro interno das células da tabela (mm)
+FOLGA_LINHA = 0.6     # folga por linha na estimativa de altura (quebras de texto)
 LOGO = (Path(__file__).resolve().parents[1] / "static" / "img"
         / "logo-sigere-branco.png")
 
@@ -243,11 +245,14 @@ class RelatorioPDF(FPDF):
             grupos[-1].append(linha)
 
         espaco_util = self.page_break_trigger - self.t_margin
+        # Altura total de uma linha: o padding vertical soma à altura do
+        # texto (medido no fpdf2 2.8.9: linha simples = line_height + 2*padding)
+        altura_linha_total = (altura_linha + 2 * PADDING_TABELA + FOLGA_LINHA)
         for indice, grupo in enumerate(grupos):
             # Estimativa com folga: células com texto quebrado ocupam mais
             # que uma linha; errar para mais só deixa o pé da folha mais alto
-            estimado = 3 + len(grupo) * (altura_linha + 0.6)
-            minimo = 3 + 2 * (altura_linha + 0.6)
+            estimado = 3 + len(grupo) * altura_linha_total
+            minimo = 3 + 2 * altura_linha_total
             com_cabecalho = indice == 0
             if indice > 0:
                 if (estimado <= espaco_util
@@ -275,7 +280,7 @@ class RelatorioPDF(FPDF):
                 col_widths=larguras,
                 text_align=alinhos,
                 line_height=altura_linha,
-                padding=2.1,
+                padding=PADDING_TABELA,
                 headings_style=cabecalho,
                 cell_fill_color=ZEBRA,
                 cell_fill_mode="EVEN_ROWS",

@@ -9,8 +9,16 @@ from app.services.pdf_report import (AZUL_ACENTO, FAIXA_DIA, RelatorioPDF,
 
 
 def _rg(cor):
-    """Comando de preenchimento que o fpdf2 emite para a cor RGB dada."""
-    return f"{cor[0]/255:.4f} {cor[1]/255:.4f} {cor[2]/255:.4f} rg".encode()
+    """Comando de preenchimento que o fpdf2 emite para a cor RGB dada.
+
+    O fpdf2 formata cada componente com 4 casas e remove zeros à direita
+    (229/255 sai como "0.898", não "0.8980"; 0 sai como "0", não "0.0000").
+    """
+    componentes = []
+    for valor in cor:
+        texto = f"{valor / 255:.4f}".rstrip("0").rstrip(".")
+        componentes.append(texto or "0")
+    return f"{' '.join(componentes)} rg".encode()
 
 
 def _conteudos(pdf):
@@ -82,16 +90,21 @@ class MotorPdfTest(unittest.TestCase):
         realce = _rg(AZUL_ACENTO)
         faixa = _rg(FAIXA_DIA)
         for indice, conteudo in conteudos.items():
+            # O header desenha a linha de realce da marca em toda página, à
+            # esquerda do conteúdo: a caça ao realce começa onde a tabela
+            # começa (primeira faixa de dia)
+            tabela = conteudo[conteudo.find(faixa):]
             if indice == 1:
                 # O realce legítimo (barras dos cartões) vem antes da tabela
+                self.assertGreaterEqual(conteudo.find(realce), 0,
+                                        "Cartões de indicadores sem realce")
                 self.assertLess(conteudo.find(realce),
                                 conteudo.find(faixa),
                                 "Realce dos cartões precisa preceder a tabela")
-                resto = conteudo[conteudo.find(faixa):]
-                self.assertNotIn(realce, resto,
+                self.assertNotIn(realce, tabela,
                                  "Realce dos cartões apareceu dentro da tabela")
             else:
-                self.assertNotIn(realce, conteudo,
+                self.assertNotIn(realce, tabela,
                                  f"Página {indice} com realce dos cartões "
                                  "vazando nas linhas da tabela")
 
