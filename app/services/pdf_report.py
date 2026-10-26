@@ -257,14 +257,18 @@ class RelatorioPDF(FPDF):
             # faixa + 1ª linha, para a faixa não ficar órfã sob o cabeçalho
             com_cabecalho = indice == 0 or estimado > espaco_util
             minimo = 3 + (3 if com_cabecalho else 2) * altura_linha_total
-            if indice > 0:
-                if (estimado <= espaco_util
-                        and self.will_page_break(estimado)):
-                    self.add_page()
-                    com_cabecalho = True
-                elif self.will_page_break(minimo):
-                    self.add_page()
-                    com_cabecalho = True
+            # O primeiro grupo também pode não caber no que sobrou da folha
+            # depois do título e dos cartões; a altura extra cobre o cabeçalho
+            # que ele leva (os demais grupos sem cabeçalho dispensam essa linha)
+            altura_para_quebra = estimado + (
+                altura_linha_total if indice == 0 else 0)
+            if (altura_para_quebra <= espaco_util
+                    and self.will_page_break(altura_para_quebra)):
+                self.add_page()
+                com_cabecalho = True
+            elif self.will_page_break(minimo):
+                self.add_page()
+                com_cabecalho = True
 
             self.set_font(FONTE, "", 9)
             self.set_text_color(*TINTA)

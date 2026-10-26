@@ -152,6 +152,43 @@ class MotorPdfTest(unittest.TestCase):
                                       f"{g} sem nenhuma linha de dados na "
                                       "mesma folha")
 
+    def test_primeiro_grupo_nao_vaza_sem_faixa_apos_cartoes(self):
+        """Com cartões de indicadores consumindo a primeira folha, um primeiro
+        dia que caiba numa página inteira mas não no espaço restante deve ir
+        inteiro para a folha seguinte: as páginas de cada faixa e de suas
+        linhas precisam coincidir, sem continuação sem faixa de data."""
+        linhas = [{"faixa": "Dia 1/11/2026"}]
+        for i in range(11):
+            linhas.append({"celulas": ["08:00", "S1", "Curso", "Professor",
+                                       f"RV1L{i}"]})
+        linhas.append({"faixa": "Dia 2/11/2026"})
+        for i in range(4):
+            linhas.append({"celulas": ["09:00", "S2", "Curso", "Professor",
+                                       f"RV2L{i}"]})
+
+        pdf = RelatorioPDF("Aulas do Calendário", unidade="U")
+        pdf.linha_meta("Primeiro dia cheio depois dos cartões")
+        pdf.cartoes_kpi([("11", "Aulas"), ("22h", "Horas"),
+                         ("1", "Dia"), ("1", "Sala")])
+        pdf.tabela(["Horário", "Sala", "Curso", "Professor", "Evento"],
+                   linhas, [28, 20, 62, 55, 108],
+                   ("CENTER", "CENTER", "LEFT", "LEFT", "LEFT"))
+        conteudos = _conteudos(pdf)
+        pdf.output()
+
+        self.assertGreater(len(conteudos), 1)
+        for g in ("1", "2"):
+            faixa = f"Dia {g}/11/2026".encode()
+            paginas_faixa = {n for n, c in conteudos.items() if faixa in c}
+            marcador = f"RV{g}L".encode()
+            paginas_dados = {n for n, c in conteudos.items()
+                             if marcador in c}
+            self.assertTrue(paginas_faixa,
+                            f"Faixa do dia {g} não foi renderizada")
+            self.assertEqual(paginas_faixa, paginas_dados,
+                             f"Dia {g}: faixa e dados em folhas distintas "
+                             "(continuação sem faixa de data)")
+
     def test_mensagem_vazia_e_elision_nao_explode(self):
         pdf = RelatorioPDF("Agenda de Reservas", unidade="U" * 120)
         pdf.linha_meta("Sala muito comprida " * 12)
