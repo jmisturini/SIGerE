@@ -252,8 +252,11 @@ class RelatorioPDF(FPDF):
             # Estimativa com folga: células com texto quebrado ocupam mais
             # que uma linha; errar para mais só deixa o pé da folha mais alto
             estimado = 3 + len(grupo) * altura_linha_total
-            minimo = 3 + 2 * altura_linha_total
-            com_cabecalho = indice == 0
+            # O primeiro grupo e os maiores que uma folha inteira abrem com
+            # cabeçalho; o mínimo indecomponível então reserva cabeçalho +
+            # faixa + 1ª linha, para a faixa não ficar órfã sob o cabeçalho
+            com_cabecalho = indice == 0 or estimado > espaco_util
+            minimo = 3 + (3 if com_cabecalho else 2) * altura_linha_total
             if indice > 0:
                 if (estimado <= espaco_util
                         and self.will_page_break(estimado)):
@@ -262,10 +265,6 @@ class RelatorioPDF(FPDF):
                 elif self.will_page_break(minimo):
                     self.add_page()
                     com_cabecalho = True
-                else:
-                    # Grupo maior que a página inteira começa no meio da
-                    # folha com cabeçalho, para as continuações o repetirem
-                    com_cabecalho = estimado > espaco_util
 
             self.set_font(FONTE, "", 9)
             self.set_text_color(*TINTA)

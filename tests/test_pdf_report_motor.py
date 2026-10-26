@@ -95,9 +95,12 @@ class MotorPdfTest(unittest.TestCase):
             # começa (primeira faixa de dia)
             tabela = conteudo[conteudo.find(faixa):]
             if indice == 1:
-                # O realce legítimo (barras dos cartões) vem antes da tabela
-                self.assertGreaterEqual(conteudo.find(realce), 0,
-                                        "Cartões de indicadores sem realce")
+                # Antes da tabela: marca do header + as 4 barras dos cartões
+                antes = conteudo[:conteudo.find(faixa)]
+                self.assertGreater(
+                    antes.count(realce), 4,
+                    "Esperava marca do header + 4 barras de cartões KPI "
+                    "antes da tabela")
                 self.assertLess(conteudo.find(realce),
                                 conteudo.find(faixa),
                                 "Realce dos cartões precisa preceder a tabela")
@@ -107,6 +110,47 @@ class MotorPdfTest(unittest.TestCase):
                 self.assertNotIn(realce, tabela,
                                  f"Página {indice} com realce dos cartões "
                                  "vazando nas linhas da tabela")
+
+    def test_grupo_com_cabecalho_nao_separa_faixa_da_primeira_linha(self):
+        """No limite de espaço, um grupo que abre com cabeçalho precisa levar
+        cabeçalho + faixa + 1ª linha juntos: a faixa nunca pode ficar sozinha
+        no pé da folha com os dados na página seguinte. Varremos tamanhos do
+        primeiro grupo para atravessar a janela crítica de posição."""
+        for preenchimento in range(1, 17):
+            linhas = []
+            # Grupo 1 pequeno (tamanho varrido) só para deslocar a posição
+            # onde o grupo grande inicia
+            linhas.append({"faixa": "Dia 1/11/2026"})
+            for i in range(preenchimento):
+                linhas.append({"celulas": ["08:00", "S1", "C", "P",
+                                           "RV1"]})
+            # Grupo 2 maior que uma folha inteira: abre com cabeçalho
+            linhas.append({"faixa": "Dia 2/11/2026"})
+            for i in range(16):
+                linhas.append({"celulas": ["09:00", "S2", "C", "P",
+                                           "RV2"]})
+            linhas.append({"faixa": "Dia 3/11/2026"})
+            for i in range(3):
+                linhas.append({"celulas": ["10:00", "S3", "C", "P",
+                                           "RV3"]})
+
+            pdf = RelatorioPDF("Aulas do Calendário", unidade="U")
+            pdf.linha_meta("Varredura de limite de paginação")
+            pdf.tabela(["Horário", "Sala", "Curso", "Professor", "Evento"],
+                       linhas, [28, 20, 62, 55, 108],
+                       ("CENTER", "CENTER", "LEFT", "LEFT", "LEFT"))
+            conteudos = _conteudos(pdf)
+            pdf.output()
+
+            for numero_pagina, conteudo in conteudos.items():
+                for g in ("1", "2", "3"):
+                    faixa = f"Dia {g}/11/2026".encode()
+                    if faixa in conteudo:
+                        self.assertIn(f"RV{g}".encode(), conteudo,
+                                      f"preenchimento={preenchimento}, "
+                                      f"página {numero_pagina}: faixa do dia "
+                                      f"{g} sem nenhuma linha de dados na "
+                                      "mesma folha")
 
     def test_mensagem_vazia_e_elision_nao_explode(self):
         pdf = RelatorioPDF("Agenda de Reservas", unidade="U" * 120)
