@@ -81,21 +81,24 @@
                         </thead>
                         <tbody>
                         {% for r in upcoming %}
+                        {% set pode_ler = r.id in ids_legiveis %}
                         <tr>
                             <td class="ps-4 text-nowrap">{{ r.date.strftime('%d/%m/%Y') }}</td>
                             <td class="fw-bold text-nowrap">{{ r.start_time.strftime('%H:%M') }} - {{ r.end_time.strftime('%H:%M') }}</td>
+                            {# O título é público na agenda da sala; professor e status interno (ex.: Pendente de terceiros) só saem do servidor para quem pode ler a reserva (ids_legiveis, mesma regra de reservations.detail). #}
                             <td>{{ r.title }}</td>
-                            <td>{{ r.teacher.full_name if r.teacher else 'N/A' }}</td>
-                            <td><span class="badge {% if r.status == 'approved' %}text-bg-success-subtle text-success border border-success-subtle
+                            <td>{{ r.teacher.full_name if r.teacher and pode_ler else '—' }}</td>
+                            <td>{% if pode_ler %}<span class="badge {% if r.status == 'approved' %}text-bg-success-subtle text-success border border-success-subtle
                                                             {% elif r.status == 'pending' %}text-bg-warning-subtle text-warning border border-warning-subtle
                                                             {% elif r.status == 'cancelled' %}text-bg-danger-subtle text-danger border border-danger-subtle
                                                             {% else %}text-bg-secondary-subtle text-secondary border border-secondary-subtle{% endif %}">
                                 {% if r.status == 'approved' %}Aprovada
                                 {% elif r.status == 'pending' %}Pendente
                                 {% elif r.status == 'cancelled' %}Cancelada
-                                {% else %}{{ r.status }}{% endif %}</span></td>
+                                {% else %}{{ r.status }}{% endif %}</span>
+                            {% else %}<span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Ocupada</span>{% endif %}</td>
                             <td class="pe-4 text-end">
-                                {% if current_user.has_permission('reservation:read_all') or (current_user.has_permission('reservation:read_own') and r.user_id == current_user.id) %}
+                                {% if pode_ler %}
                                 <a href="{{ url_for('reservations.detail', reservation_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver Detalhes">
                                     <i class="bi bi-eye"></i>
                                 </a>

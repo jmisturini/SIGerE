@@ -305,7 +305,7 @@ flask --app run db upgrade
 # 5. Popule o banco — escolha UMA das opções:
 #    a) cria o admin com senha definida por você (sem dados de demonstração):
 flask --app run seed-admin
-#    b) cria o admin padrão (admin@school.edu / admin123) e pergunta sobre dados de demonstração:
+#    b) cria o admin com senha aleatória (exibida UMA única vez no terminal) e pergunta sobre dados de demonstração:
 flask --app run seed
 #    c) cenário de demonstração completo (todos os módulos, reservas na semana
 #       corrente, cozinha, financeiro, token da API — ver "Contas de Demonstração"):
@@ -325,7 +325,7 @@ A aplicação estará disponível em: **http://localhost:5000**
 
 > **Nota:** o schema do banco é versionado com Flask-Migrate/Alembic (não é criado automaticamente no boot). O boot apenas avisa no terminal quando o banco está vazio ou fora do fluxo de migrações.
 
-> **Nota:** o comando `seed` cria sempre o administrador (`admin@school.edu`/`admin123`) e, em seguida, **pergunta interativamente** se você quer popular dados de demonstração (responda `y` para receber também as contas `teacher1@school.edu` e `employee1@school.edu`). Veja detalhes em [Contas de Demonstração](#-contas-de-demonstração).
+> **Nota:** o comando `seed` cria sempre o administrador (`admin@school.edu`) com **senha aleatória exibida uma única vez** no terminal (a troca é obrigatória no primeiro login) e, em seguida, **pergunta interativamente** se você quer popular dados de demonstração (responda `y` para receber também as contas `teacher1@school.edu` e `employee1@school.edu`). Veja detalhes em [Contas de Demonstração](#-contas-de-demonstração).
 
 > **Implantação real:** prefira o comando `flask --app run seed-admin` — cria **apenas** a conta do administrador (sem dados de demonstração) e **solicita que você defina a senha** no terminal (mínimo de 8 caracteres, digitação oculta).
 
@@ -795,7 +795,7 @@ O comando `flask --app run seed` sempre cria o administrador e, **interativament
 
 | Perfil | E-mail (login) | Senha | Permissões |
 |--------|---------|-------|------------|
-| **Super Administrador** | `admin@school.edu` | `admin123` | Acesso total ao sistema (criado sempre, mesmo sem demonstração) |
+| **Super Administrador** | `admin@school.edu` | senha aleatória do `seed` (exibida uma única vez) ou a definida no `seed-admin` | Acesso total ao sistema (criado sempre, mesmo sem demonstração) |
 | **Professor** | `teacher1@school.edu` … `teacher80@school.edu` | `teacher123` | Criar/editar/cancelar próprias reservas, visualizar salas e cursos |
 | **Assistente/Logística** | `employee1@school.edu` … `employee20@school.edu` | `employee123` | Criar/editar/cancelar próprias reservas, visualizar salas e cursos |
 
@@ -803,7 +803,7 @@ O comando `flask --app run seed` sempre cria o administrador e, **interativament
 
 ### 🎬 Cenário de demonstração completo (`seed-demo`)
 
-Para conhecer/apresentar **cada parte do sistema** com dados realistas, use `flask --app run seed-demo` (requer banco migrado; recria com `--reset`). Diferente do `seed` acima, o cenário é determinístico e as **datas são relativas a hoje** — sempre há reservas no dia e na próxima semana para o totem, cronograma, dashboard, calendário e API exibirem. São criados:
+Para conhecer/apresentar **cada parte do sistema** com dados realistas, use `flask --app run seed-demo` (requer banco migrado; recria com `--reset`). Como o cenário nasce com **credenciais públicas** (senha do admin e token da API estão no código), o comando é **recusado fora do modo desenvolvimento** (`FLASK_DEBUG=true`); para forçar em outro ambiente, defina `SIGERE_PERMITIR_SEED_DEMO=1` — nunca em produção. Diferente do `seed` acima, o cenário é determinístico e as **datas são relativas a hoje** — sempre há reservas no dia e na próxima semana para o totem, cronograma, dashboard, calendário e API exibirem. São criados:
 
 - **3 unidades**: Centro (completa), **Norte sem o módulo Cozinha** e **Sul inativa** — exercita o seletor, os módulos opcionais e o isolamento multi-unidade (coordenadas de clima incluídas);
 - **Usuários de todos os papéis** (Gestor, Analista, Professor, Assistente/Logística) com os casos especiais: professora com papel adicional **Módulo Cozinha**, funcionário que também leciona, conta **inativa** e conta com **troca de senha obrigatória**;
