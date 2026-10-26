@@ -101,7 +101,8 @@ def create_app(config_class=Config):
                               sync_permissions_command, seed_unidades_command,
                               import_legacy_command, notify_scan_command,
                               notify_email_command, notify_cleanup_command,
-                              autocancel_pendentes_command)
+                              autocancel_pendentes_command,
+                              unlock_user_command)
     from app.seed_demo import seed_demo_command
     from app.backup import backup_command
     app.cli.add_command(seed_command)
@@ -115,6 +116,7 @@ def create_app(config_class=Config):
     app.cli.add_command(notify_email_command)
     app.cli.add_command(notify_cleanup_command)
     app.cli.add_command(autocancel_pendentes_command)
+    app.cli.add_command(unlock_user_command)
 
     # Custom Error Handlers
     @app.errorhandler(403)

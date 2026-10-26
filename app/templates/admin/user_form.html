@@ -96,7 +96,7 @@
 
                         <div class="col-md-6">
                             {{ form.password.label(class="form-label small mb-1") }}
-                            {{ form.password(class="form-control", **{'data-password-policy': true}) }}
+                            {{ form.password(class="form-control", autocomplete="new-password", **{'data-password-policy': true}) }}
                             {% if modo_edicao %}<div class="form-text small">Deixe em branco para manter a senha atual.</div>{% endif %}
                             {% for err in form.password.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>

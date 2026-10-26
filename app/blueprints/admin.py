@@ -1,7 +1,6 @@
 import hashlib
 import os
 import secrets
-import string
 
 import requests
 from datetime import datetime, timedelta, timezone
@@ -16,10 +15,10 @@ from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permiss
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
                    FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm,
-                   validar_politica_senha, senha_cumpre_politica, _PADRAO_TEXTO)
+                   validar_politica_senha, _PADRAO_TEXTO)
 from app.extensions import db
 from sqlalchemy import func, or_
-from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades
+from app.commands import UNIDADES_JSON_PADRAO, _seed_unidades, _senha_temporaria
 from wtforms.validators import Optional
 from app.permissions import require_permission
 from app.utils import gerar_slug, slug_unico, redirect_back, redirect_preserving_args, auditar
@@ -484,16 +483,6 @@ def unlock_user(user_id):
     flash(f'Conta de {user.full_name} desbloqueada. O acesso foi restabelecido '
           'e o contador de tentativas foi zerado.', 'success')
     return redirect_back('admin.edit_user', user_id=user_id)
-
-def _senha_temporaria():
-    """Senha temporária aleatória já aderente à política de senha (8+
-    caracteres, 1 maiúscula e 1 número). O usuário é forçado a trocá-la no
-    primeiro login, mas ela não pode violar a regra desde a origem."""
-    while True:
-        senha = ''.join(secrets.choice(string.ascii_letters + string.digits)
-                        for _ in range(12))
-        if senha_cumpre_politica(senha):
-            return senha
 
 
 @bp.route('/users/<int:user_id>/reset-password', methods=['POST'])

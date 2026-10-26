@@ -430,6 +430,34 @@ def _seed_admin(password=None):
     return password
 
 
+@click.command('unlock-user')
+@click.argument('email')
+@with_appcontext
+def unlock_user_command(email):
+    """Desbloqueia a conta com o e-mail informado.
+
+    Recuperação fora da interface: o desbloqueio do painel não atua sobre
+    contas super-admin (_proteger_super_admin) e o seed-admin preserva conta
+    existente — se o único super-admin for bloqueado por excesso de
+    tentativas no login público (ataque de derrubada da credencial), só
+    sobra o acesso ao servidor para destravar.
+    """
+    usuario = User.query.filter(
+        db.func.lower(User.email) == (email or '').strip().lower()).first()
+    if usuario is None:
+        raise click.ClickException('Usuário não encontrado.')
+    if not usuario.is_locked:
+        click.echo(click.style(
+            f'ℹ️  {usuario.email} não está bloqueada. Nada foi alterado.',
+            fg='yellow'))
+        return
+    usuario.desbloquear()
+    db.session.commit()
+    click.echo(click.style(
+        f'✅ Conta {usuario.email} desbloqueada. O acesso foi restabelecido '
+        'e o contador de tentativas foi zerado.', fg='green'))
+
+
 @click.command('seed-admin')
 @with_appcontext
 def seed_admin_command():

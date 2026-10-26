@@ -327,7 +327,7 @@ A aplicação estará disponível em: **http://localhost:5000**
 
 > **Nota:** o comando `seed` cria sempre o administrador (`admin@school.edu`) com **senha aleatória exibida uma única vez** no terminal (a troca é obrigatória no primeiro login) e, em seguida, **pergunta interativamente** se você quer popular dados de demonstração (responda `y` para receber também as contas `teacher1@school.edu` e `employee1@school.edu`). Veja detalhes em [Contas de Demonstração](#-contas-de-demonstração).
 
-> **Implantação real:** prefira o comando `flask --app run seed-admin` — cria **apenas** a conta do administrador (sem dados de demonstração) e **solicita que você defina a senha** no terminal (mínimo de 8 caracteres, digitação oculta).
+> **Implantação real:** prefira o comando `flask --app run seed-admin` — cria **apenas** a conta do administrador (sem dados de demonstração) e **solicita que você defina a senha** no terminal (mínimo de 8 caracteres, com 1 letra maiúscula e 1 número; digitação oculta).
 
 > **Unidades do Senac SC:** para cadastrar as unidades educacionais reais (extraídas do portal https://portal.sc.senac.br/unidades), execute `flask --app run seed-unidades` — cria as unidades ausentes e atualiza endereço/telefone das existentes a partir de `docs/unidades-senac-sc.json`. O comando é idempotente e pode ser executado mais de uma vez.
 

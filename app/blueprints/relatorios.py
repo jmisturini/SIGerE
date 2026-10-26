@@ -149,7 +149,8 @@ def geral():
     sem_docente = {'nome': 'Sem docente vinculado', 'reservas': 0, 'minutos': 0.0}
     for r in aprovadas:
         destino = (por_docente.setdefault(r.teacher_id, {
-            'nome': r.teacher.full_name, 'reservas': 0, 'minutos': 0.0})
+            'nome': _nome_vinculo('teacher_id', r.teacher_id),
+            'reservas': 0, 'minutos': 0.0})
             if r.teacher else sem_docente)
         destino['reservas'] += 1
         destino['minutos'] += _minutos_reserva(r)
@@ -186,7 +187,8 @@ def geral():
         grupo['minutos'] += _minutos_reserva(r)
         if r.teacher_id:
             docente = grupo['docentes'].setdefault(r.teacher_id, {
-                'nome': r.teacher.full_name, 'reservas': 0, 'minutos': 0.0})
+                'nome': _nome_vinculo('teacher_id', r.teacher_id),
+                'reservas': 0, 'minutos': 0.0})
             docente['reservas'] += 1
             docente['minutos'] += _minutos_reserva(r)
         else:
@@ -222,7 +224,8 @@ def geral():
         if not r.teacher_id:
             continue
         grupo = cursos_por_docente.setdefault(r.teacher_id, {
-            'docente': r.teacher.full_name, 'minutos': 0.0,
+            'docente': _nome_vinculo('teacher_id', r.teacher_id),
+            'minutos': 0.0,
             'cursos': {}, 'sem_curso': {'reservas': 0, 'minutos': 0.0}})
         grupo['minutos'] += _minutos_reserva(r)
         if r.course_id:

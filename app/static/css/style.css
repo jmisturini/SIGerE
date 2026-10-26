@@ -487,8 +487,10 @@ body {
 
 [data-theme="dark"] .btn-outline-primary {
     --bs-btn-color: var(--primary-light);
-    --bs-btn-hover-color: #fff;
-    --bs-btn-active-color: #fff;
+    /* Hover/ativo preenchem com o accent claro: rótulo escuro mantém o
+       contraste acima dos 4,5:1 do WCAG AA (branco ficava em ~3,8:1). */
+    --bs-btn-hover-color: #000;
+    --bs-btn-active-color: #000;
     --bs-btn-disabled-color: var(--primary-light);
 }
 
