@@ -432,6 +432,26 @@ def _seed_admin(password=None):
     return password
 
 
+def _operador_cli():
+    """Identidade do operador da CLI para a trilha de auditoria.
+
+    No POSIX usa a conta do UID do processo: `getpass.getuser()` aceita
+    LOGNAME/USER do ambiente, que qualquer processo pode forjar — a trilha
+    não deve registrar um operador forjável (CWE-807). No Windows não há
+    pwd: cai para o getpass (USERNAME do ambiente, única opção nativa).
+    """
+    try:
+        import pwd
+        return pwd.getpwuid(os.getuid()).pw_name
+    except ImportError:
+        try:
+            return getpass.getuser()
+        except (ImportError, OSError):
+            return None
+    except (KeyError, OSError):
+        return None
+
+
 @click.command('unlock-user')
 @click.argument('email')
 @with_appcontext
@@ -455,15 +475,11 @@ def unlock_user_command(email):
         return
     usuario.desbloquear()
     db.session.commit()
-    try:
-        operador = getpass.getuser()
-    except (ImportError, OSError):
-        operador = None
     # Trilha fora do contexto HTTP: a janela do painel não desbloqueia
     # contas com '*' — sem este registro, o destrave do único super-admin
     # pela CLI aconteceria sem auditoria.
     auditar('conta_desbloqueada', alvo=usuario.email,
-            origem='cli', operador=operador)
+            origem='cli', operador=_operador_cli())
     click.echo(click.style(
         f'✅ Conta {usuario.email} desbloqueada. O acesso foi restabelecido '
         'e o contador de tentativas foi zerado.', fg='green'))

@@ -8,6 +8,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from app import create_app
 from app.config import Config
@@ -59,7 +60,8 @@ class UnlockUserCommandTestCase(unittest.TestCase):
                 os.remove(path)
 
     def test_desbloqueia_e_audita_origem_cli(self):
-        resultado = self.runner.invoke(args=['unlock-user', self.email])
+        with patch('app.commands._operador_cli', return_value='operador-teste'):
+            resultado = self.runner.invoke(args=['unlock-user', self.email])
         self.assertEqual(resultado.exit_code, 0, resultado.output)
         with self.app.app_context():
             user = User.query.filter_by(email=self.email).first()
@@ -68,7 +70,12 @@ class UnlockUserCommandTestCase(unittest.TestCase):
             registro = AuditLog.query.filter_by(evento='conta_desbloqueada',
                                                 alvo=self.email).first()
             self.assertIsNotNone(registro)
+            # Fora de contexto HTTP: sem ator de sessão, sem IP, e o operador
+            # resolvido pelo comando presente nos detalhes.
             self.assertIn('origem=cli', registro.detalhes or '')
+            self.assertIn('operador=operador-teste', registro.detalhes or '')
+            self.assertIsNone(registro.actor_id)
+            self.assertEqual(registro.ip, '-')
 
     def test_conta_ja_desbloqueada_nada_alterado(self):
         with self.app.app_context():

@@ -60,7 +60,7 @@ def auditar(evento, **campos):
             '[AUDITORIA] evento=%s gravacao_banco=falha (registro segue no log)', evento)
     ator_log = (f'#{actor_id} <{actor_email}>' if actor_id
                 else actor_email if actor_email
-                else f'cli<{operador}>' if operador else 'anonimo')
+                else f'cli<{_sanitiza(operador)}>' if operador else 'anonimo')
     current_app.logger.info('[AUDITORIA] evento=%s ator=%s origem=%s ip=%s alvo=%s %s',
                             evento, ator_log, origem, ip, alvo_log, detalhes)
 
