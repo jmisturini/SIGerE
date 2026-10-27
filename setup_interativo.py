@@ -770,8 +770,10 @@ def resumo_final(env, modo_dados):
     desenvolvimento = env.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on')
 
     print('\n   Acessos:')
-    if modo_dados in ('seed', 'seed-demo'):
+    if modo_dados == 'seed':
         print('     • admin@school.edu com a senha aleatória exibida na execução do seed (demonstração — troque a senha!)')
+    if modo_dados == 'seed-demo':
+        print('     • admin@school.edu com a senha de demonstração exibida na execução do seed-demo (demonstração — troque a senha!)')
     if modo_dados == 'seed-admin':
         print('     • admin@school.edu + a senha que você definiu')
     if modo_dados == 'import-legacy':

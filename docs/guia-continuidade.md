@@ -82,6 +82,11 @@ O `gh` **não está instalado/autenticado** nas máquinas usadas até agora. Cam
   próprio diretório do repo (apagar depois). Payloads JSON de PR/merge em **arquivo
   UTF-8** evitam erro 400 com acentos no `-d` inline.
 - Deletar branch remota: `DELETE /repos/jmisturini/SIGerE/git/refs/heads/...` (retorna 204).
+- **Criar a GitHub Release** (equivalente ao `gh release create` do passo 4):
+  `POST /repos/jmisturini/SIGerE/releases` com payload
+  `{"tag_name": "vX.Y.Z", "name": "SIGerE vX.Y.Z — <título da entrada>",
+  "body": "<texto da entrada em app/version.py>", "target_commitish": "main"}`
+  (a tag já deve existir; `body` aceita markdown).
 
 ## 4. Ciclo de release
 
