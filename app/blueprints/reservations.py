@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from contextlib import ExitStack
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
-from app.forms import ReservationForm
+from app.forms import ReservationForm, _PADRAO_TEXTO
 from app.extensions import db
 from app.unity_context import current_unity_id
 from datetime import date, datetime, time, timedelta
@@ -1092,12 +1092,18 @@ def series_edit(reservation_id):
         flash('O horário de término deve ser após o início.', 'danger')
         return redirect(url_for('reservations.series_manage', reservation_id=res.id))
 
-    # Campos opcionais: vazio = mantém o valor atual de cada reserva
+    # Campos opcionais: vazio = mantém o valor atual de cada reserva. Mesma
+    # validação do ReservationForm — aqui o campo é lido direto do request.form
+    # sem o WTForms de guarda: whitelist de caracteres no título (o mesmo
+    # padrão de todos os campos de texto do app) e limite na descrição.
     title = (request.form.get('title') or '').strip() or None
-    if title and len(title) > 200:
-        flash('O título deve ter no máximo 200 caracteres.', 'danger')
+    if title and (len(title) > 200 or not _PADRAO_TEXTO.match(title)):
+        flash('Título inválido ou com mais de 200 caracteres.', 'danger')
         return redirect(url_for('reservations.series_manage', reservation_id=res.id))
     description = (request.form.get('description') or '').strip() or None
+    if description and len(description) > 1000:
+        flash('A descrição deve ter no máximo 1000 caracteres.', 'danger')
+        return redirect(url_for('reservations.series_manage', reservation_id=res.id))
 
     classroom = None
     classroom_id = request.form.get('classroom_id', type=int)

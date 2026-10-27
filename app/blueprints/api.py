@@ -57,13 +57,14 @@ def _unauthorized(message):
 def _token_by_value(raw):
     """Resolve um token Bearer válido, registrando o uso.
 
-    Token revogado, expirado ou cujo usuário criador foi desativado não
-    autentica. Retorna None se inválido.
+    Token revogado, expirado ou cujo usuário criador foi desativado ou
+    bloqueado não autentica. Retorna None se inválido.
     """
     token = ApiToken.query.filter_by(token_hash=_hash_token(raw)).first()
     if token is None or not token.is_valid:
         return None
-    if token.created_by is None or not token.created_by.is_active_user:
+    # is_active cobre desativação E bloqueio: conta bloqueada não usa API.
+    if token.created_by is None or not token.created_by.is_active:
         return None
     token.last_used_at = _utcnow_naive()
     db.session.commit()

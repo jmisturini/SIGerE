@@ -42,6 +42,21 @@ def _mes_atual(now=None):
     return (now or datetime.now()).strftime('%Y-%m')
 
 
+def _professor_da_unidade_or_none(teacher_id):
+    """Professor visível na unidade ativa (mesmo critério da listagem: contas
+    globais sem vínculo contam) ou None. As choices dos formulários são
+    escopadas, mas um POST forjado pode trazer o id de professor de outra
+    unidade — sem esta checagem, o lançamento seria gravado apontando para
+    fora do escopo e o nome do professor viraria visível na listagem."""
+    if not teacher_id:
+        return None
+    professor = db.session.get(User, teacher_id)
+    if professor is None or (professor.unity_ids
+                             and current_unity_id() not in professor.unity_ids):
+        return None
+    return professor
+
+
 def _mes_anterior_de(mes):
     """Mês anterior a um mês dado (YYYY-MM → YYYY-MM)."""
     ano, mes = int(mes[:4]), int(mes[5:7])
@@ -359,6 +374,10 @@ def create_overtime():
             flash('Erro: A Carga Horária Semanal deve ser maior que 0.', 'danger')
             return redirect(url_for('payments.create_overtime'))
 
+        if _professor_da_unidade_or_none(form.teacher.data) is None:
+            flash('Erro: Professor inválido para a unidade ativa.', 'danger')
+            return redirect(url_for('payments.create_overtime'))
+
         overtime = TeacherOvertimePay(
             teacher_id=form.teacher.data, teaching_level=form.teaching_level.data,
             course_type_id=form.course_type.data,
@@ -428,6 +447,10 @@ def edit_overtime(overtime_id):
         weekly_workload = form.workload_decimal()
         if weekly_workload is None or weekly_workload <= 0:
             flash('Erro: A Carga Horária Semanal deve ser maior que 0.', 'danger')
+            return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
+
+        if _professor_da_unidade_or_none(form.teacher.data) is None:
+            flash('Erro: Professor inválido para a unidade ativa.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
         overtime.teacher_id = form.teacher.data
@@ -658,7 +681,10 @@ def add_meal_allowance():
     form.teacher.choices = _meal_choices()
     form.month_base.choices = _meses_opcoes(current_unity_id())
     if form.validate_on_submit():
-        professor = db.session.get(User, form.teacher.data)
+        professor = _professor_da_unidade_or_none(form.teacher.data)
+        if professor is None:
+            flash('Erro: Professor inválido para a unidade ativa.', 'danger')
+            return redirect(url_for('payments.list_meal_allowance'))
         db.session.add(TeacherMealAllowance(
             teacher_id=form.teacher.data, month_base=form.month_base.data,
             days=form.days.data,

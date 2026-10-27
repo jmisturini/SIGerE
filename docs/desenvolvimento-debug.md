@@ -89,7 +89,7 @@ pip install -r requirements.txt
 flask --app run db upgrade
 
 # 5. Popule o banco — escolha UMA opção:
-flask --app run seed          # admin padrão (admin@school.edu / admin123) + pergunta sobre dados de demonstração
+flask --app run seed          # admin (admin@school.edu, senha aleatória exibida uma vez) + pergunta sobre dados de demonstração
 # ou
 flask --app run seed-admin    # apenas o admin, com senha definida por você (implantação real)
 ```
@@ -272,8 +272,8 @@ módulo `run.py`, onde vive a factory `create_app()`).
 | `db upgrade` | Aplica as migrações pendentes (cria o schema do zero num banco vazio) | Seguro com múltiplos processos |
 | `db migrate -m "..."` | Gera um arquivo de migração a partir dos modelos | Revise antes de aplicar |
 | `db stamp head` | Marca o banco como "na versão atual" sem aplicar nada | Para bancos legados pré-Alembic |
-| `seed` | Cria permissões/papéis + admin (`admin@school.edu`/`admin123`) e **pergunta interativamente** se quer dados de demonstração | Recusa-se a rodar em banco já populado |
-| `seed-admin` | Cria **apenas** o admin, com senha digitada (mín. 8 caracteres, oculta) | Fluxo de implantação real; sem demonstração |
+| `seed` | Cria permissões/papéis + admin (`admin@school.edu`, senha aleatória exibida uma única vez, troca obrigatória no 1º login) e **pergunta interativamente** se quer dados de demonstração | Recusa-se a rodar em banco já populado |
+| `seed-admin` | Cria **apenas** o admin, com senha digitada (mín. 8 caracteres, 1 maiúscula e 1 número; oculta) | Fluxo de implantação real; sem demonstração |
 | `seed-unidades` | Cadastra/atualiza as unidades do Senac SC a partir de `docs/unidades-senac-sc.json` | Idempotente; opção `--file CAMINHO` aceita outro JSON |
 | `seed-demo` | Cenário de demonstração **completo**: unidades (uma sem Cozinha, uma inativa), todos os papéis, 7 tipos de sala, reservas em todas as situações (datas relativas a hoje), feriados, hora extra, vale-transporte, cozinha e token da API | Recusa duplicar — `--reset` apaga a demonstração anterior e recria; [contas na seção abaixo](#-contas-de-demonstração) |
 | `sync-permissions` | Cria permissões/papéis ausentes e vincula os códigos de `ROLES_CONFIG` | Idempotente; **nunca remove** vínculos existentes |
@@ -331,7 +331,7 @@ de senha no primeiro login — convenientes para testes).
 
 | Perfil | E-mail (login) | Senha | Permissões |
 |--------|---------|-------|------------|
-| **Super Administrador** | `admin@school.edu` | `admin123` | Acesso total (`*`) — criado sempre, mesmo sem demonstração |
+| **Super Administrador** | `admin@school.edu` | senha aleatória do `seed` (uma única vez) ou a definida no `seed-admin` | Acesso total (`*`) — criado sempre, mesmo sem demonstração |
 | **Professor** | `teacher1@school.edu` … `teacher80@school.edu` | `teacher123` | Reservas, próprios pagamentos, Cozinha |
 | **Funcionário** | `employee1@school.edu` … `employee20@school.edu` | `employee123` | Visualização de salas/cursos, próprias reservas, Cozinha |
 

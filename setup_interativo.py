@@ -372,7 +372,7 @@ def popular_dados(venv_python, env):
         'Como o sistema deve ser populado?',
         [
             'Implantação real — cria apenas o admin e pede uma senha sua (seed-admin)',
-            'Demonstração simples — admin/admin123 + salas, usuários e reservas (seed)',
+            'Demonstração simples — admin com senha aleatória + salas, usuários e reservas (seed)',
             'Demonstração completa — todos os módulos, cozinha, financeiro e API (seed-demo)',
             'Migração do sistema legado — importa o dump MySQL do sistema antigo (import-legacy)',
             'Não popular agora (posso rodar este setup de novo depois)',
@@ -381,14 +381,15 @@ def popular_dados(venv_python, env):
     )
 
     if opcao == 1:
-        print('   A senha será pedida pelo próprio comando (mínimo 8 caracteres, digitação oculta).')
+        print('   A senha será pedida pelo próprio comando (no mínimo 8 caracteres,')
+        print('   com 1 letra maiúscula e 1 número; digitação oculta).')
         executar_flask(venv_python, env, ['seed-admin'])
         ok('Comando seed-admin executado — a conta admin@school.edu está pronta '
            '(se já existia, foi preservada).')
         return 'seed-admin'
     if opcao == 2:
         executar_flask(venv_python, env, ['seed'])
-        ok('Seed básico executado (admin@school.edu / admin123 e dados de demonstração opcionais).')
+        ok('Seed básico executado (admin@school.edu com a senha aleatória exibida pelo comando e dados de demonstração opcionais).')
         return 'seed'
     if opcao == 3:
         argumentos = ['seed-demo']
@@ -769,8 +770,10 @@ def resumo_final(env, modo_dados):
     desenvolvimento = env.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on')
 
     print('\n   Acessos:')
-    if modo_dados in ('seed', 'seed-demo'):
-        print('     • admin@school.edu / admin123 (demonstração — troque a senha!)')
+    if modo_dados == 'seed':
+        print('     • admin@school.edu — se o seed criou a conta agora, a senha aleatória apareceu na execução dele; se a conta já existia, ela foi preservada com a senha anterior (demonstração — troque a senha!)')
+    if modo_dados == 'seed-demo':
+        print('     • admin@school.edu — senha de demonstração fixa exibida na execução do seed-demo; se a conta já existia, ela foi preservada com a senha anterior (demonstração — troque a senha!)')
     if modo_dados == 'seed-admin':
         print('     • admin@school.edu + a senha que você definiu')
     if modo_dados == 'import-legacy':

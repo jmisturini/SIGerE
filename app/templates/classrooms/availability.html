@@ -3,21 +3,24 @@
 
 {% block content %}
 {# Atributos data-* que alimentam o modal de detalhes a partir de cada reserva.
-   O link para a página completa só vai para quem tem permissão de leitura —
-   a mesma regra da rota reservations.detail. #}
+   O título é público (aparece nos cartões da agenda); o CONTEÚDO sensível —
+   professor, solicitante, descrição e curso — só é emitido para quem pode
+   ler a reserva (mesma regra de reservations.detail, resolvida NO SERVIDOR
+   em ids_legiveis). Reservas de terceiros exibem a ocupação, não o detalhe. #}
 {% macro detalhe_reserva(ev) -%}
+{% set pode_ler = ev.id in ids_legiveis %}
 role="button" data-bs-toggle="modal" data-bs-target="#modalReserva"
 data-titulo="{{ ev.title }}"
 data-data="{{ ev.date.strftime('%d/%m/%Y') }}"
 data-horario="{{ ev.start_time.strftime('%H:%M') }} – {{ ev.end_time.strftime('%H:%M') }}"
 data-status="{{ {'approved': 'Aprovada', 'pending': 'Pendente', 'cancelled': 'Cancelada'}[ev.status] if ev.status in ('approved', 'pending', 'cancelled') else ev.status }}"
-data-curso="{{ ev.course.name if ev.course else '' }}"
-data-disciplina="{{ ev.subject.name if ev.subject else '' }}"
-data-professor="{{ ev.teacher.full_name if ev.teacher else '' }}"
-data-solicitante="{{ ev.user.full_name if ev.user else '' }}"
-data-descricao="{{ ev.description or '' }}"
+data-curso="{{ ev.course.name if ev.course and pode_ler else '' }}"
+data-disciplina="{{ ev.subject.name if ev.subject and pode_ler else '' }}"
+data-professor="{{ ev.teacher.full_name if ev.teacher and pode_ler else '' }}"
+data-solicitante="{{ ev.user.full_name if ev.user and pode_ler else '' }}"
+data-descricao="{{ ev.description if pode_ler else '' }}"
 data-link="{{ url_for('reservations.detail', reservation_id=ev.id) }}"
-data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all') or (current_user.has_permission('reservation:read_own') and ev.user_id == current_user.id) else '0' }}"
+data-link-visivel="{{ '1' if pode_ler else '0' }}"
 {%- endmacro %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
@@ -142,18 +145,21 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
         {% if reservas_dia %}
         <div class="list-group">
             {% for ev in reservas_dia %}
+            {% set pode_ler = ev.id in ids_legiveis %}
             <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
                 <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">
                     {{ ev.start_time.strftime('%H:%M') }} – {{ ev.end_time.strftime('%H:%M') }}
                 </span>
                 <div class="flex-grow-1">
                     <div class="fw-bold">{{ ev.title }}</div>
+                    {% if pode_ler %}
                     <div class="small text-muted">
                         {%- if ev.course %}{{ ev.course.name }}{% endif -%}
                         {%- if ev.course and ev.subject %} · {% endif -%}
                         {%- if ev.subject %}{{ ev.subject.name }}{% endif -%}
                         {%- if ev.teacher %}{% if ev.course or ev.subject %} · {% endif %}{{ ev.teacher.full_name }}{% endif -%}
                     </div>
+                    {% endif %}
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary" {{ detalhe_reserva(ev) }}>
                     <i class="bi bi-info-circle me-1"></i>Detalhes
@@ -272,8 +278,8 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
         border: none;
     }
     .calendar-day.today {
-        border: 2px solid var(--primary-color, #004b8d);
-        background-color: rgba(var(--primary-color-rgb, 0, 75, 141), 0.05);
+        border: 2px solid var(--primary-color, #004a8d);
+        background-color: rgba(var(--primary-color-rgb, 0, 74, 141), 0.05);
     }
     .day-number {
         font-weight: 700;
@@ -281,7 +287,7 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
         color: var(--text-muted, #6c757d);
     }
     .calendar-day.today .day-number {
-        color: var(--primary-color, #004b8d);
+        color: var(--primary-color, #004a8d);
     }
     .events-container {
         display: flex;
@@ -294,7 +300,7 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
         color: var(--text-color, #333);
         padding: 4px 8px;
         border-radius: 4px;
-        border-left: 3px solid var(--primary-color, #004b8d);
+        border-left: 3px solid var(--primary-color, #004a8d);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -304,7 +310,7 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
         transition: background-color 0.15s ease, color 0.15s ease;
     }
     .event-pill[role="button"]:hover {
-        background-color: var(--primary-color, #004b8d);
+        background-color: var(--primary-color, #004a8d);
         color: #fff;
     }
 
@@ -330,7 +336,7 @@ data-link-visivel="{{ '1' if current_user.has_permission('reservation:read_all')
         align-items: center;
         text-align: center;
         color: #fff;
-        background-color: var(--primary-color, #004b8d);
+        background-color: var(--primary-color, #004a8d);
         padding: 1rem .75rem;
         gap: .35rem;
     }

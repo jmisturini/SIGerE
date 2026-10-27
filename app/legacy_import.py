@@ -161,7 +161,7 @@ SHIFT_TIMES = {
 # Categorias de sala derivadas da descrição legada (ordem = precedência).
 ROOM_CATEGORY_RULES = [
     ("lab_info", "Laboratório de Informática", ("INFORMATIC", "INFINITY"),
-     {"abbr": "LI", "controla_computadores": True, "color": "#0d6efd", "icon": "bi-pc-display"}),
+     {"abbr": "LI", "controla_computadores": True, "color": "#004a8d", "icon": "bi-pc-display"}),
     ("lab_saude", "Laboratório de Saúde", ("SAÚDE", "SAUDE", "MASSO", "PODO", "ESTÉTICA", "ESTETICA"),
      {"abbr": "LS", "color": "#d63384", "icon": "bi-heart-pulse"}),
     ("cozinha", "Cozinha Pedagógica", ("COZINHA",),
@@ -237,6 +237,11 @@ def _get_or_create_room_categories():
         if cat is None:
             cat = RoomCategory(code=code, name=name, is_active=True, **extra)
             db.session.add(cat)
+        elif code == "lab_info" and cat.color in (None, "#0d6efd"):
+            # extra só vale na criação: instalações que importaram antes
+            # preservam a cor antiga (azul Bootstrap do legado) — atualiza
+            # para o Azul Senac sem pisar em cor customizada pelo operador.
+            cat.color = extra["color"]
         cats[code] = cat
     db.session.flush()
     return cats

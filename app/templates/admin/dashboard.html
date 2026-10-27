@@ -206,6 +206,18 @@
         </a>
     </div>
     {% endif %}
+    {% if current_user.has_permission('system:audit') %}
+    <div class="col-6 col-md-4 col-xxl-3">
+        <a class="painel-card" href="{{ url_for('admin.auditoria') }}">
+            <span class="painel-card-icon"><i class="bi bi-journal-text"></i></span>
+            <span class="painel-card-body">
+                <span class="painel-card-label">Auditoria</span>
+                <span class="painel-card-sub">Eventos de segurança</span>
+            </span>
+            <i class="bi bi-chevron-right painel-card-arrow d-none d-sm-block"></i>
+        </a>
+    </div>
+    {% endif %}
 </div>
 
 <style>

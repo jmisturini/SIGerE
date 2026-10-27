@@ -96,10 +96,34 @@
 
                         <div class="col-md-6">
                             {{ form.password.label(class="form-label small mb-1") }}
-                            {{ form.password(class="form-control") }}
+                            {{ form.password(class="form-control", autocomplete="new-password", **{'data-password-policy': true}) }}
                             {% if modo_edicao %}<div class="form-text small">Deixe em branco para manter a senha atual.</div>{% endif %}
                             {% for err in form.password.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
+
+                        {% if modo_edicao %}
+                        <div class="col-md-6 d-flex flex-column justify-content-end">
+                            <label class="form-label small mb-1">Situação do acesso</label>
+                            {% if user.is_locked %}
+                                <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle" title="Nenhum login é aceito até o desbloqueio">
+                                    <i class="bi bi-lock-fill"></i> Bloqueada
+                                </span>
+                            {% else %}
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle" title="A conta aceita login normalmente">
+                                    <i class="bi bi-unlock"></i> Acesso liberado
+                                </span>
+                            {% endif %}
+                            <div class="form-text small">
+                                {% if user.is_locked %}
+                                    Bloqueada{% if user.locked_at %} em {{ user.locked_at|horario_local }}{% endif %}.
+                                    Desbloquear zera o contador de tentativas.
+                                {% else %}
+                                    {{ user.failed_login_attempts or 0 }} de {{ max_tentativas }} tentativas de login incorretas —
+                                    na {{ max_tentativas }}ª a conta é bloqueada automaticamente.
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
 
                         <div class="col-12">
                             <div class="form-check mt-3">
@@ -116,6 +140,46 @@
                 </form>
             </div>
         </div>
+
+        {% if modo_edicao and current_user.has_permission('user:lock')
+              and not (user.has_permission('*') and not current_user.has_permission('*')) %}
+        {# Fora do <form> principal: formulários aninhados são HTML inválido. #}
+        <div class="card mt-4">
+            <div class="card-header bg-transparent py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-shield-lock me-2"></i> Acesso e bloqueio</h6>
+            </div>
+            <div class="card-body p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div class="small text-muted">
+                        {% if user.is_locked %}
+                            A conta está <strong>bloqueada</strong>{% if user.locked_at %} desde {{ user.locked_at|horario_local }}{% endif %}.
+                            Nenhuma tentativa de login é aceita — nem com a senha correta — até o desbloqueio.
+                        {% else %}
+                            O bloqueio manual impede qualquer login nesta conta até que alguém com
+                            permissão desbloqueie. Com 10 senhas erradas seguidas, o bloqueio é automático.
+                        {% endif %}
+                    </div>
+                    {% if user.is_locked %}
+                    <form method="POST" action="{{ url_for('admin.unlock_user', user_id=user.id) }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-outline-success" data-nome="{{ user.full_name }}"
+                                onclick="return confirm('Desbloquear o acesso de ' + this.dataset.nome + '? O contador de tentativas será zerado.')">
+                            <i class="bi bi-unlock-fill"></i> Desbloquear acesso
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('admin.lock_user', user_id=user.id) }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-outline-danger" data-nome="{{ user.full_name }}"
+                                onclick="return confirm('Bloquear o acesso de ' + this.dataset.nome + '? A conta não fará login até que alguém com permissão desbloqueie.')">
+                            <i class="bi bi-lock-fill"></i> Bloquear acesso
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

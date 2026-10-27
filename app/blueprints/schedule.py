@@ -1,5 +1,5 @@
 from flask import (Blueprint, make_response, render_template, jsonify, request)
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.extensions import db
 from app.models import Reservation, Classroom, User, Course, Subject
 from app.permissions import require_permission
@@ -102,7 +102,19 @@ def _nome_vinculo(campo, valor):
         return f'#{valor}'
     if campo == 'room_id':
         return f"{entidade.code} — {entidade.name}"
-    return (entidade.full_name if campo == 'teacher_id' else entidade.name)
+    if campo == 'teacher_id':
+        # Só contas de professor têm o nome revelado (mesmo critério dos
+        # seletores de docente) — um teacher_id forjado de conta comum não
+        # vaza.
+        if not (entidade.profile_type == 'teacher' or entidade.is_teacher):
+            return f'#{valor}'
+        # Escopo: professor de outra unidade não tem o nome revelado — o id
+        # pode vir de filtro forjado e viraria oráculo de enumeração de contas.
+        if (entidade.unity_ids and current_unity_id() not in entidade.unity_ids
+                and not current_user.has_permission('*')):
+            return f'#{valor}'
+        return entidade.full_name
+    return entidade.name
 
 
 # API route to fetch reservation events as JSON

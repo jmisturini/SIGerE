@@ -194,7 +194,14 @@ class MyReservationsVinculadasTestCase(unittest.TestCase):
         self.assertIn('Criada por você', pagina)
 
     def test_listagem_mistura_criadas_e_designadas(self):
-        dia1, dia2 = self._dia_futuro(1), self._dia_futuro(2)
+        # _dia_futuro(1) e _dia_futuro(2) caem no mesmo dia quando amanhã é
+        # domingo (sábado hoje: +1 pula o domingo e alcança +2) — as duas
+        # reservas colidiriam (mesma sala, 09:00-10:00). dia2 é sempre o
+        # dia útil seguinte a dia1.
+        dia1 = self._dia_futuro(1)
+        dia2 = dia1 + timedelta(days=1)
+        while dia2.weekday() == 6:
+            dia2 += timedelta(days=1)
         self._criar_como_gestor(dia1, 'Designada Um')
         self._criar_como_gestor(dia2, 'Designada Dois')
 

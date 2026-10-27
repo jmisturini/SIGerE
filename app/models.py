@@ -6,6 +6,7 @@ import re
 
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import update
 from app.extensions import db, login_manager
 
 # Model representing an educational unit (campus/school) — base do multi-tenancy.
@@ -66,6 +67,12 @@ class Unity(db.Model):
 # (teacher, admin, super_admin) vindos do sistema antigo.
 ROLE_POR_PERFIL = {'teacher': 'room', 'employee': 'viewer'}
 
+# Bloqueio por excesso de tentativas de login (CWE-307). Não há
+# auto-desbloqueio por tempo: a conta volta só com ação de quem tem
+# user:lock — uma trava de tempo daria ao atacante novas rodadas de
+# tentativas sem intervenção humana.
+MAX_TENTATIVAS_LOGIN = 10
+
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -86,11 +93,18 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_active_user = db.Column(db.Boolean, default=True)
 
+    # Bloqueio de acesso por excesso de tentativas de login (ver
+    # MAX_TENTATIVAS_LOGIN) ou por decisão de um administrador.
+    failed_login_attempts = db.Column(db.Integer, nullable=False, default=0)
+    is_locked = db.Column(db.Boolean, nullable=False, default=False)
+    locked_at = db.Column(db.DateTime, nullable=True)
+
     @property
     def is_active(self):
         # Sobrescreve o UserMixin (sempre True): para o Flask-Login, conta
-        # desativada é inativa em toda a sessão, não apenas no POST do login.
-        return bool(self.is_active_user)
+        # desativada OU bloqueada é inativa em toda a sessão, não apenas no
+        # POST do login — bloquear derruba sessões já abertas.
+        return bool(self.is_active_user and not self.is_locked)
 
     # Unidades às quais o usuário está vinculado — professor ou funcionário
     # pode atuar em mais de uma. Sem vínculos = conta global (ex: super admin,
@@ -117,6 +131,30 @@ class User(UserMixin, db.Model):
     # Method to verify the password during login
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def registrar_falha_login(self):
+        """Conta uma tentativa de senha errada e bloqueia a conta ao atingir
+        o limite. Chamada só quando a senha NÃO confere.
+
+        O incremento é um UPDATE no banco: ler e gravar em memória deixaria
+        requisições simultâneas sobrescreverem o mesmo valor, passando do
+        limite sem bloquear. O re-read dentro da mesma transação decide o
+        bloqueio sobre o valor consolidado."""
+        db.session.execute(
+            update(User)
+            .where(User.id == self.id)
+            .values(failed_login_attempts=User.failed_login_attempts + 1))
+        db.session.refresh(self)
+        if self.failed_login_attempts >= MAX_TENTATIVAS_LOGIN and not self.is_locked:
+            self.is_locked = True
+            self.locked_at = datetime.now(timezone.utc)
+
+    def desbloquear(self):
+        """Desbloqueio administrativo: zera o contador de erros junto —
+        sem isso, o primeiro erro pós-desbloqueio re-bloquearia a conta."""
+        self.is_locked = False
+        self.locked_at = None
+        self.failed_login_attempts = 0
 
     # NOVAS PROPRIEDADES E MÉTODOS:
     @property
@@ -182,11 +220,35 @@ def load_user(user_id):
     # CORREÇÃO: User.query.get() é API legada removida no SQLAlchemy 2.x.
     # db.session.get() é a forma correta desde SQLAlchemy 1.4+.
     user = db.session.get(User, int(user_id))
-    # Conta desativada perde a sessão imediatamente: sem isso, o bloqueio do
-    # login não derruba sessões já abertas (alinhado ao _token_by_value da API).
-    if user is None or not user.is_active_user:
+    # Conta desativada OU bloqueada perde a sessão imediatamente: sem isso, o
+    # bloqueio do login não derruba sessões já abertas (alinhado ao
+    # _token_by_value da API).
+    if user is None or not user.is_active:
         return None
     return user
+
+class AuditLog(db.Model):
+    """Trilha de auditoria de segurança (consulta no Painel Admin, /admin/auditoria).
+
+    Preenchida por app.utils.auditar a partir de eventos sensíveis: login,
+    troca/reset de senha, bloqueios e ciclo de usuários. O ator é
+    desnormalizado (actor_email) — se um usuário for removido (SET NULL no
+    FK), o registro mantém quem agiu. Nada aqui contém senha ou token.
+    """
+    __tablename__ = 'audit_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, nullable=False,
+                           default=lambda: datetime.now(timezone.utc), index=True)
+    evento = db.Column(db.String(50), nullable=False, index=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'),
+                         nullable=True)
+    actor_email = db.Column(db.String(120))
+    alvo = db.Column(db.String(120))
+    ip = db.Column(db.String(45))
+    detalhes = db.Column(db.Text)
+
+    actor = db.relationship('User', foreign_keys=[actor_id])
+
 
 # Model representing the physical rooms (Classrooms, Auditoriums, Labs)
 class Classroom(db.Model):
@@ -762,7 +824,7 @@ class RoomCategory(db.Model):
     TOTEM_WINDOW_WEEK = 'week'
 
     # Fallbacks visuais para categorias cadastradas antes de cor/ícone existirem
-    DEFAULT_COLOR = '#0d6efd'
+    DEFAULT_COLOR = '#004a8d'
     DEFAULT_ICON = 'bi-tag'
 
     @property

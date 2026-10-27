@@ -23,7 +23,7 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
     <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}">
-    <meta name="theme-color" content="#004b8d">
+    <meta name="theme-color" content="#004a8d">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -40,7 +40,9 @@
         <div class="sidebar-header">
             <div class="d-flex justify-content-between align-items-center gap-1">
                 <a class="sidebar-brand" href="{{ url_for('main.index') if current_user.is_authenticated else url_for('public.home') }}">
-                    <img class="brand-logo" src="{{ url_for('static', filename='img/logo-sigere.png') }}" alt="">
+                    {# Versão branca do emblema: aplicação sobre fundo colorido
+                       (azul oficial) — a colorida perde contraste no azul. #}
+                    <img class="brand-logo" src="{{ url_for('static', filename='img/logo-sigere-branco.png') }}" alt="">
                     <span class="brand-text">SIGerE</span>
                 </a>
                 <button type="button" id="sidebar-collapse" class="sidebar-collapse-btn d-none d-lg-block"
@@ -364,13 +366,19 @@
                         </div>
                         <hr class="dropdown-divider my-2">
                         <div class="small text-muted text-uppercase fw-bold mb-2">Cor da interface</div>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 flex-wrap">
                             <button type="button" class="accent-swatch" data-accent-opcao="" title="Azul Senac (padrão)"
-                                    style="--sw: #004b8d"><i class="bi bi-check-lg"></i></button>
+                                    style="--sw: #004a8d"><i class="bi bi-check-lg"></i></button>
                             <button type="button" class="accent-swatch" data-accent-opcao="verde" title="Verde"
                                     style="--sw: #157347"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="turquesa" title="Turquesa"
+                                    style="--sw: #0f766e"><i class="bi bi-check-lg"></i></button>
                             <button type="button" class="accent-swatch" data-accent-opcao="roxo" title="Roxo"
                                     style="--sw: #6f42c1"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="rosa" title="Rosa"
+                                    style="--sw: #c2255c"><i class="bi bi-check-lg"></i></button>
+                            <button type="button" class="accent-swatch" data-accent-opcao="vermelho" title="Vermelho"
+                                    style="--sw: #b02a37"><i class="bi bi-check-lg"></i></button>
                             <button type="button" class="accent-swatch" data-accent-opcao="laranja" title="Laranja"
                                     style="--sw: #b45309"><i class="bi bi-check-lg"></i></button>
                             <button type="button" class="accent-swatch" data-accent-opcao="grafite" title="Grafite"
@@ -610,6 +618,76 @@
             input.type = show ? 'text' : 'password';
             btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
         });
+    });
+
+    // Checklist ao vivo da política de senha (inputs com [data-password-policy]):
+    // cada requisito marca ✓ conforme atendido e o envio é bloqueado enquanto
+    // a senha preenchida não cumpre todos (vazio passa — troca opcional; o
+    // servidor revalida de qualquer forma).
+    document.querySelectorAll('input[data-password-policy]').forEach(function (input) {
+        const requisitos = [
+            // Array.from(s): conta code points como o len() do servidor —
+            // s.length conta unidades UTF-16 e emojis contariam dobrado.
+            { texto: 'No mínimo 8 caracteres', ok: function (s) { return Array.from(s).length >= 8; } },
+            { texto: 'Pelo menos 1 letra maiúscula', ok: function (s) { return /[A-Z]/.test(s); } },
+            { texto: 'Pelo menos 1 número', ok: function (s) { return /[0-9]/.test(s); } }
+        ];
+        const lista = document.createElement('ul');
+        lista.className = 'password-policy-checklist list-unstyled small mt-1 mb-0';
+        // Acessibilidade: os formulários usam novalidate, então o estado da
+        // política precisa chegar aos leitores de tela por aqui — o campo
+        // aponta para o checklist (aria-describedby), recebe aria-invalid e
+        // cada item carrega um texto oculto com seu estado.
+        lista.id = (input.id || 'senha') + '-policy';
+        input.setAttribute('aria-describedby', lista.id);
+        const itens = requisitos.map(function (req) {
+            const li = document.createElement('li');
+            li.className = 'text-muted';
+            li.textContent = req.texto;
+            const icone = document.createElement('i');
+            icone.setAttribute('aria-hidden', 'true');
+            li.prepend(icone);
+            const estado = document.createElement('span');
+            estado.className = 'visually-hidden';
+            estado.textContent = ' — pendente';
+            li.appendChild(estado);
+            lista.appendChild(li);
+            return { req: req, li: li, estado: estado };
+        });
+        (input.closest('.input-group') || input).insertAdjacentElement('afterend', lista);
+
+        function atualizar() {
+            const senha = input.value || '';
+            let faltando = false;
+            itens.forEach(function (item) {
+                const ok = item.req.ok(senha);
+                faltando = faltando || !ok;
+                item.li.className = ok ? 'text-success' : 'text-muted';
+                item.li.querySelector('i').className = ok ? 'bi bi-check-circle-fill me-1' : 'bi bi-circle me-1';
+                item.estado.textContent = ok ? ' — atendido' : ' — pendente';
+            });
+            const invalido = Boolean(senha) && faltando;
+            input.classList.toggle('is-invalid', invalido);
+            input.setAttribute('aria-invalid', invalido ? 'true' : 'false');
+        }
+        input.addEventListener('input', atualizar);
+        atualizar();
+
+        const form = input.closest('form');
+        if (form) {
+            form.addEventListener('submit', function (ev) {
+                const senha = input.value || '';
+                // Vazio bloqueia só quando o campo é obrigatório (criação de
+                // usuário); campos opcionais (perfil, edição) vazios mantêm a
+                // senha atual e enviam normalmente.
+                const falha = ((!senha && input.required) ||
+                    (senha && itens.some(function (item) { return !item.req.ok(senha); })));
+                if (falha) {
+                    ev.preventDefault();
+                    input.focus();
+                }
+            });
+        }
     });
 </script>
 {% if current_user.is_authenticated %}

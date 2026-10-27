@@ -142,12 +142,20 @@ class PasswordChangeTestCase(unittest.TestCase):
         self.assertTrue(flag)
         self.assertEqual(current_hash, self.initial_hash)
 
-    def test_nova_senha_curta_e_rejeitada(self):
+    def test_nova_senha_sem_politica_e_rejeitada(self):
+        """Política mínima: 8+ caracteres, 1 maiúscula e 1 número."""
         self._login()
-        resp = self._post_change(INITIAL_PASSWORD, 'abc12')
 
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn('A nova senha deve ter pelo menos 8 caracteres.'.encode(), resp.data)
+        casos = [
+            ('abc12', 'curta demais'),
+            ('abcdefgh1', 'sem maiúscula'),
+            ('Abcdefgh', 'sem número'),
+        ]
+        for senha, motivo in casos:
+            with self.subTest(senha=senha, motivo=motivo):
+                resp = self._post_change(INITIAL_PASSWORD, senha)
+                self.assertEqual(resp.status_code, 200)
+                self.assertIn('deve ter no mínimo 8 caracteres'.encode(), resp.data)
 
         flag, current_hash = self._user_state()
         self.assertTrue(flag)

@@ -167,13 +167,29 @@ class UserProfileTestCase(unittest.TestCase):
                                           'confirm_password': 'Diferente789'})
         self.assertIn('As senhas não coincidem', response.get_data(as_text=True))
 
-    def test_nova_senha_curta_recusada(self):
+    def test_nova_senha_sem_politica_recusada(self):
+        """Política: no mínimo 8 caracteres, 1 maiúscula e 1 número."""
+        for senha in ('curta1', 'todaminuscula1', 'SemNumeroAqui'):
+            with self.subTest(senha=senha):
+                response = self.client.post('/perfil',
+                                            data={'full_name': 'Maria Souza',
+                                                  'current_password': PASSWORD,
+                                                  'password': senha,
+                                                  'confirm_password': senha})
+                self.assertIn('no mínimo 8 caracteres', response.get_data(as_text=True))
+
+    def test_nova_senha_so_espacos_recusada(self):
+        """Senha só de espaços alcança a política e não é gravada — regressão
+        do Optional padrão (strip_whitespace=True), que interromperia a cadeia
+        sem zerar field.data e a rota gravaria ' ' como senha."""
+        hash_antes = self._usuario()['hash']
         response = self.client.post('/perfil',
                                     data={'full_name': 'Maria Souza',
                                           'current_password': PASSWORD,
-                                          'password': 'curta1',
-                                          'confirm_password': 'curta1'})
-        self.assertIn('pelo menos 8 caracteres', response.get_data(as_text=True))
+                                          'password': '   ',
+                                          'confirm_password': '   '})
+        self.assertIn('no mínimo 8 caracteres', response.get_data(as_text=True))
+        self.assertEqual(self._usuario()['hash'], hash_antes)
 
 
 if __name__ == '__main__':

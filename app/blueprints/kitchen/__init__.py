@@ -80,6 +80,13 @@ def _store_uploaded_docx(file_storage):
     if extension not in ALLOWED_EXTENSIONS:
         raise ValueError(f'Formato não suportado: "{extension or original}". '
                          'Envie arquivos .docx.')
+    # Assinatura do conteúdo (DOCX é um ZIP): a extensão pode ser mentirosa.
+    # O parser com defusedxml rejeitaria o arquivo, mas ele nem deve chegar
+    # a disco. O stream volta ao início antes de gravar.
+    if file_storage.stream.read(4) != b'PK\x03\x04':
+        raise ValueError(f'Arquivo inválido: "{original}" não é um .docx '
+                         'válida.')
+    file_storage.stream.seek(0)
     stored = f"{datetime.now():%Y%m%d%H%M%S}_{uuid.uuid4().hex[:8]}_" \
              f"{secure_filename(original) or 'ficha.docx'}"
     file_storage.save(os.path.join(_sheet_upload_folder(), stored))

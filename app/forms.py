@@ -105,6 +105,34 @@ def _validar_texto(field, field_name):
             f"Use letras, números, espaços ou . , - ( ) / & ' º ª")
 
 
+# Política de senha: no mínimo 8 caracteres, pelo menos 1 letra maiúscula e
+# 1 número. Aplicada nos três pontos de definição de senha (troca obrigatória
+# do primeiro acesso, perfil e cadastro/edição de usuário). O checklist visual
+# equivalente vive no base.html (inputs com [data-password-policy]).
+_RE_MAISCULA = re.compile(r'[A-Z]')
+_RE_NUMERO = re.compile(r'[0-9]')
+
+
+def senha_cumpre_politica(senha):
+    """Predicado da política mínima de senha, com regras ASCII. Compartilhado
+    pelo validador dos formulários, pelo CLI seed-admin e pelo gerador de
+    senha temporária, para que todos aceitem exatamente o mesmo conjunto —
+    str().isdigit()/isupper() aceitam caracteres como '²' e 'Á', que o
+    checklist visual (JS, /[A-Z]/ e /[0-9]/) não conta como válidos."""
+    return (len(senha) >= 8 and bool(_RE_MAISCULA.search(senha))
+            and bool(_RE_NUMERO.search(senha)))
+
+
+def validar_politica_senha(form, field):
+    """Exige a política mínima de senha. Em formulários onde a troca é
+    opcional, o Optional() na frente interrompe a cadeia antes deste
+    validador quando o campo vem vazio."""
+    if not senha_cumpre_politica(field.data or ''):
+        raise ValidationError(
+            'A senha deve ter no mínimo 8 caracteres, com pelo menos '
+            '1 letra maiúscula e 1 número.')
+
+
 # =============================================================================
 # LOGIN & PASSWORD FORMS
 # =============================================================================
@@ -118,7 +146,7 @@ class LoginForm(BaseForm):
 
 class ChangePasswordForm(BaseForm):
     current_password = PasswordField('Senha Atual', validators=[DataRequired()])
-    password = PasswordField('Nova Senha', validators=[DataRequired(), Length(min=8, message='A nova senha deve ter pelo menos 8 caracteres.')])
+    password = PasswordField('Nova Senha', validators=[DataRequired(), validar_politica_senha])
     confirm_password = PasswordField('Confirmar Nova Senha', validators=[DataRequired(), EqualTo('password', message='As senhas não coincidem.')])
     submit = SubmitField('Atualizar Senha')
 
@@ -133,7 +161,10 @@ class ProfileForm(BaseForm):
     # validate_current_password (último da cadeia) — a exigência da senha
     # atual quando há troca é coberta no próprio validador inline.
     current_password = PasswordField('Senha Atual')
-    password = PasswordField('Nova Senha', validators=[Optional(), Length(min=8, message='A nova senha deve ter pelo menos 8 caracteres.')])
+    # strip_whitespace=False: com o padrão (True), senha só de espaços ('  ')
+    # interromperia a cadeia sem zerar field.data e a rota gravaria ' ' como
+    # senha — aqui ela precisa alcançar validar_politica_senha e ser rejeitada.
+    password = PasswordField('Nova Senha', validators=[Optional(strip_whitespace=False), validar_politica_senha])
     confirm_password = PasswordField('Confirmar Nova Senha', validators=[Optional(), EqualTo('password', message='As senhas não coincidem.')])
     # ── Preferências de notificação (autoatendimento) ────────────────────
     # Silenciar os avisos de atividade próxima: todos, ou apenas os de salas
@@ -207,7 +238,7 @@ class UserForm(BaseForm):
     role_id = SelectField('Papel (Role)', coerce=int, validators=[DataRequired()])
     extra_roles = SelectMultipleField('Módulos Adicionais', coerce=int, validators=[Optional()],
                                       description='Somados ao papel principal (ex.: Módulo Cozinha).')
-    password = PasswordField('Senha', validators=[Length(min=8, message='A senha deve ter pelo menos 8 caracteres.')])
+    password = PasswordField('Senha', validators=[validar_politica_senha])
     is_active_user = BooleanField('Ativo', default=True)
     submit = SubmitField('Salvar')
 
@@ -298,7 +329,7 @@ class ReservationForm(BaseForm):
     # Título/Assunto opcional: sem preenchimento, a reserva recebe o nome do
     # curso como título (fallback no blueprint).
     title = StringField('Título / Assunto (opcional)', validators=[Optional(), Length(max=200)])
-    description = TextAreaField('Descrição / Finalidade', validators=[Optional()])
+    description = TextAreaField('Descrição / Finalidade', validators=[Optional(), Length(max=1000)])
     date = DateField('Data', validators=[DataRequired()])
     start_time = TimeField('Horário de Início', validators=[DataRequired()])
     end_time = TimeField('Horário de Término', validators=[DataRequired()])

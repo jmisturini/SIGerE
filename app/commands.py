@@ -1,14 +1,19 @@
 """Comandos CLI customizados para o Flask."""
+import getpass
 import json
 import os
+import secrets
+import string
 
 import click
 from flask.cli import with_appcontext
 from app.extensions import db
+from app.forms import senha_cumpre_politica
 from app.models import (
     User, Classroom, Reservation, Course, Subject,
     TeacherOvertimePay, Role, Permission, RoomCategory, Unity
 )
+from app.utils import auditar
 from datetime import datetime, date, time, timedelta, timezone
 import random
 
@@ -21,6 +26,8 @@ PERMISSION_DATA = [
     ('user:create', 'user', 'create', 'Criar usuários'),
     ('user:edit', 'user', 'edit', 'Editar usuários'),
     ('user:toggle', 'user', 'toggle', 'Ativar/desativar usuários'),
+    ('user:lock', 'user', 'lock', 'Bloquear/desbloquear acesso de usuários'),
+    ('system:audit', 'system', 'audit', 'Consultar trilha de auditoria'),
     # Módulo de Unidades Educacionais (multi-unidade)
     ('unity:read', 'unity', 'read', 'Visualizar unidades educacionais'),
     ('unity:create', 'unity', 'create', 'Criar unidades educacionais'),
@@ -123,7 +130,7 @@ ROLES_CONFIG = {
         'label': 'Administrador',
         'is_system': True,
         'permissions': [
-            'user:read', 'user:create', 'user:edit', 'user:toggle',
+            'user:read', 'user:create', 'user:edit', 'user:toggle', 'user:lock',
             'unity:read', 'unity:create', 'unity:edit', 'unity:toggle',
             'unity:modules',
             'room:read', 'room:create', 'room:edit', 'room:toggle',
@@ -132,7 +139,7 @@ ROLES_CONFIG = {
             'holiday:read', 'holiday:create', 'holiday:edit', 'holiday:delete', 'holiday:import',
             'reservation:read_all', 'reservation:edit_all', 'reservation:delete_all',
             'reservation:approve', 'reservation:cancel_all',
-            'system:dashboard', 'system:export',
+            'system:dashboard', 'system:export', 'system:audit',
             'api:manage',
             'role:read', 'role:create', 'role:edit', 'role:delete',
             'kitchen:read', 'kitchen:sheet_create', 'kitchen:sheet_delete', 'kitchen:shopping_export',
@@ -227,12 +234,17 @@ def seed_command():
 
     try:
         _seed_permissions()
-        _seed_admin()
+        senha_admin = _seed_admin()
         db.session.commit()
         click.echo(click.style("✅ Administrador criado com sucesso!", fg="green", bold=True))
         click.echo(click.style(
-            "   Login: admin@school.edu / admin123",
+            f"   Login: admin@school.edu / {senha_admin}",
             fg="cyan"
+        ))
+        click.echo(click.style(
+            "   ⚠️  Anote a senha agora — ela não será exibida de novo e a "
+            "troca será exigida no primeiro login.",
+            fg="yellow"
         ))
 
         # Pergunta se deseja popular com dados de teste
@@ -376,9 +388,33 @@ def _seed_permissions():
     click.echo("   ✅ Permissões e roles criadas.")
 
 
-def _seed_admin(password='admin123'):
-    """Cria apenas o usuário administrador."""
+def _senha_temporaria():
+    """Senha aleatória aderente à política (8+ caracteres, 1 maiúscula e
+    1 número) — usada no seed e em qualquer senha criada sem interação."""
+    while True:
+        senha = ''.join(secrets.choice(string.ascii_letters + string.digits)
+                        for _ in range(12))
+        if senha_cumpre_politica(senha):
+            return senha
+
+
+def _seed_admin(password=None):
+    """Cria apenas o usuário administrador.
+
+    Sem password, gera uma senha aleatória (retornada para exibição única) e
+    marca a troca obrigatória no primeiro login: senha fixa conhecida no
+    código é credencial pública — qualquer implantação que rodasse o seed
+    nasceria com o admin acessível por quem lesse o README.
+    """
     click.echo("   Criando usuário administrador...")
+
+    if password is None:
+        # Mesmo gerador da senha temporária do reset administrativo
+        # (aderente à política: 8+ caracteres, 1 maiúscula, 1 número).
+        password = _senha_temporaria()
+        force_password_change = True
+    else:
+        force_password_change = False
 
     super_admin_role = Role.query.filter_by(name='super_admin').first()
 
@@ -386,13 +422,67 @@ def _seed_admin(password='admin123'):
         email='admin@school.edu',
         full_name='Administrador do Sistema', role='admin',
         department='Administration', profile_type='employee',
-        force_password_change=False,
+        force_password_change=force_password_change,
         role_id=super_admin_role.id
     )
     admin.set_password(password)
     db.session.add(admin)
     db.session.flush()
     click.echo("   ✅ Administrador criado.")
+    return password
+
+
+def _operador_cli():
+    """Identidade do operador da CLI para a trilha de auditoria.
+
+    No POSIX usa a conta do UID do processo: `getpass.getuser()` aceita
+    LOGNAME/USER do ambiente, que qualquer processo pode forjar — a trilha
+    não deve registrar um operador forjável (CWE-807). No Windows não há
+    pwd: cai para o getpass (USERNAME do ambiente, única opção nativa).
+    """
+    try:
+        import pwd
+        return pwd.getpwuid(os.getuid()).pw_name
+    except ImportError:
+        try:
+            return getpass.getuser()
+        except (ImportError, OSError):
+            return None
+    except (KeyError, OSError):
+        return None
+
+
+@click.command('unlock-user')
+@click.argument('email')
+@with_appcontext
+def unlock_user_command(email):
+    """Desbloqueia a conta com o e-mail informado.
+
+    Recuperação fora da interface: o desbloqueio do painel não atua sobre
+    contas super-admin (_proteger_super_admin) e o seed-admin preserva conta
+    existente — se o único super-admin for bloqueado por excesso de
+    tentativas no login público (ataque de derrubada da credencial), só
+    sobra o acesso ao servidor para destravar.
+    """
+    usuario = User.query.filter(
+        db.func.lower(User.email) == (email or '').strip().lower()).first()
+    if usuario is None:
+        raise click.ClickException('Usuário não encontrado.')
+    if not usuario.is_locked:
+        click.echo(click.style(
+            f'ℹ️  {usuario.email} não está bloqueada. Nada foi alterado.',
+            fg='yellow'))
+        return
+    usuario.desbloquear()
+    db.session.commit()
+    # Trilha fora do contexto HTTP: a janela do painel não desbloqueia
+    # contas com '*' — sem este registro, o destrave do único super-admin
+    # pela CLI aconteceria sem auditoria.
+    auditar('conta_desbloqueada', alvo=usuario.email,
+            origem='cli', operador=_operador_cli())
+    click.echo(click.style(
+        f'✅ Conta {usuario.email} desbloqueada. O acesso foi restabelecido '
+        'e o contador de tentativas foi zerado.', fg='green'))
 
 
 @click.command('seed-admin')
@@ -402,7 +492,8 @@ def seed_admin_command():
 
     Alternativa ao `seed` para implantações reais: cria as permissões/papéis
     e o usuário 'admin' — sem nenhum dado de demonstração — com a senha
-    definida interativamente (mínimo de 8 caracteres, digitação oculta).
+    definida interativamente (no mínimo 8 caracteres, com 1 letra maiúscula
+    e 1 número; digitação oculta).
     """
     if User.query.filter_by(email='admin@school.edu').first() is not None:
         click.echo(click.style(
@@ -420,10 +511,11 @@ def seed_admin_command():
                 hide_input=True,
                 confirmation_prompt=click.style("Confirme a senha", fg="yellow"),
             )
-            if len(password) >= 8:
+            if senha_cumpre_politica(password):
                 break
             click.echo(click.style(
-                "❌ A senha deve ter pelo menos 8 caracteres. Tente novamente.",
+                "❌ A senha deve ter no mínimo 8 caracteres, com pelo menos "
+                "1 letra maiúscula e 1 número. Tente novamente.",
                 fg="red"
             ))
 
@@ -631,9 +723,9 @@ def _seed_demo_data():
     #    destes cadastros (nenhuma categoria é fixa no código).
     categories = [
         RoomCategory(name="Sala de Aula", code="classroom", abbr="SA",
-                     color="#0d6efd", icon="bi-door-closed"),
+                     color="#004a8d", icon="bi-door-closed"),
         RoomCategory(name="Auditório", code="auditorium", abbr="AU",
-                     color="#004b8d", icon="bi-buildings",
+                     color="#004a8d", icon="bi-buildings",
                      totem_window=RoomCategory.TOTEM_WINDOW_WEEK),
         RoomCategory(name="Cozinha", code="kitchen", abbr="CO",
                      color="#f0ad4e", icon="bi-cup-hot"),

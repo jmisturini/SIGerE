@@ -1,10 +1,11 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
-from sqlalchemy import func
+from sqlalchemy import func, update
 from urllib.parse import urlparse
 from app.models import User, RoomCategory, UserNotificationPref
 from app.forms import LoginForm, ChangePasswordForm, ProfileForm
 from app.extensions import db, limiter
+from app.utils import auditar
 
 bp = Blueprint('auth', __name__)
 
@@ -22,14 +23,47 @@ def login():
         # para não bloquear quem digitar o e-mail com caixa diferente.
         email = form.email.data.strip().lower()
         user = User.query.filter(func.lower(User.email) == email).first()
-        
+
         # Verify user exists and password is correct
         if user and user.check_password(form.password.data):
+            # A mensagem de bloqueio só sai para quem JÁ acertou a senha:
+            # para senha errada a resposta continua genérica, sem revelar
+            # quais e-mails existem (ou estão bloqueados).
+            if user.is_locked:
+                auditar('login_recusado_conta_bloqueada', alvo=user.email)
+                flash('Sua conta está bloqueada por excesso de tentativas de acesso. '
+                      'Procure um administrador para desbloqueá-la.', 'danger')
+                return redirect(url_for('auth.login'))
             if not user.is_active_user:
+                auditar('login_recusado_conta_desativada', alvo=user.email)
                 flash('Sua conta foi desativada. Por favor, contate um administrador.', 'danger')
                 return redirect(url_for('auth.login'))
-                
-            login_user(user)
+
+            # Acesso confirmado: zera o contador de erros do bloqueio. O reset
+            # é condicional no banco (is_locked falso): se uma tentativa
+            # concorrente bloqueou a conta enquanto este request rodava, nada
+            # é zerado e o login é recusado abaixo.
+            reset = db.session.execute(
+                update(User)
+                .where(User.id == user.id, User.is_locked.is_(False))
+                .values(failed_login_attempts=0))
+            if reset.rowcount != 1:
+                db.session.rollback()
+                auditar('login_recusado_conta_bloqueada', alvo=user.email,
+                        motivo='bloqueio_concorrente')
+                flash('Sua conta está bloqueada por excesso de tentativas de acesso. '
+                      'Procure um administrador para desbloqueá-la.', 'danger')
+                return redirect(url_for('auth.login'))
+            db.session.commit()
+            if not login_user(user):
+                # Barreira dupla: o is_active do User (cobre bloqueio) recusou
+                # a sessão — não confirmar sucesso para quem não entrou.
+                auditar('login_recusado_conta_bloqueada', alvo=user.email,
+                        motivo='login_user_recusado')
+                flash('Sua conta está bloqueada por excesso de tentativas de acesso. '
+                      'Procure um administrador para desbloqueá-la.', 'danger')
+                return redirect(url_for('auth.login'))
+            auditar('login_sucesso', alvo=user.email)
             flash(f'Bem-vindo de volta, {user.full_name}!', 'success')
             
             # SECURITY: validate the 'next' parameter to prevent open redirect
@@ -43,7 +77,19 @@ def login():
                     or next_page.startswith('//')):
                 next_page = None
             return redirect(next_page or url_for('main.index'))
-            
+
+        # Senha errada (ou e-mail inexistente): resposta genérica. Para conta
+        # existente, a falha conta para o bloqueio por excesso de tentativas.
+        if user:
+            ja_bloqueada = user.is_locked
+            user.registrar_falha_login()
+            db.session.commit()
+            if user.is_locked and not ja_bloqueada:
+                auditar('conta_bloqueada_automatica', alvo=user.email,
+                        tentativas=user.failed_login_attempts)
+            auditar('login_falha', alvo=user.email, conta_existe='sim')
+        else:
+            auditar('login_falha', alvo=email, conta_existe='nao')
         flash('E-mail ou senha inválidos.', 'danger')
     # ocultar_sidebar: tela de login em foco total, sem a navegação do painel
     # (mesmo padrão do pedido público de VT).
@@ -91,6 +137,7 @@ def change_password():
             return render_template('auth/change_password.html', form=form)
 
         flash('Sua senha foi atualizada com sucesso!', 'success')
+        auditar('senha_trocada', alvo=user.email, modo='troca_obrigatoria')
         return redirect(url_for('main.index'))
 
     return render_template('auth/change_password.html', form=form)
@@ -140,6 +187,8 @@ def perfil():
 
         db.session.commit()
         db.session.refresh(user)
+        if form.password.data:
+            auditar('senha_trocada', alvo=user.email, modo='perfil')
         flash('Seu perfil foi atualizado com sucesso.', 'success')
         return redirect(url_for('auth.perfil'))
 

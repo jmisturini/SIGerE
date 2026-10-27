@@ -54,12 +54,13 @@ class SeedAdminCommandTestCase(unittest.TestCase):
             self.assertTrue(check_password_hash(admin.password_hash, 'SenhaForte123'))
             self.assertTrue(admin.role_obj and admin.role_obj.name == 'super_admin')
 
-    def test_seed_admin_rejects_short_password(self):
+    def test_seed_admin_rejects_weak_password(self):
         runner = self.app.test_cli_runner()
         result = runner.invoke(args=['seed-admin'],
-                               input='curta\ncurta\nSenhaForte123\nSenhaForte123\n')
+                               input='curta\ncurta\nsemmaiuscula1\nsemmaiuscula1\nSenhaForte123\nSenhaForte123\n')
         self.assertEqual(result.exit_code, 0)
-        self.assertIn('pelo menos 8 caracteres', result.output)
+        self.assertIn('no mínimo 8 caracteres', result.output)
+        self.assertIn('1 letra maiúscula', result.output)
         with self.app.app_context():
             admin = db.session.query(User).filter_by(email='admin@school.edu').first()
             self.assertTrue(check_password_hash(admin.password_hash, 'SenhaForte123'))
