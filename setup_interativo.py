@@ -771,9 +771,9 @@ def resumo_final(env, modo_dados):
 
     print('\n   Acessos:')
     if modo_dados == 'seed':
-        print('     • admin@school.edu com a senha aleatória exibida na execução do seed (demonstração — troque a senha!)')
+        print('     • admin@school.edu — se o seed criou a conta agora, a senha aleatória apareceu na execução dele; se a conta já existia, ela foi preservada com a senha anterior (demonstração — troque a senha!)')
     if modo_dados == 'seed-demo':
-        print('     • admin@school.edu com a senha de demonstração exibida na execução do seed-demo (demonstração — troque a senha!)')
+        print('     • admin@school.edu — senha de demonstração fixa exibida na execução do seed-demo; se a conta já existia, ela foi preservada com a senha anterior (demonstração — troque a senha!)')
     if modo_dados == 'seed-admin':
         print('     • admin@school.edu + a senha que você definiu')
     if modo_dados == 'import-legacy':
