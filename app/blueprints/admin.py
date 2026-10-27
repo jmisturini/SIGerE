@@ -1624,6 +1624,11 @@ def create_api_token():
         return redirect(url_for('admin.list_api_tokens'))
 
     days = request.form.get('duration', type=int) or 0
+    # Mesmo catálogo oferecido na tela (TOKEN_DURATIONS): um POST forjado com
+    # duração fora da lista não cria token com validade fora do padrão.
+    if days not in {d for d, _ in TOKEN_DURATIONS}:
+        flash('Validade inválida para o token.', 'danger')
+        return redirect(url_for('admin.list_api_tokens'))
     expires_at = None
     if days > 0:
         expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=days)

@@ -443,6 +443,23 @@ class ApiReservationsTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', data)
 
+    def test_rota_inexistente_sob_api_retorna_json(self):
+        """404 de roteamento (fora do blueprint da API) também responde JSON:
+        apps externas não precisam tratar páginas HTML."""
+        response = self.client.get('/api/v1/inexistente')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertIn('error', response.get_json())
+
+    def test_metodo_nao_permitido_retorna_json(self):
+        """A API é somente leitura: POST responde 405 em JSON (não página HTML),
+        preservando o cabeçalho Allow."""
+        response = self.client.post('/api/v1/reservations', data={})
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.content_type, 'application/json')
+        self.assertIn('error', response.get_json())
+        self.assertIn('GET', response.headers.get('Allow', ''))
+
     def test_cors_permite_apps_web_externas(self):
         """Apps hospedadas em outra origem (quadro de porta, painéis) leem a
         API do navegador; o preflight do fetch autenticado também passa."""

@@ -1,9 +1,10 @@
 import click
-from flask import Flask, render_template, redirect, url_for, request, flash
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from werkzeug.middleware.proxy_fix import ProxyFix
 from app.config import Config
 from app.extensions import db, login_manager, csrf, limiter, migrate
 from datetime import datetime
+import json
 import os
 import sys
 
@@ -118,17 +119,38 @@ def create_app(config_class=Config):
     app.cli.add_command(autocancel_pendentes_command)
     app.cli.add_command(unlock_user_command)
 
-    # Custom Error Handlers
+    # Custom Error Handlers. Rotas sob /api/ (a API pública /api/v1 e os
+    # endpoints JSON internos) recebem erros em JSON — inclusive os que não
+    # chegam a nenhuma view (rota inexistente → 404, método não suportado →
+    # 405): o errorhandler do blueprint da API não os alcança, porque a
+    # correspondência de rota falha antes de qualquer blueprint.
     @app.errorhandler(403)
-    def forbidden(_):
+    def forbidden(e):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': getattr(e, 'description', None) or 'Acesso negado.'}), 403
         return render_template('errors/403.html'), 403
 
     @app.errorhandler(404)
-    def not_found(_):
+    def not_found(e):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Recurso não encontrado.'}), 404
         return render_template('errors/404.html'), 404
 
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        # Partir do response padrão preserva o status e o cabeçalho Allow;
+        # no navegador segue o corpo HTML de sempre.
+        resposta = e.get_response()
+        if request.path.startswith('/api/'):
+            resposta.set_data(json.dumps(
+                {'error': 'Método não permitido: a API é somente leitura.'}))
+            resposta.content_type = 'application/json'
+        return resposta
+
     @app.errorhandler(500)
-    def server_error(_):
+    def server_error(e):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Erro interno do servidor.'}), 500
         return render_template('errors/500.html'), 500
 
     # CSRF rejeitado (token ausente/expirado — típico de sessão expirada):
