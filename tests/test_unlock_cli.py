@@ -77,6 +77,24 @@ class UnlockUserCommandTestCase(unittest.TestCase):
             self.assertIsNone(registro.actor_id)
             self.assertEqual(registro.ip, '-')
 
+    @unittest.skipUnless(os.name == 'posix', 'pwd/getpwuid são POSIX')
+    def test_operador_posix_vem_do_uid_nao_do_ambiente(self):
+        """LOGNAME/USER forjados não podem assinar a trilha (CWE-807): no
+        POSIX o operador vem do UID do processo, não do ambiente."""
+        import pwd
+        esperado = pwd.getpwuid(os.getuid()).pw_name
+        ambiente = {**os.environ, 'LOGNAME': 'operador-falso',
+                    'USER': 'operador-falso'}
+        resultado = self.runner.invoke(args=['unlock-user', self.email],
+                                       env=ambiente)
+        self.assertEqual(resultado.exit_code, 0, resultado.output)
+        with self.app.app_context():
+            registro = AuditLog.query.filter_by(evento='conta_desbloqueada',
+                                                alvo=self.email).first()
+            self.assertIsNotNone(registro)
+            self.assertIn(f'operador={esperado}', registro.detalhes or '')
+            self.assertNotIn('operador-falso', registro.detalhes or '')
+
     def test_conta_ja_desbloqueada_nada_alterado(self):
         with self.app.app_context():
             User.query.filter_by(email=self.email).first().desbloquear()
