@@ -9,9 +9,12 @@ atualização, backup, monitoramento e solução de problemas.
 > 🛠️ **Para desenvolver na sua máquina, leia:** [desenvolvimento-debug.md](desenvolvimento-debug.md)
 > 📡 **API para integrações externas:** [api-reservas.md](api-reservas.md)
 > 🪄 **Instalação guiada:** o script `python setup_interativo.py` (na raiz do
-> repositório) automatiza os passos 1–5 e traz modos de manutenção ("Atualizar o
-> sistema" e "Restaurar backup") — este guia é o caminho detalhado, comando a
-> comando, do que o script executa.
+> repositório) automatiza as etapas **locais da aplicação** — venv, dependências,
+> `.env`, schema, população inicial e unidades — e traz modos de manutenção
+> ("Atualizar o sistema" e "Restaurar backup"). Ele **não** instala pacotes do
+> sistema nem cria o banco: os pré-requisitos dos passos 1 a 3 (PostgreSQL,
+> Redis) continuam por sua conta. Este guia é o caminho detalhado, comando a
+> comando.
 
 ---
 

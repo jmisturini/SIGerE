@@ -660,7 +660,7 @@ BLOCOS = [
         '<b>Repetir</b> — cria uma série de reservas a partir desta (seção 6.7);',
         '<b>Gerenciar Série (N)</b> — aparece quando a reserva pertence a uma série (seção 6.8);',
         '<b>Compartilhar</b> — envia os dados da reserva por e-mail ou WhatsApp (seção 6.9);',
-        '<b>Ativar notificações</b> — liga os avisos no sino para esta reserva (seção 7.2): o '
+        '<b>Ativar notificações</b> — liga os avisos no sino para esta reserva (seção 8.2): o '
         'botão passa a exibir <b>Notificações ativadas</b> e um novo clique desliga. Aparece '
         'para o dono da reserva (ou quem tem permissão de editar qualquer reserva) apenas em '
         'reservas aprovadas e futuras.',
@@ -811,9 +811,10 @@ BLOCOS = [
         '<b>Lembretes de pendência</b> — os aprovadores da unidade são avisados de reservas '
         'pendentes aguardando aprovação, 24 e 48 horas após a criação.',
     ]),
-    ('p', 'Os avisos de atividade próxima chegam aos destinatários definidos na própria '
-          'reserva (professor designado, criador e grupos de notificação); os lembretes de '
-          'pendência vão aos aprovadores da unidade.'),
+    ('p', 'Os avisos de atividade próxima chegam aos destinatários escolhidos no formulário '
+          'da reserva — usuários individuais e grupos de notificação; o criador entra por '
+          'padrão (desmarcável) e o professor designado só recebe se for selecionado — e os '
+          'lembretes de pendência vão aos aprovadores da unidade.'),
     ('importante', 'Desativar as notificações de uma reserva não apaga os avisos já criados no '
                    'sino — apenas interrompe os próximos.'),
     ('h2', '8.3 Notificações por e-mail'),
@@ -1442,9 +1443,9 @@ BLOCOS = [
         'O bloqueio acontece após 10 tentativas de senha erradas. Um administrador desbloqueia '
         'na tela de usuários (seção 14.2) em segundos — os dados não são afetados;',
         '<b>Não recebi aviso de uma reserva que está próxima. Por quê?</b>',
-        'Os avisos são opt-in: alguém com acesso à reserva precisa ter clicado em <b>Ativar '
-        'notificações</b> no detalhe dela (seção 7.2), e a configuração da unidade define quem '
-        'recebe e com que antecedência (seção 14.10);',
+        'Os avisos são opt-in por reserva: alguém com acesso a ela precisa ter ativado as '
+        'notificações e escolhido marcos e destinatários na seção <b>Notificações</b> do '
+        'formulário (seção 8.2) — quem não foi selecionado, não é avisado;',
         '<b>O menu Financeiro, RH ou Cozinha desapareceu.</b>',
         'Os módulos podem ter sido desligados para a sua unidade (seção 14.8). Contate o '
         'administrador;',

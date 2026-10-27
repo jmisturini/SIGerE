@@ -44,14 +44,18 @@ git push origin vX.Y.Z
    entrada correspondente de `RELEASES` em `app/version.py`:
 
 ```bash
-gh release create vX.Y.Z --notes-file notas.md --title "SIGerE vX.Y.Z — <título da entrada>"
+gh release create vX.Y.Z --verify-tag --notes-file notas.md --title "SIGerE vX.Y.Z — <título da entrada>"
 ```
 
-   (nas máquinas sem `gh`, publique pela API: `POST /repos/jmisturini/SIGerE/releases`
-   com `tag_name`, `name` e `body` — ver "Sem `gh` CLI" em
-   [docs/guia-continuidade.md](docs/guia-continuidade.md));
+   O `--verify-tag` garante que a release usa a tag do passo 3 — sem ele, o
+   `gh` criaria uma tag ausente apontando para o commit da branch padrão.
 
-5. PR `main` → `dev` para realinhar.
+5. Nas máquinas sem `gh`, publique pela API: `POST /repos/jmisturini/SIGerE/releases`
+   com `tag_name`, `name` e `body` — valide antes que a tag existe
+   (`GET /repos/jmisturini/SIGerE/git/ref/tags/vX.Y.Z` → 200). Ver "Sem `gh`
+   CLI" em [docs/guia-continuidade.md](docs/guia-continuidade.md).
+
+6. PR `main` → `dev` para realinhar.
 
 ## Hotfix em produção
 

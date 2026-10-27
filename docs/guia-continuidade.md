@@ -85,6 +85,8 @@ O `gh` **não está instalado/autenticado** nas máquinas usadas até agora. Cam
   UTF-8** evitam erro 400 com acentos no `-d` inline.
 - Deletar branch remota: `DELETE /repos/jmisturini/SIGerE/git/refs/heads/...` (retorna 204).
 - **Criar a GitHub Release** (equivalente ao `gh release create` do passo 4):
+  valide antes que a tag existe (`GET /repos/jmisturini/SIGerE/git/ref/tags/vX.Y.Z`
+  → 200 — sem isso o `POST` criaria a tag no commit da branch padrão) e então
   `POST /repos/jmisturini/SIGerE/releases` com payload
   `{"tag_name": "vX.Y.Z", "name": "SIGerE vX.Y.Z — <título da entrada>",
   "body": "<texto da entrada em app/version.py>", "target_commitish": "main"}`
@@ -102,10 +104,11 @@ Só há release quando houver bump: mudança de código visível ou entrada de c
 4. **GitHub Release** a partir da tag (pré-requisito: `gh` instalado e
    autenticado — `gh auth login`; nas máquinas sem `gh`, siga a seção
    "Sem `gh` CLI" e publique pela API):
-   `gh release create vX.Y.Z --notes-file notas.md --title "SIGerE vX.Y.Z — <título da entrada>"`
+   `gh release create vX.Y.Z --verify-tag --notes-file notas.md --title "SIGerE vX.Y.Z — <título da entrada>"`
    — copie título e grupos da entrada
    correspondente de `RELEASES` em `app/version.py` (Notas geradas por IA e changelog
-   automático não substituem a entrada curada). Desde a v1.36.0, toda release publicada
+   automático não substituem a entrada curada; `--verify-tag` impede o `gh` de
+   criar tag ausente apontando para a branch padrão). Desde a v1.36.0, toda release publicada
    ganha o objeto GitHub Release; a tag anotada continua sendo a referência primária.
 5. PR `main` → `dev` para realinhar (o merge da main traz a tag de volta à dev).
 

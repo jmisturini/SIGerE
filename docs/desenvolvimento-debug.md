@@ -82,8 +82,8 @@ source venv/Scripts/activate
 # Windows (PowerShell):
 # venv\Scripts\Activate.ps1
 
-# 3. Instale as dependências (versões fixadas no requirements.txt)
-pip install -r requirements.txt
+# 3. Instale as dependências (produção + ferramentas de teste e qualidade)
+pip install -r requirements.txt -r requirements-dev.txt
 
 # 4. Crie o schema do banco (Alembic — NÃO é criado no boot)
 flask --app run db upgrade
