@@ -10,12 +10,58 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.36.0'
+APP_VERSION = '1.37.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.37.0',
+        'data': '2026-10-27',
+        'titulo': 'Segurança: política de senha, bloqueio de conta e trilha de auditoria; relatórios PDF e identidade Senac',
+        'grupos': [
+            ('Adicionado', [
+                'Política de senha em todos os pontos de definição (troca obrigatória do primeiro '
+                'acesso, perfil e cadastro/edição de usuário): mínimo de 8 caracteres com 1 letra '
+                'maiúscula e 1 número; o comando seed gera senha aleatória aderente.',
+                'Bloqueio automático da conta após 10 tentativas de login falhas, com desbloqueio '
+                'administrativo no painel (user:lock) zerando o contador — e comando CLI '
+                'unlock-user para o destrave de emergência do único super-admin, registrado na '
+                'trilha com origem cli.',
+                'Trilha de auditoria de segurança em audit_logs: login e falhas, troca/reset de '
+                'senha, bloqueios e ciclo de usuários, com consulta no Painel Admin '
+                '(/admin/auditoria) filtrando por evento, texto e período.',
+            ]),
+            ('Alterado', [
+                'Relatórios PDF redesenhados para impressão e envio por e-mail.',
+                'Conformidade com o manual da marca Senac: cores, ícones, logo e PDFs alinhados '
+                'ao manual, além de novos temas de cor de destaque.',
+                'O comando seed cria o administrador com senha aleatória exibida uma única vez e '
+                'troca obrigatória no primeiro login — o par fixo admin@school.edu/admin123 não '
+                'existe mais; o seed-demo é recusado fora do modo desenvolvimento '
+                '(SIGERE_PERMITIR_SEED_DEMO=1 força).',
+                'Dependências: dnspython 2.9.0 (CVE-2026-114605 apontada pelo pip-audit do CI).',
+            ]),
+            ('Corrigido', [
+                'Auditoria de segurança do sistema: o formulário de usuários não permite mais '
+                'vincular uma conta a unidades fora do escopo do operador (era a escalada '
+                'cross-unidade completa); papéis seguem a regra "não cunho privilégio que não '
+                'tenho" — sem o curinga "*", ninguém adiciona permissões administrativas que '
+                'não possui, nem se atribui papéis que as concedam; tokens de API ficam restritos '
+                'ao criador (ou super-admin) na listagem, revogação e exclusão; o conteúdo de '
+                'reserva de terceiros (professor, solicitante, descrição, status interno) não '
+                'sai do servidor nas telas de sala; o financeiro recusa professor de outra '
+                'unidade; relatórios não revelam mais usuário fora do escopo; e os uploads '
+                '.docx/.xlsx exigem a assinatura ZIP real do conteúdo.',
+                'Revisões automatizadas de código: migração da auditoria recusa tabela '
+                'preexistente (o downgrade não pode apagar histórico que não criou), operador '
+                'da CLI derivado do UID do processo no POSIX (LOGNAME forjado não assina a '
+                'trilha), autocomplete de senha nos formulários de definição e contraste '
+                'WCAG AA do botão outline no tema escuro.',
+            ]),
+        ],
+    },
     {
         'versao': '1.36.0',
         'data': '2026-10-22',
