@@ -43,7 +43,7 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 - 👨‍🏫 **Cronogramas de professores** com detecção automática de conflitos de horário
 - 💰 **Financeiro** — horas extras docentes (lançamento, consulta com filtros e exportação da planilha de pagamento)
 - 🏥 **RH — Vale Transporte** (formulário público do pedido, conferência e correção pelo RH em "Pedidos VT", relatório do período e exportação das planilhas de pagamento)
-- 🔔 **Notificações** — avisos no sino quando uma atividade reservada se aproxima da data (opt-in por reserva), com destinatários, grupos e antecedências configurados por unidade
+- 🔔 **Notificações** — avisos no sino quando uma atividade reservada se aproxima da data (opt-in por reserva, com marcos de antecedência e destinatários — usuários e grupos — definidos na própria reserva)
 - 🍳 **Cozinha** — fichas técnicas (.docx), preparações e requisição de compra
 - 📺 **Totens digitais** para corredores com exibição em tempo real de ocupação de salas
 - 📆 **Calendário interativo** com filtros avançados e visualização mensal
@@ -171,7 +171,7 @@ Menu próprio na barra lateral, logo depois da Agenda, com as duas visões (aces
 - **Avisos de mudança de status:** criador recebe aviso quando a reserva é aprovada ou cancelada (ação do próprio criador não avisa) e quando a reserva é excluída permanentemente (individual ou em série); **lembretes de pendência:** aprovadores da unidade são avisados de reservas pendentes 24h/48h após a criação
 - **Espelho por e-mail:** a fila de e-mails é drenada com assunto de resumo quando há vários avisos; opt-out **"Receber notificações também por e-mail"** no perfil, limite de tentativas configurável (`MAIL_MAX_ATTEMPTS`, padrão 10) e comandos `notify-email` (com `--dry-run`) e `notify-cleanup` (apaga lidas há mais de 90 dias e avisos de reservas passadas há mais de 30)
 - **Opt-in por reserva:** seção **"Notificações"** nos formulários de criar/editar reserva ativa os marcos e define os destinatários — usuários individuais e **Grupos de Notificação** cadastrados no painel
-- **Configuração por unidade** (Painel Admin): interruptor geral, antecedências em dias e destinatários fixos
+- **Painel Admin:** a página de Notificações cuida do aviso de sobrecarga de professor (regra de carga docente, com grupos destinatários) e da gestão dos grupos — as antecedências e os destinatários dos avisos de reserva são definidos na própria reserva
 - **Varredura agendada:** comando idempotente `flask --app run notify-scan` (systemd timer a cada 15 minutos em produção; `--dry-run` para prévia)
 - **Cancelamento automático de pendências:** comando idempotente `flask --app run autocancel-pendentes` (mesmo timer do `notify-scan`; `--dry-run` para prévia) cancela a reserva pendente que não foi aprovada até 1 hora antes do horário agendado — inclui pendências cujo início já passou — e avisa o criador com o motivo
 
@@ -216,7 +216,7 @@ Adaptação web do gerador local "Gerador-Ad-Noturno-SENAC-FL": o formulário re
 - Seletor de unidade nas páginas públicas (`?unity=<id>`)
 
 ### 🎨 UI/UX
-- **Aparência:** um único seletor na barra superior reúne o tema claro/escuro e a cor da interface (Azul Senac padrão, Verde, Roxo, Laranja ou Grafite), com escolha persistida no `localStorage`
+- **Aparência:** um único seletor na barra superior reúne o tema claro/escuro e a cor da interface (Azul Senac padrão, Verde, Turquesa, Roxo, Rosa, Vermelho, Laranja ou Grafite), com escolha persistida no `localStorage`
 - **Menu lateral contrátil:** botão no cabeçalho alterna entre expandido e modo compacto de ícones (desktop), com preferência salva no navegador; clicar num grupo com submenu reexpande o menu
 - **Design responsivo:** Bootstrap 5, todas as páginas adaptadas a mobile, tablet e desktop
 - **Interface em Português:** todo o sistema localizado para pt-BR
@@ -251,10 +251,13 @@ Guias detalhados disponíveis no diretório [`docs/`](docs/):
 
 | Guia | Conteúdo |
 |------|----------|
-| 📘 [Manual do Usuário](docs/manual-do-usuario.pdf) | Operação do sistema para todos os perfis: acesso, reservas, notificações, salas, calendário, portal público, totem, financeiro (hora extra), RH (Vale-Transporte), cozinha, administração e API |
+| 📘 [Manual do Usuário](docs/manual-do-usuario.pdf) | Operação do sistema para todos os perfis: acesso, reservas, notificações, salas, calendário, portal público, totem, financeiro (hora extra), RH (Vale-Transporte, Vale Alimentação e Adicional Noturno), cozinha, administração (incluindo auditoria) e API |
 | 🛠️ [Desenvolvimento e Debug](docs/desenvolvimento-debug.md) | Ambiente na sua máquina: modo debug (`FLASK_DEBUG`), banco local, migrações, testes, depuração e erros comuns |
 | 🚢 [Implantação em Produção](docs/implantacao-producao.md) | Servidor real: PostgreSQL, Redis, Gunicorn + systemd, Nginx, HTTPS, atualização, backup e solução de problemas |
 | 📡 [API de Reservas](docs/api-reservas.md) | Uso da API REST de leitura para apps externos: autenticação, parâmetros, exemplos e FAQ |
+| 🗂️ [Permissões e Papéis](docs/permissoes.md) | Catálogo completo de permissões e matriz papel × permissão (gerado por `docs/gerar_permissoes.py`) |
+| 📦 [Migração do sistema legado](docs/migracao-legado.md) | Importação *one-shot* do banco antigo (Django/MySQL) para o SIGERE |
+| 🛡️ [Backlog de segurança](docs/backlog-seguranca.md) | Ideias de endurecimento avaliadas e ainda não implementadas |
 
 ---
 
@@ -630,7 +633,12 @@ SIGerE/
 │   ├── api-reservas.md        # Documentação detalhada da API de reservas
 │   ├── desenvolvimento-debug.md  # Guia completo de desenvolvimento e debug
 │   ├── implantacao-producao.md   # Guia completo de implantação em produção
+│   ├── permissoes.md          # Catálogo de permissões gerado por gerar_permissoes.py
+│   ├── migracao-legado.md     # Migração one-shot do sistema legado (Django/MySQL)
+│   ├── backlog-seguranca.md   # Ideias de endurecimento de segurança pendentes
+│   ├── manual-do-usuario.pdf  # Manual do usuário (gerado por gerar_manual.py)
 │   └── screenshots/           # Imagens exibidas no README
+├── examples/                  # Apps de exemplo consumindo a API (quadro de sala para tablet)
 ├── instance/                  # Dados da instância (uploads, ignorado no git)
 │   └── uploads/               # Fichas técnicas .docx enviadas (fora do static/)
 │
@@ -642,23 +650,34 @@ SIGerE/
     ├── forms.py               # Definições de formulários WTForms
     ├── permissions.py         # Decoradores de controle de acesso por permissão
     ├── unity_context.py       # Contexto multi-unidade (unidade ativa, seletor, escopo de queries)
-    ├── commands.py            # CLI (seed, sync-permissions) e catálogo de permissões/papéis
+    ├── utils.py               # Utilitários compartilhados (trilha de auditoria)
+    ├── commands.py            # CLI (seed, seed-admin, sync-permissions, unlock-user…) e catálogo de permissões/papéis
+    ├── seed_demo.py           # Cenário de demonstração completo (flask seed-demo)
+    ├── legacy_import.py       # Importação do banco legado (flask import-legacy)
+    ├── backup.py              # Backup do banco (flask backup: gzip, retenção, S3)
+    ├── version.py             # APP_VERSION e histórico de releases (tela /changelog)
     │
     ├── services/              # Lógica de negócio compartilhada
-    │   └── scheduling.py      # Validações de reserva e gravação atômica (locks anti double-booking)
+    │   ├── scheduling.py      # Validações de reserva e gravação atômica (locks anti double-booking)
+    │   ├── pdf_report.py      # Motor dos relatórios PDF (fpdf2)
+    │   ├── mailer.py          # Espelho das notificações por e-mail (SMTP)
+    │   ├── notifications.py   # Geração de avisos (marcos, mutes, grupos)
+    │   └── share.py           # Mensagem de compartilhamento de reserva
     │
     ├── blueprints/            # Um módulo (ou subpacote) por funcionalidade
     │   ├── auth.py            # Autenticação (login, logout, troca de senha)
-    │   ├── main.py            # Dashboard e troca de unidade ativa
-    │   ├── admin.py           # Painel admin (usuários, salas, categorias, cursos, feriados, papéis, unidades)
+    │   ├── main.py            # Dashboard, novidades (/changelog) e troca de unidade ativa
+    │   ├── admin.py           # Painel admin (usuários, salas, categorias, cursos, feriados, papéis, unidades, tokens, auditoria)
     │   ├── classrooms.py      # Salas: listagem, detalhes, disponibilidade e exportação
     │   ├── reservations.py    # Reservas: CRUD, aprovações, repetição, séries e conflitos
     │   ├── schedule.py        # Calendário de reservas, API JSON de eventos e exportação em PDF
+    │   ├── relatorios.py      # Relatório Geral e Relatório Personalizado
+    │   ├── notifications.py   # Sino, centro de notificações e preferências
     │   ├── totem.py           # Display de quiosque para TVs
     │   ├── public.py          # Portal público (home, cronograma, busca de aula, busca geral)
     │   ├── api.py             # API REST de leitura de reservas para apps externos (/api/v1)
     │   ├── payments.py        # Pagamentos docentes (hora extra)
-    │   ├── vt.py              # Vale Transporte: upload, parser, edição e exportação
+    │   ├── vt.py              # Vale Transporte: pedido público, pedidos VT, relatório e exportação
     │   ├── an.py              # Adicional Noturno: lançamentos e planilha de pagamento
     │   └── kitchen/           # Módulo Cozinha
     │       ├── __init__.py    # Rotas: fichas técnicas, preparações e compras
@@ -666,7 +685,7 @@ SIGerE/
     │       └── export.py      # Requisição de compra em XLSX
     │
     ├── static/
-    │   ├── css/style.css      # Estilos globais e variáveis de tema
+    │   ├── css/style.css      # Estilos globais, variáveis de tema e temas de cor (accent)
     │   └── templates_excel/   # Modelos .xlsx (hora extra, adicional noturno, VT, requisição de compra)
     │
     └── templates/
@@ -677,16 +696,19 @@ SIGerE/
         ├── buscar_aula.html   # Busca pública de aula do aluno
         ├── search.html        # Busca pública de salas/professores
         ├── calendar.html      # Calendário de reservas com filtros
+        ├── changelog.html     # Tela de novidades (/changelog)
         ├── totem.html         # Interface do quiosque
         ├── _pagination.html   # Macro de paginação reutilizável
         ├── _aula_macros.html  # Macros compartilhadas das telas de aula/cronograma
         ├── auth/              # Login, troca de senha
-        ├── admin/             # Dashboard admin, usuários, salas, categorias, cursos, disciplinas, feriados, papéis, unidades
+        ├── admin/             # Dashboard admin, usuários, salas, categorias, cursos, disciplinas, feriados, papéis, unidades, auditoria
         ├── classrooms/        # Listagem, detalhes, disponibilidade mensal
         ├── reservations/      # Criar, editar, detalhes, minhas reservas, repetição, séries
         ├── payments/          # Formulário e listagem de horas extras
-        ├── vt/                # Vale Transporte: importação, colaboradores e edição
+        ├── vt/                # Vale Transporte: pedido público, pedidos VT, edição e relatório
         ├── an/                # Adicional Noturno: lançamentos e edição
+        ├── notifications/     # Sino, centro de notificações e grupos
+        ├── relatorios/        # Relatório Geral e Personalizado
         ├── kitchen/           # Fichas técnicas, preparações e compras
         └── errors/            # Páginas 403, 404, 500
 ```
@@ -726,7 +748,7 @@ curl http://localhost:5000/api/v1/reservations
 curl -H "Authorization: Bearer sige_SEU_TOKEN" http://localhost:5000/api/v1/reservations
 ```
 
-O valor completo do token é exibido **uma única vez** na geração (o banco guarda apenas o hash SHA-256); a página admin lista prefixo, último uso e validade, e permite revogar/excluir. Tokens inválidos, expirados ou revogados retornam `401` com `WWW-Authenticate: Bearer`; requisição sem token funciona com o payload público (não há bloqueio).
+O valor completo do token é exibido **uma única vez** na geração (o banco guarda apenas o hash SHA-256); a página admin lista prefixo, último uso e validade, e permite revogar/excluir — operações restritas ao criador do token (ou ao super-admin). Tokens inválidos, expirados ou revogados retornam `401` com `WWW-Authenticate: Bearer`; requisição sem token funciona com o payload público (não há bloqueio).
 
 ### Endpoints
 
@@ -745,7 +767,7 @@ O valor completo do token é exibido **uma única vez** na geração (o banco gu
 | `classroom_id` / `classroom_code` | ID ou código da sala (ex.: `S101`) | — |
 | `teacher_id`, `course_id`, `subject_id` | IDs numéricos | — |
 | `period` | `morning`, `afternoon` ou `night` | — |
-| `unity_id` | ID da unidade — respeitado apenas por anônimos e por quem pode alternar unidade; usuário comum fica preso à própria unidade | unidade do usuário / primeira ativa |
+| `unity_id` | ID da unidade — anônimos consultam qualquer unidade ativa; tokens só aceitam a unidade se ela estiver dentro do escopo da conta (fora do escopo, `404`) | unidade do usuário / primeira ativa |
 | `page` / `per_page` | Paginação (`per_page` máximo 500) | `1` / `100` |
 
 ### Exemplos
@@ -810,7 +832,7 @@ Para conhecer/apresentar **cada parte do sistema** com dados realistas, use `fla
 - **7 categorias de sala** (Sala de Aula, Auditório com janela semanal no totem, Cozinha Pedagógica, Labs de Informática com contagem de computadores, Labs de Saúde, Quadra e Sala de Reunião) e **17 salas** — uma delas inativa;
 - **Cursos e disciplinas** por unidade (um curso inativo), incluindo disciplinas **sem curso** — no agendamento, ao selecionar um curso a lista mostra só as disciplinas dele; sem curso, todas aparecem — e **feriados** (nacionais + municipal, incluindo um registro inativo);
 - **Reservas em todas as situações**: aprovadas hoje (manhã/tarde/noite), pendente por **conflito de professor**, pendente normal, cancelada, passada (somente leitura), futuras com curso/disciplina/professor, uma **série de repetição** (5 semanas, gerenciável em lote), reserva com parecer de aprovação e eventos de auditório na janela semanal do totem;
-- **Financeiro**: hora extra no mês base corrente e **Vale-Transporte** com os três grupos da exportação (Professores, Faculdade, Restaurante), optantes/não optantes, nome padronizado ("nome ajustado") e inconsistências de matrícula/nome repetidos;
+- **Financeiro**: hora extra no mês base corrente e **Vale-Transporte** cobrindo técnicos (pedidos nas unidades Faculdade e Restaurante) e professores, optantes/não optantes, nome padronizado ("nome ajustado") e inconsistências de matrícula/nome repetidos;
 - **Cozinha**: 2 preparações completas (uma com **escala de porções** salva e um ingrediente **inativo** fora da requisição de compra), com os `.docx` reais na pasta de uploads, e uma ficha **pendente** aguardando "Salvar Ficha Técnica";
 - **Token da API de reservas** com valor fixo para testar `/api/v1` sem gerar token no painel.
 
@@ -852,13 +874,16 @@ Papéis e permissões são cadastrados no banco pelo `seed`/`sync-permissions` e
 
 ## 🗂️ Catálogo de Permissões
 
-Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
+Códigos definidos em `app/commands.py` e usados pelos decoradores de rota (a
+matriz completa papel × permissão é gerada em [docs/permissoes.md](docs/permissoes.md)):
 
 | Código | Descrição |
 |--------|-----------|
 | `user:read` / `user:create` / `user:edit` / `user:toggle` | Visualizar / criar / editar / ativar-desativar usuários |
+| `user:lock` | Bloquear/desbloquear acesso de usuários (conta travada por tentativas de login) |
 | `unity:read` / `unity:create` / `unity:edit` / `unity:toggle` | Visualizar / criar / editar / ativar-desativar unidades |
-| `unity:switch` | Alternar a unidade ativa de operação |
+| `unity:switch` | Alternar a unidade ativa de operação (reservada ao super-admin) |
+| `unity:modules` | Ativar/desativar módulos da unidade (Cozinha, Financeiro) |
 | `room:read` / `room:create` / `room:edit` / `room:toggle` | Visualizar / criar / editar / ativar-desativar salas |
 | `reservation:read_all` / `reservation:read_own` | Ver todas / próprias reservas |
 | `reservation:create` | Criar reservas |
@@ -868,6 +893,7 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `reservation:cancel_all` / `reservation:cancel_own` | Cancelar todas / próprias reservas |
 | `reservation:approve` | Aprovar reservas pendentes |
 | `course:read` / `course:create` / `course:edit` / `course:toggle` | Visualizar / criar / editar / ativar-desativar cursos e disciplinas |
+| `course_type:read` / `course_type:create` / `course_type:edit` / `course_type:toggle` | Visualizar / criar / editar / ativar-desativar Tipos de Curso (catálogo do lançamento de Hora Extra) |
 | `holiday:read` / `holiday:create` / `holiday:edit` / `holiday:delete` | Visualizar / criar / editar / excluir feriados |
 | `holiday:import` | Importar feriados da BrasilAPI |
 | `payment:read` | Ver lançamentos de pagamento extra (hora extra) |
@@ -881,8 +907,10 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 | `kitchen:sheet_create` | Enviar e salvar fichas técnicas (DOCX) |
 | `kitchen:sheet_delete` | Excluir fichas técnicas e preparações |
 | `kitchen:shopping_export` | Gerar e exportar a requisição de compra |
+| `notification:manage` / `notification:groups` | Configurar o aviso de sobrecarga de professor / gerenciar os grupos de notificação da unidade |
 | `system:dashboard` | Acessar painel administrativo |
 | `system:export` | Exportar dados diversos |
+| `system:audit` | Consultar trilha de auditoria (Painel → Auditoria) |
 | `api:manage` | Gerenciar tokens de acesso à API de reservas |
 | `role:read` / `role:create` / `role:edit` / `role:delete` | Visualizar / criar / editar / excluir papéis |
 | `meal:read` / `meal:create` | Acessar o Vale Alimentação - Professores / lançar dias trabalhados |
@@ -901,6 +929,10 @@ Códigos definidos em `app/commands.py` e usados pelos decoradores de rota:
 - **Proteção contra double-booking concorrente:** locks por (sala, data), revalidação atômica na gravação e, em PostgreSQL, `SELECT ... FOR UPDATE` + advisory locks
 - **Proteção contra auto-desativação:** administradores não podem desativar sua própria conta
 - **Troca de senha forçada** no primeiro login ou após reset administrativo
+- **Política de senha:** mínimo de 8 caracteres com 1 letra maiúscula e 1 número, aplicada em todos os pontos de definição (primeiro acesso, perfil e cadastro/edição de usuários)
+- **Bloqueio de conta** após 10 tentativas de login falhas, com desbloqueio pelo Painel Admin (`user:lock`) ou pela CLI (`flask --app run unlock-user`) — sempre registrado na trilha de auditoria
+- **Trilha de auditoria de segurança** em `audit_logs` (logins e falhas, troca/reset de senha, bloqueios, ciclo de usuários), consultável no Painel Admin (`/admin/auditoria`, permissão `system:audit`)
+- **Uploads `.docx`/`.xlsx` validados** pela assinatura ZIP real do conteúdo, não apenas pela extensão
 - **Bloqueio de edição/exclusão** de reservas passadas (inclusive para administradores)
 - **Regras temporais** em hora extra: janela de lançamento 21→20 e meses fechados pelo gestor ficam somente leitura
 - **`SECRET_KEY` obrigatória em produção** (fail-fast no boot fora do modo debug)

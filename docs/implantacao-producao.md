@@ -8,6 +8,10 @@ atualização, backup, monitoramento e solução de problemas.
 > **Arquitetura de referência:** Nginx (TLS/proxy) → Gunicorn (WSGI) → Flask · PostgreSQL · Redis
 > 🛠️ **Para desenvolver na sua máquina, leia:** [desenvolvimento-debug.md](desenvolvimento-debug.md)
 > 📡 **API para integrações externas:** [api-reservas.md](api-reservas.md)
+> 🪄 **Instalação guiada:** o script `python setup_interativo.py` (na raiz do
+> repositório) automatiza os passos 1–5 e traz modos de manutenção ("Atualizar o
+> sistema" e "Restaurar backup") — este guia é o caminho detalhado, comando a
+> comando, do que o script executa.
 
 ---
 
@@ -76,7 +80,7 @@ O papel de cada componente — e por que ele é recomendado:
 ## 📋 Requisitos
 
 - Servidor **Debian/Ubuntu** (ou derivado) com acesso root (`sudo`)
-- **Python 3.11+** (`python3 --version`) — exigido pelas dependências fixadas no `requirements.txt` (o Pillow 13 exige 3.11 ou superior)
+- **Python 3.11+** (`python3 --version`) — exigido pelas dependências fixadas no `requirements.txt` (o Pillow 13 exige 3.11 ou superior; o CI do projeto valida em 3.14)
 - Um **domínio** apontando para o servidor (ex.: `sigere.sua-instituicao.edu.br`) — necessário para o certificado HTTPS
 - **Internet de saída** para os serviços externos usados pelo sistema:
 
@@ -238,10 +242,17 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
 | `BACKUP_S3_BUCKET` | Opcional | Bucket compatível com a API S3 para o `flask --app run backup` enviar os snapshots; ausente/vazio = backup apenas local |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Com o bucket | Credenciais do bucket (AWS S3, Backblaze B2, Cloudflare R2, Wasabi, MinIO, Google Cloud Storage via chaves HMAC) |
 | `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` | Opcional | Pasta local dos backups (padrão `backups/`) e dias de retenção (padrão `14`) — valem para a pasta e para o bucket |
+| `BACKUP_S3_ENDPOINT` / `BACKUP_S3_REGION` / `BACKUP_S3_PATH_STYLE` | Com o bucket | Endpoint e região para provedores fora da AWS; `BACKUP_S3_PATH_STYLE="true"` para os que exigem path-style (ex.: MinIO) |
+| `BACKUP_S3_PREFIX` | Opcional | Prefixo dos objetos no bucket (padrão `sigere`) |
+| `BACKUP_PG_DUMP_BIN` | Opcional | Caminho alternativo do binário `pg_dump` quando ele não está no `PATH` |
 | `MAIL_SMTP_HOST` / `MAIL_FROM` | Opcional | Espelho por e-mail das notificações (`flask --app run notify-email`): servidor SMTP e remetente. Ausentes/vazios = envio por e-mail desativado (o sino in-app segue normal) |
 | `MAIL_SMTP_PORT` / `MAIL_SMTP_USER` / `MAIL_SMTP_PASSWORD` / `MAIL_SMTP_STARTTLS` | Com o SMTP | Porta (padrão `587`), credenciais e STARTTLS (padrão `1`) do servidor de e-mail |
 | `MAIL_MAX_ATTEMPTS` | Opcional | Tentativas de envio por notificação antes de sair da fila do espelho de e-mail (padrão `10`) |
 | `BASE_URL` | Com o SMTP | URL pública do sistema (ex.: `https://sigere.suaorg.gov.br`) — compõe os links absolutos dos e-mails |
+
+> `FLASK_DEBUG` **não** deve ser definida em produção — é ela que desliga as
+> exigências de segurança (aceita a `SECRET_KEY` de desenvolvimento, cookie sem
+> `Secure`, debugger do Werkzeug) e habilita o `seed-demo`.
 
 Restrinja a leitura do arquivo:
 
@@ -270,7 +281,7 @@ cd /var/www/sigere
 set -a; source .env; set +a    # carrega o .env no shell atual
 
 venv/bin/flask --app run db upgrade     # cria o schema (Alembic)
-venv/bin/flask --app run seed-admin     # cria SÓ o admin, senha definida interativamente (mín. 8 caracteres, oculta)
+venv/bin/flask --app run seed-admin     # cria SÓ o admin, senha definida interativamente (mín. 8 caracteres, 1 maiúscula e 1 número; oculta)
 ```
 
 > ⚠️ **Não use `sudo -u www-data` nestes comandos.** O `sudo` descarta as
@@ -284,6 +295,11 @@ venv/bin/flask --app run seed-admin     # cria SÓ o admin, senha definida inter
 > ⚠️ **Não use `flask seed` em produção**: além do admin, ele oferece dados de
 > demonstração (contas com senhas conhecidas, 29 salas fictícias etc.).
 > `seed-admin` cria exclusivamente a conta do administrador.
+>
+> ⚠️ **`flask seed-demo` também é recusado em produção** — o cenário de
+> demonstração completo (com credenciais públicas no código) só roda com
+> `FLASK_DEBUG=true`; com `SIGERE_PERMITIR_SEED_DEMO=1` ele pode ser forçado,
+> o que **nunca** deve acontecer no servidor. Se ele recusar, é intencional.
 
 Opcional — unidades do Senac SC (idempotente, pode rodar de novo sem duplicar):
 
@@ -478,16 +494,21 @@ set -a; source .env; set +a    # variáveis para os comandos flask abaixo
 git pull
 venv/bin/pip install -r requirements.txt gunicorn   # cobre dependências novas
 venv/bin/flask --app run db upgrade                 # aplica migrações de schema
+venv/bin/flask --app run sync-permissions           # permissões/papéis novos (sempre rode)
 sudo systemctl restart sigere
-# Se algum módulo novo trouxer permissões/papéis:
-venv/bin/flask --app run sync-permissions
 ```
 
 Notas:
 
-- O boot executa um `sync-permissions` **silencioso e idempotente** a cada
-  partida — permissões de módulos novos costumam entrar sem passo manual; o
-  comando explícito serve para o fluxo documentado e para ver o que foi criado.
+- **`sync-permissions` é passo obrigatório da atualização**: o boot **não**
+  executa sincronização de permissões (o DML concorrente derrubaria workers
+  paralelos do Gunicorn). O comando é idempotente — rodar sempre não custa nada
+  e garante que permissões/papéis de módulos novos entrem.
+- O script `python setup_interativo.py` traz o modo **"Atualizar o sistema"**
+  (backup → `git pull --ff-only` → dependências → `db upgrade` →
+  `sync-permissions`) se preferir a rotina guiada — mas mantenha **duas venvs
+  em mente**: o script usa `.venv` e o serviço documentado executa `venv/bin/gunicorn`;
+  atualize sempre a venv que o serviço realmente executa (`systemctl cat sigere`).
 - Se a atualização só mudou código Python/templates (sem dependências nem
   migrações), `sudo systemctl reload sigere` basta e não derruba requisições.
 - Migrações são seguras de rodar com o serviço no ar (Alembic), mas a prática
@@ -618,6 +639,10 @@ Alternativa com cron (no `crontab -e` do seu usuário):
 
 #### Restaurar
 
+> O `setup_interativo.py` tem o modo **"Restaurar backup"** (SQLite e
+> PostgreSQL, com `dropdb`/`createdb`/`psql ON_ERROR_STOP`) — alternativa
+> guiada aos passos manuais abaixo.
+
 - **PostgreSQL:** `gunzip -c sigere-....sql.gz | psql "postgresql://sigere:senha@localhost:5432/sigere"` —
   o dump recria schema e dados. Para partir de um banco limpo, recrie antes:
   `sudo -u postgres dropdb --if-exists sigere && sudo -u postgres createdb -O sigere sigere`.
@@ -746,7 +771,8 @@ Para conferir o que a varredura criaria sem gravar nada:
 | Upload falha com `413` | `client_max_body_size` do Nginx menor que o arquivo | Aumente no Nginx (mantendo ≥ 16 MB da aplicação) |
 | Upload falha com `500` / ficha não aparece | `instance/uploads/` inexistente ou sem permissão de escrita para `www-data` | Recrie com o dono certo: `sudo mkdir -p /var/www/sigere/instance/uploads && sudo chown -R www-data:www-data /var/www/sigere/instance` |
 | Clima do totem "N/A" | Unidade sem coordenadas e/ou sem internet para Open-Meteo | Configure o clima por unidade no painel; teste a saída para `api.open-meteo.com` |
-| API responde `401` para um token que funcionava | Token revogado/expirado ou conta do criador desativada | Reemita o token em Painel Admin → Tokens da API ([detalhes](api-reservas.md)) |
+| `API responde 401` para um token que funcionava | Token revogado/expirado ou conta do criador desativada | Reemita o token em Painel Admin → Tokens da API ([detalhes](api-reservas.md)) |
+| Login exibe "Sua conta está bloqueada por excesso de tentativas de acesso" | 10 tentativas de senha erradas bloqueiam a conta automaticamente | Desbloqueio no **Painel Admin → Usuários** (requer `user:lock`) ou pela CLI, como o seu usuário: `set -a; source .env; set +a` e `venv/bin/flask --app run unlock-user email@dominio` — o desbloqueio fica registrado na trilha de auditoria. O painel não desbloqueia o super-admin; para ele, use a CLI |
 | `⚠️ Banco de dados vazio` no log após atualizar | Migração não aplicada | Como o seu usuário: `set -a; source .env; set +a` e `venv/bin/flask --app run db upgrade` (passo 5) |
 | Exportações Excel com erro de permissão | Diretório temporário/`static` sem permissão para `www-data` | Revise `chown` de `/var/www/sigere` (arquivos pertencem a `www-data`) |
 
@@ -805,10 +831,13 @@ O que a aplicação já faz sozinha (verificar que o ambiente permite cada item)
 - **Cookies de sessão endurecidos** — `Secure` automático fora do debug e `SameSite=Lax`.
 - **CSRF global** — todo POST exige token; erros de CSRF caem em mensagem amigável.
 - **Rate limiting** — login 5 tentativas/min por IP; API 120 req/min por endpoint/IP (Flask-Limiter + Redis).
+- **Política de senha** — mínimo de 8 caracteres com 1 letra maiúscula e 1 número em todos os pontos de definição (primeiro acesso, perfil, cadastro/edição de usuários, `seed-admin`).
+- **Bloqueio de conta** após 10 tentativas de login falhas — desbloqueio pelo painel (`user:lock`) ou pela CLI (`flask --app run unlock-user`), sempre registrado na trilha.
+- **Trilha de auditoria** em `audit_logs` (logins e falhas, senhas, bloqueios, ciclo de usuários) — consultável em Painel Admin → Auditoria (`system:audit`); útil após qualquer incidente para ver quem fez o quê.
 - **Anti double-booking** — locks por (sala, data), revalidação atômica e, em PostgreSQL, `SELECT ... FOR UPDATE` + advisory locks.
 - **Hash de senhas** com Werkzeug; troca forçada no primeiro login e após reset administrativo.
-- **Tokens da API como hash SHA-256** — vazamento do banco não revela tokens; revogação imediata.
-- **Uploads fora de `static/`** — `instance/uploads/` só é acessível por rota autenticada.
+- **Tokens da API como hash SHA-256** — vazamento do banco não revela tokens; revogação imediata; listagem/revogação/exclusão restritas ao criador (ou super-admin).
+- **Uploads fora de `static/`** — `instance/uploads/` só é acessível por rota autenticada; `.docx`/`.xlsx` enviados exigem a assinatura ZIP real do conteúdo.
 - **Limite de 16 MB** por requisição (`MAX_CONTENT_LENGTH`).
 - **Proteção contra auto-desativação** — administrador não desativa a própria conta.
 
@@ -822,7 +851,8 @@ O que **você** precisa garantir no servidor:
 - [ ] Firewall mínimo: apenas 22, 80 e 443 abertos (`sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw enable`)
 - [ ] Servidor atualizado (`sudo apt update && sudo apt upgrade` periódicos ou `unattended-upgrades`)
 - [ ] Backup do banco agendado (`sigere-backup.timer`) com bucket na nuvem configurado e um ensaio de restore feito (seção de operação); `instance/uploads/` copiada também
-- [ ] Conta `admin` com senha forte — **nunca** rodar `flask seed` (dados de demonstração) no servidor
+- [ ] Conta `admin` com senha forte — **nunca** rodar `flask seed`/`flask seed-demo` (dados de demonstração) no servidor
+- [ ] `flask --app run sync-permissions` executado após cada atualização (permissões/papéis novos — o boot não sincroniza)
 
 ---
 
@@ -845,9 +875,10 @@ cortar requisições em andamento). Use `restart` quando o `.env` ou a unit do
 systemd mudarem — variáveis de ambiente só são relidas no restart.
 
 **Preciso rodar `sync-permissions` em toda atualização?**
-Não obrigatoriamente: o boot roda a mesma sincronização em modo silencioso.
-Rode o comando explícito quando a nota de versão citar permissões/papéis novos
-e você quiser ver o que foi criado.
+Sim — é passo da rotina da seção 10. O boot **não** executa a sincronização
+(intencionalmente: o DML concorrente derruba workers paralelos do Gunicorn).
+O comando é idempotente e rápido; rode sempre após o `db upgrade`, mesmo que a
+nota de versão não cite permissões novas.
 
 **Onde ficam os arquivos que os usuários enviam?**
 `/var/www/sigere/instance/uploads/`. Não versionados, não servidos pelo Nginx —
@@ -858,7 +889,11 @@ Pelo banco não (há apenas hash). O caminho suportado: outro administrador usa
 Painel Admin → Usuários → *Resetar senha* (gera senha temporária exibida uma
 única vez). Sem outro admin, recrie a conta em um banco de testes e copie o
 hash de senha para o registro do `admin` em produção, ou recrie o usuário via
-uma sessão `flask --app run shell` com `generate_password_hash`.
+uma sessão `flask --app run shell` com `generate_password_hash` — a senha
+escolhida deve cumprir a política (mín. 8 caracteres, 1 maiúscula e 1 número).
+Se o problema for **conta bloqueada** (10 tentativas erradas) e não senha
+perdida, a CLI resolve: `flask --app run unlock-user admin@school.edu` (com o
+`.env` carregado; o desbloqueio fica na trilha de auditoria).
 
 **A API fica pública na internet?**
 Os endpoints `/api/v1/...` respondem sem token com o payload público

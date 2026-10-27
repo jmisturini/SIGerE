@@ -24,6 +24,7 @@ bots, etc.).
 - [Escopo multi-unidade](#-escopo-multi-unidade)
 - [Erros](#-erros)
 - [Limites de requisições](#-limites-de-requisições)
+- [CORS](#-cors)
 - [Exemplos práticos](#-exemplos-práticos)
   - [cURL](#curl)
   - [Python (requests)](#python-requests)
@@ -90,7 +91,8 @@ Como funciona:
   SHA-256, então um vazamento do banco não revela nenhum token válido.
 - A listagem mostra o **prefixo** do token, quem criou, quando foi usado pela
   última vez, a validade e o status; tokens podem ser **revogados** (sem perder
-  o histórico), reativados ou excluídos permanentemente.
+  o histórico), reativados ou excluídos permanentemente — listagem, revogação
+  e exclusão ficam restritas ao **criador** do token (ou ao super-admin).
 - O **escopo de dados** do token é o da conta que o criou: as reservas ficam
   limitadas às unidades do criador (a menos que a conta possa alternar
   unidade — super-admin (`*`) ou vínculo com mais de uma unidade — usando
@@ -142,7 +144,7 @@ Lista paginada de reservas da unidade escopada.
 | `course_id` | inteiro | — | Filtra por curso |
 | `subject_id` | inteiro | — | Filtra por disciplina |
 | `period` | `morning` · `afternoon` · `night` | — | Manhã (00:00–12:00), tarde (12:00–18:00) ou noite (18:00–23:59). Considera sobreposição: uma reserva 11:00–13:00 aparece em `morning` **e** `afternoon` |
-| `unity_id` | inteiro | unidade do usuário / primeira ativa | Escolhe a unidade (respeitado apenas por anônimos e por quem pode alternar unidade) |
+| `unity_id` | inteiro | unidade do usuário / primeira ativa | Escolhe a unidade — anônimos consultam qualquer unidade ativa; tokens só aceitam a unidade se ela estiver **dentro do escopo da conta** (fora do escopo, `404`). Ver [Escopo multi-unidade](#-escopo-multi-unidade) |
 | `page` | inteiro (≥ 1) | `1` | Página atual |
 | `per_page` | inteiro (1–500) | `100` | Itens por página |
 
@@ -229,7 +231,8 @@ curl -H "Authorization: Bearer sige_SEU_TOKEN" \
 ```
 
 Campos anuláveis quando a reserva não os usa: `description`, `teacher`, `course`,
-`subject`, `reviewed_by`, `review_note`, `repeat_group_id`.
+`subject`, `reviewed_by`, `review_note`, `repeat_group_id` e `unity` (reservas
+legadas importadas sem unidade).
 
 ---
 
@@ -301,6 +304,9 @@ O SIGerE é multi-unidade e a API respeita o isolamento de dados:
 | **Token de super-admin (`*`) ou de conta com mais de um vínculo de unidade** | A primeira unidade do escopo por padrão; `?unity_id=<id>` troca o escopo |
 | **Token de usuário sem unidade ativa no escopo** | `404` — o escopo vazio não cai na primeira unidade do sistema |
 
+> **Nota:** um `unity_id` que não seja número inteiro é ignorado (a consulta
+> cai no caso "sem `unity_id`" da linha correspondente ao chamador).
+
 Cada resposta inclui o campo `unity_id` no topo para o cliente confirmar o escopo
 que recebeu. Reservas de outra unidade jamais aparecem — e o detalhe delas responde
 `404`, não `403`.
@@ -309,7 +315,8 @@ que recebeu. Reservas de outra unidade jamais aparecem — e o detalhe delas res
 
 ## ❌ Erros
 
-Todos os erros retornam JSON com a chave `error` (nunca uma página HTML):
+Todos os erros sob `/api/` retornam JSON com a chave `error` — nunca uma página
+HTML, inclusive para caminhos inexistentes ou método não suportado:
 
 ```json
 { "error": "Token inválido, expirado ou revogado." }
@@ -325,6 +332,25 @@ Todos os erros retornam JSON com a chave `error` (nunca uma página HTML):
 > **Importante:** requisição **sem** token não gera `401` — ela é atendida
 > com o payload público. O `401` ocorre somente quando o token enviado
 > é inválido, expirado ou revogado.
+>
+> **Fora dos endpoints também:** rota inexistente sob `/api/v1/…` responde
+> `404` em JSON e método não suportado (ex.: `POST` — a API é somente leitura)
+> responde `405` em JSON com o cabeçalho `Allow` indicando o método aceito.
+
+---
+
+## 🌍 CORS
+
+A API responde com cabeçalhos CORS em **todas** as respostas, para permitir apps
+hospedados em outra origem/porta (como o quadro de sala de porta de
+[examples/quadro-sala](../examples/quadro-sala/)):
+
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Methods: GET, OPTIONS`
+- `Access-Control-Allow-Headers: Authorization`
+
+O preflight (`OPTIONS`) é aceito automaticamente. Como a API é somente leitura,
+apenas `GET` é permitido.
 
 ---
 
