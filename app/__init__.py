@@ -153,6 +153,18 @@ def create_app(config_class=Config):
             return jsonify({'error': 'Erro interno do servidor.'}), 500
         return render_template('errors/500.html'), 500
 
+    # CORS das respostas sob /api/ — inclusive erros de roteamento (404/405),
+    # que não passam pelo after_request do blueprint porque nenhuma rota foi
+    # casada. setdefault: nos endpoints do blueprint os cabeçalhos já foram
+    # aplicados (mesmos valores) e aqui só completam o que falta.
+    @app.after_request
+    def cors_api(response):
+        if request.path.startswith('/api/'):
+            response.headers.setdefault('Access-Control-Allow-Origin', '*')
+            response.headers.setdefault('Access-Control-Allow-Methods', 'GET, OPTIONS')
+            response.headers.setdefault('Access-Control-Allow-Headers', 'Authorization')
+        return response
+
     # CSRF rejeitado (token ausente/expirado — típico de sessão expirada):
     # mensagem amigável em vez de página "Bad Request" crua.
     from flask_wtf.csrf import CSRFError

@@ -171,11 +171,16 @@ class ApiTokensAdminTestCase(unittest.TestCase):
             self.assertAlmostEqual(delta.total_seconds(), 365 * 86400, delta=60)
 
     def test_duracao_fora_do_catalogo_e_recusada(self):
-        """POST forjado com duração fora da whitelist não cria token."""
+        """POST forjado com duração fora da whitelist — ou não numérica,
+        que não pode virar "sem expiração" — não cria token."""
         self.client.post('/admin/api-tokens/create',
                          data={'name': 'Validade forjada', 'duration': 7})
         self.client.post('/admin/api-tokens/create',
                          data={'name': 'Validade negativa', 'duration': -30})
+        self.client.post('/admin/api-tokens/create',
+                         data={'name': 'Validade não numérica', 'duration': 'abc'})
+        self.client.post('/admin/api-tokens/create',
+                         data={'name': 'Sem campo duration'})
         with self.app.app_context():
             self.assertEqual(ApiToken.query.count(), 0)
 
