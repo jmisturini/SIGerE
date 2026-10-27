@@ -82,6 +82,11 @@ O `gh` **não está instalado/autenticado** nas máquinas usadas até agora. Cam
   próprio diretório do repo (apagar depois). Payloads JSON de PR/merge em **arquivo
   UTF-8** evitam erro 400 com acentos no `-d` inline.
 - Deletar branch remota: `DELETE /repos/jmisturini/SIGerE/git/refs/heads/...` (retorna 204).
+- **Criar a GitHub Release** (equivalente ao `gh release create` do passo 4):
+  `POST /repos/jmisturini/SIGerE/releases` com payload
+  `{"tag_name": "vX.Y.Z", "name": "SIGerE vX.Y.Z — <título da entrada>",
+  "body": "<texto da entrada em app/version.py>", "target_commitish": "main"}`
+  (a tag já deve existir; `body` aceita markdown).
 
 ## 4. Ciclo de release
 
@@ -92,7 +97,9 @@ Só há release quando houver bump: mudança de código visível ou entrada de c
 2. PR → `dev` (CI verde) → PR `dev` → `main` (CI verde).
 3. **Tag anotada no commit de merge dev→main da main** (não no merge na dev):
    `git tag -a vX.Y.Z <sha-do-merge> -m "SIGerE vX.Y.Z"` + `git push origin vX.Y.Z`.
-4. **GitHub Release** a partir da tag:
+4. **GitHub Release** a partir da tag (pré-requisito: `gh` instalado e
+   autenticado — `gh auth login`; nas máquinas sem `gh`, siga a seção
+   "Sem `gh` CLI" e publique pela API):
    `gh release create vX.Y.Z --notes-file notas.md --title "SIGerE vX.Y.Z — <título da entrada>"`
    — copie título e grupos da entrada
    correspondente de `RELEASES` em `app/version.py` (Notas geradas por IA e changelog

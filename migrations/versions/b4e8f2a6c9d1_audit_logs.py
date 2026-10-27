@@ -21,29 +21,34 @@ branch_labels = None
 depends_on = None
 
 
-def _tem_tabela(inspector, tabela):
-    return tabela in inspector.get_table_names()
-
-
 def upgrade():
     inspector = sa.inspect(op.get_bind())
 
-    if not _tem_tabela(inspector, 'audit_logs'):
-        op.create_table(
-            'audit_logs',
-            sa.Column('id', sa.Integer(), nullable=False),
-            sa.Column('created_at', sa.DateTime(), nullable=False),
-            sa.Column('evento', sa.String(50), nullable=False),
-            sa.Column('actor_id', sa.Integer(), nullable=True),
-            sa.Column('actor_email', sa.String(120), nullable=True),
-            sa.Column('alvo', sa.String(120), nullable=True),
-            sa.Column('ip', sa.String(45), nullable=True),
-            sa.Column('detalhes', sa.Text(), nullable=True),
-            sa.ForeignKeyConstraint(['actor_id'], ['users.id'], ondelete='SET NULL'),
-            sa.PrimaryKeyConstraint('id'),
-        )
-        op.create_index('ix_audit_logs_created_at', 'audit_logs', ['created_at'])
-        op.create_index('ix_audit_logs_evento', 'audit_logs', ['evento'])
+    if 'audit_logs' in inspector.get_table_names():
+        # Recusar: se a revisão for registrada com a tabela preexistente
+        # ignorada, um downgrade posterior executaria drop_table e apagaria
+        # histórico que esta revisão não criou. Conciliar manualmente (db
+        # stamp b4e8f2a6c9d1 se a tabela já é a da trilha) antes de seguir.
+        raise RuntimeError(
+            "A tabela 'audit_logs' já existe e a revisão b4e8f2a6c9d1 não "
+            "está aplicada. A origem dela é desconhecida (criada fora desta "
+            "migração) — concilie manualmente antes de prosseguir para o "
+            "downgrade não apagar um histórico que não foi criado aqui.")
+    op.create_table(
+        'audit_logs',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=False),
+        sa.Column('evento', sa.String(50), nullable=False),
+        sa.Column('actor_id', sa.Integer(), nullable=True),
+        sa.Column('actor_email', sa.String(120), nullable=True),
+        sa.Column('alvo', sa.String(120), nullable=True),
+        sa.Column('ip', sa.String(45), nullable=True),
+        sa.Column('detalhes', sa.Text(), nullable=True),
+        sa.ForeignKeyConstraint(['actor_id'], ['users.id'], ondelete='SET NULL'),
+        sa.PrimaryKeyConstraint('id'),
+    )
+    op.create_index('ix_audit_logs_created_at', 'audit_logs', ['created_at'])
+    op.create_index('ix_audit_logs_evento', 'audit_logs', ['evento'])
 
 
 def downgrade():
