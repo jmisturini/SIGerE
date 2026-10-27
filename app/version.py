@@ -39,8 +39,8 @@ RELEASES = [
                 'ao manual, além de novos temas de cor de destaque.',
                 'O comando seed cria o administrador com senha aleatória exibida uma única vez e '
                 'troca obrigatória no primeiro login — o par fixo admin@school.edu/admin123 não '
-                'existe mais; o seed-demo é recusado fora do modo desenvolvimento '
-                '(SIGERE_PERMITIR_SEED_DEMO=1 força).',
+                'existe mais; o seed-demo é recusado fora do modo desenvolvimento e '
+                'dos testes automatizados (SIGERE_PERMITIR_SEED_DEMO=1 força).',
                 'Dependências: dnspython 2.9.0 (CVE-2026-114605 apontada pelo pip-audit do CI).',
             ]),
             ('Corrigido', [
