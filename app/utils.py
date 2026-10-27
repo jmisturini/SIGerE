@@ -18,12 +18,18 @@ def auditar(evento, **campos):
     replica no log da aplicação (journal em produção): a linha no log é a
     cópia de defesa — se o banco falhar, o registro permanece. NUNCA passar
     senha, hash ou token nos campos.
+
+    Chamada de comandos CLI (fora de contexto HTTP): passar `origem='cli'`
+    — o registro sai sem ator de sessão nem IP, com `operador=<usuário do
+    servidor>` nos detalhes. Sem isso, ações como o desbloqueio do único
+    super-admin pela CLI aconteceriam sem trilha.
     """
-    if not has_request_context():
-        return
+    em_request = has_request_context()
+    origem = campos.pop('origem', 'web')
+    operador = campos.pop('operador', None)
     actor_id = None
     actor_email = None
-    if current_user.is_authenticated:
+    if em_request and current_user.is_authenticated:
         actor_id = int(current_user.get_id())
         actor_email = current_user.email
     alvo = campos.pop('alvo', None)
@@ -36,7 +42,12 @@ def auditar(evento, **campos):
 
     alvo_log = _sanitiza(alvo)
     detalhes = ' '.join(f'{k}={_sanitiza(v)}' for k, v in campos.items() if v is not None)
-    ip = request.remote_addr or '-'
+    if origem != 'web':
+        detalhes = ' '.join(filter(None, [f'origem={origem}',
+                                          f'operador={_sanitiza(operador)}'
+                                          if operador else None,
+                                          detalhes or None]))
+    ip = (request.remote_addr or '-') if em_request else '-'
     try:
         from app.models import AuditLog
         db.session.add(AuditLog(evento=evento, actor_id=actor_id,
@@ -47,9 +58,11 @@ def auditar(evento, **campos):
         db.session.rollback()
         current_app.logger.warning(
             '[AUDITORIA] evento=%s gravacao_banco=falha (registro segue no log)', evento)
-    current_app.logger.info('[AUDITORIA] evento=%s ator=%s ip=%s alvo=%s %s',
-                            evento, f'#{actor_id} <{actor_email}>' if actor_id else 'anonimo',
-                            ip, alvo_log, detalhes)
+    ator_log = (f'#{actor_id} <{actor_email}>' if actor_id
+                else actor_email if actor_email
+                else f'cli<{operador}>' if operador else 'anonimo')
+    current_app.logger.info('[AUDITORIA] evento=%s ator=%s origem=%s ip=%s alvo=%s %s',
+                            evento, ator_log, origem, ip, alvo_log, detalhes)
 
 
 def gerar_slug(texto):

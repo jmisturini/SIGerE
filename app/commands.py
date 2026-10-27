@@ -1,4 +1,5 @@
 """Comandos CLI customizados para o Flask."""
+import getpass
 import json
 import os
 import secrets
@@ -12,6 +13,7 @@ from app.models import (
     User, Classroom, Reservation, Course, Subject,
     TeacherOvertimePay, Role, Permission, RoomCategory, Unity
 )
+from app.utils import auditar
 from datetime import datetime, date, time, timedelta, timezone
 import random
 
@@ -453,6 +455,15 @@ def unlock_user_command(email):
         return
     usuario.desbloquear()
     db.session.commit()
+    try:
+        operador = getpass.getuser()
+    except (ImportError, OSError):
+        operador = None
+    # Trilha fora do contexto HTTP: a janela do painel não desbloqueia
+    # contas com '*' — sem este registro, o destrave do único super-admin
+    # pela CLI aconteceria sem auditoria.
+    auditar('conta_desbloqueada', alvo=usuario.email,
+            origem='cli', operador=operador)
     click.echo(click.style(
         f'✅ Conta {usuario.email} desbloqueada. O acesso foi restabelecido '
         'e o contador de tentativas foi zerado.', fg='green'))
