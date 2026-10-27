@@ -630,10 +630,11 @@ def _seed_pagamentos_demo(unidades, usuarios, admin):
 
 
 def _seed_vt_demo(unidades):
-    """Financeiro — Vale-Transporte: colaboradores cobrindo os três grupos da
-    exportação (Professores, Faculdade e Restaurante), optantes e não
-    optantes, nome padronizado (com original preservado) e as inconsistências
-    de matrícula/nome repetidos que ganham selos de aviso na listagem."""
+    """Financeiro — Vale-Transporte: colaboradores dos dois grupos da
+    exportação (Técnico-Administrativo — com pedidos nas unidades Faculdade e
+    Restaurante — e Professores), optantes e não optantes, nome padronizado
+    (com original preservado) e as inconsistências de matrícula/nome
+    repetidos que ganham selos de aviso na listagem."""
     ctr, _, _ = (unidades[c] for c in DEMO_UNITY_CODES)
 
     def colaborador(matricula, nome, optant, link, unity_pc, empresa_a=None,
@@ -1023,7 +1024,7 @@ def seed_demo_command(reset):
    Feriados ............. {Holiday.query.count()} (nacionais + municipal + 1 inativo)
    Reservas ............. {Reservation.query.count()} (hoje, pendente, conflito, cancelada, passada, série)
    Hora extra ........... {TeacherOvertimePay.query.count()} lançamentos (mês base atual)
-   Vale-Transporte ...... {VtRecord.query.count()} colaboradores (3 grupos + inconsistências)
+   Vale-Transporte ...... {VtRecord.query.count()} colaboradores (2 grupos de exportação + inconsistências)
    Cozinha .............. {KitchenRecipe.query.count()} preparações, {TechnicalSheet.query.count()} fichas (1 pendente)
 
    Logins (senha {DEMO_PASSWORD} para todos):

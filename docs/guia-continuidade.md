@@ -6,7 +6,7 @@
 > subconjunto transportável: o que uma sessão nova precisa saber para não recomeçar
 > do zero.
 >
-> **Última atualização:** 2026-10-22, logo após a release **v1.36.0** (fases 2 e 3 do redesign publicadas; main e dev alinhadas).
+> **Última atualização:** 2026-10-27, após a release **v1.37.0** (segurança: política de senha, bloqueio de conta e trilha de auditoria) e revisão completa da documentação (README, guias de docs/, permissoes.md regenerado e manual do usuário).
 > Ao fechar cada release, atualize a seção [Estado e pendências](#8-estado-e-pendências)
 > e a data acima.
 
@@ -33,7 +33,8 @@ de reservas (`/api/v1`) e página de totem.
 - **Docs do repo:** `README.md` (visão, instalação, permissões, contas demo),
   `CONTRIBUTING.md` (fluxo de branches e PRs — autoridade nesta matéria),
   `docs/implantacao-producao.md` (deploy passo a passo), `docs/desenvolvimento-debug.md`,
-  `docs/api-reservas.md`, `docs/permissoes.md`, `docs/migracao-legado.md`.
+  `docs/api-reservas.md`, `docs/permissoes.md` (gerado por `docs/gerar_permissoes.py`),
+  `docs/migracao-legado.md`, `docs/backlog-seguranca.md` (ideias de segurança futuras).
 
 ## 2. Preparando o ambiente (máquina nova)
 
@@ -44,14 +45,15 @@ de reservas (`/api/v1`) e página de totem.
 3. `pip install -r requirements.txt -r requirements-dev.txt`.
 4. Banco local: `flask --app run db upgrade` (aplica todas as migrations no
    `reservation.db`) e, para dados de demonstração, `flask --app run seed-demo`
-   (usuários demo, senha `demo1234`; `admin@school.edu` tem escopo `*`).
+   (usuários demo, senha `demo1234`; `admin@school.edu` tem escopo `*`) — só roda
+   com `FLASK_DEBUG=true` (ou `SIGERE_PERMITIR_SEED_DEMO=1` forçando).
 5. Ao servir requisições fora de `FLASK_DEBUG`, defina uma `SECRET_KEY` forte.
    Comandos CLI de manutenção (`flask db upgrade`, `seed-demo`…) são isentos
    pela fábrica. Embora `flask --app run run` seja carregado no contexto CLI,
    ele serve HTTP; fora de `FLASK_DEBUG`, defina `SECRET_KEY` manualmente
    antes de usar esse comando.
 6. Servidor de dev: `python run.py` (ou `flask --app run run` — ver item 5).
-7. Conferir a suíte: `pytest` (~766 testes, alguns minutos).
+7. Conferir a suíte: `pytest` (~807 testes, alguns minutos).
 
 ## 3. Fluxo de trabalho: branches e PRs
 
@@ -62,7 +64,7 @@ O detalhamento oficial está no `CONTRIBUTING.md`. O que não se deriva dele:
 - Branches temporárias `feature/`, `fix/`, `hotfix/`, `release/` sempre a partir da
   `dev` atualizada; **apagar local e remotamente** após o merge e realinhar a dev
   local com `git pull --ff-only`. Manter a working tree 100% limpa no fim de cada ciclo.
-- CI: job `tests` (pytest, ~4 min) e job `qualidade` (**bandit + pip-audit** — CVE em
+- CI: job `tests` (pytest, ~4 min) e job `qualidade` (**ruff + bandit + pip-audit** — CVE em
   dependência do `requirements.txt` derruba o CI mesmo com testes verdes; resolver
   com bump da versão pinada). Num PR, podem existir **2 check-runs** (push da dev +
   o PR em si): conferir todos antes de mesclar.
@@ -83,6 +85,8 @@ O `gh` **não está instalado/autenticado** nas máquinas usadas até agora. Cam
   UTF-8** evitam erro 400 com acentos no `-d` inline.
 - Deletar branch remota: `DELETE /repos/jmisturini/SIGerE/git/refs/heads/...` (retorna 204).
 - **Criar a GitHub Release** (equivalente ao `gh release create` do passo 4):
+  valide antes que a tag existe (`GET /repos/jmisturini/SIGerE/git/ref/tags/vX.Y.Z`
+  → 200 — sem isso o `POST` criaria a tag no commit da branch padrão) e então
   `POST /repos/jmisturini/SIGerE/releases` com payload
   `{"tag_name": "vX.Y.Z", "name": "SIGerE vX.Y.Z — <título da entrada>",
   "body": "<texto da entrada em app/version.py>", "target_commitish": "main"}`
@@ -100,10 +104,11 @@ Só há release quando houver bump: mudança de código visível ou entrada de c
 4. **GitHub Release** a partir da tag (pré-requisito: `gh` instalado e
    autenticado — `gh auth login`; nas máquinas sem `gh`, siga a seção
    "Sem `gh` CLI" e publique pela API):
-   `gh release create vX.Y.Z --notes-file notas.md --title "SIGerE vX.Y.Z — <título da entrada>"`
+   `gh release create vX.Y.Z --verify-tag --notes-file notas.md --title "SIGerE vX.Y.Z — <título da entrada>"`
    — copie título e grupos da entrada
    correspondente de `RELEASES` em `app/version.py` (Notas geradas por IA e changelog
-   automático não substituem a entrada curada). Desde a v1.36.0, toda release publicada
+   automático não substituem a entrada curada; `--verify-tag` impede o `gh` de
+   criar tag ausente apontando para a branch padrão). Desde a v1.36.0, toda release publicada
    ganha o objeto GitHub Release; a tag anotada continua sendo a referência primária.
 5. PR `main` → `dev` para realinhar (o merge da main traz a tag de volta à dev).
 
@@ -189,14 +194,13 @@ Mudança só de docs pode ir direto por PR sem release.
 
 ## 8. Estado e pendências
 
-Estado em **2026-10-22** (v1.36.0 publicada via PR #148; main = dev):
+Estado em **2026-10-27** (v1.37.0 publicada; documentação revisada):
 
 | Item | Situação |
 |---|---|
-| Fase 3 do redesign visual | **Concluída** (PR #146, v1.36.0): portal, salas, relatórios e páginas de erro com o design system; totem e home mantidos por decisão de projeto. |
-| Manual do usuário (`docs/manual-do-usuario.pdf`) | Desatualizado desde o redesign de notificações (v1.30.0) e do redesign visual — regenerar com `python docs/gerar_manual.py` após próxima release relevante. |
-| Produção (VM OCI) | Confirmar na VM: `db upgrade` (há migrations novas desde a v1.30.0 — hora extra/notificações dependem delas), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós update; ver seção 5). |
-| Branch `fix/coderabbit-review-legacy` | Resolvido: deletada (local e remota) na limpeza pré-fase 2. |
+| Documentação | Revisada em 2026-10-27: README, api-reservas, implantação-producao, desenvolvimento-debug, guia-continuidade, permissoes.md regenerado (73 permissões) e manual do usuário regenerado para a v1.37.0. |
+| Manual do usuário (`docs/manual-do-usuario.pdf`) | Atualizado para a v1.37.0 (2026-10-27): Adicional Noturno, fluxo de professor pendente, autocancel, política de senha, bloqueio de conta, auditoria. Regenerar com `python docs/gerar_manual.py` a cada release relevante. |
+| Produção (VM OCI) | Confirmar na VM: `db upgrade` **e `sync-permissions`** (o sync saiu do boot — há permissões novas na v1.37: `user:lock`, `system:audit`), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós update; ver seção 5). |
 | CI | Status check do `tests` ainda não é *required* — pode ser endurecido em Settings depois de comprovado estável. |
 
 ## 9. Memória local do ZCode (não viaja com o git)

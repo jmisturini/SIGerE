@@ -3,7 +3,7 @@
 > 🤖 **Documento gerado** por `docs/gerar_permissoes.py` a partir de
 > `PERMISSION_DATA` e `ROLES_CONFIG` (`app/commands.py`) — não editar à mão.
 > Após alterar o catálogo ou os papéis padrão, regenere com
-> `python docs/gerar_permissoes.py`. Última geração: 2026-10-15.
+> `python docs/gerar_permissoes.py`. Última geração: 2026-10-27.
 
 ## Como funciona
 
@@ -25,7 +25,7 @@ O SIGerE usa **RBAC** com permissões granulares:
 ## Papéis padrão
 
 - **Super Administrador** (`super_admin`, padrão do sistema) — 1 permissão
-- **Administrador** (`admin`, padrão do sistema) — 47 permissões
+- **Administrador** (`admin`, padrão do sistema) — 49 permissões
 - **Analista** (`coordinator`, padrão editável) — 16 permissões
 - **Gestor** (`room_manager`, padrão editável) — 36 permissões
 - **Professor** (`teacher`, padrão editável) — 7 permissões
@@ -37,7 +37,7 @@ qualquer combinação das permissões abaixo.
 
 ## Matriz papel × permissão
 
-71 permissões no catálogo. ✓ = o papel possui a permissão (o
+73 permissões no catálogo. ✓ = o papel possui a permissão (o
 Super Administrador tem tudo via `*`).
 
 | Permissão | Descrição | `super_admin` | `admin` | `coordinator` | `room_manager` | `teacher` | `employee` | `kitchen` |
@@ -108,6 +108,7 @@ Super Administrador tem tudo via `*`).
 | `room:toggle` | Ativar/desativar salas | ✓ | ✓ |  | ✓ |  |  |  |
 | **Sistema** (`system`) | |  |  |  |  |  |  |  |
 | `*` | Permissão universal (super admin) | ✓ |  |  |  |  |  |  |
+| `system:audit` | Consultar trilha de auditoria | ✓ | ✓ |  |  |  |  |  |
 | `system:dashboard` | Acessar painel administrativo | ✓ | ✓ |  |  |  |  |  |
 | `system:export` | Exportar dados diversos | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | **Unidades** (`unity`) | |  |  |  |  |  |  |  |
@@ -120,6 +121,7 @@ Super Administrador tem tudo via `*`).
 | **Usuários** (`user`) | |  |  |  |  |  |  |  |
 | `user:create` | Criar usuários | ✓ | ✓ |  |  |  |  |  |
 | `user:edit` | Editar usuários | ✓ | ✓ |  |  |  |  |  |
+| `user:lock` | Bloquear/desbloquear acesso de usuários | ✓ | ✓ |  |  |  |  |  |
 | `user:read` | Visualizar usuários | ✓ | ✓ |  |  |  |  |  |
 | `user:toggle` | Ativar/desativar usuários | ✓ | ✓ |  |  |  |  |  |
 | **Vale-Transporte** (`vt`) | |  |  |  |  |  |  |  |

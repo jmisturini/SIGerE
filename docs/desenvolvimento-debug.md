@@ -5,7 +5,7 @@ da máquina, modo debug, banco de dados local, migrações, testes automatizados
 depuração no dia a dia e os erros mais comuns (com as causas e as soluções).
 
 > **Público-alvo:** quem vai alterar o código, rodar os testes ou depurar o sistema na própria máquina.
-> **Arquitetura de referência:** Python 3.10+ · Flask 3.x · SQLAlchemy · Alembic · SQLite (local)
+> **Arquitetura de referência:** Python 3.11+ · Flask 3.x · SQLAlchemy · Alembic · SQLite (local)
 > 🚢 **Para instalar o sistema em servidor real, leia:** [implantacao-producao.md](implantacao-producao.md)
 
 ---
@@ -57,7 +57,7 @@ sozinhas a partir dela:
 
 ### Pré-requisitos
 
-- **Python 3.10 ou superior** (`python --version`) — exigido pelas dependências do `requirements.txt`
+- **Python 3.11 ou superior** (`python --version`) — exigido pelas dependências do `requirements.txt` (o Pillow 13 não instala em 3.10). O CI valida em 3.14.
 - **pip** e **git**
 - **Internet** — algumas telas dependem de serviços externos (clima do totem,
   importação de feriados, busca de endereço); o restante do sistema funciona
@@ -82,8 +82,8 @@ source venv/Scripts/activate
 # Windows (PowerShell):
 # venv\Scripts\Activate.ps1
 
-# 3. Instale as dependências (versões fixadas no requirements.txt)
-pip install -r requirements.txt
+# 3. Instale as dependências (produção + ferramentas de teste e qualidade)
+pip install -r requirements.txt -r requirements-dev.txt
 
 # 4. Crie o schema do banco (Alembic — NÃO é criado no boot)
 flask --app run db upgrade
@@ -168,8 +168,9 @@ FLASK_DEBUG=true
 # SECRET_KEY=...   # desnecessário em desenvolvimento
 ```
 
-> ⚠️ O `.env` **não está no `.gitignore`** do repositório. Se você criar um com
-> valores sensíveis, adicione `.env` ao seu `.gitignore` local ou não o commite.
+> O `.env` está no `.gitignore` (nunca é commitado). O **`setup_interativo.py`**
+> gera um `.env` completo para você (SECRET_KEY gerada, banco, rate limit, clima)
+> — ver o [README](../README.md#-instalação).
 
 | Como você inicia | Lê o `.env` automaticamente? |
 |------------------|:----------------------------:|
@@ -226,12 +227,14 @@ flask --app run run --debug
   flask --app run db upgrade
   ```
 
-- **Permissões/papéis novos:** o boot executa um `sync-permissions` silencioso
-  e idempotente sempre que o banco já tem a tabela `permissions` — módulos
-  novos passam a funcionar sem passo manual.
+- **Permissões/papéis novos:** aplicados pelo comando `flask --app run
+  sync-permissions` (idempotente) — **o boot não sincroniza** (o DML concorrente
+  derrubaria workers paralelos do Gunicorn); rode o comando no deploy.
 
-- **Uploads da Cozinha:** os `.docx` enviados ficam em `instance/uploads/`
-  (fora de `static/`, fora do git — a pasta `instance/` inteira é ignorada).
+- **Uploads da Cozinha:** os `.docx` enviados ficam em
+  `instance/uploads/technical_sheets/` (fora de `static/`, fora do git — a pasta
+  `instance/` inteira é ignorada; instalações antigas com arquivos em
+  `app/static/uploads/technical_sheets` são aceitas como fallback de leitura).
 
 ---
 
@@ -249,7 +252,7 @@ flask --app run db migrate -m "descrição curta da mudança"
 
 # 3. Aplique no seu banco e rode os testes
 flask --app run db upgrade
-python -m unittest discover -s tests
+python -m pytest -q
 ```
 
 Regras da casa:
@@ -275,8 +278,13 @@ módulo `run.py`, onde vive a factory `create_app()`).
 | `seed` | Cria permissões/papéis + admin (`admin@school.edu`, senha aleatória exibida uma única vez, troca obrigatória no 1º login) e **pergunta interativamente** se quer dados de demonstração | Recusa-se a rodar em banco já populado |
 | `seed-admin` | Cria **apenas** o admin, com senha digitada (mín. 8 caracteres, 1 maiúscula e 1 número; oculta) | Fluxo de implantação real; sem demonstração |
 | `seed-unidades` | Cadastra/atualiza as unidades do Senac SC a partir de `docs/unidades-senac-sc.json` | Idempotente; opção `--file CAMINHO` aceita outro JSON |
-| `seed-demo` | Cenário de demonstração **completo**: unidades (uma sem Cozinha, uma inativa), todos os papéis, 7 tipos de sala, reservas em todas as situações (datas relativas a hoje), feriados, hora extra, vale-transporte, cozinha e token da API | Recusa duplicar — `--reset` apaga a demonstração anterior e recria; [contas na seção abaixo](#-contas-de-demonstração) |
+| `seed-demo` | Cenário de demonstração **completo**: unidades (uma sem Cozinha, uma inativa), todos os papéis, 7 tipos de sala, reservas em todas as situações (datas relativas a hoje), feriados, hora extra, vale-transporte, cozinha e token da API | Recusa-se fora do modo desenvolvimento (`FLASK_DEBUG=true`; `SIGERE_PERMITIR_SEED_DEMO=1` força). Recusa duplicar — `--reset` apaga a demonstração anterior e recria; [contas na seção abaixo](#-contas-de-demonstração) |
 | `sync-permissions` | Cria permissões/papéis ausentes e vincula os códigos de `ROLES_CONFIG` | Idempotente; **nunca remove** vínculos existentes |
+| `unlock-user EMAIL` | Desbloqueia conta travada por excesso de tentativas de login | Zera o contador e registra a origem `cli` na trilha de auditoria |
+| `backup` | Snapshot do banco comprimido (gzip) com retenção e upload opcional para S3 | `--no-upload`, `--dir`, `--keep-days` para execuções pontuais |
+| `notify-scan` / `notify-email` / `notify-cleanup` | Varredura de avisos de atividade próxima, dreno da fila de e-mail e limpeza de avisos antigos | Idempotentes; em produção rodam no timer `sigere-notify` (ver [implantação](implantacao-producao.md)) |
+| `autocancel-pendentes` | Cancela reservas pendentes sem aprovação até 1h antes do início e avisa o criador | Mesmo timer do `notify-scan`; `--dry-run` para prévia |
+| `import-legacy` | Importa o banco do sistema legado (Django/MySQL) a partir do dump `.sql` | Ver [migracao-legado.md](migracao-legado.md); recusa bancos com dados |
 
 > `seed-unidades` ignora registros sem `cadastro_sugerido` no JSON (ex.: Direção
 > Regional) e não altera coordenadas de clima — essas são editadas no painel.
@@ -341,7 +349,7 @@ lançamentos de hora extra — dados distribuídos entre as unidades, úteis par
 testar o isolamento multi-unidade.
 
 Para um cenário que **abranja cada módulo** (reservas na semana corrente,
-cozinha com escala de porções, vale-transporte com grupos de exportação,
+cozinha com escala de porções, vale-transporte com técnicos e professores,
 token da API etc.), rode `flask --app run seed-demo` — contas e detalhes na
 tabela abaixo e no
 [README](../README.md#-cenário-de-demonstração-completo-seed-demo).
@@ -368,28 +376,40 @@ tabela abaixo e no
 
 ## 🧪 Testes automatizados
 
-A suíte usa **`unittest`** (padrão do Python — nenhuma dependência extra) e
-ficam em `tests/`. Cada teste sobe uma aplicação própria com **SQLite em
-arquivo temporário**, CSRF e rate limiting desligados e `SECRET_KEY` de teste
-(classe `TestConfig` de `tests/test_api_reservations.py`).
+A suíte (~**807 testes** em `tests/`) é escrita com **`unittest`** e executada
+pelo **pytest** (mesmo runner do CI — `requirements-dev.txt` traz `pytest`,
+`pytest-cov`, `ruff`, `bandit` e `pip-audit`). Cada teste sobe uma aplicação
+própria com **SQLite em arquivo temporário**, CSRF e rate limiting desligados e
+`SECRET_KEY` de teste (classe `TestConfig` de `tests/test_api_reservations.py`).
 
 ```bash
-# Suíte completa (saída verbosa):
+# Instale as dependências de desenvolvimento (uma vez):
+pip install -r requirements.txt -r requirements-dev.txt
+
+# Suíte completa (runner do CI):
+python -m pytest -q
+
+# Suíte completa (saída verbosa, compatível com unittest):
 python -m unittest discover -s tests -v
 
-# Suíte completa (saída enxuta):
-python -m unittest discover -s tests
-
 # Um módulo específico:
-python -m unittest tests.test_kitchen_parser -v
+python -m pytest tests/test_kitchen_parser.py -q
 
 # Um único teste:
-python -m unittest tests.test_api_reservations.ApiReservationsTestCase.test_anonimo_lista_apenas_campos_publicos_e_aprovadas -v
+python -m pytest tests/test_api_reservations.py::ApiReservationsTestCase::test_anonimo_lista_apenas_campos_publicos_e_aprovadas -v
 ```
 
-Resultado esperado: **`OK`** ao final (eventuais `skipped` são casos
+Resultado esperado: **tudo verde** ao final (eventuais `skipped` são casos
 condicionais a ambiente e não indicam falha). A suíte completa roda em cerca de
-dois minutos e meio.
+quatro minutos (no CI, ~4 min).
+
+### Qualidade no CI
+
+Em todo PR para `main`/`dev`, além do `pytest` (Python 3.14) o workflow
+**Qualidade** roda `ruff check app tests` (lint e erros de código), `bandit -r
+app -ll` (segurança) e `pip-audit -r requirements.txt` (CVEs de dependências —
+uma CVE derruba o CI; resolva com bump da versão pinada). A configuração do
+ruff/bandit vive no `pyproject.toml`. Veja [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ### O que a suíte cobre
 
@@ -397,18 +417,23 @@ dois minutos e meio.
 |------|--------------------|
 | API REST de reservas (`/api/v1`) — payloads público/completo, filtros, escopo multi-unidade, erros | `test_api_reservations.py` |
 | Tokens da API no painel admin (gerar, revogar, reativar) | `test_api_tokens_admin.py` |
-| Cozinha — parser de fichas `.docx` e requisição de compra | `test_kitchen_parser.py`, `test_kitchen_scale.py` |
-| Reservas — conflitos, disponibilidade, séries, passado | `test_classroom_availability.py`, `test_reservations_past.py` |
-| Categorias dinâmicas e edição | `test_dynamic_categories.py`, `test_category_edit.py` |
-| Financeiro (hora extra e Vale Transporte) | `test_payments.py` |
-| CLI e seeds (admin, unidades, demo) | `test_seed_admin.py`, `test_seed_unidades.py`, `test_seed_demo.py` |
-| Autenticação — registro, troca de senha | `test_user_registration.py`, `test_change_password.py` |
-| Formulários de sala e checklist de configuração | `test_room_form.py`, `test_setup_checklist.py` |
-| Identificadores automáticos (códigos de sala) | `test_auto_identifiers.py` |
-| Papéis adicionais por usuário e módulos por unidade | `test_extra_roles.py`, `test_unity_modules.py` |
-| Cozinha — relatório de ingredientes | `test_kitchen_report.py` |
+| Cozinha — parser de fichas `.docx`, escala de porções e requisição de compra | `test_kitchen_parser.py`, `test_kitchen_scale.py`, `test_kitchen_report.py` |
+| Reservas — conflitos, disponibilidade, séries, passado, filtros | `test_classroom_availability.py`, `test_reservations_past.py`, `test_reservations_all_filters.py`, `test_reservation_title.py` |
+| Fluxo de professor — reservas nascem Pendentes, designação, limite diário | `test_teacher_pending_creation.py`, `test_teacher_daily_limit.py`, `test_professor_teacher_choices.py`, `test_my_reservations_vinculadas.py` |
+| Categorias dinâmicas, tipos de curso e edição | `test_dynamic_categories.py`, `test_category_edit.py`, `test_course_types_admin.py` |
+| Financeiro (hora extra) e Vale Alimentação | `test_payments.py`, `test_meal_allowance.py` |
+| Vale-Transporte (pedido público e empresas) | `test_vt_pedido_publico.py`, `test_vt_empresas_admin.py` |
+| Adicional Noturno (lançamentos e planilha) | `test_adicional_noturno.py` |
+| Notificações (marcos, mutes, grupos) e cancelamento automático | `test_notifications.py`, `test_autocancel_pendentes.py` |
+| Relatórios (geral/personalizado), PDFs e exportação do calendário | `test_relatorio_salas_reservas.py`, `test_pdf_report_motor.py`, `test_calendar_export_pdf.py` |
+| Segurança — bloqueio de conta, auditoria, papéis do super-admin | `test_account_lockout.py`, `test_unlock_cli.py`, `test_auditoria.py`, `test_super_admin_protection.py`, `test_role_super_admin_guard.py` |
+| CLI e seeds (admin, unidades, demo, sync de permissões, backup, legado) | `test_seed_admin.py`, `test_seed_unidades.py`, `test_seed_demo.py`, `test_sync_permissions.py`, `test_backup_command.py`, `test_legacy_import.py` |
+| Autenticação — registro, troca de senha, multi-unidade | `test_user_registration.py`, `test_change_password.py`, `test_user_profile.py`, `test_usuarios_multiplas_unidades.py` |
+| Portal público — cronograma, unidade memorizada/próxima | `test_cronograma_periodo_atual.py`, `test_cronograma_navegacao_periodos.py`, `test_public_unidade_memoria.py`, `test_public_unidade_proxima.py` |
+| Formulários, checklist de configuração e identificadores automáticos | `test_room_form.py`, `test_setup_checklist.py`, `test_auto_identifiers.py` |
+| Papéis adicionais, módulos por unidade e rótulos de permissões | `test_extra_roles.py`, `test_unity_modules.py`, `test_rotulos_modulos_permissoes.py`, `test_permissions.py` |
 | Compartilhamento de reservas (e-mail/WhatsApp) | `test_share_texts.py` |
-| Tela de novidades e versionamento | `test_changelog.py` |
+| Tela de novidades, versão e navegação de voltas | `test_changelog.py`, `test_redirect_back.py`, `test_sidebar_active.py` |
 
 ### Convenções ao escrever testes
 
@@ -493,18 +518,19 @@ Unity.query.all()
 
 ## ✅ Checklist antes do commit
 
-1. `python -m unittest discover -s tests` termina em **OK**.
+1. `python -m pytest -q` termina verde.
 2. Se mexeu em `app/models.py`: migração gerada (`db migrate`), **revisada**,
    aplicada (`db upgrade`) e comittada junto.
 3. Se criou permissões/papéis novos: códigos em `app/commands.py`
-   (`PERMISSION_DATA`/`ROLES_CONFIG`) — o `sync-permissions` silencioso do boot
-   e o comando explícito cuidam do resto.
-4. Nada de `*.db`, `instance/` ou `~$*.xlsx` no commit (`.gitignore` cobre, mas
+   (`PERMISSION_DATA`/`ROLES_CONFIG`), rode `flask --app run sync-permissions`
+   no seu banco e **regenere a doc de permissões** (`python docs/gerar_permissoes.py`).
+4. `ruff check app tests` sem achados (o CI também roda `bandit` e `pip-audit`).
+5. Nada de `*.db`, `instance/` ou `~$*.xlsx` no commit (`.gitignore` cobre, mas
    confira `git status`).
-5. Novos endpoints com `@limiter.limit` quando expostos sem login (padrão da
+6. Novos endpoints com `@limiter.limit` quando expostos sem login (padrão da
    API: `120 per minute`).
-6. Textos de interface em pt-BR, consistente com o restante do sistema.
-7. Documentação atualizada quando a mudança altera comportamento documentado
+7. Textos de interface em pt-BR, consistente com o restante do sistema.
+8. Documentação atualizada quando a mudança altera comportamento documentado
    (README, [API](api-reservas.md), [produção](implantacao-producao.md) ou este guia).
 
 ---
@@ -526,10 +552,12 @@ o modo debug de `FLASK_DEBUG` e fixa a porta 5000.
 Não. Os testes criam bancos temporários próprios e populam apenas o que cada
 caso precisa — o `reservation.db` local nunca é tocado pela suíte.
 
-**Por que o boot cria permissões sozinho se o `sync-permissions` também existe?**
-O boot roda o mesmo algoritmo em modo silencioso e idempotente para bancos já
-existentes — é uma conveniência para módulos novos. O comando explícito continua
-existindo para o fluxo de atualização documentado e para executar verbosamente.
+**Por que o `sync-permissions` existe se já rodo `db upgrade`?**
+Migrações criam colunas/tabelas; o `sync-permissions` popula o catálogo de
+permissões e os vínculos dos papéis (`PERMISSION_DATA`/`ROLES_CONFIG`). Ele
+roda **por comando** (no deploy e manualmente) — o boot não o executa, porque
+o DML concorrente derruba workers paralelos do Gunicorn. É idempotente:
+rodar de novo não duplica nada.
 
 **O debugger do Werkzeug é perigoso?**
 Fora da sua máquina, sim — quem acessar um erro com o debugger aberto poderia
@@ -537,8 +565,9 @@ executar código (o PIN é a barreira). Nunca ative `FLASK_DEBUG` em servidor
 acessível por terceiros; produção usa Gunicorn + Nginx sem debugger.
 
 **Onde vejo os arquivos `.docx` que enviei na Cozinha?**
-Em `instance/uploads/`. Eles são servidos apenas pela rota autenticada de
-download (`/kitchen/fichas/<id>/download`) — nunca por URL estática.
+Em `instance/uploads/technical_sheets/`. Eles são servidos apenas pela rota
+autenticada de download (`/kitchen/fichas/<id>/download`) — nunca por URL
+estática.
 
 **Como simulo dois usuários ao mesmo tempo?**
 Duas janelas anônimas/abas com sessões separadas (uma sessão por perfil de
