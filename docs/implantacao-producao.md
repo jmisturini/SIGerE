@@ -551,8 +551,9 @@ Notas:
   devolve aos papéis padrão (ROLES_CONFIG) cada permissão revogada de propósito
   em **Painel Admin → Papéis** antes do update — reaplique e confira essas
   revogações pelo Flask shell via SSH, com Nginx e sigere parados, antes de
-  liberar o acesso à aplicação (papéis fora do ROLES_CONFIG não são alterados
-  pelo sync e exigem conferência manual).
+  liberar o acesso à aplicação (a adição de vínculos se limita aos papéis de
+  ROLES_CONFIG, mas permissões removidas de PERMISSION_DATA caem com seus
+  vínculos de qualquer papel — conferência manual também nesses casos).
 - **Fichas técnicas legadas** (só para instalações que ainda as tenham em
   `app/static/uploads/technical_sheets`): mova-as para
   `instance/uploads/technical_sheets/` e ajuste o dono recursivamente
@@ -567,7 +568,11 @@ Notas:
   A rotina guiada exige a mesma parada prévia de Nginx/sigere e a reaplicação e
   conferência das revogações via SSH antes de iniciar os serviços.
 - Se a atualização só mudou código Python/templates (sem dependências nem
-  migrações), `sudo systemctl reload sigere` basta e não derruba requisições.
+  migrações) e **não** mexeu em `PERMISSION_DATA`/`ROLES_CONFIG`, `sudo
+  systemctl reload sigere` basta e não derruba requisições. Mudanças de
+  catálogo/papéis exigem o fluxo completo com `db upgrade` e
+  `sync-permissions` — nem o `reload` nem o boot executam o sync, e papel
+  novo sem as permissões do catálogo recebe 403 nos módulos protegidos.
 - Programe a atualização em janela de baixo uso: esta rotina mantém os serviços
   parados durante as migrações, a sincronização e a conferência das revogações.
 
@@ -708,7 +713,7 @@ Alternativa com cron (no `crontab -e` do seu usuário):
   e siga os passos abaixo antes de subir de novo.
 - Se for executar `sync-permissions` — mesmo com backup da mesma versão —,
   registre antes do primeiro sync o estado restaurado de cada papel e as
-  permissões que devem permanecer revogadas: `flask --app run
+  permissões que devem permanecer revogadas: `venv/bin/flask --app run
   dump-permissions` lista os vínculos papel↔permissão gravados (um por
   linha, inclusive papéis fora do `ROLES_CONFIG`). Esse registro é a base
   para reaplicar as revogações depois do sync; o modo guiado já compara
@@ -734,10 +739,11 @@ Alternativa com cron (no `crontab -e` do seu usuário):
   /caminho/chave.pem` e acessar `https://localhost:5000`. Em servidor remoto,
   acesse o painel por túnel SSH: `ssh -N -L 5000:127.0.0.1:5000
   usuario@servidor`), reaplique as revogações em **Painel Admin → Papéis** e
-  salve — só então encerre a instância local (`Ctrl+C`) e reinicie Nginx e o
-  serviço (`sudo systemctl start nginx &&
-  sudo systemctl restart sigere`) e teste o login pelo endereço normal do
-  sistema.
+  salve — só então encerre a instância local (`Ctrl+C`), reinicie o serviço e
+  só suba o Nginx após confirmá-lo ativo (`sudo systemctl restart sigere &&
+  sudo systemctl is-active --quiet sigere && sudo systemctl start nginx` — se
+  o serviço falhar, o Nginx não fica no ar sem backend) e teste o login pelo
+  endereço normal do sistema.
   Só pule o sync (responda "não" à pergunta do modo guiado, ou omita o comando
   no caminho manual) se o backup veio da mesma versão — catálogo completo e
   revogações a preservar.

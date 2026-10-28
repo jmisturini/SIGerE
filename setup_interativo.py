@@ -359,7 +359,9 @@ def capturar_flask(venv_python, env, argumentos):
     resultado = subprocess.run([venv_python, '-m', 'flask', '--app', 'run'] + argumentos,
                                env=env, capture_output=True, text=True)
     if resultado.returncode != 0:
-        erro(f"Falha no comando: flask --app run {' '.join(argumentos)} — veja a mensagem acima.")
+        erro(f"Falha no comando: flask --app run {' '.join(argumentos)}.")
+        if resultado.stderr.strip():
+            erro('Saída de erro capturada:\n' + resultado.stderr.strip())
         raise SystemExit(1)
     return [linha for linha in resultado.stdout.splitlines() if linha.strip()]
 
@@ -788,8 +790,10 @@ def restaurar_backup():
     aviso('O sync-permissions devolve aos papéis padrão da aplicação (ROLES_CONFIG) '
           'cada permissão do catálogo que estiver ausente — inclusive uma que tenha '
           'sido revogada de propósito no painel (Painel Admin → Papéis) antes do '
-          'backup; papéis legados ou criados manualmente não são alterados e exigem '
-          'conferência manual.')
+          'backup. A adição de vínculos se limita aos papéis de ROLES_CONFIG, mas '
+          'permissões removidas de PERMISSION_DATA são apagadas com seus vínculos '
+          'de qualquer papel (inclusive legados ou criados manualmente) — confira '
+          'esses vínculos manualmente.')
     aviso('Pular o sync também deixa ausentes as permissões NOVAS do catálogo: o painel '
           'só lista as já gravadas no banco e não consegue recriá-las — fluxos param de '
           'funcionar (ex.: reserva de Professor deixa de nascer Pendente). Recomendado: '
