@@ -483,6 +483,20 @@ def atualizar_sistema():
     titulo('Modo: atualização do sistema')
     venv_python, env_processo, env_arquivo = preparar_manutencao()
 
+    # O sync devolve revogações intencionais ao papel — com os serviços no ar,
+    # elas ficam expostas antes da conferência. Guarda igual à rotina
+    # documentada e ao modo de restauração.
+    if shutil.which('systemctl'):
+        ativos = [s for s in ('sigere', 'nginx')
+                  if subprocess.run(['systemctl', 'is-active', '--quiet', s]).returncode == 0]
+        if ativos:
+            aviso(f"Serviço(s) no ar ({', '.join(ativos)}): a rotina documentada exige pará-los "
+                  'antes (sudo systemctl stop sigere nginx) e só iniciá-los depois de reaplicar '
+                  'as revogações confirmadas.')
+            if not sim_nao('Continuar com o(s) serviço(s) no ar?', padrao=False):
+                print('   Atualização cancelada — pare os serviços e rode o setup de novo.')
+                return
+
     titulo('Backup de segurança')
     if sim_nao('Criar um backup do banco antes de atualizar (recomendado)?', padrao=True):
         executar_flask(venv_python, env_processo, ['backup'])
@@ -516,9 +530,29 @@ def atualizar_sistema():
                    rotulo='Schema do banco (Flask-Migrate/Alembic)')
 
     titulo('Permissões e papéis')
-    print('   Executando: flask --app run sync-permissions')
+    # Snapshot antes/depois: sem ele, o operador não distingue um vínculo novo
+    # de catálogo de uma revogação intencional que o sync acabou de devolver ao
+    # papel (mesma proteção do modo de restauração).
+    print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
+    antes = capturar_flask(venv_python, env_processo, ['dump-permissions'])
+    print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
     executar_flask(venv_python, env_processo, ['sync-permissions'])
+    depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
     ok('Permissões e papéis sincronizados (sync-permissions).')
+    registrar_snapshot_vinculos(antes, depois)
+    adicionados = sorted(set(depois) - set(antes))
+    removidos = sorted(set(antes) - set(depois))
+    titulo('Vínculos papel↔permissão alterados pelo sync')
+    if adicionados:
+        print('   Revise cada vínculo abaixo: entre eles podem estar permissões que')
+        print('   estavam revogadas de propósito no painel antes da atualização — as')
+        print('   confirmadas devem voltar a ficar ausentes (veja "Próximos passos"):')
+        for linha in adicionados:
+            print(f'     + {linha}')
+    else:
+        print('   Nenhum vínculo foi adicionado pelo sync.')
+    for linha in removidos:
+        print(f'     - {linha} (aposentada do catálogo pelo sync)')
 
     titulo('Resumo da atualização')
     for passo in passos:
@@ -527,7 +561,11 @@ def atualizar_sistema():
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         iniciar_servidor(venv_python, env_processo, rotulo='Servidor de desenvolvimento')
     else:
-        print('     • Reinicie o serviço: sudo systemctl restart sigere')
+        print('     • Com o tráfego ainda bloqueado, reaplique as revogações confirmadas:')
+        print('       os vínculos "+" acima que eram revogações intencionais devem voltar a')
+        print('       ficar ausentes — Flask shell via SSH com Nginx/sigere parados, ou')
+        print('       Painel Admin → Papéis numa instância local (docs/implantacao-producao.md).')
+        print('     • Só então reinicie o serviço: sudo systemctl restart sigere')
         print('     • Teste o login e a navegação: http://localhost:5000')
 
 
