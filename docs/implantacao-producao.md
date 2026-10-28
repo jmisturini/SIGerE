@@ -502,6 +502,8 @@ git pull
 venv/bin/pip install -r requirements.txt gunicorn   # cobre dependências novas
 venv/bin/flask --app run db upgrade                 # aplica migrações de schema
 venv/bin/flask --app run sync-permissions           # permissões/papéis novos (sempre rode)
+# Atenção: o comando também reaplica permissões revogadas em Painel Admin → Papéis.
+# Reaplique as revogações antes de liberar o acesso à aplicação.
 sudo systemctl restart sigere
 ```
 
@@ -510,7 +512,10 @@ Notas:
 - **`sync-permissions` é passo obrigatório da atualização**: o boot **não**
   executa sincronização de permissões (o DML concorrente derrubaria workers
   paralelos do Gunicorn). O comando é idempotente — rodar sempre não custa nada
-  e garante que permissões/papéis de módulos novos entrem.
+  e garante que permissões/papéis de módulos novos entrem. Porém, também
+  devolve ao papel cada permissão revogada de propósito em **Painel Admin →
+  Papéis** antes do update — reaplique essas revogações antes de liberar o
+  acesso à aplicação.
 - **Fichas técnicas legadas** (só para instalações que ainda as tenham em
   `app/static/uploads/technical_sheets`): mova-as para
   `instance/uploads/technical_sheets/` e ajuste o dono recursivamente

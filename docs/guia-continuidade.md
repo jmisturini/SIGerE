@@ -126,6 +126,10 @@ Mudança só de docs pode ir direto por PR sem release.
 - **Update oficial** (`docs/implantacao-producao.md` seção 10): `git status` limpo →
   `venv/bin/pip install -r requirements.txt gunicorn` → `flask --app run db upgrade` →
   `flask --app run sync-permissions` (o boot não sincroniza) → restart do serviço.
+  Antes do `sync-permissions`, anote as revogações feitas em **Painel Admin → Papéis**:
+  o comando devolve ao papel as permissões configuradas que estiverem ausentes, inclusive
+  as revogadas de propósito. Se alguma revogação for perdida, reaplique-a no painel
+  antes de liberar o acesso aos usuários.
   Migrations pendentes **não derrubam o boot** (o app sobe com aviso), mas o
   `db upgrade` e o `sync-permissions` são obrigatórios para as features novas
   funcionarem.

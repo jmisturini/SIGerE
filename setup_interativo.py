@@ -786,9 +786,10 @@ def restaurar_backup():
               'e liberar o acesso normal')
     if not sync_executado:
         print('     • Confirme que o catálogo de permissões está completo (permissão '
-              'nova só entra via sync-permissions; o painel não a recria) e reaplique '
-              'em Painel Admin → Papéis as revogações preservadas do backup; encerre '
-              'a instância local antes de liberar o acesso normal')
+              'nova só entra rodando flask --app run sync-permissions; o painel não '
+              'a recria) e reaplique em Painel Admin → Papéis as revogações '
+              'preservadas do backup; encerre a instância local antes de liberar o '
+              'acesso normal')
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         print('     • Suba o servidor: flask --app run run --debug')
         print('     • Teste o login e a navegação: http://localhost:5000')
