@@ -327,6 +327,7 @@ HTML, inclusive para caminhos inexistentes ou método não suportado:
 | `400` | Parâmetro inválido (data fora do formato `AAAA-MM-DD`, `status` desconhecido, `period` desconhecido, `start` maior que `end`) |
 | `401` | Token fornecido e inválido: desconhecido, expirado, revogado, esquema não suportado (ex.: `Basic`) ou conta do criador desativada. Inclui `WWW-Authenticate: Bearer realm="SIGerE API"` |
 | `404` | Reserva/unidade inexistente, **fora do escopo da unidade** ou não aprovada (anônimo) |
+| `405` | Método não suportado no endpoint (a API é somente leitura — ex.: `POST /api/v1/reservas`); a resposta em JSON preserva o cabeçalho `Allow` com o método aceito |
 | `429` | Limite de requisições excedido (ver próxima seção) |
 
 > **Importante:** requisição **sem** token não gera `401` — ela é atendida

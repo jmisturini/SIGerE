@@ -320,6 +320,10 @@ venv/bin/flask --app run db stamp head
 > O boot da aplicação **não** cria nem altera schema — quem aplica é o Alembic,
 > de forma segura até com múltiplos workers. Se o banco estiver vazio ou fora
 > do fluxo, o boot apenas avisa no log.
+>
+> Complemento no caso legado: rode `venv/bin/flask --app run sync-permissions`
+> depois do `stamp` — ele só marca a versão do Alembic; o catálogo de
+> permissões/vínculos de papéis é sincronizado à parte (o boot não sincroniza).
 
 ---
 
@@ -507,6 +511,12 @@ Notas:
   executa sincronização de permissões (o DML concorrente derrubaria workers
   paralelos do Gunicorn). O comando é idempotente — rodar sempre não custa nada
   e garante que permissões/papéis de módulos novos entrem.
+- **Fichas técnicas legadas** (só para instalações que ainda as tenham em
+  `app/static/uploads/technical_sheets`): mova-as para
+  `instance/uploads/technical_sheets/` e ajuste o dono
+  (`sudo chown www-data:www-data`) — o caminho em `static/` é público no Nginx,
+  a aplicação não o lê mais e, sem a movimentação, os downloads dessas fichas
+  retornam 404.
 - O script `python setup_interativo.py` traz o modo **"Atualizar o sistema"**
   (backup → `git pull --ff-only` → dependências → `db upgrade` →
   `sync-permissions`) se preferir a rotina guiada — mas mantenha **duas venvs
@@ -653,7 +663,10 @@ Alternativa com cron (no `crontab -e` do seu usuário):
   o arquivo (`gunzip -c sigere-....sqlite.gz > /var/www/sigere/reservation.db`)
   e suba de novo.
 - Depois de restaurar, rode `venv/bin/flask --app run db upgrade` (aplica
-  migrações feitas após o backup) e teste o login.
+  migrações feitas após o backup), `venv/bin/flask --app run sync-permissions`
+  (recria permissões/papéis que o backup anterior não tinha — idempotente; o
+  modo guiado "Restaurar backup" do `setup_interativo.py` já executa os dois)
+  e teste o login.
 
 > **Ensaiou o restore?** Backup só é backup depois de restaurado uma vez —
 > faça o ensaio em outra máquina/container antes de precisar de verdade.
@@ -774,7 +787,7 @@ Para conferir o que a varredura criaria sem gravar nada:
 | Upload falha com `413` | `client_max_body_size` do Nginx menor que o arquivo | Aumente no Nginx (mantendo ≥ 16 MB da aplicação) |
 | Upload falha com `500` / ficha não aparece | `instance/uploads/` inexistente ou sem permissão de escrita para `www-data` | Recrie com o dono certo: `sudo mkdir -p /var/www/sigere/instance/uploads && sudo chown -R www-data:www-data /var/www/sigere/instance` |
 | Clima do totem "N/A" | Unidade sem coordenadas e/ou sem internet para Open-Meteo | Configure o clima por unidade no painel; teste a saída para `api.open-meteo.com` |
-| `API responde 401` para um token que funcionava | Token revogado/expirado ou conta do criador desativada | Reemita o token em Painel Admin → Tokens da API ([detalhes](api-reservas.md)) |
+| `API responde 401` para um token que funcionava | Token revogado/expirado, conta do criador desativada **ou bloqueada** (10 tentativas de senha erradas) | Reemita o token em Painel Admin → Tokens da API ([detalhes](api-reservas.md)); se a conta estiver bloqueada, desbloqueie no Painel Admin → Usuários ou com `unlock-user` (linha abaixo) |
 | Login exibe "Sua conta está bloqueada por excesso de tentativas de acesso" | 10 tentativas de senha erradas bloqueiam a conta automaticamente | Desbloqueio no **Painel Admin → Usuários** (requer `user:lock`) ou pela CLI, como o seu usuário: `set -a; source .env; set +a` e `venv/bin/flask --app run unlock-user email@dominio` — o desbloqueio fica registrado na trilha de auditoria. O painel não desbloqueia o super-admin; para ele, use a CLI |
 | `⚠️ Banco de dados vazio` no log após atualizar | Migração não aplicada | Como o seu usuário: `set -a; source .env; set +a` e `venv/bin/flask --app run db upgrade` (passo 5) |
 | Exportações Excel com erro de permissão | Diretório temporário/`static` sem permissão para `www-data` | Revise `chown` de `/var/www/sigere` (arquivos pertencem a `www-data`) |

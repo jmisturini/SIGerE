@@ -746,6 +746,11 @@ def restaurar_backup():
     executar_flask(venv_python, env_processo, ['db', 'upgrade'])
     ok('Migrações aplicadas ao banco restaurado (alembic head).')
 
+    titulo('Permissões após o backup')
+    print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
+    executar_flask(venv_python, env_processo, ['sync-permissions'])
+    ok('Permissões e papéis sincronizados (sync-permissions).')
+
     titulo('Resumo da restauração')
     for passo in passos:
         print(f'   • {passo}')
