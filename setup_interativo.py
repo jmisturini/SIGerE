@@ -490,12 +490,11 @@ def atualizar_sistema():
         ativos = [s for s in ('sigere', 'nginx')
                   if subprocess.run(['systemctl', 'is-active', '--quiet', s]).returncode == 0]
         if ativos:
-            aviso(f"Serviço(s) no ar ({', '.join(ativos)}): a rotina documentada exige pará-los "
-                  'antes (sudo systemctl stop sigere nginx) e só iniciá-los depois de reaplicar '
-                  'as revogações confirmadas.')
-            if not sim_nao('Continuar com o(s) serviço(s) no ar?', padrao=False):
-                print('   Atualização cancelada — pare os serviços e rode o setup de novo.')
-                return
+            erro(f"Serviço(s) no ar ({', '.join(ativos)}): o sync-permissions devolve as "
+                 'revogações intencionais ao papel e, com a aplicação acessível, elas ficam '
+                 'expostas antes da conferência. Pare-os primeiro (sudo systemctl stop '
+                 'sigere nginx) e rode o setup de novo.')
+            return
 
     titulo('Backup de segurança')
     if sim_nao('Criar um backup do banco antes de atualizar (recomendado)?', padrao=True):
