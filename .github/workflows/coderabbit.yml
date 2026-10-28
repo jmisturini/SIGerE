@@ -46,7 +46,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
-          ESPERA: ${{ github.event_name == 'pull_request' && 300 || 60 }}
+          # 300s em TODOS os eventos: a run disparada por review entra no
+          # mesmo grupo de concorrência e cancela a run do push — com
+          # espera menor ela poderia falhar antes de o bot terminar. O
+          # loop sai cedo quando a revisão já existe; o limite só custa
+          # tempo quando ela falta.
+          ESPERA: 300
         run: |
           set -euo pipefail
 
