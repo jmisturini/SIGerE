@@ -4,8 +4,9 @@ name: Portao CodeRabbit
 # conferida — mesmo com pytest e Qualidade verdes. O check só fica verde
 # quando existe revisão concluída do CodeRabbit PARA O COMMIT ATUAL da PR,
 # sem CHANGES_REQUESTED e sem thread de revisão dele em aberto. Se o app do
-# CodeRabbit for desativado no repositório, desativar também este workflow
-# (o check ficaria vermelho para sempre).
+# CodeRabbit for desativado no repositório, remover ANTES este check da
+# proteção de dev e main (check obrigatório sem status novo trava todo
+# merge) e só então desativar este workflow.
 #
 # Eventos: a revisão do bot (objeto de review) dispara pull_request_review.
 # O webhook pull_request_review_thread (thread resolvida/reaberta) EXISTE,
@@ -99,13 +100,26 @@ jobs:
             # não vale). Achados do bot sempre viram objeto de review
             # (CHANGES_REQUESTED, bloqueado acima quando existe) ou thread
             # (bloqueada abaixo) — nunca desaparecem no fallback.
-            check_bot=$(curl -sSf "${autenticacao[@]}" \
-                "$API/repos/$REPO/commits/$HEAD_SHA/check-runs")
-            processado=$(jq -r '[.check_runs[] | select(
-                (.app.slug // "") == "coderabbitai"
-                and .name == "CodeRabbit"
-                and .status == "completed"
-                and .conclusion == "success")] | length' <<<"$check_bot")
+            # Paginação: check_name=CodeRabbit no servidor + todas as
+            # páginas, para o check-run do bot nunca ficar fora de uma
+            # primeira página lotada de outros checks.
+            processado=0
+            pagina=1
+            while :; do
+              check_bot=$(curl -sSf "${autenticacao[@]}" \
+                  "$API/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=CodeRabbit&per_page=100&page=$pagina")
+              processado=$((processado + $(jq '[.check_runs[] | select(
+                  (.app.slug // "") == "coderabbitai"
+                  and .name == "CodeRabbit"
+                  and .status == "completed"
+                  and .conclusion == "success")] | length' <<<"$check_bot")))
+              [ "$(jq '.check_runs | length' <<<"$check_bot")" -lt 100 ] && break
+              pagina=$((pagina + 1))
+              if [ "$pagina" -gt 10 ]; then
+                echo "::error::Mais de 1000 check-runs no commit — valide manualmente (check falhando fechado por segurança)."
+                exit 1
+              fi
+            done
             if [ "$processado" -eq 0 ]; then
               echo "::error::Nenhuma revisão concluída do CodeRabbit para o commit $HEAD_SHA após ${ESPERA}s. Comente @coderabbitai review; se a rodada encerrar sem objeto de revisão (ou threads forem resolvidas), re rode este check no botão Re-run."
               exit 1

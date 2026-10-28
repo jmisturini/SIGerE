@@ -219,7 +219,7 @@ Estado em **2026-10-27** (v1.37.0 publicada; documentação revisada):
 | Manual do usuário (`docs/manual-do-usuario.pdf`) | Atualizado para a v1.37.0 (2026-10-27): Adicional Noturno, fluxo de professor pendente, autocancel, política de senha, bloqueio de conta, auditoria. Regenerar com `python docs/gerar_manual.py` a cada release relevante. |
 | Produção (VM OCI) | Confirmar na VM: `db upgrade` **e `sync-permissions`** (o sync saiu do boot — há permissões novas na v1.37: `user:lock`, `system:audit`), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós update; ver seção 5). |
 | CI | Status check do `tests` ainda não é *required* — pode ser endurecido em Settings depois de comprovado estável. |
-| Portão do CodeRabbit | Ativo (PR #174, 2026-10-27): check `portao-coderabbit` já marcado como *required* em `dev` e `main`, com *Require conversation resolution before merging* ligado nas duas. Se o app do CodeRabbit for desativado, desativar o workflow junto. |
+| Portão do CodeRabbit | Ativo (PR #174, 2026-10-27): check `portao-coderabbit` já marcado como *required* em `dev` e `main`, com *Require conversation resolution before merging* ligado nas duas. Se o app do CodeRabbit for desativado: **primeiro** remover `portao-coderabbit` dos *status checks* obrigatórios da proteção de `dev` e `main` (check obrigatório que deixa de rodar trava todo merge sem novo status), e o *Require conversation resolution* junto se também não tiver mais serventia; **depois** desativar o workflow. |
 
 ## 9. Memória local do ZCode (não viaja com o git)
 
