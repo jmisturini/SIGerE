@@ -750,24 +750,32 @@ def restaurar_backup():
     aviso('O sync-permissions devolve ao papel cada permissão do catálogo que estiver '
           'ausente — inclusive uma que tenha sido revogada de propósito no painel '
           '(Painel Admin → Papéis) antes do backup.')
-    sync_executado = sim_nao('Executar sync-permissions agora? Responda NÃO se o '
-                             'backup tinha revogações de permissões.', padrao=True)
+    aviso('Pular o sync também deixa ausentes as permissões NOVAS do catálogo: o painel '
+          'só lista as já gravadas no banco e não consegue recriá-las — fluxos param de '
+          'funcionar (ex.: reserva de Professor deixa de nascer Pendente). Recomendado: '
+          'rodar o sync e reaplicar as revogações no painel depois.')
+    sync_executado = sim_nao('Executar sync-permissions agora? Responda NÃO apenas se o '
+                             'backup veio da MESMA versão da aplicação (catálogo '
+                             'completo) e há revogações a preservar.', padrao=True)
     if sync_executado:
         print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
         executar_flask(venv_python, env_processo, ['sync-permissions'])
         ok('Permissões e papéis sincronizados (sync-permissions).')
     else:
-        aviso('sync-permissions pulado: as revogações do backup foram preservadas — '
-              'reaplique as permissões que devem existir em Painel Admin → Papéis '
-              'ANTES de liberar o acesso dos usuários.')
+        aviso('sync-permissions pulado: revogações do backup preservadas. Confirme que o '
+              'catálogo está completo — se faltar permissão, rode o sync com o tráfego '
+              'bloqueado e reaplique as revogações em Painel Admin → Papéis ANTES de '
+              'liberar o acesso dos usuários.')
 
     titulo('Resumo da restauração')
     for passo in passos:
         print(f'   • {passo}')
     print('\n   Próximos passos:')
     if not sync_executado:
-        print('     • Reaplique em Painel Admin → Papéis as revogações preservadas do '
-              'backup e salve, antes de liberar o acesso normal')
+        print('     • Confirme que o catálogo de permissões está completo (permissão nova '
+              'só entra via sync-permissions; o painel não a recria) e reaplique em '
+              'Painel Admin → Papéis as revogações preservadas do backup, antes de '
+              'liberar o acesso normal')
     print('     • Teste o login e a navegação: http://localhost:5000')
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         print('     • Suba o servidor: flask --app run run --debug')

@@ -668,13 +668,19 @@ Alternativa com cron (no `crontab -e` do seu usuário):
   (recria permissões/papéis que o backup anterior não tinha — idempotente; o
   modo guiado "Restaurar backup" do `setup_interativo.py` executa os dois e
   pergunta antes do sync).
-- **Revogações de permissão no backup:** o `sync-permissions` devolve ao papel
-  cada permissão do catálogo que estiver ausente — inclusive uma revogada de
-  propósito em **Painel Admin → Papéis** antes do backup. Backup com revogações:
-  responda "não" à pergunta do modo guiado (ou pule o comando no caminho manual),
-  suba a aplicação sem expor aos usuários (ex.: `flask --app run run` na máquina
-  do servidor, com Nginx/serviço parado), reaplique as revogações em **Painel
+- **Catálogo e revogações de permissão no backup:** o `sync-permissions` devolve
+  ao papel cada permissão do catálogo que estiver ausente. Isso recria as
+  permissões novas de versões recentes — necessárias, e o painel não consegue
+  recriá-las (lista só as já gravadas no banco): sem `reservation:create_pending`,
+  por exemplo, a reserva do Professor deixa de nascer Pendente. Mas também
+  devolve permissões revogadas de propósito em **Painel Admin → Papéis** antes
+  do backup. Caminho recomendado: rode o sync com o tráfego bloqueado, suba a
+  aplicação sem expor aos usuários (ex.: `flask --app run run` na máquina do
+  servidor, com Nginx/serviço parado), reaplique as revogações em **Painel
   Admin → Papéis** e salve — só então libere o acesso normal e teste o login.
+  Só pule o sync (responda "não" à pergunta do modo guiado, ou omita o comando
+  no caminho manual) se o backup veio da mesma versão — catálogo completo e
+  revogações a preservar.
 
 > **Ensaiou o restore?** Backup só é backup depois de restaurado uma vez —
 > faça o ensaio em outra máquina/container antes de precisar de verdade.
