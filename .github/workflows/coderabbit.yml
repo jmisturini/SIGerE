@@ -7,9 +7,10 @@ name: Portao CodeRabbit
 # CodeRabbit for desativado no repositório, desativar também este workflow
 # (o check ficaria vermelho para sempre).
 #
-# Eventos: a revisão do bot (objeto de review) dispara pull_request_review;
-# resolver/reabrir thread de review dispara pull_request_review_thread
-# (o botão Re-run do check segue como fallback se algum run se perder).
+# Eventos: a revisão do bot (objeto de review) dispara pull_request_review.
+# O webhook pull_request_review_thread (thread resolvida/reaberta) EXISTE,
+# mas o Actions não o oferece como trigger — o workflow não dispara nesses
+# casos; reavaliar com o botão Re-run do check.
 # O bloqueio complementar recomendado é
 # *Require conversation resolution before merging* na proteção da branch
 # (docs/guia-continuidade.md, seções 3 e 8).
@@ -22,8 +23,6 @@ on:
     types: [opened, synchronize, reopened]
   pull_request_review:
     types: [submitted]
-  pull_request_review_thread:
-    types: [resolved, unresolved]
 
 permissions:
   contents: read

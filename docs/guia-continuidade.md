@@ -78,8 +78,9 @@ O detalhamento oficial está no `CONTRIBUTING.md`. O que não se deriva dele:
   reavalia os apontamentos anteriores de verdade). Fluxo típico de desbloqueio: resolver
   os apontamentos e comentar `@coderabbitai review` (o CodeRabbit pausa sozinho após
   commits seguidos; o comentário retoma a revisão). Resolução/reabertura de thread
-  dispara o portão de novo (evento `pull_request_review_thread`); o botão Re-run do
-  check fica de fallback se um run se perder. Hooks locais de git não servem aqui: o merge
+  não dispara este workflow (o webhook `pull_request_review_thread` existe, mas o
+  Actions não o oferece como trigger) — reavaliar com o botão Re-run do check.
+  Hooks locais de git não servem aqui: o merge
   acontece na UI do GitHub. O check já é *required* em `dev` e `main`, com *Require
   conversation resolution* ativo nas duas (ver seção 8).
 - Padrão de commits: prefixos em português (`ui:`, `fix:`, `docs:`, `release:`, `notificacoes:` …).
