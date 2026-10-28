@@ -10,8 +10,10 @@ name: Portao CodeRabbit
 # Eventos: a revisão do bot (objeto de review) dispara pull_request_review.
 # O webhook pull_request_review_thread (thread resolvida/reaberta) EXISTE,
 # mas o Actions não o oferece como trigger — o workflow não dispara nesses
-# casos; reavaliar com o botão Re-run do check.
-# O bloqueio complementar recomendado é
+# casos; reavaliar com o botão Re-run do check. O mesmo vale para rodadas
+# do bot que encerram sem gerar objeto de review (incremental, sem
+# apontamentos novos): sem evento, o Re-run aplica o fallback do check-run
+# do app. O bloqueio complementar recomendado é
 # *Require conversation resolution before merging* na proteção da branch
 # (docs/guia-continuidade.md, seções 3 e 8).
 #
@@ -27,6 +29,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  checks: read
 
 concurrency:
   group: portao-coderabbit-${{ github.event.pull_request.number }}
@@ -88,16 +91,34 @@ jobs:
           done
 
           if [ -z "$revisao" ]; then
-            echo "::error::Nenhuma revisão concluída do CodeRabbit para o commit $HEAD_SHA após ${ESPERA}s. Comente @coderabbitai review no PR — este check roda de novo assim que a revisão for publicada."
-            exit 1
-          fi
+            # O bot é incremental: encerrando a rodada sem apontamentos
+            # novos, pode NÃO publicar objeto de review para o commit (e
+            # @coderabbitai review se recusa a re-revisar). Nesse caso a
+            # prova de revisão é o check-run do próprio app para ESTE
+            # commit: success = processou até o fim (skipped = pausado,
+            # não vale). Achados do bot sempre viram objeto de review
+            # (CHANGES_REQUESTED, bloqueado acima quando existe) ou thread
+            # (bloqueada abaixo) — nunca desaparecem no fallback.
+            check_bot=$(curl -sSf "${autenticacao[@]}" \
+                "$API/repos/$REPO/commits/$HEAD_SHA/check-runs")
+            processado=$(jq -r '[.check_runs[] | select(
+                (.app.slug // "") == "coderabbitai"
+                and .name == "CodeRabbit"
+                and .status == "completed"
+                and .conclusion == "success")] | length' <<<"$check_bot")
+            if [ "$processado" -eq 0 ]; then
+              echo "::error::Nenhuma revisão concluída do CodeRabbit para o commit $HEAD_SHA após ${ESPERA}s. Comente @coderabbitai review; se a rodada encerrar sem objeto de revisão (ou threads forem resolvidas), re rode este check no botão Re-run."
+              exit 1
+            fi
+            echo "Revisão do CodeRabbit processou $HEAD_SHA sem gerar objeto (sem apontamentos novos)."
+          else
+            estado=$(jq -r '.state' <<<"$revisao")
+            echo "Última revisão do CodeRabbit para $HEAD_SHA: $estado"
 
-          estado=$(jq -r '.state' <<<"$revisao")
-          echo "Última revisão do CodeRabbit para $HEAD_SHA: $estado"
-
-          if [ "$estado" = "CHANGES_REQUESTED" ]; then
-            echo "::error::O CodeRabbit pediu alterações. Resolva os apontamentos (os de fora do diff ficam no CORPO da review) e re rode a revisão com @coderabbitai review antes de mesclar."
-            exit 1
+            if [ "$estado" = "CHANGES_REQUESTED" ]; then
+              echo "::error::O CodeRabbit pediu alterações. Resolva os apontamentos (os de fora do diff ficam no CORPO da review) e re rode a revisão com @coderabbitai review antes de mesclar."
+              exit 1
+            fi
           fi
 
           # Threads de review do CodeRabbit ainda em aberto (não resolvidas

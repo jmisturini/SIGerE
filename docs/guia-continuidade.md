@@ -78,8 +78,10 @@ O detalhamento oficial está no `CONTRIBUTING.md`. O que não se deriva dele:
   reavalia os apontamentos anteriores de verdade). Fluxo típico de desbloqueio: resolver
   os apontamentos e comentar `@coderabbitai review` (o CodeRabbit pausa sozinho após
   commits seguidos; o comentário retoma a revisão). Resolução/reabertura de thread
-  não dispara este workflow (o webhook `pull_request_review_thread` existe, mas o
-  Actions não o oferece como trigger) — reavaliar com o botão Re-run do check.
+  e rodadas do bot encerradas **sem objeto de review** (incremental, sem apontamentos
+  novos — nesse caso o `@coderabbitai review` se recusa a re-revisar) não disparam o
+  workflow: reavaliar com o botão Re-run do check — o portão aceita, como prova de
+  revisão do commit, o check-run do próprio app do CodeRabbit terminado em success.
   Hooks locais de git não servem aqui: o merge
   acontece na UI do GitHub. O check já é *required* em `dev` e `main`, com *Require
   conversation resolution* ativo nas duas (ver seção 8).
