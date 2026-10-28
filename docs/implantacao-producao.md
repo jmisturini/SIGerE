@@ -513,10 +513,10 @@ Notas:
   e garante que permissões/papéis de módulos novos entrem.
 - **Fichas técnicas legadas** (só para instalações que ainda as tenham em
   `app/static/uploads/technical_sheets`): mova-as para
-  `instance/uploads/technical_sheets/` e ajuste o dono
-  (`sudo chown www-data:www-data`) — o caminho em `static/` é público no Nginx,
-  a aplicação não o lê mais e, sem a movimentação, os downloads dessas fichas
-  retornam 404.
+  `instance/uploads/technical_sheets/` e ajuste o dono recursivamente
+  (`sudo chown -R www-data:www-data instance/uploads/technical_sheets`) — o
+  caminho em `static/` é público no Nginx, a aplicação não o lê mais e, sem a
+  movimentação, os downloads dessas fichas retornam 404.
 - O script `python setup_interativo.py` traz o modo **"Atualizar o sistema"**
   (backup → `git pull --ff-only` → dependências → `db upgrade` →
   `sync-permissions`) se preferir a rotina guiada — mas mantenha **duas venvs
