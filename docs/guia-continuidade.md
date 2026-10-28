@@ -124,12 +124,17 @@ Mudança só de docs pode ir direto por PR sem release.
   instância (imagem Ubuntu da Oracle só libera a 22; persistência via
   `/etc/iptables/rules.v4` com `netfilter-persistent save`). Abrir só uma não resolve.
 - **Update oficial** (`docs/implantacao-producao.md` seção 10): `git status` limpo →
-  `venv/bin/pip install -r requirements.txt gunicorn` → `flask --app run db upgrade` →
-  `flask --app run sync-permissions` (o boot não sincroniza) → restart do serviço.
-  Antes do `sync-permissions`, anote as revogações feitas em **Painel Admin → Papéis**:
+  registrar as revogações de **Painel Admin → Papéis** (nome interno do papel e
+  códigos das permissões) → `sudo systemctl stop nginx sigere` e confirmar ambos
+  parados → atualizar código e dependências na venv do serviço →
+  `venv/bin/flask --app run db upgrade` → `venv/bin/flask --app run sync-permissions`
+  (o boot não sincroniza) → reaplicar e conferir todas as revogações pelo
+  `venv/bin/flask --app run shell` via SSH, conforme a seção 10, mantendo Nginx e
+  sigere parados → iniciar sigere, confirmar `active (running)` e só então iniciar
+  Nginx para liberar o acesso externo. Em caso de falha, mantenha os serviços parados.
+  A mesma sequência de bloqueio e conferência se aplica ao update pelo setup guiado:
   o comando devolve ao papel as permissões configuradas que estiverem ausentes, inclusive
-  as revogadas de propósito. Se alguma revogação for perdida, reaplique-a no painel
-  antes de liberar o acesso aos usuários.
+  as revogadas de propósito. Não reabra o acesso geral ao painel para reaplicá-las.
   Migrations pendentes **não derrubam o boot** (o app sobe com aviso), mas o
   `db upgrade` e o `sync-permissions` são obrigatórios para as features novas
   funcionarem.

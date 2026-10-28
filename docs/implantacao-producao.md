@@ -494,17 +494,52 @@ sudo certbot renew --dry-run
 
 Rotina padrão a cada nova versão:
 
+Antes de começar, registre as revogações feitas em **Painel Admin → Papéis**
+(nome interno do papel e códigos das permissões). Mantenha a sessão SSH aberta:
+o acesso externo ficará indisponível até concluir a conferência dessas revogações.
+
 ```bash
 cd /var/www/sigere
 set -a; source .env; set +a    # variáveis para os comandos flask abaixo
+
+sudo systemctl stop nginx sigere                  # bloqueia acesso e encerra workers
+# Só prossiga após confirmar que ambos estão parados; em caso de erro, interrompa.
+sudo systemctl is-active nginx sigere              # ambos devem estar inactive
 
 git pull
 venv/bin/pip install -r requirements.txt gunicorn   # cobre dependências novas
 venv/bin/flask --app run db upgrade                 # aplica migrações de schema
 venv/bin/flask --app run sync-permissions           # permissões/papéis novos (sempre rode)
 # Atenção: o comando também reaplica permissões revogadas em Painel Admin → Papéis.
-# Reaplique as revogações antes de liberar o acesso à aplicação.
-sudo systemctl restart sigere
+```
+
+**Mantenha Nginx e sigere parados.** Pela mesma sessão SSH, execute
+`venv/bin/flask --app run shell` e reaplique as revogações registradas diretamente
+no banco, sem abrir o painel ao público. No shell, repita para cada par
+papel/permissão, substituindo os valores pelos registrados:
+
+```python
+from app.extensions import db
+from app.models import Role, Permission
+
+papel = Role.query.filter_by(name="NOME_INTERNO_DO_PAPEL").one()
+permissao = Permission.query.filter_by(code="CODIGO_DA_PERMISSAO").one()
+if permissao in papel.permissions:
+    papel.permissions.remove(permissao)
+
+db.session.commit()
+db.session.expire_all()
+assert permissao not in papel.permissions
+```
+
+Confira todos os pares registrados após o commit e saia do shell (`exit()`).
+Se qualquer etapa falhar ou houver revogação pendente, mantenha os serviços parados.
+**Somente após a conferência**, inicie a aplicação e libere o acesso externo:
+
+```bash
+sudo systemctl start sigere
+sudo systemctl status sigere                       # confirme active (running)
+sudo systemctl start nginx
 ```
 
 Notas:
@@ -514,8 +549,8 @@ Notas:
   paralelos do Gunicorn). O comando é idempotente — rodar sempre não custa nada
   e garante que permissões/papéis de módulos novos entrem. Porém, também
   devolve ao papel cada permissão revogada de propósito em **Painel Admin →
-  Papéis** antes do update — reaplique essas revogações antes de liberar o
-  acesso à aplicação.
+  Papéis** antes do update — reaplique e confira essas revogações pelo Flask
+  shell via SSH, com Nginx e sigere parados, antes de liberar o acesso à aplicação.
 - **Fichas técnicas legadas** (só para instalações que ainda as tenham em
   `app/static/uploads/technical_sheets`): mova-as para
   `instance/uploads/technical_sheets/` e ajuste o dono recursivamente
@@ -527,10 +562,12 @@ Notas:
   `sync-permissions`) se preferir a rotina guiada — mas mantenha **duas venvs
   em mente**: o script usa `.venv` e o serviço documentado executa `venv/bin/gunicorn`;
   atualize sempre a venv que o serviço realmente executa (`systemctl cat sigere`).
+  A rotina guiada exige a mesma parada prévia de Nginx/sigere e a reaplicação e
+  conferência das revogações via SSH antes de iniciar os serviços.
 - Se a atualização só mudou código Python/templates (sem dependências nem
   migrações), `sudo systemctl reload sigere` basta e não derruba requisições.
-- Migrações são seguras de rodar com o serviço no ar (Alembic), mas a prática
-  recomendada é atualizar em janela de baixo uso.
+- Programe a atualização em janela de baixo uso: esta rotina mantém os serviços
+  parados durante as migrações, a sincronização e a conferência das revogações.
 
 ---
 
