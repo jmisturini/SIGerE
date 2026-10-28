@@ -293,8 +293,8 @@ def sync_permissions_command():
 def sync_permissions_impl(verbose=True):
     """Lógica compartilhada do sync de permissões.
 
-    Chamada pelo comando `flask sync-permissions`, pelo seed e pela
-    importação do legado — o boot NÃO sincroniza. Rode o comando após
+    Chamada pelo comando `flask sync-permissions`, pelo `flask seed-demo` e
+    pela importação do legado — o boot NÃO sincroniza. Rode o comando após
     `db upgrade` em toda atualização.
     """
     created_perms, created_roles, created_links = 0, 0, 0

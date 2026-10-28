@@ -235,8 +235,9 @@ flask --app run run --debug
   `instance/uploads/technical_sheets/` (fora de `static/`, fora do git — a pasta
   `instance/` inteira é ignorada). Instalações antigas com fichas em
   `app/static/uploads/technical_sheets` devem movê-las para a pasta da
-  instância: o caminho em `static/` é público no Nginx e não é mais lido pela
-  aplicação.
+  instância — o caminho em `static/` é público no Nginx, não é mais lido pela
+  aplicação, e as exclusões na Cozinha removem também a cópia legada que ali
+  ainda existir.
 
 ---
 
