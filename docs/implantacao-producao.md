@@ -548,9 +548,11 @@ Notas:
   executa sincronização de permissões (o DML concorrente derrubaria workers
   paralelos do Gunicorn). O comando é idempotente — rodar sempre não custa nada
   e garante que permissões/papéis de módulos novos entrem. Porém, também
-  devolve ao papel cada permissão revogada de propósito em **Painel Admin →
-  Papéis** antes do update — reaplique e confira essas revogações pelo Flask
-  shell via SSH, com Nginx e sigere parados, antes de liberar o acesso à aplicação.
+  devolve aos papéis padrão (ROLES_CONFIG) cada permissão revogada de propósito
+  em **Painel Admin → Papéis** antes do update — reaplique e confira essas
+  revogações pelo Flask shell via SSH, com Nginx e sigere parados, antes de
+  liberar o acesso à aplicação (papéis fora do ROLES_CONFIG não são alterados
+  pelo sync e exigem conferência manual).
 - **Fichas técnicas legadas** (só para instalações que ainda as tenham em
   `app/static/uploads/technical_sheets`): mova-as para
   `instance/uploads/technical_sheets/` e ajuste o dono recursivamente
@@ -704,6 +706,13 @@ Alternativa com cron (no `crontab -e` do seu usuário):
 - **SQLite:** pare o serviço (`sudo systemctl stop sigere`), descompacte sobre
   o arquivo (`gunzip -c sigere-....sqlite.gz > /var/www/sigere/reservation.db`)
   e siga os passos abaixo antes de subir de novo.
+- Se for executar `sync-permissions` — mesmo com backup da mesma versão —,
+  registre antes do primeiro sync o estado restaurado de cada papel e as
+  permissões que devem permanecer revogadas: `flask --app run
+  dump-permissions` lista os vínculos papel↔permissão gravados (um por
+  linha, inclusive papéis fora do `ROLES_CONFIG`). Esse registro é a base
+  para reaplicar as revogações depois do sync; o modo guiado já compara
+  antes/depois e lista os vínculos que o sync adicionou.
 - Mantenha o tráfego normal bloqueado (serviço parado) durante a restauração e
   os comandos seguintes: rode `venv/bin/flask --app run db upgrade` (aplica
   migrações feitas após o backup) e `venv/bin/flask --app run sync-permissions`

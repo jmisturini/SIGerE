@@ -39,6 +39,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs, unquote
 
@@ -350,6 +351,34 @@ def executar_flask(venv_python, env, argumentos):
                       env=env).returncode != 0:
         erro(f"Falha no comando: flask --app run {' '.join(argumentos)} — veja a mensagem acima.")
         raise SystemExit(1)
+
+
+def capturar_flask(venv_python, env, argumentos):
+    """Roda um comando da CLI capturando o stdout em linhas — usado para
+    registrar o estado dos vínculos papel↔permissão antes/depois do sync."""
+    resultado = subprocess.run([venv_python, '-m', 'flask', '--app', 'run'] + argumentos,
+                               env=env, capture_output=True, text=True)
+    if resultado.returncode != 0:
+        erro(f"Falha no comando: flask --app run {' '.join(argumentos)} — veja a mensagem acima.")
+        raise SystemExit(1)
+    return [linha for linha in resultado.stdout.splitlines() if linha.strip()]
+
+
+def registrar_snapshot_vinculos(antes, depois):
+    """Grava os snapshots pré/pós-sync em logs/ — fica de registro para o
+    operador reaplicar revogações confirmadas (e auditar o que mudou)."""
+    pasta = RAIZ / 'logs'
+    try:
+        pasta.mkdir(exist_ok=True)
+        marca = datetime.now().strftime('%Y%m%d-%H%M%S')
+        (pasta / f'sync-permissions-{marca}-antes.txt').write_text(
+            '\n'.join(antes) + '\n', encoding='utf-8')
+        (pasta / f'sync-permissions-{marca}-depois.txt').write_text(
+            '\n'.join(depois) + '\n', encoding='utf-8')
+        ok(f'Snapshots dos vínculos salvos em {pasta} (sync-permissions-{marca}-*.txt)')
+    except OSError as exc:
+        aviso(f'Não foi possível gravar os snapshots em {pasta}: {exc} — '
+              'os vínculos alterados seguem listados acima.')
 
 
 def aplicar_schema(venv_python, env, rotulo='5. Schema do banco (Flask-Migrate/Alembic)'):
@@ -756,9 +785,11 @@ def restaurar_backup():
     ok('Migrações aplicadas ao banco restaurado (alembic head).')
 
     titulo('Permissões após o backup')
-    aviso('O sync-permissions devolve ao papel cada permissão do catálogo que estiver '
-          'ausente — inclusive uma que tenha sido revogada de propósito no painel '
-          '(Painel Admin → Papéis) antes do backup.')
+    aviso('O sync-permissions devolve aos papéis padrão da aplicação (ROLES_CONFIG) '
+          'cada permissão do catálogo que estiver ausente — inclusive uma que tenha '
+          'sido revogada de propósito no painel (Painel Admin → Papéis) antes do '
+          'backup; papéis legados ou criados manualmente não são alterados e exigem '
+          'conferência manual.')
     aviso('Pular o sync também deixa ausentes as permissões NOVAS do catálogo: o painel '
           'só lista as já gravadas no banco e não consegue recriá-las — fluxos param de '
           'funcionar (ex.: reserva de Professor deixa de nascer Pendente). Recomendado: '
@@ -767,9 +798,30 @@ def restaurar_backup():
                              'backup veio da MESMA versão da aplicação (catálogo '
                              'completo) e há revogações a preservar.', padrao=True)
     if sync_executado:
+        # Snapshot antes/depois: sem ele, o operador não distingue um vínculo
+        # novo de catálogo de uma revogação intencional que o sync acabou de
+        # devolver ao papel.
+        print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
+        antes = capturar_flask(venv_python, env_processo, ['dump-permissions'])
         print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
         executar_flask(venv_python, env_processo, ['sync-permissions'])
+        depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
         ok('Permissões e papéis sincronizados (sync-permissions).')
+        registrar_snapshot_vinculos(antes, depois)
+        adicionados = sorted(set(depois) - set(antes))
+        removidos = sorted(set(antes) - set(depois))
+        titulo('Vínculos papel↔permissão alterados pelo sync')
+        if adicionados:
+            print('   Revise cada vínculo abaixo: entre eles podem estar permissões que')
+            print('   estavam revogadas de propósito no backup — as confirmadas devem')
+            print('   voltar a ficar ausentes em Painel Admin → Papéis, com o tráfego')
+            print('   ainda bloqueado:')
+            for linha in adicionados:
+                print(f'     + {linha}')
+        else:
+            print('   Nenhum vínculo foi adicionado pelo sync.')
+        for linha in removidos:
+            print(f'     - {linha} (aposentada do catálogo pelo sync)')
     else:
         aviso('sync-permissions pulado: revogações do backup preservadas. Confirme que o '
               'catálogo está completo — se faltar permissão, rode o sync com o tráfego '
@@ -790,9 +842,10 @@ def restaurar_backup():
           'debug, por HTTPS: --cert /caminho/cert.pem --key /caminho/chave.pem '
           '(acesse https://localhost:5000)')
     if sync_executado:
-        print('     • Reaplique em Painel Admin → Papéis as revogações existentes '
-              'no backup; encerre a instância local antes de reiniciar os serviços '
-              'e liberar o acesso normal')
+        print('     • Revise os vínculos adicionados pelo sync (listados acima) e '
+              'reaplique em Painel Admin → Papéis as revogações confirmadas; encerre '
+              'a instância local antes de reiniciar os serviços e liberar o acesso '
+              'normal')
     if not sync_executado:
         print('     • Confirme que o catálogo de permissões está completo (permissão '
               'nova só entra rodando flask --app run sync-permissions; o painel não '

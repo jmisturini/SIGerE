@@ -243,6 +243,37 @@ class PermissionsAccessTestCase(unittest.TestCase):
             self.assertEqual(db.session.get(Reservation, designada_id).status,
                              'approved')
 
+    def test_aprovador_sem_read_own_nao_aprova_mesmo_vinculado(self):
+        """Vínculo não substitui a permissão: papel com reservation:approve
+        mas SEM reservation:read_own recebe 403 mesmo sendo o criador da
+        pendência — sem este caso, remover a exigência de read_own do escopo
+        deixaria os testes atuais passando."""
+        with self.app.app_context():
+            papel = Role(name='aprovador-sem-leitura', label='Aprovador sem Leitura',
+                         permissions=[Permission.query.filter_by(
+                             code='reservation:approve').first()])
+            db.session.add(papel)
+            db.session.flush()
+            usuario = User(email='aprovador@escola.edu',
+                           full_name='Aprovador Sem Leitura', role='room',
+                           profile_type='teacher', unities=[Unity.query.first()],
+                           role_id=papel.id, force_password_change=False,
+                           is_active_user=True)
+            usuario.set_password(SENHA)
+            db.session.add(usuario)
+            db.session.commit()
+        reserva_id = self._criar_pendencia('aprovador@escola.edu', 'prof@escola.edu')
+        self.client.get('/logout')
+        self.assertEqual(self.client.post('/login',
+                                          data={'email': 'aprovador@escola.edu',
+                                                'password': SENHA},
+                                          follow_redirects=True).status_code, 200)
+        response = self.client.post(f'/reservations/{reserva_id}/approve')
+        self.assertEqual(response.status_code, 403)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, reserva_id).status,
+                             'pending')
+
     # ---------- Aposentadoria de permissões pelo sync ----------
 
     def test_catalogo_nao_tem_permissoes_aposentadas(self):
