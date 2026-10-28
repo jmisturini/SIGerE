@@ -69,13 +69,15 @@ O detalhamento oficial está no `CONTRIBUTING.md`. O que não se deriva dele:
   com bump da versão pinada). Num PR, podem existir **2 check-runs** (push da dev +
   o PR em si): conferir todos antes de mesclar.
 - Portão de revisão: check `portao-coderabbit` (`.github/workflows/coderabbit.yml`) fica
-  **vermelho até existir revisão concluída do CodeRabbit** sem `CHANGES_REQUESTED` e sem
-  thread de revisão dele em aberto — mesmo com os outros checks verdes. `.coderabbit.yaml`
-  ativa `request_changes_workflow` (apontamento acionável ⇒ review como "Request changes").
-  Fluxo típico de desbloqueio: resolver os apontamentos e comentar `@coderabbitai review`
-  (o CodeRabbit pausa sozinho após commits seguidos; o comentário retoma a revisão).
-  Hooks locais de git não servem aqui: o merge acontece na UI do GitHub. Para virar
-  bloqueio de verdade, marcar o check como *required* (ver seção 8).
+  **vermelho até existir revisão concluída do CodeRabbit para o commit atual** sem
+  `CHANGES_REQUESTED` e sem thread de revisão dele em aberto — mesmo com os outros checks
+  verdes. `.coderabbit.yaml` ativa `request_changes_workflow` (apontamento acionável ⇒
+  review como "Request changes"). Fluxo típico de desbloqueio: resolver os apontamentos
+  e comentar `@coderabbitai review` (o CodeRabbit pausa sozinho após commits seguidos;
+  o comentário retoma a revisão). Resolução/reabertura de thread não dispara evento —
+  reavaliar com o botão Re-run do check. Hooks locais de git não servem aqui: o merge
+  acontece na UI do GitHub. O check já é *required* em `dev` e `main`, com *Require
+  conversation resolution* ativo nas duas (ver seção 8).
 - Padrão de commits: prefixos em português (`ui:`, `fix:`, `docs:`, `release:`, `notificacoes:` …).
 
 ### Sem `gh` CLI — API do GitHub via curl
@@ -210,7 +212,7 @@ Estado em **2026-10-27** (v1.37.0 publicada; documentação revisada):
 | Manual do usuário (`docs/manual-do-usuario.pdf`) | Atualizado para a v1.37.0 (2026-10-27): Adicional Noturno, fluxo de professor pendente, autocancel, política de senha, bloqueio de conta, auditoria. Regenerar com `python docs/gerar_manual.py` a cada release relevante. |
 | Produção (VM OCI) | Confirmar na VM: `db upgrade` **e `sync-permissions`** (o sync saiu do boot — há permissões novas na v1.37: `user:lock`, `system:audit`), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós update; ver seção 5). |
 | CI | Status check do `tests` ainda não é *required* — pode ser endurecido em Settings depois de comprovado estável. |
-| Portão do CodeRabbit | Check `portao-coderabbit` criado (PR de 2026-10-27). **Pendente pós-merge:** em Settings → Branches → Branch protection de `dev` e `main`, adicionar `portao-coderabbit` em *Require status checks to pass* (o check precisa ter rodado ao menos uma vez numa PR dessas branches antes de aparecer na lista); opcional, complementar: ativar *Require conversation resolution before merging*. Se o app do CodeRabbit for desativado, desativar o workflow junto. |
+| Portão do CodeRabbit | Ativo (PR #174, 2026-10-27): check `portao-coderabbit` já marcado como *required* em `dev` e `main`, com *Require conversation resolution before merging* ligado nas duas. Se o app do CodeRabbit for desativado, desativar o workflow junto. |
 
 ## 9. Memória local do ZCode (não viaja com o git)
 

@@ -64,7 +64,10 @@ jobs:
               todas=$(jq -c --argjson t "$todas" '$t + .' <<<"$lote")
               [ "$(jq 'length' <<<"$lote")" -lt 100 ] && break
               pagina=$((pagina + 1))
-              [ "$pagina" -gt 10 ] && break
+              if [ "$pagina" -gt 10 ]; then
+                echo "::error::Mais de 1000 reviews na PR — valide manualmente (check falhando fechado por segurança)."
+                exit 1
+              fi
             done
             revisao=$(jq -c --arg sha "$HEAD_SHA" '[
                 .[] | select(
@@ -94,9 +97,14 @@ jobs:
           # e vigentes — as ultrapassadas por commits novos são isOutdated).
           payload=$(jq -n \
               --arg owner "${REPO%%/*}" --arg name "${REPO#*/}" --argjson n "$PR" \
-              '{query: "query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved isOutdated comments(first:1){nodes{author{login}}}}} pageInfo{hasNextPage}}}}",
+              '{query: "query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved isOutdated comments(first:1){nodes{author{login}}}} pageInfo{hasNextPage}}}}}",
                 variables: {owner: $owner, name: $name, n: $n}}')
           grafo=$(curl -sSf -H "Authorization: Bearer $GH_TOKEN" "$API/graphql" -d "$payload")
+
+          if jq -e '.errors' <<<"$grafo" >/dev/null; then
+            echo "::error::Falha na consulta GraphQL: $(jq -r '.errors[0].message // "erro desconhecido"' <<<"$grafo")"
+            exit 1
+          fi
 
           if jq -e '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$grafo" | grep -q true; then
             echo "::error::A PR tem mais de 100 threads de revisão — valide manualmente antes de mesclar (falhando fechado por segurança)."
