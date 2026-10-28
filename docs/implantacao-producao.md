@@ -676,10 +676,12 @@ Alternativa com cron (no `crontab -e` do seu usuário):
   devolve permissões revogadas de propósito em **Painel Admin → Papéis** antes
   do backup. Caminho recomendado: rode o sync com o tráfego bloqueado, suba a
   aplicação sem expor aos usuários (ex.: `venv/bin/flask --app run run` na
-  máquina do servidor, com Nginx/serviço parado — em servidor remoto, acesse o
-  painel por túnel SSH: `ssh -N -L 5000:127.0.0.1:5000 usuario@servidor`),
-  reaplique as revogações em **Painel Admin → Papéis** e salve — só então libere
-  o acesso normal e teste o login.
+  máquina do servidor, com Nginx/serviço parado e `FLASK_DEBUG=true` somente
+  para esse acesso local — fora do debug o cookie de sessão é `Secure` e o
+  login falha em HTTP; a alternativa é servir por HTTPS. Em servidor remoto,
+  acesse o painel por túnel SSH: `ssh -N -L 5000:127.0.0.1:5000
+  usuario@servidor`), reaplique as revogações em **Painel Admin → Papéis** e
+  salve — só então libere o acesso normal e teste o login.
   Só pule o sync (responda "não" à pergunta do modo guiado, ou omita o comando
   no caminho manual) se o backup veio da mesma versão — catálogo completo e
   revogações a preservar.
