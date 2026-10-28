@@ -771,18 +771,21 @@ def restaurar_backup():
     for passo in passos:
         print(f'   • {passo}')
     print('\n   Próximos passos:')
+    print('     • Em servidor remoto, abra um túnel SSH antes de acessar o painel: '
+          'ssh -N -L 5000:127.0.0.1:5000 usuario@servidor')
     if sync_executado:
         print('     • Com Nginx e o serviço normal parados, suba uma instância local '
-              '(flask --app run run), acesse http://localhost:5000 e reaplique em '
-              'Painel Admin → Papéis as revogações existentes no backup; encerre a '
-              'instância local antes de reiniciar o serviço e liberar o acesso normal')
+              f'("{venv_python}" -m flask --app run run), acesse http://localhost:5000 '
+              'e reaplique em Painel Admin → Papéis as revogações existentes no backup; '
+              'encerre a instância local antes de reiniciar o serviço e liberar o '
+              'acesso normal')
     if not sync_executado:
         print('     • Com Nginx e o serviço normal parados, suba uma instância local '
-              '(flask --app run run), acesse http://localhost:5000, confirme que o '
-              'catálogo de permissões está completo (permissão nova só entra via '
-              'sync-permissions; o painel não a recria) e reaplique em Painel Admin → '
-              'Papéis as revogações preservadas do backup; encerre a instância local '
-              'antes de liberar o acesso normal')
+              f'("{venv_python}" -m flask --app run run), acesse http://localhost:5000, '
+              'confirme que o catálogo de permissões está completo (permissão nova só '
+              'entra via sync-permissions; o painel não a recria) e reaplique em '
+              'Painel Admin → Papéis as revogações preservadas do backup; encerre a '
+              'instância local antes de liberar o acesso normal')
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         print('     • Suba o servidor: flask --app run run --debug')
     else:
