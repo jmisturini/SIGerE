@@ -691,6 +691,14 @@ def delete(reservation_id):
 @login_required
 @require_permission('reservation:approve')
 def approve(reservation_id):
+    """Aprova uma reserva pendente dentro do escopo de acesso do usuário.
+
+    Com reservation:read_all, aprova qualquer pendência da unidade ativa;
+    sem ela, exige reservation:read_own e vínculo com a reserva (criador ou
+    professor designado) — POST direto em pendência de terceiros recebe 403.
+    A aprovação revalida o conflito de sala na seção crítica: se outra
+    reserva aprovada surgiu na mesma janela, a pendência permanece.
+    """
     reservation = _get_reservation_scoped(reservation_id)
     # A ação segue o mesmo escopo de acesso do detalhe: sem leitura global,
     # só aprova quem tem vínculo com a reserva (criador ou professor

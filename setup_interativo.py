@@ -697,6 +697,15 @@ def restaurar_postgres(uri, arquivo_backup):
 
 
 def restaurar_backup():
+    """Modo guiado de restauração de backup (SQLite ou PostgreSQL).
+
+    Substitui todos os dados atuais do banco pelo dump escolhido, aplica as
+    migrações posteriores ao backup (db upgrade) e oferece o sync-permissions
+    sob confirmação do operador: executá-lo devolve ao papel permissões
+    revogadas no backup, e pular o deixa ausentes as permissões novas do
+    catálogo — o resumo final orienta como tratar cada caso antes de
+    reiniciar os serviços e liberar o acesso.
+    """
     titulo('Modo: restauração de backup')
     venv_python, env_processo, env_arquivo = preparar_manutencao()
 
