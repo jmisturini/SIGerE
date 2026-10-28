@@ -58,15 +58,22 @@ def _remove_legacy_static_copy(stored_filename):
     """Apaga a cópia legada em app/static/uploads/technical_sheets, se houver:
     o Nginx publica /static/ sem autenticação, e deixar o arquivo lá o manteria
     acessível mesmo depois da exclusão na rota protegida. Só remove — esse
-    caminho nunca é lido nem servido pela aplicação."""
+    caminho nunca é lido nem servido pela aplicação. Falha de permissão (o
+    Gunicorn roda como www-data, sem escrita em app/static/) é registrada no
+    log: o arquivo continuaria público."""
     if not stored_filename:
         return
     legacy = os.path.join(current_app.root_path, 'static', 'uploads',
                           'technical_sheets', stored_filename)
     try:
         os.remove(legacy)
-    except OSError:
+    except FileNotFoundError:
         pass
+    except OSError:
+        current_app.logger.exception(
+            'Falha ao remover cópia legada da ficha em %s — o arquivo '
+            'continua acessível publicamente; mova ou remova manualmente.',
+            legacy)
 
 
 def _get_sheet_scoped(sheet_id):
