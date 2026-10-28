@@ -1,0 +1,98 @@
+name: Portao CodeRabbit
+
+# Regra de merge: nenhum PR pode ser mesclado sem a revisão do CodeRabbit
+# conferida — mesmo com pytest e Qualidade verdes. O check só fica verde
+# quando existe revisão concluída do CodeRabbit, sem CHANGES_REQUESTED e
+# sem thread de revisão dele em aberto. Se o app do CodeRabbit for
+# desativado no repositório, desativar também este workflow (o check
+# ficaria vermelho para sempre).
+#
+# Para virar bloqueio real, o check "portao-coderabbit" precisa ser
+# marcado como *required* em dev e main (ver docs/guia-continuidade.md,
+# seções 3 e 8).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  # Re-executa quando o CodeRabbit (ou qualquer um) publica uma review…
+  pull_request_review:
+    types: [submitted]
+  # …ou um comentário comum (a review do CodeRabbit também chega como
+  # comentário de resumo), inclusive fora do diff.
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: portao-coderabbit-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  portao-coderabbit:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Valida revisão do CodeRabbit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+          ESPERA: ${{ github.event_name == 'pull_request' && 300 || 60 }}
+        run: |
+          set -euo pipefail
+
+          API="https://api.github.com"
+          autenticacao=(-H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28")
+
+          echo "PR #$PR — aguardando revisão do CodeRabbit (até ${ESPERA}s)…"
+
+          revisao=""
+          prazo=$(( $(date +%s) + ESPERA ))
+          while :; do
+            revisao=$(curl -sSf "${autenticacao[@]}" \
+                "$API/repos/$REPO/pulls/$PR/reviews?per_page=100" \
+              | jq -c '[.[] | select(
+                  (.user.login | ascii_downcase) == "coderabbitai[bot]"
+                  and .state != "PENDING")] | last // empty')
+            [ -n "$revisao" ] && break
+            [ "$(date +%s)" -ge "$prazo" ] && break
+            sleep 15
+          done
+
+          if [ -z "$revisao" ]; then
+            echo "::error::Nenhuma revisão concluída do CodeRabbit após ${ESPERA}s. Comente @coderabbitai review no PR — este check roda de novo assim que a revisão for publicada."
+            exit 1
+          fi
+
+          estado=$(jq -r '.state' <<<"$revisao")
+          echo "Última revisão do CodeRabbit: $estado"
+
+          if [ "$estado" = "CHANGES_REQUESTED" ]; then
+            echo "::error::O CodeRabbit pediu alterações. Resolva os apontamentos (os de fora do diff ficam no CORPO da review) e re rode a revisão com @coderabbitai review antes de mesclar."
+            exit 1
+          fi
+
+          # Threads de review do CodeRabbit ainda em aberto (não resolvidas
+          # e vigentes — as ultrapassadas por commits novos são isOutdated).
+          payload=$(jq -n \
+              --arg owner "${REPO%%/*}" --arg name "${REPO#*/}" --argjson n "$PR" \
+              '{query: "query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved isOutdated comments(first:1){nodes{author{login}}}}}}}}",
+                variables: {owner: $owner, name: $name, n: $n}}')
+          grafo=$(curl -sSf -H "Authorization: Bearer $GH_TOKEN" "$API/graphql" -d "$payload")
+
+          pendentes=$(jq '[.data.repository.pullRequest.reviewThreads.nodes[]
+              | select(.isResolved == false
+                  and .isOutdated == false
+                  and ((.comments.nodes[0].author.login // "") | ascii_downcase) == "coderabbitai[bot]")]
+              | length' <<<"$grafo")
+
+          if [ "$pendentes" -gt 0 ]; then
+            echo "::error::$pendentes thread(s) de revisão do CodeRabbit sem resolução. Responda e resolva as conversas (ou comente @coderabbitai resolve) antes de mesclar."
+            exit 1
+          fi
+
+          echo "Revisão do CodeRabbit conferida: sem apontamentos pendentes. Liberado para mesclar."
