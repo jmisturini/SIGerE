@@ -773,26 +773,29 @@ def restaurar_backup():
     print('\n   Próximos passos:')
     print('     • Em servidor remoto, abra um túnel SSH antes de acessar o painel: '
           'ssh -N -L 5000:127.0.0.1:5000 usuario@servidor')
-    print('     • Com Nginx e o serviço normal parados, suba uma instância local com '
-          'FLASK_DEBUG=true (somente para esse acesso de restauração — fora do debug '
-          'o cookie de sessão é Secure e o login falha em HTTP) ou servindo por HTTPS: '
+    print('     • Com Nginx e o serviço normal parados, suba uma instância local — '
           f'PowerShell: & "{venv_python}" -m flask --app run run; demais shells: '
-          f'"{venv_python}" -m flask --app run run')
+          f'"{venv_python}" -m flask --app run run — com FLASK_DEBUG=true (somente '
+          'para esse acesso de restauração: fora do debug o cookie de sessão é '
+          'Secure e o login falha em HTTP; acesse http://localhost:5000) ou, sem '
+          'debug, por HTTPS: --cert /caminho/cert.pem --key /caminho/chave.pem '
+          '(acesse https://localhost:5000)')
     if sync_executado:
-        print('     • Acesse http://localhost:5000 e reaplique em Painel Admin → '
-              'Papéis as revogações existentes no backup; encerre a instância local '
-              'antes de reiniciar o serviço e liberar o acesso normal')
+        print('     • Reaplique em Painel Admin → Papéis as revogações existentes '
+              'no backup; encerre a instância local antes de reiniciar os serviços '
+              'e liberar o acesso normal')
     if not sync_executado:
-        print('     • Acesse http://localhost:5000, confirme que o catálogo de '
-              'permissões está completo (permissão nova só entra via '
-              'sync-permissions; o painel não a recria) e reaplique em Painel '
-              'Admin → Papéis as revogações preservadas do backup; encerre a '
-              'instância local antes de liberar o acesso normal')
+        print('     • Confirme que o catálogo de permissões está completo (permissão '
+              'nova só entra via sync-permissions; o painel não a recria) e reaplique '
+              'em Painel Admin → Papéis as revogações preservadas do backup; encerre '
+              'a instância local antes de liberar o acesso normal')
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         print('     • Suba o servidor: flask --app run run --debug')
+        print('     • Teste o login e a navegação: http://localhost:5000')
     else:
-        print('     • Reinicie o serviço: sudo systemctl restart sigere')
-    print('     • Teste o login e a navegação: http://localhost:5000')
+        print('     • Reinicie Nginx e o serviço: sudo systemctl start nginx && '
+              'sudo systemctl restart sigere')
+        print('     • Teste o login e a navegação pelo endereço normal do sistema')
     print('     • O backup do banco não inclui os uploads (instance/uploads) nem o .env — '
           'para reconstruir uma máquina inteira, copie também essas partes '
           '(docs/implantacao-producao.md, "restaurar uma instalação completa").')

@@ -678,10 +678,14 @@ Alternativa com cron (no `crontab -e` do seu usuário):
   aplicação sem expor aos usuários (ex.: `venv/bin/flask --app run run` na
   máquina do servidor, com Nginx/serviço parado e `FLASK_DEBUG=true` somente
   para esse acesso local — fora do debug o cookie de sessão é `Secure` e o
-  login falha em HTTP; a alternativa é servir por HTTPS. Em servidor remoto,
+  login falha em HTTP; a alternativa, sem debug, é servir por HTTPS:
+  `venv/bin/flask --app run run --cert /caminho/cert.pem --key
+  /caminho/chave.pem` e acessar `https://localhost:5000`. Em servidor remoto,
   acesse o painel por túnel SSH: `ssh -N -L 5000:127.0.0.1:5000
   usuario@servidor`), reaplique as revogações em **Painel Admin → Papéis** e
-  salve — só então libere o acesso normal e teste o login.
+  salve — só então reinicie Nginx e o serviço (`sudo systemctl start nginx &&
+  sudo systemctl restart sigere`) e teste o login pelo endereço normal do
+  sistema.
   Só pule o sync (responda "não" à pergunta do modo guiado, ou omita o comando
   no caminho manual) se o backup veio da mesma versão — catálogo completo e
   revogações a preservar.
