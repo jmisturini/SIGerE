@@ -747,14 +747,27 @@ def restaurar_backup():
     ok('Migrações aplicadas ao banco restaurado (alembic head).')
 
     titulo('Permissões após o backup')
-    print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
-    executar_flask(venv_python, env_processo, ['sync-permissions'])
-    ok('Permissões e papéis sincronizados (sync-permissions).')
+    aviso('O sync-permissions devolve ao papel cada permissão do catálogo que estiver '
+          'ausente — inclusive uma que tenha sido revogada de propósito no painel '
+          '(Painel Admin → Papéis) antes do backup.')
+    sync_executado = sim_nao('Executar sync-permissions agora? Responda NÃO se o '
+                             'backup tinha revogações de permissões.', padrao=True)
+    if sync_executado:
+        print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
+        executar_flask(venv_python, env_processo, ['sync-permissions'])
+        ok('Permissões e papéis sincronizados (sync-permissions).')
+    else:
+        aviso('sync-permissions pulado: as revogações do backup foram preservadas — '
+              'reaplique as permissões que devem existir em Painel Admin → Papéis '
+              'ANTES de liberar o acesso dos usuários.')
 
     titulo('Resumo da restauração')
     for passo in passos:
         print(f'   • {passo}')
     print('\n   Próximos passos:')
+    if not sync_executado:
+        print('     • Reaplique em Painel Admin → Papéis as revogações preservadas do '
+              'backup e salve, antes de liberar o acesso normal')
     print('     • Teste o login e a navegação: http://localhost:5000')
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         print('     • Suba o servidor: flask --app run run --debug')

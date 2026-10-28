@@ -1431,7 +1431,8 @@ BLOCOS = [
         'por um perfil Professor — cujas reservas nascem Pendentes para aprovação da gestão '
         '(seção 6.2). A análise fica com quem tem permissão de aprovação: Gestor e '
         'Administrador enxergam e aprovam qualquer pendência; o Analista também tem a '
-        'permissão, mas só vê e aprova as reservas em que é criador ou professor designado;',
+        'permissão, mas só vê e aprova as reservas em que é criador ou professor designado; o '
+        'Super Administrador também vê e aprova qualquer pendência da unidade ativa;',
         '<b>Minha reserva pendente virou Cancelada sozinha. O que aconteceu?</b>',
         'Cancelamento automático: a pendência que não é aprovada até 1 hora antes do início é '
         'cancelada pelo servidor e o criador recebe o aviso com o motivo (seção 6.2);',

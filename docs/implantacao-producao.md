@@ -661,12 +661,20 @@ Alternativa com cron (no `crontab -e` do seu usuário):
   `sudo -u postgres dropdb --if-exists sigere && sudo -u postgres createdb -O sigere sigere`.
 - **SQLite:** pare o serviço (`sudo systemctl stop sigere`), descompacte sobre
   o arquivo (`gunzip -c sigere-....sqlite.gz > /var/www/sigere/reservation.db`)
-  e suba de novo.
-- Depois de restaurar, rode `venv/bin/flask --app run db upgrade` (aplica
-  migrações feitas após o backup), `venv/bin/flask --app run sync-permissions`
+  e siga os passos abaixo antes de subir de novo.
+- Mantenha o tráfego normal bloqueado (serviço parado) durante a restauração e
+  os comandos seguintes: rode `venv/bin/flask --app run db upgrade` (aplica
+  migrações feitas após o backup) e `venv/bin/flask --app run sync-permissions`
   (recria permissões/papéis que o backup anterior não tinha — idempotente; o
-  modo guiado "Restaurar backup" do `setup_interativo.py` já executa os dois)
-  e teste o login.
+  modo guiado "Restaurar backup" do `setup_interativo.py` executa os dois e
+  pergunta antes do sync).
+- **Revogações de permissão no backup:** o `sync-permissions` devolve ao papel
+  cada permissão do catálogo que estiver ausente — inclusive uma revogada de
+  propósito em **Painel Admin → Papéis** antes do backup. Backup com revogações:
+  responda "não" à pergunta do modo guiado (ou pule o comando no caminho manual),
+  suba a aplicação sem expor aos usuários (ex.: `flask --app run run` na máquina
+  do servidor, com Nginx/serviço parado), reaplique as revogações em **Painel
+  Admin → Papéis** e salve — só então libere o acesso normal e teste o login.
 
 > **Ensaiou o restore?** Backup só é backup depois de restaurado uma vez —
 > faça o ensaio em outra máquina/container antes de precisar de verdade.
