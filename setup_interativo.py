@@ -771,6 +771,10 @@ def restaurar_backup():
     for passo in passos:
         print(f'   • {passo}')
     print('\n   Próximos passos:')
+    if sync_executado:
+        print('     • Com o tráfego bloqueado, reaplique em Painel Admin → Papéis '
+              'as revogações existentes no backup antes de reiniciar o serviço e '
+              'liberar o acesso normal')
     if not sync_executado:
         print('     • Confirme que o catálogo de permissões está completo (permissão nova '
               'só entra via sync-permissions; o painel não a recria) e reaplique em '
