@@ -683,7 +683,8 @@ Alternativa com cron (no `crontab -e` do seu usuário):
   /caminho/chave.pem` e acessar `https://localhost:5000`. Em servidor remoto,
   acesse o painel por túnel SSH: `ssh -N -L 5000:127.0.0.1:5000
   usuario@servidor`), reaplique as revogações em **Painel Admin → Papéis** e
-  salve — só então reinicie Nginx e o serviço (`sudo systemctl start nginx &&
+  salve — só então encerre a instância local (`Ctrl+C`) e reinicie Nginx e o
+  serviço (`sudo systemctl start nginx &&
   sudo systemctl restart sigere`) e teste o login pelo endereço normal do
   sistema.
   Só pule o sync (responda "não" à pergunta do modo guiado, ou omita o comando
