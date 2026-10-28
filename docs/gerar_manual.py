@@ -1426,12 +1426,12 @@ BLOCOS = [
         'Apenas reservas aprovadas são exibidas publicamente. Verifique se a reserva está '
         'pendente ou cancelada;',
         '<b>Por que minha reserva ficou pendente se a sala estava livre?</b>',
-        'Três motivos possíveis: o professor selecionado já tem reserva em outra sala no mesmo '
+        'Três motivos possíveis: o professor selecionado já tem outra reserva no mesmo '
         'horário, o professor já atingiu o limite diário de reservas, ou a reserva foi criada '
         'por um perfil Professor — cujas reservas nascem Pendentes para aprovação da gestão '
         '(seção 6.2). A análise fica com quem tem permissão de aprovação: Gestor e '
         'Administrador enxergam e aprovam qualquer pendência; o Analista também tem a '
-        'permissão, mas só acessa as reservas em que é criador ou professor designado;',
+        'permissão, mas só vê e aprova as reservas em que é criador ou professor designado;',
         '<b>Minha reserva pendente virou Cancelada sozinha. O que aconteceu?</b>',
         'Cancelamento automático: a pendência que não é aprovada até 1 hora antes do início é '
         'cancelada pelo servidor e o criador recebe o aviso com o motivo (seção 6.2);',

@@ -686,12 +686,20 @@ def delete(reservation_id):
     flash('Reserva excluída permanentemente.', 'info')
     return redirect(url_for('reservations.all_reservations'))
 
-# Route to approve a pending reservation (Admin only)
+# Route to approve a pending reservation (requires reservation:approve)
 @bp.route('/<int:reservation_id>/approve', methods=['POST'])
 @login_required
 @require_permission('reservation:approve')
 def approve(reservation_id):
     reservation = _get_reservation_scoped(reservation_id)
+    # A ação segue o mesmo escopo de acesso do detalhe: sem leitura global,
+    # só aprova quem tem vínculo com a reserva (criador ou professor
+    # designado) — senão o POST direto aprovaria pendência de terceiros.
+    if not current_user.has_permission('reservation:read_all'):
+        vinculado = (reservation.user_id == current_user.id
+                     or reservation.teacher_id == current_user.id)
+        if not (current_user.has_permission('reservation:read_own') and vinculado):
+            abort(403)
     if reservation.status == 'pending':
         # Aprovar revalida o conflito de sala dentro da seção crítica:
         # enquanto a reserva estava pendente outra pode ter sido aprovada
