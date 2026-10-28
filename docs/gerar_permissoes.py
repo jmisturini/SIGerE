@@ -118,8 +118,8 @@ Super Administrador tem tudo via `*`).
 
 - **Novo código de permissão ou mudança de papel:** edite
   `PERMISSION_DATA`/`ROLES_CONFIG` em `app/commands.py`, regenere este
-  documento e rode `flask sync-permissions` (o startup também sincroniza
-  sozinho, de forma idempotente);
+  documento e rode `flask sync-permissions` (o boot não sincroniza; rode o
+  comando após `db upgrade` em toda atualização — é idempotente);
 - **Aposentadoria:** remover o código de `PERMISSION_DATA` faz o sync
   apagar a permissão e os vínculos com papéis em bancos já existentes;
 - **Referência de uso:** `grep -r "require_permission" app/blueprints/`.

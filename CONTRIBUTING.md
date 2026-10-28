@@ -33,12 +33,29 @@ A CI roda em todo PR e em todo push para `main`/`dev`: o workflow **Testes** exe
 
 1. Atualize `APP_VERSION` e o changelog em `app/version.py`;
 2. PR `dev` → `main` e merge;
-3. Crie a tag na `main` e envie:
+3. Crie a tag anotada no commit de merge (na `main`) e envie:
 
 ```bash
-git tag -a vX.Y.Z main -m "SIGerE vX.Y.Z"
+git tag -a vX.Y.Z <sha-do-merge> -m "SIGerE vX.Y.Z"
 git push origin vX.Y.Z
 ```
+
+4. Publique a **GitHub Release** a partir da tag, copiando título e grupos da
+   entrada correspondente de `RELEASES` em `app/version.py`:
+
+```bash
+gh release create vX.Y.Z --verify-tag --notes-file notas.md --title "SIGerE vX.Y.Z — <título da entrada>"
+```
+
+   O `--verify-tag` garante que a release usa a tag do passo 3 — sem ele, o
+   `gh` criaria uma tag ausente apontando para o commit da branch padrão.
+
+5. Nas máquinas sem `gh`, publique pela API: `POST /repos/jmisturini/SIGerE/releases`
+   com `tag_name`, `name` e `body` — valide antes que a tag existe
+   (`GET /repos/jmisturini/SIGerE/git/ref/tags/vX.Y.Z` → 200). Ver "Sem `gh`
+   CLI" em [docs/guia-continuidade.md](docs/guia-continuidade.md).
+
+6. PR `main` → `dev` para realinhar.
 
 ## Hotfix em produção
 

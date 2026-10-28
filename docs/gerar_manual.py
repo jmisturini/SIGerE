@@ -36,7 +36,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 # ---------------------------------------------------------------- constantes
 
-VERSAO = '1.32.0'
+VERSAO = '1.37.0'
 DATA_CAPA = 'Outubro de 2026'
 
 PAGINA_W, PAGINA_H = A4
@@ -299,19 +299,21 @@ BLOCOS = [
         'aprovação administrativa;',
         '<b>Calendário</b> — consulta visual das reservas aprovadas com filtros combinados;',
         '<b>Notificações</b> — avisos no sino do sistema quando uma atividade reservada se '
-        'aproxima da data, com destinatários e antecedências definidos por unidade;',
+        'aproxima da data (opt-in por reserva), além de avisos de mudança de status e '
+        'lembretes de pendências aguardando aprovação;',
         '<b>Portal público</b> — cronograma do dia e buscas de aula, sala e professor para '
         'alunos e visitantes, sem login;',
         '<b>Totem digital</b> — painel para TVs de corredor mostrando a ocupação das salas em '
         'tempo real;',
         '<b>Financeiro</b> — lançamento de horas extras docentes para pagamento;',
-        '<b>RH</b> — Vale-Transporte: pedido público do colaborador, conferência do RH e '
-        'planilhas e relatório do período;',
+        '<b>RH</b> — Vale-Transporte (pedido público do colaborador, conferência do RH e '
+        'planilhas e relatório do período), Vale Alimentação e Adicional Noturno '
+        '(lançamentos docentes e planilhas de pagamento);',
         '<b>Cozinha</b> — fichas técnicas operacionais (.docx), preparações com recálculo de '
         'porções e requisição de compra;',
         '<b>Administração</b> — usuários (com vínculo a uma ou mais unidades), salas, '
-        'categorias, cursos, disciplinas, feriados, papéis, notificações, unidades e tokens de '
-        'integração (API).',
+        'categorias, cursos, disciplinas, feriados, papéis, notificações, unidades, tokens de '
+        'integração (API) e trilha de auditoria de segurança.',
     ]),
     ('h2', '1.2 Sobre este manual'),
     ('p', 'Este manual orienta o uso operacional do sistema por todos os perfis: professores, '
@@ -326,6 +328,9 @@ BLOCOS = [
         '<b>Sequências numeradas</b> indicam passos na ordem em que devem ser executados;',
         'Os <b>quadros coloridos</b> destacam dicas (azul), atenção (âmbar) e pontos '
         'importantes (vermelho);',
+        'As <b>listagens</b> aceitam ordenação: os cabeçalhos de tabela são clicáveis e '
+        'alternam a ordem ascendente/descendente, e muitos filtros trazem a caixa '
+        '<b>Ordenar por</b>;',
         'Algumas ações só aparecem para quem possui a permissão correspondente — a seção 3 '
         'explica os papéis e permissões.',
     ]),
@@ -349,16 +354,18 @@ BLOCOS = [
         'de boas-vindas.',
     ]),
     ('atencao', 'Por segurança, o login permite no máximo <b>5 tentativas por minuto</b> por '
-                'computador. Após esgotar as tentativas, aguarde um momento antes de tentar '
-                'novamente.'),
+                'endereço IP — em redes compartilhadas, o limite é comum a todos os '
+                'computadores — e, após <b>10 tentativas de senha erradas</b>, a conta é '
+                'bloqueada por segurança: somente um administrador pode desbloqueá-la. '
+                'Aguarde um momento entre tentativas e confira a senha antes de tentar de novo.'),
     ('h2', '2.2 Primeiro acesso e troca de senha obrigatória'),
     ('p', 'Contas recém-criadas e senhas redefinidas por um administrador chegam ao usuário em '
           'caráter temporário: o sistema <b>obriga a troca de senha</b> no primeiro login. Até a '
           'troca ser concluída, nenhuma outra tela é liberada.'),
     ('ol', [
         'Após entrar com a senha temporária, a tela de alteração de senha é apresentada;',
-        'Informe a <b>Senha Atual</b>, a <b>Nova Senha</b> (mínimo de 8 caracteres) e a '
-        '<b>Confirmação da Nova Senha</b>;',
+        'Informe a <b>Senha Atual</b>, a <b>Nova Senha</b> (mínimo de 8 caracteres, com pelo '
+        'menos 1 letra maiúscula e 1 número) e a <b>Confirmação da Nova Senha</b>;',
         'Clique em <b>Atualizar Senha</b>. O sistema libera o acesso normal e confirma: “Sua '
         'senha foi atualizada com sucesso!”.',
     ]),
@@ -374,7 +381,7 @@ BLOCOS = [
         '<b>E-mail</b> e <b>Papel</b> — somente leitura; o e-mail é o login e apenas um '
         'administrador pode alterá-lo;',
         '<b>Troca de senha</b> — opcional: informe a senha atual e a nova (mínimo de 8 '
-        'caracteres, diferente da atual).',
+        'caracteres, com 1 letra maiúscula e 1 número, diferente da atual).',
     ]),
     ('p', 'Clique em <b>Salvar Alterações</b> para gravar.'),
     ('h2', '2.5 Sair'),
@@ -386,7 +393,8 @@ BLOCOS = [
         '<b>Menu lateral</b> — agrupado em <b>Geral</b> (Painel, Agenda), <b>Relatórios</b> '
         '(Relatório Geral e Relatório Personalizado), <b>Salas e Reservas</b> (Salas; '
         'submenu Reservas com Nova Reserva, Minhas Reservas e Todas as Reservas), '
-        '<b>Financeiro</b> (Hora Extra), <b>RH</b> (Vale Transporte e Vale Alimentação) '
+        '<b>Financeiro</b> (Hora Extra), <b>RH</b> (Vale Transporte, Vale Alimentação e '
+        'Adicional Noturno) '
         'e <b>Cozinha</b> '
         '(Ficha Técnica, Preparações, Compras). Os grupos Financeiro, RH e Cozinha só aparecem '
         'para quem tem permissão e quando o módulo está ativado na unidade;',
@@ -399,10 +407,11 @@ BLOCOS = [
         'abre o dropdown com as últimas notificações (seção 8);',
         '<b>Painel Admin</b> — atalho em forma de engrenagem, visível para administradores;',
         '<b>Aparência</b> — um único seletor (ícone de paleta) reúne o tema claro/escuro e a '
-        'cor da interface (Azul Senac padrão, Verde, Roxo, Laranja ou Grafite); a escolha fica '
-        'salva no navegador;',
+        'cor da interface (Azul Senac padrão, Verde, Turquesa, Roxo, Rosa, Vermelho, Laranja '
+        'ou Grafite); a escolha fica salva no navegador;',
         '<b>Novidades</b> — o rodapé exibe a versão do sistema; o link abre o histórico de '
-        'novidades de cada versão.',
+        'novidades, com cada versão abrindo e fechando com um clique (a versão em execução '
+        'nasce aberta).',
     ]),
     ('nota', 'Campos com asterisco vermelho (*) são obrigatórios. Ações destrutivas — como '
              'excluir reservas, fichas ou pedidos — sempre pedem confirmação antes de executar. '
@@ -424,15 +433,19 @@ BLOCOS = [
           'editado por outros papéis.'],
          ['Administrador', 'Gestão de usuários, unidades, salas, categorias, cursos, '
           'disciplinas, feriados e tokens da API; aprova, edita, cancela e exclui quaisquer '
-          'reservas; acesso ao módulo Cozinha; configura as notificações da unidade.'],
+          'reservas; acesso ao módulo Cozinha; configura o aviso de sobrecarga de professor e '
+          'consulta a auditoria de segurança.'],
          ['Gestor', 'Operação completa de reservas (ver todas, criar, editar, aprovar, cancelar '
           'e excluir), gestão de salas e cursos, horas extras completas e exportações.'],
          ['Analista', 'Cria e edita as próprias reservas, aprova reservas pendentes, lança e '
           'edita horas extras e exporta relatórios.'],
-         ['Professor', 'Cria, visualiza, edita e cancela as próprias reservas; consulta salas e '
-          'cursos; exportações básicas.'],
-         ['Assistente/Logística', 'Mesmas permissões do Professor: cria, visualiza, edita e '
-          'cancela as próprias reservas e consulta salas e cursos.'],
+         ['Professor', 'Cria, visualiza, edita e cancela as próprias reservas — que nascem '
+          '<b>Pendentes</b> para aprovação da gestão; consulta salas e cursos; exportações '
+          'básicas.'],
+         ['Assistente/Logística', 'Mesmo alcance do Professor, sem o fluxo de aprovação: '
+          'cria, visualiza, edita e cancela as próprias reservas — normalmente Aprovadas, '
+          'mas Pendentes em caso de conflito de professor ou carga diária acima do limite — '
+          'e consulta salas e cursos.'],
      ],
      [105, 378],
      'Tabela 1 — Papéis padrão do sistema e alcance de cada um.'),
@@ -543,7 +556,8 @@ BLOCOS = [
          ['Sala', 'Sim', 'Selecione a sala desejada (apenas salas ativas da unidade).'],
          ['Curso', 'Sim', 'Curso vinculado à reserva; a lista traz apenas os cursos da unidade.'],
          ['Disciplina', 'Não', 'Ao escolher um curso, a lista mostra apenas as disciplinas dele.'],
-         ['Professor', 'Não', 'Docente responsável pela atividade.'],
+         ['Professor', 'Não', 'Docente responsável pela atividade. No fluxo do papel Professor, '
+          'o campo já vem designado a você mesmo e não permite terceiros.'],
          ['Título / Assunto', 'Não', 'Nome da atividade (até 200 caracteres; letras, números e '
           'pontuação comum). Em branco, a reserva usa o nome do curso como título.'],
          ['Descrição / Finalidade', 'Não', 'Detalhes livres sobre a reserva.'],
@@ -560,9 +574,11 @@ BLOCOS = [
         'Clique em <b>Cadastrar Reserva</b>.',
     ]),
     ('p', 'O resultado depende das regras da seção 6.2: sem conflitos, a reserva nasce '
-          '<b>Aprovada</b>; se o professor escolhido já estiver alocado em outra sala no mesmo '
-          'horário, a reserva nasce <b>Pendente</b> e o sistema explica o motivo; se a sala já '
-          'estiver ocupada, o agendamento é bloqueado.'),
+          '<b>Aprovada</b> — exceto para perfis com o fluxo de aprovação do papel Professor, '
+          'cujo envio sempre nasce <b>Pendente</b> para avaliação da gestão; se o professor '
+          'escolhido já estiver alocado em outra sala no mesmo horário, a reserva também nasce '
+          '<b>Pendente</b> e o sistema explica o motivo; se a sala já estiver ocupada, o '
+          'agendamento é bloqueado.'),
     ('h2', '6.2 Regras de agendamento'),
     ('table',
      ['Regra', 'Efeito'],
@@ -576,9 +592,15 @@ BLOCOS = [
           'reserva pode coincidir com o início de outra).'],
          ['Professor ocupado', 'Se o professor já está em outra reserva (aprovada ou pendente) '
           'no mesmo horário, a reserva é criada como Pendente para avaliação do administrador.'],
+         ['Fluxo de aprovação do Professor', 'Reservas criadas pelo papel Professor nascem '
+          'Pendentes mesmo sem conflito — a gestão avalia e aprova normalmente (a Assistência '
+          'não segue este fluxo).'],
          ['Carga do professor', 'Mais de 2 reservas ativas do mesmo professor no mesmo dia: a '
           'reserva é criada como Pendente e os grupos selecionados para o aviso de sobrecarga '
           '(seção 14.10) recebem um aviso para avaliar.'],
+         ['Cancelamento automático', 'A reserva pendente que não é aprovada até 1 hora antes do '
+          'início é cancelada automaticamente pelo servidor e o criador recebe o aviso com o '
+          'motivo.'],
          ['Reservas passadas', 'Viram registro histórico somente leitura: não podem ser '
           'editadas, canceladas nem excluídas.'],
      ],
@@ -590,21 +612,25 @@ BLOCOS = [
      [
          ['Aprovada', 'Confirmada e ocupando a sala. Reservas sem conflitos são aprovadas '
           'automaticamente.'],
-         ['Pendente', 'Aguardando análise do administrador (por conflito de professor, horário '
-          'sobreposto, ou carga diária do docente). Não aparece no totem, no portal nem no '
-          'calendário público.'],
-         ['Cancelada', 'Desativada por decisão do usuário ou do administrador; permanece no '
-          'histórico.'],
+         ['Pendente', 'Aguardando análise do administrador (por conflito de professor, fluxo de '
+          'aprovação do papel Professor, horário sobreposto ou carga diária do docente). Não '
+          'aparece no totem, no portal nem no calendário público. Sem aprovação até 1 hora '
+          'antes do início, é cancelada automaticamente.'],
+         ['Cancelada', 'Desativada por decisão do usuário ou do administrador — ou pelo '
+          'cancelamento automático de pendências; permanece no histórico.'],
      ],
      [80, 403],
      'Tabela 4 — Situações possíveis de uma reserva.'),
     ('h2', '6.4 Minhas Reservas'),
-    ('p', 'Em <b>Reservas &gt; Minhas Reservas</b> ficam as reservas criadas por você, com abas '
+    ('p', 'Em <b>Reservas &gt; Minhas Reservas</b> ficam as reservas criadas por você — e '
+          'também as em que você é o professor designado por outro usuário —, com abas '
           '<b>Todas</b>, <b>Aprovadas</b>, <b>Pendentes</b> e <b>Canceladas</b> (25 registros '
           'por página). As abas <b>Atuais e Futuras</b> e <b>Passadas</b> separam a listagem '
           'por período — a segunda exibe as reservas em cinza, como histórico — e cada uma tem '
           'paginação própria. Cada linha mostra data, horário, sala, título, professor, '
-          'situação e o botão de detalhes.'),
+          'situação, a coluna <b>Origem</b> (“Criada por você” ou “Designada a você”) e o botão '
+          'de detalhes; o professor designado tem acesso de leitura ao detalhe e à série da '
+          'reserva.'),
     ('h2', '6.5 Todas as Reservas'),
     ('p', 'Quem tem permissão global de leitura acessa <b>Reservas &gt; Todas as Reservas</b>, '
           'com as abas <b>Atuais e Futuras</b> e <b>Passadas</b> (esta última somente leitura). '
@@ -636,7 +662,7 @@ BLOCOS = [
         '<b>Repetir</b> — cria uma série de reservas a partir desta (seção 6.7);',
         '<b>Gerenciar Série (N)</b> — aparece quando a reserva pertence a uma série (seção 6.8);',
         '<b>Compartilhar</b> — envia os dados da reserva por e-mail ou WhatsApp (seção 6.9);',
-        '<b>Ativar notificações</b> — liga os avisos no sino para esta reserva (seção 7.2): o '
+        '<b>Ativar notificações</b> — liga os avisos no sino para esta reserva (seção 8.2): o '
         'botão passa a exibir <b>Notificações ativadas</b> e um novo clique desliga. Aparece '
         'para o dono da reserva (ou quem tem permissão de editar qualquer reserva) apenas em '
         'reservas aprovadas e futuras.',
@@ -666,7 +692,8 @@ BLOCOS = [
     ]),
     ('p', 'Se a repetição deixa o professor com mais de 2 reservas no mesmo dia, a reserva '
           'daquele dia nasce <b>Pendente</b> (em vez de Aprovada) e os grupos selecionados para '
-          'o aviso de sobrecarga (seção 14.10) são avisados na hora.'),
+          'o aviso de sobrecarga (seção 14.10) são avisados na hora. No fluxo do papel '
+          'Professor, cada reserva da série também nasce Pendente, para aprovação da gestão.'),
     ('p', 'Todas as reservas criadas ficam vinculadas na mesma série e podem ser gerenciadas em '
           'lote.'),
     ('h2', '6.8 Gerenciar uma série'),
@@ -754,8 +781,8 @@ BLOCOS = [
     ('h1', '8. Notificações'),
     ('p', 'O sistema avisa no próprio sino — e, opcionalmente, por e-mail — sobre atividades '
           'reservadas, mudanças no status das reservas e pendências aguardando aprovação. '
-          'Este capítulo descreve o lado de quem recebe os avisos; a configuração por unidade '
-          '(destinatários, antecedências e grupos) está na seção 14.10.'),
+          'Este capítulo descreve o lado de quem recebe os avisos; a configuração dos avisos '
+          'de sobrecarga de professor no Painel Admin está na seção 14.10.'),
     ('h2', '8.1 O sino e a tela de notificações'),
     ('p', 'O sino na barra superior exibe um contador vermelho com as notificações não lidas, '
           'atualizado automaticamente a cada minuto — o número aparece também no título da aba '
@@ -781,14 +808,15 @@ BLOCOS = [
         'antes e 1 hora antes do início; o mais iminente vencido dispara o aviso e os '
         'anteriores ficam absorvidos;',
         '<b>Mudança de status</b> — o criador é avisado quando a reserva dele é aprovada ou '
-        'cancelada (a ação feita por ele mesmo não gera aviso) e quando ela é excluída '
-        'permanentemente;',
+        'cancelada (a ação feita por ele mesmo não gera aviso) — inclusive pelo cancelamento '
+        'automático de pendências (seção 6.2) — e quando ela é excluída permanentemente;',
         '<b>Lembretes de pendência</b> — os aprovadores da unidade são avisados de reservas '
         'pendentes aguardando aprovação, 24 e 48 horas após a criação.',
     ]),
-    ('p', 'Os avisos chegam aos destinatários nos marcos definidos para a reserva, '
-          'respeitada a configuração da unidade (professor designado, criador, aprovadores e '
-          'grupos de notificação — seção 14.10).'),
+    ('p', 'Os avisos de atividade próxima chegam aos destinatários escolhidos no formulário '
+          'da reserva — usuários individuais e grupos de notificação; o criador entra por '
+          'padrão (desmarcável) e o professor designado só recebe se for selecionado — e os '
+          'lembretes de pendência vão aos aprovadores da unidade.'),
     ('importante', 'Desativar as notificações de uma reserva não apaga os avisos já criados no '
                    'sino — apenas interrompe os próximos.'),
     ('h2', '8.3 Notificações por e-mail'),
@@ -875,7 +903,7 @@ BLOCOS = [
         'não aparecem;',
         '<b>Janela de exibição</b> — cada categoria define seu recorte: <b>Período atual</b> '
         '(manhã, tarde ou noite; o andar aparece no cartão de cada reserva) ou <b>Próximos '
-        '7 dias</b> (configurado no cadastro da categoria, seção 13.4);',
+        '7 dias</b> (configurado no cadastro da categoria, seção 14.4);',
         '<b>Cartões de reserva</b> — código da sala em destaque, horário, professor, curso, '
         'disciplina e assunto;',
         '<b>Tema automático</b> — claro entre 6h e 18h e escuro no restante do dia;',
@@ -963,7 +991,7 @@ BLOCOS = [
     ]),
     ('atencao', 'Antes de divulgar o formulário, o administrador precisa cadastrar as '
                 '<b>Empresas de Ônibus</b> com as tarifas vigentes e definir as '
-                '<b>Configurações do Pedido</b> (seção 11.6).'),
+                '<b>Configurações do Pedido</b> (seção 12.6).'),
     ('h2', '12.1 Colaborador: preencher o pedido de VT'),
     ('p', 'O RH divulga o link do formulário público da unidade (o botão <b>Copiar link do '
           'formulário</b> em Pedidos VT gera o link pronto). A página indica a unidade e, quando '
@@ -993,7 +1021,7 @@ BLOCOS = [
         '<b>Filtros</b> — busca por nome/e-mail/matrícula, vínculo, “Deseja VT” (Sim/Não), '
         'ordenação (mais recentes, nome, matrícula, valor total) e a opção de esconder não '
         'optantes com valor zero;',
-        '<b>Editar</b> (lápis) — corrige qualquer campo do pedido (seção 11.3);',
+        '<b>Editar</b> (lápis) — corrige qualquer campo do pedido (seção 12.3);',
         '<b>Excluir</b> (lixeira) — remove um pedido inválido, após confirmação.',
     ]),
     ('h2', '12.3 RH: corrigir um pedido'),
@@ -1058,6 +1086,30 @@ BLOCOS = [
           '<b>Excluir</b> (lixeira) o remove com confirmação. Cada unidade vê apenas os seus '
           'lançamentos, e quem tem acesso de consulta, mas não de lançamento, vê somente a '
           'listagem.'),
+    ('h2', '12.8 Adicional Noturno — Professores'),
+    ('p', 'No menu <b>RH &gt; Adicional Noturno</b> ficam os lançamentos do adicional noturno '
+          'docente, organizados por <b>Mês de Referência</b> — o filtro da listagem mostra um '
+          'mês por vez e a referência dos códigos <b>UO</b> das unidades está disponível na '
+          'própria tela.'),
+    ('passo', 'Lançar um registro'),
+    ('ol', [
+        'Selecione o <b>Mês de Referência</b> e escolha o <b>Professor</b> do cadastro — a '
+        'matrícula é preenchida automaticamente — ou digite os dados de quem está fora do '
+        'sistema;',
+        'Marque o <b>Adicional Noturno</b> (Sim/Não), informe as <b>Horas/Aula</b> e os '
+        '<b>Minutos</b> e confira a <b>Unidade</b> (código UO);',
+        'Clique em <b>Adicionar</b> — o lançamento entra na listagem do mês, com correção '
+        'individual (editar/excluir) para quem tem permissão.',
+    ]),
+    ('p', 'A <b>Importação da planilha</b> (.xlsx, modelo “Adicional Noturno Professores”) '
+          'localiza as colunas pelo cabeçalho da primeira linha e cria um lançamento para cada '
+          'linha com matrícula e professor, no mês selecionado — quem já possui lançamento no '
+          'mês é mantido, então reimportar não duplica.'),
+    ('p', 'A <b>Exportação</b> preenche a planilha de pagamento institucional (“TABELA PARA '
+          'PAGAMENTO ADICIONAL NOTURNO PROFESSOR”) a partir da linha 5, com Matrícula, Nome, '
+          'H/A, Minutos Decimais e UO Lotação (até 96 linhas por arquivo), convertendo os '
+          'minutos para a base decimal do modelo (2h40 → 144; 0h40 → 24); as demais colunas '
+          'seguem com as fórmulas do modelo.'),
 
     # ================================================================ 13
     ('h1', '13. Cozinha'),
@@ -1157,17 +1209,21 @@ BLOCOS = [
         '(segure Ctrl); quem tem mais de uma unidade alterna sozinho pelo botão <b>Trocar</b> '
         'no topo (seção 3.3). Escolha o <b>Papel</b> e, se necessário, os <b>Módulos '
         'Adicionais</b> (ex.: Módulo Cozinha);',
-        'Defina a <b>Senha</b> inicial (mínimo de 8 caracteres — o usuário será obrigado a '
-        'trocá-la no primeiro login) e mantenha <b>Ativo</b> marcado;',
+        'Defina a <b>Senha</b> inicial (mínimo de 8 caracteres, com 1 letra maiúscula e 1 '
+        'número — o usuário será obrigado a trocá-la no primeiro login) e mantenha '
+        '<b>Ativo</b> marcado;',
         'Clique em <b>Salvar</b>.',
     ]),
-    ('passo', 'Editar, ativar/desativar e resetar senha'),
+    ('passo', 'Editar, ativar/desativar, desbloquear e resetar senha'),
     ('ul', [
         '<b>Editar</b> (lápis) — ajusta dados, unidades, papel, módulos adicionais e status; o '
         'tipo de perfil não muda após a criação. Preenchendo uma nova senha, o usuário será '
         'obrigado a trocá-la no próximo login;',
         '<b>Ativar/Desativar</b> — alterna o acesso do usuário sem apagar seus dados (contas '
         'desativadas não conseguem entrar). Ninguém consegue desativar a própria conta;',
+        '<b>Desbloquear</b> — aparece quando a conta foi bloqueada por excesso de tentativas '
+        'de login; o clique zera o contador e restaura o acesso (requer a permissão de '
+        'bloqueio de usuários). Contas bloqueadas exibem a situação na listagem;',
         '<b>Resetar senha</b> (chave) — gera uma senha temporária exibida uma única vez na '
         'tela: copie e entregue ao usuário, que deverá trocá-la no próximo login.',
     ]),
@@ -1224,9 +1280,10 @@ BLOCOS = [
     ('h2', '14.7 Papéis e permissões'),
     ('p', 'Em <b>Papéis</b> estão os perfis de acesso (seção 3). Papéis do sistema podem ser '
           'inspecionados; papéis customizados podem ser criados e editados com qualquer '
-          'combinação de permissões, organizadas por módulo (reservas, salas, cursos, feriados, '
-          'usuários, unidades, cozinha, financeiro, notificações, papéis, sistema e API). Regras '
-          'de proteção:'),
+          'combinação de permissões, organizadas por módulo num <b>acordeão</b> — cada módulo '
+          'abre e fecha, exibe o contador de permissões selecionadas (x/y) e os módulos com '
+          'permissões marcadas nascem abertos; o topo mostra o total geral com o botão '
+          '<b>Limpar todas</b>. Regras de proteção:'),
     ('ul', [
         'O papel de <b>Super Administrador</b> não pode ser editado nem excluído;',
         'Um papel com usuários vinculados não pode ser excluído — migre os usuários primeiro;',
@@ -1242,7 +1299,8 @@ BLOCOS = [
         '<b>Módulos por unidade</b> — na criação, escolha se a unidade usa os módulos Cozinha e '
         'Financeiro (Reservas de Salas é sempre ativo). Depois de criada, os módulos podem ser '
         'ligados e desligados na tela da unidade; desligar o módulo Financeiro remove o acesso '
-        'dos usuários tanto à Hora Extra quanto ao Vale-Transporte;',
+        'dos usuários à Hora Extra, ao Vale-Transporte, ao Vale Alimentação e ao '
+        'Adicional Noturno;',
         '<b>Ativa</b> — unidades inativas ficam fora dos seletores e do portal;',
         '<b>Reler arquivo</b> — atualiza as unidades oficiais da instituição a partir do arquivo '
         'público de unidades (cria as ausentes e atualiza endereço e telefone).',
@@ -1251,7 +1309,7 @@ BLOCOS = [
                 'antes.'),
     ('h2', '14.9 Tokens da API'),
     ('p', 'Aplicativos externos (como quadros de sala na porta) consomem a API de reservas '
-          '(seção 14). Em <b>Tokens da API</b>:'),
+          '(seção 15). Em <b>Tokens da API</b>:'),
     ('ol', [
         'Clique em <b>Gerar token</b>, informe o <b>Nome/aplicativo</b> (para identificar a '
         'origem das consultas) e a <b>Validade</b> (sem expiração, 30, 60, 90, 180 dias ou '
@@ -1261,36 +1319,39 @@ BLOCOS = [
         'Na listagem, acompanhe o <b>Último uso</b> e a validade; <b>Revogue</b> para cortar o '
         'acesso de imediato (pode ser reativado) ou <b>Exclua</b> permanentemente.',
     ]),
-    ('h2', '14.10 Notificações — configuração por unidade'),
-    ('p', 'O cartão <b>Notificações</b> do Painel Admin abre a configuração da unidade ativa. A '
-          'varredura que gera os avisos roda automaticamente no servidor e avisa quando uma '
-          'reserva aprovada com notificações ativadas se aproxima da data (seção 7):'),
-    ('ul', [
-        '<b>Notificar reservas próximas nesta unidade</b> — o interruptor geral do módulo; '
-        'desligado, nenhuma reserva da unidade gera avisos;',
-        '<b>Antecedências</b> — dias antes da reserva em que o aviso é criado, separados por '
-        'vírgula (ex.: <b>7, 1, 0</b> avisa 7 dias antes, 1 dia antes e no próprio dia; o limite '
-        'é 180 dias);',
-        '<b>Destinatários fixos</b> — <b>Professor designado na reserva</b>, <b>Criador da '
-        'reserva</b> e <b>Aprovadores da unidade</b>, cada um ligado ou desligado à parte;',
-        '<b>Grupos personalizados</b> — duas seleções entre os grupos da unidade (seção 13.11): '
-        '<b>Avisos de reserva próxima</b> recebe os avisos de antecedência, e o <b>Aviso de '
-        'sobrecarga de professor</b> é acionado na hora em que uma reserva deixa o professor com '
-        'mais de 2 reservas no mesmo dia; sem seleção nesse segundo campo, o aviso não é '
-        'enviado a ninguém.',
-    ]),
-    ('p', 'Clique em <b>Salvar configurações</b> para gravar.'),
+    ('h2', '14.10 Notificações — aviso de sobrecarga de professor'),
+    ('p', 'O cartão <b>Notificações</b> do Painel Admin abre a configuração da unidade ativa '
+          'para o <b>aviso de sobrecarga de professor</b>: quando uma reserva deixa o professor '
+          'com mais de 2 reservas no mesmo dia, a reserva nasce Pendente e os grupos '
+          'selecionados aqui recebem um aviso na hora (seção 6.2). A página lista os '
+          '<b>Grupos personalizados</b> da unidade (seção 14.11) para escolha dos '
+          'destinatários — sem nenhum grupo selecionado, o aviso não é enviado a ninguém.'),
+    ('p', 'Clique em <b>Salvar configurações</b> para gravar. Os avisos de atividade próxima '
+          '(antecedências e destinatários) não são configurados aqui: são opt-in e ficam na '
+          'própria reserva, na seção <b>Notificações</b> dos formulários de criar e editar '
+          '(seção 8.2).'),
     ('h2', '14.11 Grupos de notificação'),
     ('p', 'O cartão <b>Grupos de Notificação</b> reúne as pessoas que devem ser avisadas juntas '
           '— por exemplo, a coordenação de um curso. Em <b>Novo grupo</b>, informe o <b>Nome do '
           'grupo</b> (único na unidade) e selecione os <b>Membros do grupo</b> entre os '
           'usuários ativos; <b>Salvar grupo</b> grava.'),
     ('ul', [
-        'Os grupos criados aparecem na configuração de notificações da unidade '
-        '(seção 14.10);',
+        'Os grupos criados aparecem na configuração do aviso de sobrecarga de professor '
+        '(seção 14.10) e, nos formulários de reserva, na escolha de destinatários dos avisos '
+        'de atividade próxima (seção 8.2);',
         'Excluir um grupo (com confirmação) não remove os avisos já criados, mas as '
         'configurações que o selecionam deixam de avisá-lo.',
     ]),
+    ('h2', '14.12 Auditoria de segurança'),
+    ('p', 'O cartão <b>Auditoria</b> (permissão própria) abre a trilha de eventos de segurança '
+          'do sistema, em ordem cronológica decrescente: <b>logins e tentativas falhadas</b>, '
+          'troca e reset de senha, <b>bloqueios e desbloqueios</b> de conta, criação, edição e '
+          'desativação de usuários, entre outros. Cada registro mostra data e hora, o evento, '
+          'quem executou (ator), sobre quem (alvo) e o endereço IP de origem.'),
+    ('p', 'A consulta aceita filtros combináveis — <b>Evento</b>, busca por texto (ator ou '
+          'alvo) e <b>período</b> de datas — e a listagem é paginada. A trilha é imutável: ela '
+          'existe para conferência e investigação (por exemplo, verificar quem desbloqueou uma '
+          'conta ou resetou uma senha), sem ações de edição ou exclusão.'),
 
     # ================================================================ 15
     ('h1', '15. Integração — API de reservas'),
@@ -1311,7 +1372,7 @@ BLOCOS = [
         '<b>Sem token (público)</b> — retorna apenas data, horário, sala e título das reservas '
         '<b>aprovadas</b>; suficiente para quadros de porta e consultas simples;',
         '<b>Com token (Bearer)</b> — o aplicativo envia o token gerado no Painel Admin '
-        '(seção 13.9) no cabeçalho da requisição e recebe <b>todos os detalhes</b>, em qualquer '
+        '(seção 14.9) no cabeçalho da requisição e recebe <b>todos os detalhes</b>, em qualquer '
         'situação da reserva.',
     ]),
     ('p', 'Parâmetros mais usados na listagem: <b>start</b> e <b>end</b> (datas AAAA-MM-DD), '
@@ -1328,6 +1389,9 @@ BLOCOS = [
      [
          ['“E-mail ou senha inválidos.”', 'Verifique o e-mail e a senha (o e-mail é o login). '
           'Após 5 tentativas em um minuto, aguarde e tente de novo.'],
+         ['“Sua conta está bloqueada por excesso de tentativas de acesso.”', 'Após 10 '
+          'tentativas de senha erradas, a conta é bloqueada por segurança. Solicite o '
+          'desbloqueio à administração (seção 14.2).'],
          ['“Sua conta foi desativada...”', 'A conta foi desativada por um administrador. '
           'Contate a administração.'],
          ['“Reservas não podem ser agendadas aos domingos.”', 'Escolha outro dia para a '
@@ -1340,16 +1404,15 @@ BLOCOS = [
           'Escolha outro horário ou outra sala.'],
          ['“Reserva criada como PENDENTE devido a conflito de professor.”', 'O professor já está '
           'alocado em outra sala no mesmo horário. A reserva aguarda análise do administrador.'],
+         ['“Sua reserva será criada como PENDENTE...” (perfil Professor)', 'Reservas do papel '
+          'Professor nascem Pendentes para aprovação da gestão, mesmo sem conflito '
+          '(seção 6.2).'],
          ['“Reservas passadas não podem ser editadas/canceladas/excluídas.”', 'Reservas com '
           'data anterior a hoje são registro histórico, sem alteração.'],
          ['“O intervalo da repetição é limitado a 180 dias.”', 'Crie a série em trechos '
           'menores, de até 180 dias.'],
          ['“Apenas reservas aprovadas e futuras podem ter notificações.”', 'O botão de avisos '
           'do detalhe só existe para reservas aprovadas com data de hoje em diante.'],
-         ['“Não é possível lançar Hora Extra de meses anteriores ao mês atual.”', 'Lançamentos '
-          'retroativos não são permitidos; utilize o mês corrente ou o seguinte.'],
-         ['“Lançamentos do mês atual só podem ser feitos até o dia 25.”', 'Do dia 26 em diante, '
-          'lance apenas para o mês seguinte.'],
          ['“O modelo suporta 72 linhas...” (Vale-Transporte)', 'A planilha exportada atingiu o '
           'limite do modelo; divida a exportação por grupos.'],
          ['“O token de segurança (CSRF) expirou.”', 'A tela ficou aberta por muito tempo. '
@@ -1363,8 +1426,13 @@ BLOCOS = [
         'Apenas reservas aprovadas são exibidas publicamente. Verifique se a reserva está '
         'pendente ou cancelada;',
         '<b>Por que minha reserva ficou pendente se a sala estava livre?</b>',
-        'O professor selecionado já tem reserva em outra sala no mesmo horário. O administrador '
+        'Dois motivos possíveis: o professor selecionado já tem reserva em outra sala no mesmo '
+        'horário, ou a reserva foi criada por um perfil Professor — cujas reservas nascem '
+        'Pendentes para aprovação da gestão (seção 6.2). Em ambos os casos o administrador '
         'analisa e aprova;',
+        '<b>Minha reserva pendente virou Cancelada sozinha. O que aconteceu?</b>',
+        'Cancelamento automático: a pendência que não é aprovada até 1 hora antes do início é '
+        'cancelada pelo servidor e o criador recebe o aviso com o motivo (seção 6.2);',
         '<b>Posso editar uma reserva de outro usuário?</b>',
         'Somente perfis com permissão global de edição (Gestor, Administrador). Professores e '
         'assistentes editam apenas as próprias reservas;',
@@ -1373,13 +1441,16 @@ BLOCOS = [
         'sala está ativa, se a categoria está ativa e se existe reserva aprovada no período;',
         '<b>Esqueci a senha. Existe e-mail de recuperação?</b>',
         'Não há recuperação automática: solicite o reset de senha a um administrador '
-        '(seções 2.3 e 13.2);',
+        '(seções 2.3 e 14.2);',
+        '<b>Minha conta está bloqueada. E agora?</b>',
+        'O bloqueio acontece após 10 tentativas de senha erradas. Um administrador desbloqueia '
+        'na tela de usuários (seção 14.2) em segundos — os dados não são afetados;',
         '<b>Não recebi aviso de uma reserva que está próxima. Por quê?</b>',
-        'Os avisos são opt-in: alguém com acesso à reserva precisa ter clicado em <b>Ativar '
-        'notificações</b> no detalhe dela (seção 7.2), e a configuração da unidade define quem '
-        'recebe e com que antecedência (seção 14.10);',
+        'Os avisos são opt-in por reserva: alguém com acesso a ela precisa ter ativado as '
+        'notificações e escolhido marcos e destinatários na seção <b>Notificações</b> do '
+        'formulário (seção 8.2) — quem não foi selecionado, não é avisado;',
         '<b>O menu Financeiro, RH ou Cozinha desapareceu.</b>',
-        'Os módulos podem ter sido desligados para a sua unidade (seção 13.8). Contate o '
+        'Os módulos podem ter sido desligados para a sua unidade (seção 14.8). Contate o '
         'administrador;',
         '<b>Quem pode alternar de unidade?</b>',
         'Qualquer usuário vinculado a mais de uma unidade alterna sozinho pelo botão '
