@@ -494,7 +494,7 @@ def atualizar_sistema():
                  'revogações intencionais ao papel e, com a aplicação acessível, elas ficam '
                  'expostas antes da conferência. Pare-os primeiro (sudo systemctl stop '
                  'sigere nginx) e rode o setup de novo.')
-            return
+            raise SystemExit(1)
 
     titulo('Backup de segurança')
     if sim_nao('Criar um backup do banco antes de atualizar (recomendado)?', padrao=True):
