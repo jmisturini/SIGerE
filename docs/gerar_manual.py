@@ -354,7 +354,8 @@ BLOCOS = [
         'de boas-vindas.',
     ]),
     ('atencao', 'Por segurança, o login permite no máximo <b>5 tentativas por minuto</b> por '
-                'computador — e, após <b>10 tentativas de senha erradas</b>, a conta é '
+                'endereço IP — em redes compartilhadas, o limite é comum a todos os '
+                'computadores — e, após <b>10 tentativas de senha erradas</b>, a conta é '
                 'bloqueada por segurança: somente um administrador pode desbloqueá-la. '
                 'Aguarde um momento entre tentativas e confira a senha antes de tentar de novo.'),
     ('h2', '2.2 Primeiro acesso e troca de senha obrigatória'),
@@ -442,8 +443,9 @@ BLOCOS = [
           '<b>Pendentes</b> para aprovação da gestão; consulta salas e cursos; exportações '
           'básicas.'],
          ['Assistente/Logística', 'Mesmo alcance do Professor, sem o fluxo de aprovação: '
-          'cria, visualiza, edita e cancela as próprias reservas (nascem Aprovadas) e consulta '
-          'salas e cursos.'],
+          'cria, visualiza, edita e cancela as próprias reservas — normalmente Aprovadas, '
+          'mas Pendentes em caso de conflito de professor ou carga diária acima do limite — '
+          'e consulta salas e cursos.'],
      ],
      [105, 378],
      'Tabela 1 — Papéis padrão do sistema e alcance de cada um.'),
@@ -1297,7 +1299,8 @@ BLOCOS = [
         '<b>Módulos por unidade</b> — na criação, escolha se a unidade usa os módulos Cozinha e '
         'Financeiro (Reservas de Salas é sempre ativo). Depois de criada, os módulos podem ser '
         'ligados e desligados na tela da unidade; desligar o módulo Financeiro remove o acesso '
-        'dos usuários tanto à Hora Extra quanto ao Vale-Transporte;',
+        'dos usuários à Hora Extra, ao Vale-Transporte, ao Vale Alimentação e ao '
+        'Adicional Noturno;',
         '<b>Ativa</b> — unidades inativas ficam fora dos seletores e do portal;',
         '<b>Reler arquivo</b> — atualiza as unidades oficiais da instituição a partir do arquivo '
         'público de unidades (cria as ausentes e atualiza endereço e telefone).',

@@ -46,16 +46,34 @@ def _sheet_upload_folder():
 
 
 def _sheet_file_path(sheet):
-    """Caminho do arquivo da ficha: instância nova primeiro, pasta legada
-    (app/static/uploads/technical_sheets de instalações antigas) como fallback."""
+    """Caminho do arquivo da ficha: sempre na pasta da instância. Instalações
+    antigas com fichas em app/static/uploads/technical_sheets devem movê-las —
+    esse caminho é público no Nginx e não é mais lido pela aplicação."""
     if not sheet.stored_filename:
         return None
-    candidate = os.path.join(_sheet_upload_folder(), sheet.stored_filename)
-    if os.path.exists(candidate):
-        return candidate
+    return os.path.join(_sheet_upload_folder(), sheet.stored_filename)
+
+
+def _remove_legacy_static_copy(stored_filename):
+    """Apaga a cópia legada em app/static/uploads/technical_sheets, se houver:
+    o Nginx publica /static/ sem autenticação, e deixar o arquivo lá o manteria
+    acessível mesmo depois da exclusão na rota protegida. Só remove — esse
+    caminho nunca é lido nem servido pela aplicação. Falha de permissão (o
+    Gunicorn roda como www-data, sem escrita em app/static/) é registrada no
+    log: o arquivo continuaria público."""
+    if not stored_filename:
+        return
     legacy = os.path.join(current_app.root_path, 'static', 'uploads',
-                          'technical_sheets', sheet.stored_filename)
-    return legacy if os.path.exists(legacy) else candidate
+                          'technical_sheets', stored_filename)
+    try:
+        os.remove(legacy)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        current_app.logger.exception(
+            'Falha ao remover cópia legada da ficha em %s — o arquivo '
+            'continua acessível publicamente; mova ou remova manualmente.',
+            legacy)
 
 
 def _get_sheet_scoped(sheet_id):
@@ -349,6 +367,7 @@ def delete_sheet(sheet_id):
     sheet = _get_sheet_scoped(sheet_id)
     name = sheet.original_filename
     file_path = _sheet_file_path(sheet)
+    stored_filename = sheet.stored_filename
     db.session.delete(sheet)  # cascade remove a preparação vinculada
     db.session.commit()
     if file_path and os.path.exists(file_path):
@@ -356,6 +375,7 @@ def delete_sheet(sheet_id):
             os.remove(file_path)
         except OSError:
             pass
+    _remove_legacy_static_copy(stored_filename)
     flash(f'Ficha "{name}" excluída.', 'info')
     return redirect(url_for('kitchen.sheets'))
 
@@ -376,6 +396,7 @@ def delete_saved_sheets():
 
     file_paths = [path for sheet in saved
                   if (path := _sheet_file_path(sheet)) and os.path.exists(path)]
+    stored_filenames = [sheet.stored_filename for sheet in saved]
     for sheet in saved:
         db.session.delete(sheet)  # cascade remove as preparações vinculadas
     db.session.commit()
@@ -384,6 +405,8 @@ def delete_saved_sheets():
             os.remove(path)
         except OSError:
             pass
+    for stored_filename in stored_filenames:
+        _remove_legacy_static_copy(stored_filename)
     flash(f'{len(saved)} ficha(s) salva(s) excluída(s), junto com as '
           'preparações geradas e os arquivos .docx enviados.', 'info')
     return redirect(url_for('kitchen.sheets'))
@@ -455,6 +478,7 @@ def delete_recipe(recipe_id):
     sheet = recipe.technical_sheet
     if sheet:
         file_path = _sheet_file_path(sheet)
+        stored_filename = sheet.stored_filename
         db.session.delete(sheet)
         db.session.commit()
         if file_path and os.path.exists(file_path):
@@ -462,6 +486,7 @@ def delete_recipe(recipe_id):
                 os.remove(file_path)
             except OSError:
                 pass
+        _remove_legacy_static_copy(stored_filename)
     else:
         db.session.delete(recipe)
         db.session.commit()
