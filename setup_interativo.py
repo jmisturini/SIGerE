@@ -780,11 +780,11 @@ def restaurar_backup():
               'só entra via sync-permissions; o painel não a recria) e reaplique em '
               'Painel Admin → Papéis as revogações preservadas do backup, antes de '
               'liberar o acesso normal')
-    print('     • Teste o login e a navegação: http://localhost:5000')
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         print('     • Suba o servidor: flask --app run run --debug')
     else:
         print('     • Reinicie o serviço: sudo systemctl restart sigere')
+    print('     • Teste o login e a navegação: http://localhost:5000')
     print('     • O backup do banco não inclui os uploads (instance/uploads) nem o .env — '
           'para reconstruir uma máquina inteira, copie também essas partes '
           '(docs/implantacao-producao.md, "restaurar uma instalação completa").')
