@@ -280,8 +280,10 @@ def sync_permissions_command():
     """Sincroniza permissões e papéis definidos no código com o banco.
 
     Cria permissões e papéis ausentes e concede às roles os códigos
-    definidos em ROLES_CONFIG. Não remove nada já concedido. Útil para
-    atualizar bancos criados antes de novos módulos.
+    definidos em ROLES_CONFIG. Idempotente: não desfaz concessões de
+    permissões vigentes, mas apaga (com os vínculos) permissões removidas
+    de PERMISSION_DATA. Útil para atualizar bancos criados antes de novos
+    módulos.
 
     Uso: flask sync-permissions
     """
@@ -291,9 +293,9 @@ def sync_permissions_command():
 def sync_permissions_impl(verbose=True):
     """Lógica compartilhada do sync de permissões.
 
-    Chamada pelo comando `flask sync-permissions` e também durante o startup
-    (app.py) para garantir que permissões de módulos novos (ex: unity:*)
-    existam em bancos já existentes sem passo manual.
+    Chamada pelo comando `flask sync-permissions`, pelo seed e pela
+    importação do legado — o boot NÃO sincroniza. Rode o comando após
+    `db upgrade` em toda atualização.
     """
     created_perms, created_roles, created_links = 0, 0, 0
     updated_perms, retired_perms = 0, 0

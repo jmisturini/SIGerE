@@ -233,8 +233,10 @@ flask --app run run --debug
 
 - **Uploads da Cozinha:** os `.docx` enviados ficam em
   `instance/uploads/technical_sheets/` (fora de `static/`, fora do git — a pasta
-  `instance/` inteira é ignorada; instalações antigas com arquivos em
-  `app/static/uploads/technical_sheets` são aceitas como fallback de leitura).
+  `instance/` inteira é ignorada). Instalações antigas com fichas em
+  `app/static/uploads/technical_sheets` devem movê-las para a pasta da
+  instância: o caminho em `static/` é público no Nginx e não é mais lido pela
+  aplicação.
 
 ---
 
@@ -279,10 +281,10 @@ módulo `run.py`, onde vive a factory `create_app()`).
 | `seed-admin` | Cria **apenas** o admin, com senha digitada (mín. 8 caracteres, 1 maiúscula e 1 número; oculta) | Fluxo de implantação real; sem demonstração |
 | `seed-unidades` | Cadastra/atualiza as unidades do Senac SC a partir de `docs/unidades-senac-sc.json` | Idempotente; opção `--file CAMINHO` aceita outro JSON |
 | `seed-demo` | Cenário de demonstração **completo**: unidades (uma sem Cozinha, uma inativa), todos os papéis, 7 tipos de sala, reservas em todas as situações (datas relativas a hoje), feriados, hora extra, vale-transporte, cozinha e token da API | Recusa-se fora do modo desenvolvimento (`FLASK_DEBUG=true`; `SIGERE_PERMITIR_SEED_DEMO=1` força). Recusa duplicar — `--reset` apaga a demonstração anterior e recria; [contas na seção abaixo](#-contas-de-demonstração) |
-| `sync-permissions` | Cria permissões/papéis ausentes e vincula os códigos de `ROLES_CONFIG` | Idempotente; **nunca remove** vínculos existentes |
+| `sync-permissions` | Cria permissões/papéis ausentes e vincula os códigos de `ROLES_CONFIG` | Idempotente; **aposenta** permissões removidas de `PERMISSION_DATA` (os vínculos com papéis caem por cascade) |
 | `unlock-user EMAIL` | Desbloqueia conta travada por excesso de tentativas de login | Zera o contador e registra a origem `cli` na trilha de auditoria |
 | `backup` | Snapshot do banco comprimido (gzip) com retenção e upload opcional para S3 | `--no-upload`, `--dir`, `--keep-days` para execuções pontuais |
-| `notify-scan` / `notify-email` / `notify-cleanup` | Varredura de avisos de atividade próxima, dreno da fila de e-mail e limpeza de avisos antigos | Idempotentes; em produção rodam no timer `sigere-notify` (ver [implantação](implantacao-producao.md)) |
+| `notify-scan` / `notify-email` / `notify-cleanup` | Varredura de avisos de atividade próxima, dreno da fila de e-mail e limpeza de avisos antigos | Idempotentes; em produção `notify-scan`/`notify-email` rodam no timer `sigere-notify` e `notify-cleanup` no `sigere-backup` (ver [implantação](implantacao-producao.md)) |
 | `autocancel-pendentes` | Cancela reservas pendentes sem aprovação até 1h antes do início e avisa o criador | Mesmo timer do `notify-scan`; `--dry-run` para prévia |
 | `import-legacy` | Importa o banco do sistema legado (Django/MySQL) a partir do dump `.sql` | Ver [migracao-legado.md](migracao-legado.md); recusa bancos com dados |
 

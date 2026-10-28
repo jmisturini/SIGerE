@@ -46,16 +46,12 @@ def _sheet_upload_folder():
 
 
 def _sheet_file_path(sheet):
-    """Caminho do arquivo da ficha: instância nova primeiro, pasta legada
-    (app/static/uploads/technical_sheets de instalações antigas) como fallback."""
+    """Caminho do arquivo da ficha: sempre na pasta da instância. Instalações
+    antigas com fichas em app/static/uploads/technical_sheets devem movê-las —
+    esse caminho é público no Nginx e não é mais lido pela aplicação."""
     if not sheet.stored_filename:
         return None
-    candidate = os.path.join(_sheet_upload_folder(), sheet.stored_filename)
-    if os.path.exists(candidate):
-        return candidate
-    legacy = os.path.join(current_app.root_path, 'static', 'uploads',
-                          'technical_sheets', sheet.stored_filename)
-    return legacy if os.path.exists(legacy) else candidate
+    return os.path.join(_sheet_upload_folder(), sheet.stored_filename)
 
 
 def _get_sheet_scoped(sheet_id):
