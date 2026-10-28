@@ -69,6 +69,11 @@ jobs:
                 exit 1
               fi
             done
+            # Política do portão: a revisão MAIS RECENTE do bot para o commit
+            # atual é a decisão vigente — mesma semântica do GitHub para
+            # reviews de pessoas. Cada rodada do bot re-analisa o diff
+            # completo do PR, então re rodar com @coderabbitai review no
+            # mesmo commit reavalia os apontamentos anteriores de verdade.
             revisao=$(jq -c --arg sha "$HEAD_SHA" '[
                 .[] | select(
                   (.user.login | ascii_downcase) == "coderabbitai[bot]"

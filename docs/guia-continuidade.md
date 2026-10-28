@@ -72,9 +72,13 @@ O detalhamento oficial está no `CONTRIBUTING.md`. O que não se deriva dele:
   **vermelho até existir revisão concluída do CodeRabbit para o commit atual** sem
   `CHANGES_REQUESTED` e sem thread de revisão dele em aberto — mesmo com os outros checks
   verdes. `.coderabbit.yaml` ativa `request_changes_workflow` (apontamento acionável ⇒
-  review como "Request changes"). Fluxo típico de desbloqueio: resolver os apontamentos
-  e comentar `@coderabbitai review` (o CodeRabbit pausa sozinho após commits seguidos;
-  o comentário retoma a revisão). Resolução/reabertura de thread não dispara evento —
+  review como "Request changes"). Política do portão: vale a revisão **mais recente do
+  bot para o commit atual** (mesma semântica do GitHub para reviews de pessoas — cada
+  rodada do bot re-analisa o diff completo, então `@coderabbitai review` sem push
+  reavalia os apontamentos anteriores de verdade). Fluxo típico de desbloqueio: resolver
+  os apontamentos e comentar `@coderabbitai review` (o CodeRabbit pausa sozinho após
+  commits seguidos; o comentário retoma a revisão). Resolução/reabertura de thread não
+  dispara evento —
   reavaliar com o botão Re-run do check. Hooks locais de git não servem aqui: o merge
   acontece na UI do GitHub. O check já é *required* em `dev` e `main`, com *Require
   conversation resolution* ativo nas duas (ver seção 8).
