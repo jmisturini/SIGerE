@@ -434,10 +434,21 @@ def create_overtime():
         base_janela: _dica_janela_referencia(base_janela) + DICA_ANTECIPA_ATUAL,
         seguinte_janela: _dica_janela_referencia(seguinte_janela) + DICA_ANTECIPA_PROXIMO,
     }
+    opcoes_referencia = [(base_janela, _rotulo_mes(base_janela)),
+                         (seguinte_janela, _rotulo_mes(seguinte_janela))]
+    # Reexibição de POST antigo (erro de validação): a referência enviada
+    # pode ter saído do par — o dia virou e o par avançou. Ela volta como
+    # opção extra, com o par de datas dela já renderizado; sem isso o
+    # navegador cairia na primeira opção e o JavaScript realinharia o campo
+    # Mês, reinterpretando as datas salvas em outro mês.
+    if referencia_selecionada not in {base_janela, seguinte_janela}:
+        opcoes_referencia.append((referencia_selecionada,
+                                  _rotulo_mes(referencia_selecionada)))
+        dicas_referencia[referencia_selecionada] = _dica_janela_referencia(
+            referencia_selecionada)
     return render_template('payments/form_overtime.html', form=form, title='Nova Hora Extra',
                            modo_criacao=True,
-                           opcoes_referencia=[(base_janela, _rotulo_mes(base_janela)),
-                                              (seguinte_janela, _rotulo_mes(seguinte_janela))],
+                           opcoes_referencia=opcoes_referencia,
                            referencia_selecionada=referencia_selecionada,
                            dicas_referencia=dicas_referencia,
                            dica_referencia=dicas_referencia.get(referencia_selecionada)

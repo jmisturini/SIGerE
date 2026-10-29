@@ -398,21 +398,53 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertEqual(visivel, dica_dezembro)
         self.assertEqual(por_opcao, {atual: dica_dezembro, seguinte: dica_janeiro})
 
-    def test_form_post_mes_fora_das_opcoes_preserva_dica_fallback(self):
-        # POST inválido com mês de referência válido, mas fora das opções
-        # (POST forjado): o servidor renderiza uma dica de fallback — sem
-        # nota de antecipação — e marca o select com data-dica-fallback para
-        # o JavaScript não sobrescrevê-la com a dica da primeira opção.
+    def test_form_post_mes_fora_das_opcoes_preserva_referencia(self):
+        # POST inválido com mês de referência válido, mas fora do par da
+        # janela (POST forjado): a referência volta como opção extra com a
+        # dica dela renderizada — o navegador não cai na primeira opção e
+        # não há dica de fallback a preservar.
         response = self.client.post('/payments/overtime/create',
                                     data=self._create_payload(reference_month='2020-05',
                                                               hourly_value=''))
         self.assertEqual(response.status_code, 200)  # re-render, sem redirect
         page = response.get_data(as_text=True)
-        self.assertIn('data-dica-fallback="1"', page)
-        visivel, _ = self._dicas_do_reference(page)
-        self.assertIn(f'21/{self._mes_anterior()[5:7]} - 20/{self._mes_atual()[5:7]}',
-                      visivel)
-        self.assertNotIn('antecipa', visivel)
+        self.assertNotIn('data-dica-fallback="1"', page)
+        visivel, por_opcao = self._dicas_do_reference(page)
+        self.assertIn('21/04 - 20/05', visivel)
+        self.assertEqual(por_opcao.get('2020-05'), visivel)
+
+    def test_form_post_referencia_fora_da_janela_preserva_datas(self):
+        # POST com erro de validação em 25/10 trazendo a referência outubro
+        # (que saiu do par da janela) e datas em setembro: a referência volta
+        # como opção extra, selecionada, e o par de datas dela é preservado —
+        # sem isso o navegador cairia na primeira opção e o realinhamento do
+        # JavaScript reinterpretaria as datas de setembro em outro mês.
+        atual, seguinte, anterior = (self._mes_atual(), self._mes_seguinte(),
+                                     self._mes_anterior())
+        ano, mes = int(seguinte[:4]), int(seguinte[5:7])
+        mes += 1
+        if mes > 12:
+            mes, ano = 1, ano + 1
+        seguinte2 = f'{ano:04d}-{mes:02d}'
+        with patch('app.blueprints.payments.datetime', FixedDatetimeDia25):
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(
+                                            reference_month=atual,
+                                            dates_month=anterior,
+                                            hourly_value=''))
+            self.assertEqual(response.status_code, 200)  # re-render, sem redirect
+            page = response.get_data(as_text=True)
+            referencia = self._opcoes_do_select(page, 'reference_month')
+            self.assertEqual({v for v, _ in referencia}, {seguinte, seguinte2, atual})
+            self.assertEqual([v for v, sel in referencia if sel], [atual])
+            datas = self._opcoes_do_select(page, 'dates_month')
+            self.assertEqual([v for v, _ in datas], [anterior, atual])
+            self.assertEqual([v for v, sel in datas if sel], [anterior])
+            # Dica visível é a da referência preservada, sem nota de
+            # antecipação (a janela dela já fechou).
+            visivel, _ = self._dicas_do_reference(page)
+            self.assertIn(f'21/{anterior[5:7]} - 20/{atual[5:7]}', visivel)
+            self.assertNotIn('antecipa', visivel)
 
     def _dicas_do_reference(self, page):
         """(dica visível no reference-hint, {mês: dica} das opções) do Mês de
@@ -422,9 +454,12 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIsNotNone(visivel, 'reference-hint não encontrado na página')
         trecho = re.search(r'id="reference_month"[^>]*>(.*?)</select>', page, re.S)
         self.assertIsNotNone(trecho, 'select reference_month não encontrado na página')
-        por_opcao = dict(re.findall(r'<option value="([^"]+)"[^>]*?data-dica="([^"]*)"',
-                                    trecho.group(1)))
-        self.assertEqual(len(por_opcao), 2, 'dicas por opção ausentes na página')
+        achados = re.findall(r'<option value="([^"]+)"[^>]*?data-dica="([^"]*)"',
+                             trecho.group(1))
+        por_opcao = dict(achados)
+        self.assertGreaterEqual(len(por_opcao), 2, 'dicas por opção ausentes na página')
+        self.assertEqual(len(achados), trecho.group(1).count('<option'),
+                         'opção do Mês de Referência sem data-dica na página')
         return visivel.group(1), por_opcao
 
     def test_form_apos_dia_20_oferece_proximo_e_seguinte(self):
