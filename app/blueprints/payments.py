@@ -95,9 +95,8 @@ def _dica_janela_referencia(month_base):
             f'Mês de pagamento: {nome}.')
 
 
-# Notas de antecipação da dica, válidas só antes do dia 21: até lá,
-# selecionar o próximo mês grava a entrada nele imediatamente; depois, as
-# duas opções do seletor gravam o mesmo mês e a nota sai das duas.
+# Notas de antecipação da dica: a segunda opção do Mês de Referência é
+# sempre um mês cuja janela ainda não abriu — lançar nele agora é antecipar.
 DICA_ANTECIPA_ATUAL = (' Selecionar o próximo mês antecipa o lançamento '
                        'para o próximo mês de pagamento.')
 DICA_ANTECIPA_PROXIMO = (' Lançamentos feitos agora, antes do dia 21, '
@@ -370,13 +369,14 @@ def create_overtime():
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
     form.course_type.choices = _course_type_choices()
 
-    # Mês de referência: a janela 20→20 define o padrão (lançamentos entre o
-    # dia 21 do mês anterior e o dia 20 contam para o mês atual; depois disso,
-    # para o próximo). Exceção: selecionar o próximo mês no Mês de Referência
-    # inclui a entrada no próximo mês de pagamento, mesmo antes do dia 20.
-    mes_atual, proximo_mes = _mes_atual(), _proximo_mes()
-    month_base = (proximo_mes if request.form.get('reference_month') == proximo_mes
-                  else _month_base_janela())
+    # Mês de referência: as opções seguem sempre a janela 20→20 — o mês dela
+    # e o seguinte. Antes do dia 21 são [atual, próximo]; depois do dia 20 o
+    # atual sai (lançamento nele já vira o próximo) e o par passa a ser
+    # [próximo, seguinte]. Selecionar o segundo antecipa o lançamento.
+    base_janela = _month_base_janela()
+    seguinte_janela = _mes_posterior_de(base_janela)
+    month_base = (seguinte_janela if request.form.get('reference_month') == seguinte_janela
+                  else base_janela)
 
     # O campo Mês segue o mês de referência escolhido: oferece o mês anterior
     # a ele e ele próprio (o JavaScript reconstrói as opções quando a seleção
@@ -427,23 +427,17 @@ def create_overtime():
         flash('Lançamento de Hora Extra realizado!', 'success')
         return redirect_preserving_args('payments.list_overtime')
 
-    # Dicas do Mês de Referência pelo mês efetivamente gravado: após o dia
-    # 20, selecionar o mês atual grava o mês seguinte (janela 20→20) e as
-    # duas opções apontam o mesmo mês. Antes do dia 21, selecionar o próximo
-    # mês antecipa o lançamento — a nota de antecipação entra nas dicas.
-    base_janela = _month_base_janela()
-    if base_janela == mes_atual:
-        nota_atual, nota_proximo = DICA_ANTECIPA_ATUAL, DICA_ANTECIPA_PROXIMO
-    else:
-        nota_atual = nota_proximo = ''
+    # Dicas do Mês de Referência: a primeira opção é o mês da janela (o
+    # intervalo dela inclui hoje); a segunda é sempre um mês cuja janela
+    # ainda não abriu — lançar nele agora é antecipar, e a nota informa.
     dicas_referencia = {
-        mes_atual: _dica_janela_referencia(base_janela) + nota_atual,
-        proximo_mes: _dica_janela_referencia(proximo_mes) + nota_proximo,
+        base_janela: _dica_janela_referencia(base_janela) + DICA_ANTECIPA_ATUAL,
+        seguinte_janela: _dica_janela_referencia(seguinte_janela) + DICA_ANTECIPA_PROXIMO,
     }
     return render_template('payments/form_overtime.html', form=form, title='Nova Hora Extra',
                            modo_criacao=True,
-                           opcoes_referencia=[(mes_atual, _rotulo_mes(mes_atual)),
-                                              (proximo_mes, _rotulo_mes(proximo_mes))],
+                           opcoes_referencia=[(base_janela, _rotulo_mes(base_janela)),
+                                              (seguinte_janela, _rotulo_mes(seguinte_janela))],
                            referencia_selecionada=referencia_selecionada,
                            dicas_referencia=dicas_referencia,
                            dica_referencia=dicas_referencia.get(referencia_selecionada)
