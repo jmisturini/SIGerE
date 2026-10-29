@@ -398,6 +398,10 @@ class PaymentsTestCase(unittest.TestCase):
         visivel, por_opcao = self._dicas_do_reference(page)
         self.assertEqual(visivel, dica_dezembro)
         self.assertEqual(por_opcao, {atual: dica_dezembro, seguinte: dica_janeiro})
+        # As quebras de linha só chegam à tela com o pre-line no próprio
+        # elemento: sem ele o navegador junta as frases e o texto acima
+        # continuaria idêntico.
+        self.assertRegex(page, r'id="reference-hint"[^>]*style="white-space: pre-line"')
 
     def test_form_post_mes_fora_das_opcoes_preserva_referencia(self):
         # POST inválido com mês de referência válido, mas fora do par da
