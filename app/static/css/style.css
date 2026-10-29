@@ -526,6 +526,12 @@ body {
     background-color: var(--primary-color);
 }
 
+/* Trilha da barra de progresso no escuro: o padrão do Bootstrap (#e9ecef)
+   ficava branca sobre o card escuro (relatório geral, painel, VT). */
+[data-theme="dark"] .progress {
+    --bs-progress-bg: rgba(255, 255, 255, 0.08);
+}
+
 [data-theme="dark"] .text-muted {
     color: #8b949e !important;
 }
@@ -742,6 +748,23 @@ h1, h2, h3, h4, h5, h6 {
     color: #c9d1d9;
 }
 
+/* Variantes .table-light (linhas de grupo dos relatórios, thead da
+   auditoria, tfoot do VT): no escuro o Bootstrap mantém os tokens claros —
+   o hover pintava a linha de cinza-claro (#e5e6e7) e o texto claro sumia.
+   Redefine os tokens da variante em tons escuros e reproduz a faixa sutil
+   que a linha de grupo tem no tema claro. */
+[data-theme="dark"] .table .table-light {
+    --bs-table-color: #c9d1d9;
+    --bs-table-bg: transparent;
+    --bs-table-accent-bg: transparent;
+    --bs-table-border-color: rgba(255, 255, 255, 0.1);
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.04);
+    --bs-table-active-bg: rgba(255, 255, 255, 0.08);
+    --bs-table-hover-bg: rgba(255, 255, 255, 0.06);
+    --bs-table-hover-color: #fff;
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
 [data-theme="dark"] .form-control {
     background-color: #0d1117;
     border: 1px solid #30363d;
@@ -762,6 +785,15 @@ h1, h2, h3, h4, h5, h6 {
     border: 1px solid #30363d;
     color: #c9d1d9;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23c9d1d9' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+/* Botão "Procurar..." do campo de arquivo: o Bootstrap pinta o
+   ::file-selector-button com --bs-tertiary-bg (#f8f9fa claro) e o texto
+   herdava o --bs-body-color claro do tema — claro sobre claro. */
+[data-theme="dark"] .form-control::file-selector-button {
+    color: #c9d1d9;
+    background-color: #161b22;
+    border-color: #30363d;
 }
 
 [data-theme="dark"] .form-select:focus {
