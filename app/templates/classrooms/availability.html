@@ -212,6 +212,11 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
 
 <script>
     document.getElementById('modalReserva').addEventListener('show.bs.modal', function (event) {
+        // O modal acompanha o tema do app: o Bootstrap 5.3 alterna os tons de
+        // badges/botões pelo atributo data-bs-theme, o tema do app vive em
+        // data-theme (no <html>) — mesmo padrão do relatório da cozinha.
+        this.setAttribute('data-bs-theme',
+            document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
         const gatilho = event.relatedTarget;
         if (!gatilho) return;
         const atributo = (nome) => gatilho.getAttribute('data-' + nome) || '';
@@ -225,7 +230,7 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
         const status = atributo('status');
         badge.textContent = status;
         badge.className = 'badge flex-shrink-0 mt-1 ' + ({
-            'Aprovada': 'text-bg-success-subtle text-success border border-success-subtle',
+            'Aprovada': 'text-bg-success-subtle text-success-emphasis border border-success-subtle',
             'Pendente': 'text-bg-warning-subtle text-warning-emphasis border border-warning-subtle',
             'Cancelada': 'text-bg-danger-subtle text-danger-emphasis border border-danger-subtle'
         }[status] || 'text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle');
@@ -314,18 +319,13 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
         color: #fff;
     }
 
-    /* Modal de detalhes no estilo banner: bloco de data à esquerda */
+    /* Modal de detalhes no estilo banner: bloco de data à esquerda.
+       O modal acompanha o tema do app (data-bs-theme sincronizado no
+       script abaixo): superfície branca no claro e #161b22 no escuro
+       (regra [data-theme="dark"] .modal[data-bs-theme="dark"] do
+       style.css), com os tons de texto/badge/botão de cada superfície. */
     .modal-reserva {
         overflow: hidden;
-        /* O modal fica branco nos dois temas (padrão do app), então os tons
-           de texto/botão/badge usam os valores da superfície clara — no tema
-           escuro eles virariam tons claros e sumiriam sobre o branco. */
-        --bs-warning-text-emphasis: #664d03;
-        --bs-danger-text-emphasis: #b02a37;
-        --bs-secondary-text-emphasis: #5c636a;
-        --bs-secondary-color: rgba(33, 37, 41, 0.75);
-        --bs-secondary-border-color: #6c757d;
-        color: #212529;
     }
     .modal-reserva .mr-bloco-data {
         flex-shrink: 0;
@@ -366,8 +366,14 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
         font-weight: 700;
         line-height: 1.3;
         margin-bottom: 0;
-        /* Vence o [data-theme="dark"] h5 { color: #fff } do style.css */
+    }
+    /* Título e textos secundários por superfície: o escuro precisa vencer o
+       [data-theme="dark"] h5 { color: #fff } e o claro repor o tom escuro. */
+    .modal[data-bs-theme="light"] .modal-reserva .mr-titulo {
         color: #212529;
+    }
+    .modal[data-bs-theme="dark"] .modal-reserva .mr-titulo {
+        color: #fff;
     }
     .modal-reserva .mr-detalhes {
         font-size: .855rem;
@@ -381,6 +387,10 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
         font-size: .855rem;
         color: #6c757d;
         margin-bottom: 0;
+    }
+    .modal[data-bs-theme="dark"] .modal-reserva .mr-detalhes,
+    .modal[data-bs-theme="dark"] .modal-reserva .mr-descricao {
+        color: #8b949e;
     }
     .modal-reserva .mr-rodape {
         display: flex;

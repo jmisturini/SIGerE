@@ -386,17 +386,22 @@ class PaymentsTestCase(unittest.TestCase):
         # intervalo de lançamento (dia 21 do mês anterior ao dia 20 do mês de
         # referência), mês de pagamento (o posterior) e nota de antecipação —
         # antes do dia 21, selecionar o próximo mês antecipa o lançamento.
-        dica_dezembro = (f'Intervalo de lançamento de pagamento: 21/11 - 20/12. '
-                         f'Mês de pagamento: Janeiro/{ano + 1}. '
+        # Frases separadas por \n: a tela exibe uma por linha.
+        dica_dezembro = (f'Intervalo de lançamento de pagamento: 21/11 - 20/12.\n'
+                         f'Mês de pagamento: Janeiro/{ano + 1}.\n'
                          f'Selecionar o próximo mês antecipa o lançamento para '
                          f'o próximo mês de pagamento.')
-        dica_janeiro = ('Intervalo de lançamento de pagamento: 21/12 - 20/01. '
-                        'Mês de pagamento: Fevereiro. '
+        dica_janeiro = ('Intervalo de lançamento de pagamento: 21/12 - 20/01.\n'
+                        'Mês de pagamento: Fevereiro.\n'
                         'Lançamentos feitos agora são antecipados '
                         'para este mês.')
         visivel, por_opcao = self._dicas_do_reference(page)
         self.assertEqual(visivel, dica_dezembro)
         self.assertEqual(por_opcao, {atual: dica_dezembro, seguinte: dica_janeiro})
+        # As quebras de linha só chegam à tela com o pre-line no próprio
+        # elemento: sem ele o navegador junta as frases e o texto acima
+        # continuaria idêntico.
+        self.assertRegex(page, r'id="reference-hint"[^>]*style="white-space: pre-line"')
 
     def test_form_post_mes_fora_das_opcoes_preserva_referencia(self):
         # POST inválido com mês de referência válido, mas fora do par da

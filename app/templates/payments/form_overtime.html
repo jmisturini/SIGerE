@@ -43,7 +43,10 @@
                                 {% endif %}
                             </div>
                             <div class="col-md-7">
-                                <div class="form-text small mb-0" id="reference-hint" aria-live="polite">
+                                {# A dica chega com frases separadas por \n —
+                                   pre-line exibe uma frase por linha. #}
+                                <div class="form-text small mb-0" id="reference-hint"
+                                     aria-live="polite" style="white-space: pre-line">
                                     {% if modo_criacao %}{{ dica_referencia }}{% else %}Definido no lançamento — o mês de referência não pode ser alterado na edição.{% endif %}
                                 </div>
                             </div>

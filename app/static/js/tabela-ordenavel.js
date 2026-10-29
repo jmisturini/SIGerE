@@ -4,7 +4,11 @@
    com data-nao-ordenavel (ex.: Ações) ficam de fora e linhas com
    data-nao-ordenar (ex.: faixas de grupo ou linha de "nenhum registro")
    não se movem. Reconhece datas pt-BR (dd/mm/aaaa[ hh:mm]) e números
-   pt-BR (1.234,56, R$, %); vazio vai sempre para o fim. */
+   pt-BR (1.234,56, R$, %); vazio vai sempre para o fim.
+   Faixas de grupo (data-nao-ordenar ou td[colspan], como as de
+   "Professores e cursos" do relatório geral) abrem um segmento: a
+   ordenação reorganiza as linhas DENTRO de cada grupo — o grupo nunca se
+   separa das suas linhas nem muda de posição. */
 (function () {
     'use strict';
 
@@ -51,13 +55,19 @@
         tabela.setAttribute('data-coluna', String(indice));
 
         tabela.querySelectorAll('tbody').forEach(function (tbody) {
-            var linhas = Array.prototype.slice.call(tbody.rows);
-            var fixas = [];
-            var moveis = [];
-            linhas.forEach(function (linha) {
-                var travada = linha.hasAttribute('data-nao-ordenar') ||
+            // Segmenta o tbody: cada faixa de grupo abre um segmento com as
+            // linhas que a seguem; linhas antes da primeira faixa formam um
+            // segmento sem faixa (tabelas planas ficam como eram).
+            var segmentos = [];
+            var atual = null;
+            Array.prototype.forEach.call(tbody.rows, function (linha) {
+                var eFaixa = linha.hasAttribute('data-nao-ordenar') ||
                     linha.querySelector('td[colspan]');
-                (travada ? fixas : moveis).push(linha);
+                if (eFaixa || !atual) {
+                    atual = { faixa: eFaixa ? linha : null, linhas: [] };
+                    segmentos.push(atual);
+                }
+                if (!eFaixa) atual.linhas.push(linha);
             });
             var comparador = function (a, b) {
                 var ka = chaveCelula(a, indice);
@@ -71,9 +81,11 @@
                     : ka.valor.localeCompare(kb.valor, 'pt-BR');
                 return direcao === 'asc' ? cmp : -cmp;
             };
-            moveis.sort(comparador);
-            fixas.forEach(function (linha) { tbody.appendChild(linha); });
-            moveis.forEach(function (linha) { tbody.appendChild(linha); });
+            segmentos.forEach(function (segmento) {
+                segmento.linhas.sort(comparador);
+                if (segmento.faixa) tbody.appendChild(segmento.faixa);
+                segmento.linhas.forEach(function (linha) { tbody.appendChild(linha); });
+            });
         });
     }
 
