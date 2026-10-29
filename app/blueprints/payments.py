@@ -71,6 +71,30 @@ def _mes_anterior(now=None):
     return _mes_anterior_de(_mes_atual(now))
 
 
+def _mes_posterior_de(mes):
+    """Mês seguinte a um mês dado (YYYY-MM → YYYY-MM)."""
+    ano, mes = int(mes[:4]), int(mes[5:7])
+    mes += 1
+    if mes > 12:
+        mes, ano = 1, ano + 1
+    return f'{ano:04d}-{mes:02d}'
+
+
+def _dica_janela_referencia(month_base):
+    """Dica do Mês de Referência no formulário: o intervalo de lançamento
+    (do dia 21 do mês anterior ao dia 20 do próprio mês) e o mês em que a
+    entrada será paga — o mês posterior ao de referência. O ano só entra no
+    mês de pagamento quando ele muda em relação ao mês de referência."""
+    inicio = _mes_anterior_de(month_base)
+    pagamento = _mes_posterior_de(month_base)
+    nome = MONTH_NAMES_PT[int(pagamento[5:7]) - 1]
+    if pagamento[:4] != month_base[:4]:
+        nome = f'{nome}/{pagamento[:4]}'
+    return (f'Intervalo de lançamento de pagamento: '
+            f'21/{inicio[5:7]} - 20/{month_base[5:7]}. '
+            f'Mês de pagamento: {nome}.')
+
+
 def _proximo_mes(now=None):
     """Mês seguinte do calendário (YYYY-MM)."""
     now = now or datetime.now()
@@ -399,7 +423,9 @@ def create_overtime():
                            opcoes_referencia=[(mes_atual, _rotulo_mes(mes_atual)),
                                               (proximo_mes, _rotulo_mes(proximo_mes))],
                            referencia_selecionada=referencia_selecionada,
-                           valor_proximo_mes=proximo_mes,
+                           dicas_referencia={mes_atual: _dica_janela_referencia(mes_atual),
+                                             proximo_mes: _dica_janela_referencia(proximo_mes)},
+                           dica_referencia=_dica_janela_referencia(referencia_selecionada),
                            nomes_meses=MONTH_NAMES_PT,
                            opcoes_mes_datas=opcoes_datas,
                            mes_datas_selecionada=mes_datas_selecionada)

@@ -366,16 +366,28 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('Mês de Referência', page)
         self.assertIn('id="reference_month"', page)
         # Opções: mês atual (selecionado pela janela) e mês seguinte
-        self.assertRegex(page, rf'<option value="{self._mes_atual()}" selected>')
+        self.assertRegex(page, rf'<option value="{self._mes_atual()}" selected')
         self.assertRegex(page, rf'<option value="{self._mes_seguinte()}"')
-        # Dica da janela segue presente no topo do formulário
-        self.assertIn('dia 20 do mês', page)
+        # A dica do mês selecionado informa o intervalo de lançamento (dia 21
+        # do mês anterior ao dia 20 do mês de referência) e o mês de pagamento
+        # (o posterior ao de referência).
+        atual, seguinte, anterior = (self._mes_atual(), self._mes_seguinte(),
+                                     self._mes_anterior())
+        nomes = ('Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro')
+        ano_pagamento = '' if seguinte[:4] == atual[:4] else '/' + seguinte[:4]
+        self.assertIn(f'Intervalo de lançamento de pagamento: '
+                      f'21/{anterior[5:7]} - 20/{atual[5:7]}. '
+                      f'Mês de pagamento: {nomes[int(seguinte[5:7]) - 1]}'
+                      f'{ano_pagamento}.', page)
 
     def _opcoes_do_select(self, page, select_id):
         """Pares (valor, selecionado?) das opções de um select da página."""
         trecho = re.search(rf'id="{select_id}"[^>]*>(.*?)</select>', page, re.S)
         self.assertIsNotNone(trecho, f'select {select_id} não encontrado na página')
-        return re.findall(r'<option value="([^"]+)"( selected)?\s*>', trecho.group(1))
+        return [(valor, 'selected' in atributos)
+                for valor, atributos in
+                re.findall(r'<option value="([^"]+)"([^>]*)>', trecho.group(1))]
 
     def test_create_erro_de_validacao_mantem_par_do_mes_seguinte(self):
         # POST com erro de validação (Valor H/a vazio): a página volta com o
@@ -455,11 +467,10 @@ class PaymentsTestCase(unittest.TestCase):
 
     # ---------- Carga horária semanal: hora + minuto, sem decimal ----------
 
-    def test_create_form_has_hours_minutes_fields_and_hint(self):
+    def test_create_form_has_hours_minutes_fields(self):
         page = self.client.get('/payments/overtime/create').get_data(as_text=True)
         self.assertIn('id="weekly_workload_hours"', page)
         self.assertIn('id="weekly_workload_minutes"', page)
-        self.assertIn('id="workload-hint"', page)
 
     def test_create_grava_carga_e_listagem_mostra_hora_minuto(self):
         # 4h30 é gravado internamente como 4,5 — e exibido como 4h30, sem
