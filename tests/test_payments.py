@@ -392,8 +392,8 @@ class PaymentsTestCase(unittest.TestCase):
                          f'o próximo mês de pagamento.')
         dica_janeiro = ('Intervalo de lançamento de pagamento: 21/12 - 20/01. '
                         'Mês de pagamento: Fevereiro. '
-                        'Lançamentos feitos agora, antes do dia 21, são '
-                        'antecipados para este mês.')
+                        'Lançamentos feitos agora são antecipados '
+                        'para este mês.')
         visivel, por_opcao = self._dicas_do_reference(page)
         self.assertEqual(visivel, dica_dezembro)
         self.assertEqual(por_opcao, {atual: dica_dezembro, seguinte: dica_janeiro})

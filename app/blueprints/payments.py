@@ -99,8 +99,8 @@ def _dica_janela_referencia(month_base):
 # sempre um mês cuja janela ainda não abriu — lançar nele agora é antecipar.
 DICA_ANTECIPA_ATUAL = (' Selecionar o próximo mês antecipa o lançamento '
                        'para o próximo mês de pagamento.')
-DICA_ANTECIPA_PROXIMO = (' Lançamentos feitos agora, antes do dia 21, '
-                         'são antecipados para este mês.')
+DICA_ANTECIPA_PROXIMO = (' Lançamentos feitos agora são antecipados '
+                         'para este mês.')
 
 
 def _proximo_mes(now=None):
