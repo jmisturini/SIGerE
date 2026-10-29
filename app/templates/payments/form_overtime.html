@@ -32,7 +32,8 @@
                             </div>
                             <div class="col-md-5">
                                 {% if modo_criacao %}
-                                <select name="reference_month" id="reference_month" class="form-select fw-bold">
+                                <select name="reference_month" id="reference_month" class="form-select fw-bold"
+                                        {% if dica_referencia not in dicas_referencia.values() %}data-dica-fallback="1"{% endif %}>
                                     {% for value, label in opcoes_referencia %}
                                     <option value="{{ value }}" {{ 'selected' if value == referencia_selecionada }} data-dica="{{ dicas_referencia[value] }}">{{ label }}</option>
                                     {% endfor %}
@@ -283,7 +284,15 @@ document.addEventListener('DOMContentLoaded', function() {
             fp.clear();
             syncCalendarMonth();
         });
-        atualizarDica();
+        // No carregamento a dica já é a da seleção; sincronizar de novo só
+        // cobre o F5, em que o navegador restaura a última seleção sem
+        // disparar change. Num POST inválido com mês fora das opções, porém,
+        // o servidor renderiza uma dica de fallback que nenhuma opção carrega
+        // (data-dica-fallback) — sobrescrevê-la com a dica da primeira opção
+        // traria uma nota de antecipação indevida.
+        if (!refSelect.dataset.dicaFallback) {
+            atualizarDica();
+        }
     }
 
     // Máscara do Código Orçamentário: agrupa os dígitos em 2.2.4.2 (.4) —

@@ -398,6 +398,22 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertEqual(visivel, dica_dezembro)
         self.assertEqual(por_opcao, {atual: dica_dezembro, seguinte: dica_janeiro})
 
+    def test_form_post_mes_fora_das_opcoes_preserva_dica_fallback(self):
+        # POST inválido com mês de referência válido, mas fora das opções
+        # (POST forjado): o servidor renderiza uma dica de fallback — sem
+        # nota de antecipação — e marca o select com data-dica-fallback para
+        # o JavaScript não sobrescrevê-la com a dica da primeira opção.
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(reference_month='2020-05',
+                                                              hourly_value=''))
+        self.assertEqual(response.status_code, 200)  # re-render, sem redirect
+        page = response.get_data(as_text=True)
+        self.assertIn('data-dica-fallback="1"', page)
+        visivel, _ = self._dicas_do_reference(page)
+        self.assertIn(f'21/{self._mes_anterior()[5:7]} - 20/{self._mes_atual()[5:7]}',
+                      visivel)
+        self.assertNotIn('antecipa', visivel)
+
     def _dicas_do_reference(self, page):
         """(dica visível no reference-hint, {mês: dica} das opções) do Mês de
         Referência — garante o texto exibido, e não só o conteúdo dos
