@@ -1426,10 +1426,13 @@ BLOCOS = [
         'Apenas reservas aprovadas são exibidas publicamente. Verifique se a reserva está '
         'pendente ou cancelada;',
         '<b>Por que minha reserva ficou pendente se a sala estava livre?</b>',
-        'Dois motivos possíveis: o professor selecionado já tem reserva em outra sala no mesmo '
-        'horário, ou a reserva foi criada por um perfil Professor — cujas reservas nascem '
-        'Pendentes para aprovação da gestão (seção 6.2). Em ambos os casos o administrador '
-        'analisa e aprova;',
+        'Três motivos possíveis: o professor selecionado já tem outra reserva no mesmo '
+        'horário, o professor já atingiu o limite diário de reservas, ou a reserva foi criada '
+        'por um perfil Professor — cujas reservas nascem Pendentes para aprovação da gestão '
+        '(seção 6.2). A análise fica com quem tem permissão de aprovação: Gestor e '
+        'Administrador enxergam e aprovam qualquer pendência; o Analista também tem a '
+        'permissão, mas só vê e aprova as reservas em que é criador ou professor designado; o '
+        'Super Administrador também vê e aprova qualquer pendência da unidade ativa;',
         '<b>Minha reserva pendente virou Cancelada sozinha. O que aconteceu?</b>',
         'Cancelamento automático: a pendência que não é aprovada até 1 hora antes do início é '
         'cancelada pelo servidor e o criador recebe o aviso com o motivo (seção 6.2);',
@@ -1443,8 +1446,12 @@ BLOCOS = [
         'Não há recuperação automática: solicite o reset de senha a um administrador '
         '(seções 2.3 e 14.2);',
         '<b>Minha conta está bloqueada. E agora?</b>',
-        'O bloqueio acontece após 10 tentativas de senha erradas. Um administrador desbloqueia '
-        'na tela de usuários (seção 14.2) em segundos — os dados não são afetados;',
+        'O bloqueio acontece após 10 tentativas de senha erradas — os dados não são afetados. '
+        'Contas comuns: um administrador desbloqueia na tela de usuários (seção 14.2) em '
+        'segundos. Exceção: o painel não desbloqueia o Super Administrador — nesse caso, quem '
+        'tem acesso ao servidor, no diretório do projeto e com a virtualenv ativa, roda '
+        '<b>venv/bin/flask --app run unlock-user usuario@instituicao.edu.br</b> '
+        '(e-mail da conta bloqueada) na CLI;',
         '<b>Não recebi aviso de uma reserva que está próxima. Por quê?</b>',
         'Os avisos são opt-in por reserva: alguém com acesso a ela precisa ter ativado as '
         'notificações e escolhido marcos e destinatários na seção <b>Notificações</b> do '

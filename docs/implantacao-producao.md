@@ -320,6 +320,10 @@ venv/bin/flask --app run db stamp head
 > O boot da aplicação **não** cria nem altera schema — quem aplica é o Alembic,
 > de forma segura até com múltiplos workers. Se o banco estiver vazio ou fora
 > do fluxo, o boot apenas avisa no log.
+>
+> Complemento no caso legado: rode `venv/bin/flask --app run sync-permissions`
+> depois do `stamp` — ele só marca a versão do Alembic; o catálogo de
+> permissões/vínculos de papéis é sincronizado à parte (o boot não sincroniza).
 
 ---
 
@@ -490,15 +494,52 @@ sudo certbot renew --dry-run
 
 Rotina padrão a cada nova versão:
 
+Antes de começar, registre as revogações feitas em **Painel Admin → Papéis**
+(nome interno do papel e códigos das permissões). Mantenha a sessão SSH aberta:
+o acesso externo ficará indisponível até concluir a conferência dessas revogações.
+
 ```bash
 cd /var/www/sigere
 set -a; source .env; set +a    # variáveis para os comandos flask abaixo
+
+sudo systemctl stop nginx sigere                  # bloqueia acesso e encerra workers
+# Só prossiga após confirmar que ambos estão parados; em caso de erro, interrompa.
+sudo systemctl is-active nginx sigere              # ambos devem estar inactive
 
 git pull
 venv/bin/pip install -r requirements.txt gunicorn   # cobre dependências novas
 venv/bin/flask --app run db upgrade                 # aplica migrações de schema
 venv/bin/flask --app run sync-permissions           # permissões/papéis novos (sempre rode)
-sudo systemctl restart sigere
+# Atenção: o comando também reaplica permissões revogadas em Painel Admin → Papéis.
+```
+
+**Mantenha Nginx e sigere parados.** Pela mesma sessão SSH, execute
+`venv/bin/flask --app run shell` e reaplique as revogações registradas diretamente
+no banco, sem abrir o painel ao público. No shell, repita para cada par
+papel/permissão, substituindo os valores pelos registrados:
+
+```python
+from app.extensions import db
+from app.models import Role, Permission
+
+papel = Role.query.filter_by(name="NOME_INTERNO_DO_PAPEL").one()
+permissao = Permission.query.filter_by(code="CODIGO_DA_PERMISSAO").one()
+if permissao in papel.permissions:
+    papel.permissions.remove(permissao)
+
+db.session.commit()
+db.session.expire_all()
+assert permissao not in papel.permissions
+```
+
+Confira todos os pares registrados após o commit e saia do shell (`exit()`).
+Se qualquer etapa falhar ou houver revogação pendente, mantenha os serviços parados.
+**Somente após a conferência**, inicie a aplicação e libere o acesso externo:
+
+```bash
+sudo systemctl start sigere
+sudo systemctl status sigere                       # confirme active (running)
+sudo systemctl start nginx
 ```
 
 Notas:
@@ -506,16 +547,34 @@ Notas:
 - **`sync-permissions` é passo obrigatório da atualização**: o boot **não**
   executa sincronização de permissões (o DML concorrente derrubaria workers
   paralelos do Gunicorn). O comando é idempotente — rodar sempre não custa nada
-  e garante que permissões/papéis de módulos novos entrem.
+  e garante que permissões/papéis de módulos novos entrem. Porém, também
+  devolve aos papéis padrão (ROLES_CONFIG) cada permissão revogada de propósito
+  em **Painel Admin → Papéis** antes do update — reaplique e confira essas
+  revogações pelo Flask shell via SSH, com Nginx e sigere parados, antes de
+  liberar o acesso à aplicação (a adição de vínculos se limita aos papéis de
+  ROLES_CONFIG, mas permissões removidas de PERMISSION_DATA caem com seus
+  vínculos de qualquer papel — conferência manual também nesses casos).
+- **Fichas técnicas legadas** (só para instalações que ainda as tenham em
+  `app/static/uploads/technical_sheets`): mova-as para
+  `instance/uploads/technical_sheets/` e ajuste o dono recursivamente
+  (`sudo chown -R www-data:www-data instance/uploads/technical_sheets`) — o
+  caminho em `static/` é público no Nginx, a aplicação não o lê mais e, sem a
+  movimentação, os downloads dessas fichas retornam 404.
 - O script `python setup_interativo.py` traz o modo **"Atualizar o sistema"**
   (backup → `git pull --ff-only` → dependências → `db upgrade` →
   `sync-permissions`) se preferir a rotina guiada — mas mantenha **duas venvs
   em mente**: o script usa `.venv` e o serviço documentado executa `venv/bin/gunicorn`;
   atualize sempre a venv que o serviço realmente executa (`systemctl cat sigere`).
+  A rotina guiada exige a mesma parada prévia de Nginx/sigere e a reaplicação e
+  conferência das revogações via SSH antes de iniciar os serviços.
 - Se a atualização só mudou código Python/templates (sem dependências nem
-  migrações), `sudo systemctl reload sigere` basta e não derruba requisições.
-- Migrações são seguras de rodar com o serviço no ar (Alembic), mas a prática
-  recomendada é atualizar em janela de baixo uso.
+  migrações) e **não** mexeu em `PERMISSION_DATA`/`ROLES_CONFIG`, `sudo
+  systemctl reload sigere` basta e não derruba requisições. Mudanças de
+  catálogo/papéis exigem o fluxo completo com `db upgrade` e
+  `sync-permissions` — nem o `reload` nem o boot executam o sync, e papel
+  novo sem as permissões do catálogo recebe 403 nos módulos protegidos.
+- Programe a atualização em janela de baixo uso: esta rotina mantém os serviços
+  parados durante as migrações, a sincronização e a conferência das revogações.
 
 ---
 
@@ -651,9 +710,43 @@ Alternativa com cron (no `crontab -e` do seu usuário):
   `sudo -u postgres dropdb --if-exists sigere && sudo -u postgres createdb -O sigere sigere`.
 - **SQLite:** pare o serviço (`sudo systemctl stop sigere`), descompacte sobre
   o arquivo (`gunzip -c sigere-....sqlite.gz > /var/www/sigere/reservation.db`)
-  e suba de novo.
-- Depois de restaurar, rode `venv/bin/flask --app run db upgrade` (aplica
-  migrações feitas após o backup) e teste o login.
+  e siga os passos abaixo antes de subir de novo.
+- Se for executar `sync-permissions` — mesmo com backup da mesma versão —,
+  registre antes do primeiro sync o estado restaurado de cada papel e as
+  permissões que devem permanecer revogadas: `venv/bin/flask --app run
+  dump-permissions` lista os vínculos papel↔permissão gravados (um por
+  linha, inclusive papéis fora do `ROLES_CONFIG`). Esse registro é a base
+  para reaplicar as revogações depois do sync; o modo guiado já compara
+  antes/depois e lista os vínculos que o sync adicionou.
+- Mantenha o tráfego normal bloqueado (serviço parado) durante a restauração e
+  os comandos seguintes: rode `venv/bin/flask --app run db upgrade` (aplica
+  migrações feitas após o backup) e `venv/bin/flask --app run sync-permissions`
+  (recria permissões/papéis que o backup anterior não tinha — idempotente; o
+  modo guiado "Restaurar backup" do `setup_interativo.py` executa os dois e
+  pergunta antes do sync).
+- **Catálogo e revogações de permissão no backup:** o `sync-permissions` devolve
+  ao papel cada permissão do catálogo que estiver ausente. Isso recria as
+  permissões novas de versões recentes — necessárias, e o painel não consegue
+  recriá-las (lista só as já gravadas no banco): sem `reservation:create_pending`,
+  por exemplo, a reserva do Professor deixa de nascer Pendente. Mas também
+  devolve permissões revogadas de propósito em **Painel Admin → Papéis** antes
+  do backup. Caminho recomendado: rode o sync com o tráfego bloqueado, suba a
+  aplicação sem expor aos usuários (ex.: `venv/bin/flask --app run run` na
+  máquina do servidor, com Nginx/serviço parado e `FLASK_DEBUG=true` somente
+  para esse acesso local — fora do debug o cookie de sessão é `Secure` e o
+  login falha em HTTP; a alternativa, sem debug, é servir por HTTPS:
+  `venv/bin/flask --app run run --cert /caminho/cert.pem --key
+  /caminho/chave.pem` e acessar `https://localhost:5000`. Em servidor remoto,
+  acesse o painel por túnel SSH: `ssh -N -L 5000:127.0.0.1:5000
+  usuario@servidor`), reaplique as revogações em **Painel Admin → Papéis** e
+  salve — só então encerre a instância local (`Ctrl+C`), reinicie o serviço e
+  só suba o Nginx após confirmá-lo ativo (`sudo systemctl restart sigere &&
+  sudo systemctl is-active --quiet sigere && sudo systemctl start nginx` — se
+  o serviço falhar, o Nginx não fica no ar sem backend) e teste o login pelo
+  endereço normal do sistema.
+  Só pule o sync (responda "não" à pergunta do modo guiado, ou omita o comando
+  no caminho manual) se o backup veio da mesma versão — catálogo completo e
+  revogações a preservar.
 
 > **Ensaiou o restore?** Backup só é backup depois de restaurado uma vez —
 > faça o ensaio em outra máquina/container antes de precisar de verdade.
@@ -774,7 +867,7 @@ Para conferir o que a varredura criaria sem gravar nada:
 | Upload falha com `413` | `client_max_body_size` do Nginx menor que o arquivo | Aumente no Nginx (mantendo ≥ 16 MB da aplicação) |
 | Upload falha com `500` / ficha não aparece | `instance/uploads/` inexistente ou sem permissão de escrita para `www-data` | Recrie com o dono certo: `sudo mkdir -p /var/www/sigere/instance/uploads && sudo chown -R www-data:www-data /var/www/sigere/instance` |
 | Clima do totem "N/A" | Unidade sem coordenadas e/ou sem internet para Open-Meteo | Configure o clima por unidade no painel; teste a saída para `api.open-meteo.com` |
-| `API responde 401` para um token que funcionava | Token revogado/expirado ou conta do criador desativada | Reemita o token em Painel Admin → Tokens da API ([detalhes](api-reservas.md)) |
+| `API responde 401` para um token que funcionava | Token revogado/expirado, conta do criador desativada **ou bloqueada** (10 tentativas de senha erradas) | Reemita o token em Painel Admin → Tokens da API ([detalhes](api-reservas.md)); se a conta estiver bloqueada, desbloqueie no Painel Admin → Usuários ou com `unlock-user` (linha abaixo) |
 | Login exibe "Sua conta está bloqueada por excesso de tentativas de acesso" | 10 tentativas de senha erradas bloqueiam a conta automaticamente | Desbloqueio no **Painel Admin → Usuários** (requer `user:lock`) ou pela CLI, como o seu usuário: `set -a; source .env; set +a` e `venv/bin/flask --app run unlock-user email@dominio` — o desbloqueio fica registrado na trilha de auditoria. O painel não desbloqueia o super-admin; para ele, use a CLI |
 | `⚠️ Banco de dados vazio` no log após atualizar | Migração não aplicada | Como o seu usuário: `set -a; source .env; set +a` e `venv/bin/flask --app run db upgrade` (passo 5) |
 | Exportações Excel com erro de permissão | Diretório temporário/`static` sem permissão para `www-data` | Revise `chown` de `/var/www/sigere` (arquivos pertencem a `www-data`) |

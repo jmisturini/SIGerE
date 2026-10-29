@@ -290,6 +290,24 @@ def sync_permissions_command():
     sync_permissions_impl(verbose=True)
 
 
+@click.command('dump-permissions')
+@with_appcontext
+def dump_permissions_command():
+    """Lista os vínculos papel↔permissão gravados no banco (um por linha).
+
+    Formato estável `papel :: código`, em ordem alfabética, cobrindo todos
+    os papéis — inclusive os fora de ROLES_CONFIG. Serve de registro do
+    estado antes/depois do sync-permissions: comparando as duas saídas,
+    o operador enxerga exatamente quais vínculos o sync adicionou (entre
+    eles podem estar revogações de propósito, a reaplicar no painel).
+
+    Uso: flask dump-permissions
+    """
+    for role in Role.query.order_by(Role.name).all():
+        for perm in sorted(role.permissions, key=lambda p: p.code):
+            click.echo(f"{role.name} :: {perm.code}")
+
+
 def sync_permissions_impl(verbose=True):
     """Lógica compartilhada do sync de permissões.
 

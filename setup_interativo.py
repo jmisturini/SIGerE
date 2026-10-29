@@ -39,6 +39,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs, unquote
 
@@ -352,6 +353,36 @@ def executar_flask(venv_python, env, argumentos):
         raise SystemExit(1)
 
 
+def capturar_flask(venv_python, env, argumentos):
+    """Roda um comando da CLI capturando o stdout em linhas — usado para
+    registrar o estado dos vínculos papel↔permissão antes/depois do sync."""
+    resultado = subprocess.run([venv_python, '-m', 'flask', '--app', 'run'] + argumentos,
+                               env=env, capture_output=True, text=True)
+    if resultado.returncode != 0:
+        erro(f"Falha no comando: flask --app run {' '.join(argumentos)}.")
+        if resultado.stderr.strip():
+            erro('Saída de erro capturada:\n' + resultado.stderr.strip())
+        raise SystemExit(1)
+    return [linha for linha in resultado.stdout.splitlines() if linha.strip()]
+
+
+def registrar_snapshot_vinculos(antes, depois):
+    """Grava os snapshots pré/pós-sync em logs/ — fica de registro para o
+    operador reaplicar revogações confirmadas (e auditar o que mudou)."""
+    pasta = RAIZ / 'logs'
+    try:
+        pasta.mkdir(exist_ok=True)
+        marca = datetime.now().strftime('%Y%m%d-%H%M%S')
+        (pasta / f'sync-permissions-{marca}-antes.txt').write_text(
+            '\n'.join(antes) + '\n', encoding='utf-8')
+        (pasta / f'sync-permissions-{marca}-depois.txt').write_text(
+            '\n'.join(depois) + '\n', encoding='utf-8')
+        ok(f'Snapshots dos vínculos salvos em {pasta} (sync-permissions-{marca}-*.txt)')
+    except OSError as exc:
+        aviso(f'Não foi possível gravar os snapshots em {pasta}: {exc} — '
+              'os vínculos alterados seguem listados acima.')
+
+
 def aplicar_schema(venv_python, env, rotulo='5. Schema do banco (Flask-Migrate/Alembic)'):
     titulo(rotulo)
     print('   Executando: flask --app run db upgrade')
@@ -452,6 +483,19 @@ def atualizar_sistema():
     titulo('Modo: atualização do sistema')
     venv_python, env_processo, env_arquivo = preparar_manutencao()
 
+    # O sync devolve revogações intencionais ao papel — com os serviços no ar,
+    # elas ficam expostas antes da conferência. Guarda igual à rotina
+    # documentada e ao modo de restauração.
+    if shutil.which('systemctl'):
+        ativos = [s for s in ('sigere', 'nginx')
+                  if subprocess.run(['systemctl', 'is-active', '--quiet', s]).returncode == 0]
+        if ativos:
+            erro(f"Serviço(s) no ar ({', '.join(ativos)}): o sync-permissions devolve as "
+                 'revogações intencionais ao papel e, com a aplicação acessível, elas ficam '
+                 'expostas antes da conferência. Pare-os primeiro (sudo systemctl stop '
+                 'sigere nginx) e rode o setup de novo.')
+            raise SystemExit(1)
+
     titulo('Backup de segurança')
     if sim_nao('Criar um backup do banco antes de atualizar (recomendado)?', padrao=True):
         executar_flask(venv_python, env_processo, ['backup'])
@@ -485,9 +529,29 @@ def atualizar_sistema():
                    rotulo='Schema do banco (Flask-Migrate/Alembic)')
 
     titulo('Permissões e papéis')
-    print('   Executando: flask --app run sync-permissions')
+    # Snapshot antes/depois: sem ele, o operador não distingue um vínculo novo
+    # de catálogo de uma revogação intencional que o sync acabou de devolver ao
+    # papel (mesma proteção do modo de restauração).
+    print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
+    antes = capturar_flask(venv_python, env_processo, ['dump-permissions'])
+    print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
     executar_flask(venv_python, env_processo, ['sync-permissions'])
+    depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
     ok('Permissões e papéis sincronizados (sync-permissions).')
+    registrar_snapshot_vinculos(antes, depois)
+    adicionados = sorted(set(depois) - set(antes))
+    removidos = sorted(set(antes) - set(depois))
+    titulo('Vínculos papel↔permissão alterados pelo sync')
+    if adicionados:
+        print('   Revise cada vínculo abaixo: entre eles podem estar permissões que')
+        print('   estavam revogadas de propósito no painel antes da atualização — as')
+        print('   confirmadas devem voltar a ficar ausentes (veja "Próximos passos"):')
+        for linha in adicionados:
+            print(f'     + {linha}')
+    else:
+        print('   Nenhum vínculo foi adicionado pelo sync.')
+    for linha in removidos:
+        print(f'     - {linha} (aposentada do catálogo pelo sync)')
 
     titulo('Resumo da atualização')
     for passo in passos:
@@ -496,7 +560,11 @@ def atualizar_sistema():
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         iniciar_servidor(venv_python, env_processo, rotulo='Servidor de desenvolvimento')
     else:
-        print('     • Reinicie o serviço: sudo systemctl restart sigere')
+        print('     • Com o tráfego ainda bloqueado, reaplique as revogações confirmadas:')
+        print('       os vínculos "+" acima que eram revogações intencionais devem voltar a')
+        print('       ficar ausentes — Flask shell via SSH com Nginx/sigere parados, ou')
+        print('       Painel Admin → Papéis numa instância local (docs/implantacao-producao.md).')
+        print('     • Só então reinicie o serviço: sudo systemctl restart sigere')
         print('     • Teste o login e a navegação: http://localhost:5000')
 
 
@@ -697,6 +765,15 @@ def restaurar_postgres(uri, arquivo_backup):
 
 
 def restaurar_backup():
+    """Modo guiado de restauração de backup (SQLite ou PostgreSQL).
+
+    Substitui todos os dados atuais do banco pelo dump escolhido, aplica as
+    migrações posteriores ao backup (db upgrade) e oferece o sync-permissions
+    sob confirmação do operador: executá-lo devolve ao papel permissões
+    revogadas no backup, e pular o deixa ausentes as permissões novas do
+    catálogo — o resumo final orienta como tratar cada caso antes de
+    reiniciar os serviços e liberar o acesso.
+    """
     titulo('Modo: restauração de backup')
     venv_python, env_processo, env_arquivo = preparar_manutencao()
 
@@ -746,15 +823,83 @@ def restaurar_backup():
     executar_flask(venv_python, env_processo, ['db', 'upgrade'])
     ok('Migrações aplicadas ao banco restaurado (alembic head).')
 
+    titulo('Permissões após o backup')
+    aviso('O sync-permissions devolve aos papéis padrão da aplicação (ROLES_CONFIG) '
+          'cada permissão do catálogo que estiver ausente — inclusive uma que tenha '
+          'sido revogada de propósito no painel (Painel Admin → Papéis) antes do '
+          'backup. A adição de vínculos se limita aos papéis de ROLES_CONFIG, mas '
+          'permissões removidas de PERMISSION_DATA são apagadas com seus vínculos '
+          'de qualquer papel (inclusive legados ou criados manualmente) — confira '
+          'esses vínculos manualmente.')
+    aviso('Pular o sync também deixa ausentes as permissões NOVAS do catálogo: o painel '
+          'só lista as já gravadas no banco e não consegue recriá-las — fluxos param de '
+          'funcionar (ex.: reserva de Professor deixa de nascer Pendente). Recomendado: '
+          'rodar o sync e reaplicar as revogações no painel depois.')
+    sync_executado = sim_nao('Executar sync-permissions agora? Responda NÃO apenas se o '
+                             'backup veio da MESMA versão da aplicação (catálogo '
+                             'completo) e há revogações a preservar.', padrao=True)
+    if sync_executado:
+        # Snapshot antes/depois: sem ele, o operador não distingue um vínculo
+        # novo de catálogo de uma revogação intencional que o sync acabou de
+        # devolver ao papel.
+        print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
+        antes = capturar_flask(venv_python, env_processo, ['dump-permissions'])
+        print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
+        executar_flask(venv_python, env_processo, ['sync-permissions'])
+        depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
+        ok('Permissões e papéis sincronizados (sync-permissions).')
+        registrar_snapshot_vinculos(antes, depois)
+        adicionados = sorted(set(depois) - set(antes))
+        removidos = sorted(set(antes) - set(depois))
+        titulo('Vínculos papel↔permissão alterados pelo sync')
+        if adicionados:
+            print('   Revise cada vínculo abaixo: entre eles podem estar permissões que')
+            print('   estavam revogadas de propósito no backup — as confirmadas devem')
+            print('   voltar a ficar ausentes em Painel Admin → Papéis, com o tráfego')
+            print('   ainda bloqueado:')
+            for linha in adicionados:
+                print(f'     + {linha}')
+        else:
+            print('   Nenhum vínculo foi adicionado pelo sync.')
+        for linha in removidos:
+            print(f'     - {linha} (aposentada do catálogo pelo sync)')
+    else:
+        aviso('sync-permissions pulado: revogações do backup preservadas. Confirme que o '
+              'catálogo está completo — se faltar permissão, rode o sync com o tráfego '
+              'bloqueado e reaplique as revogações em Painel Admin → Papéis ANTES de '
+              'liberar o acesso dos usuários.')
+
     titulo('Resumo da restauração')
     for passo in passos:
         print(f'   • {passo}')
     print('\n   Próximos passos:')
-    print('     • Teste o login e a navegação: http://localhost:5000')
+    print('     • Em servidor remoto, abra um túnel SSH antes de acessar o painel: '
+          'ssh -N -L 5000:127.0.0.1:5000 usuario@servidor')
+    print('     • Com Nginx e o serviço normal parados, suba uma instância local — '
+          f'PowerShell: & "{venv_python}" -m flask --app run run; demais shells: '
+          f'"{venv_python}" -m flask --app run run — com FLASK_DEBUG=true (somente '
+          'para esse acesso de restauração: fora do debug o cookie de sessão é '
+          'Secure e o login falha em HTTP; acesse http://localhost:5000) ou, sem '
+          'debug, por HTTPS: --cert /caminho/cert.pem --key /caminho/chave.pem '
+          '(acesse https://localhost:5000)')
+    if sync_executado:
+        print('     • Revise os vínculos adicionados pelo sync (listados acima) e '
+              'reaplique em Painel Admin → Papéis as revogações confirmadas; encerre '
+              'a instância local antes de reiniciar os serviços e liberar o acesso '
+              'normal')
+    if not sync_executado:
+        print('     • Confirme que o catálogo de permissões está completo (permissão '
+              'nova só entra rodando flask --app run sync-permissions; o painel não '
+              'a recria) e reaplique em Painel Admin → Papéis as revogações '
+              'preservadas do backup; encerre a instância local antes de liberar o '
+              'acesso normal')
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         print('     • Suba o servidor: flask --app run run --debug')
+        print('     • Teste o login e a navegação: http://localhost:5000')
     else:
-        print('     • Reinicie o serviço: sudo systemctl restart sigere')
+        print('     • Reinicie Nginx e o serviço: sudo systemctl start nginx && '
+              'sudo systemctl restart sigere')
+        print('     • Teste o login e a navegação pelo endereço normal do sistema')
     print('     • O backup do banco não inclui os uploads (instance/uploads) nem o .env — '
           'para reconstruir uma máquina inteira, copie também essas partes '
           '(docs/implantacao-producao.md, "restaurar uma instalação completa").')
