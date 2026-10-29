@@ -92,6 +92,15 @@ class FixedDatetimeDez21(datetime):
         return cls(today.year, 12, 21, 12, 0)
 
 
+class FixedDatetimeDez15(datetime):
+    """now() fixado em 15/dezembro: dentro da janela, na virada do ano — o
+    mês de pagamento do mês atual cai em janeiro do ano seguinte."""
+    @classmethod
+    def now(cls):
+        today = datetime.now()
+        return cls(today.year, 12, 15, 12, 0)
+
+
 class PaymentsTestCase(unittest.TestCase):
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix='.db')
@@ -362,20 +371,95 @@ class PaymentsTestCase(unittest.TestCase):
             self.assertEqual(record.month_base, self._mes_seguinte())
 
     def test_form_mostra_mes_referencia_selecionavel(self):
-        page = self.client.get('/payments/overtime/create').get_data(as_text=True)
+        # 15/dezembro: dentro da janela e na virada do ano — o mês de
+        # pagamento do mês atual cai em janeiro do ano seguinte.
+        with patch('app.blueprints.payments.datetime', FixedDatetimeDez15):
+            page = self.client.get('/payments/overtime/create').get_data(as_text=True)
         self.assertIn('Mês de Referência', page)
         self.assertIn('id="reference_month"', page)
         # Opções: mês atual (selecionado pela janela) e mês seguinte
-        self.assertRegex(page, rf'<option value="{self._mes_atual()}" selected>')
-        self.assertRegex(page, rf'<option value="{self._mes_seguinte()}"')
-        # Dica da janela segue presente no topo do formulário
-        self.assertIn('dia 20 do mês', page)
+        ano = FixedDatetimeDez15.now().year
+        atual, seguinte = f'{ano}-12', f'{ano + 1}-01'
+        self.assertRegex(page, rf'<option value="{atual}" selected')
+        self.assertRegex(page, rf'<option value="{seguinte}"')
+        # A dica visível é a do mês selecionado e cada opção carrega a sua:
+        # intervalo de lançamento (dia 21 do mês anterior ao dia 20 do mês de
+        # referência), mês de pagamento (o posterior) e nota de antecipação —
+        # antes do dia 21, selecionar o próximo mês antecipa o lançamento.
+        dica_dezembro = (f'Intervalo de lançamento de pagamento: 21/11 - 20/12. '
+                         f'Mês de pagamento: Janeiro/{ano + 1}. '
+                         f'Selecionar o próximo mês antecipa o lançamento para '
+                         f'o próximo mês de pagamento.')
+        dica_janeiro = ('Intervalo de lançamento de pagamento: 21/12 - 20/01. '
+                        'Mês de pagamento: Fevereiro. '
+                        'Lançamentos feitos agora, antes do dia 21, são '
+                        'antecipados para este mês.')
+        visivel, por_opcao = self._dicas_do_reference(page)
+        self.assertEqual(visivel, dica_dezembro)
+        self.assertEqual(por_opcao, {atual: dica_dezembro, seguinte: dica_janeiro})
+
+    def test_form_post_mes_fora_das_opcoes_preserva_dica_fallback(self):
+        # POST inválido com mês de referência válido, mas fora das opções
+        # (POST forjado): o servidor renderiza uma dica de fallback — sem
+        # nota de antecipação — e marca o select com data-dica-fallback para
+        # o JavaScript não sobrescrevê-la com a dica da primeira opção.
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(reference_month='2020-05',
+                                                              hourly_value=''))
+        self.assertEqual(response.status_code, 200)  # re-render, sem redirect
+        page = response.get_data(as_text=True)
+        self.assertIn('data-dica-fallback="1"', page)
+        visivel, _ = self._dicas_do_reference(page)
+        self.assertIn(f'21/{self._mes_anterior()[5:7]} - 20/{self._mes_atual()[5:7]}',
+                      visivel)
+        self.assertNotIn('antecipa', visivel)
+
+    def _dicas_do_reference(self, page):
+        """(dica visível no reference-hint, {mês: dica} das opções) do Mês de
+        Referência — garante o texto exibido, e não só o conteúdo dos
+        atributos data-dica."""
+        visivel = re.search(r'id="reference-hint"[^>]*>\s*(.*?)\s*</div>', page, re.S)
+        self.assertIsNotNone(visivel, 'reference-hint não encontrado na página')
+        trecho = re.search(r'id="reference_month"[^>]*>(.*?)</select>', page, re.S)
+        self.assertIsNotNone(trecho, 'select reference_month não encontrado na página')
+        por_opcao = dict(re.findall(r'<option value="([^"]+)"[^>]*?data-dica="([^"]*)"',
+                                    trecho.group(1)))
+        self.assertEqual(len(por_opcao), 2, 'dicas por opção ausentes na página')
+        return visivel.group(1), por_opcao
+
+    def test_form_dica_acompanha_mes_gravado_apos_dia_20(self):
+        # Depois do dia 20, selecionar o mês atual grava o mês seguinte
+        # (janela 20→20): dica visível e dicas por opção apontam o mês
+        # seguinte, sem nota de antecipação — e o lançamento válido persiste
+        # nesse mês.
+        atual, seguinte = self._mes_atual(), self._mes_seguinte()
+        with patch('app.blueprints.payments.datetime', FixedDatetimeDia25):
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(
+                                            reference_month=atual, hourly_value=''))
+            self.assertEqual(response.status_code, 200)  # re-render, sem redirect
+            page = response.get_data(as_text=True)
+            visivel, por_opcao = self._dicas_do_reference(page)
+            self.assertEqual(por_opcao[atual], por_opcao[seguinte])
+            self.assertEqual(visivel, por_opcao[seguinte])
+            # O intervalo apontado é o do mês gravado: 21/atual - 20/seguinte
+            self.assertIn(f'21/{atual[5:7]} - 20/{seguinte[5:7]}', visivel)
+            self.assertNotIn('antecipa', visivel)
+            response = self.client.post('/payments/overtime/create',
+                                        data=self._create_payload(reference_month=atual),
+                                        follow_redirects=True)
+        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        with self.app.app_context():
+            record = db.session.query(TeacherOvertimePay).first()
+            self.assertEqual(record.month_base, seguinte)
 
     def _opcoes_do_select(self, page, select_id):
         """Pares (valor, selecionado?) das opções de um select da página."""
         trecho = re.search(rf'id="{select_id}"[^>]*>(.*?)</select>', page, re.S)
         self.assertIsNotNone(trecho, f'select {select_id} não encontrado na página')
-        return re.findall(r'<option value="([^"]+)"( selected)?\s*>', trecho.group(1))
+        return [(valor, 'selected' in atributos)
+                for valor, atributos in
+                re.findall(r'<option value="([^"]+)"([^>]*)>', trecho.group(1))]
 
     def test_create_erro_de_validacao_mantem_par_do_mes_seguinte(self):
         # POST com erro de validação (Valor H/a vazio): a página volta com o
@@ -455,11 +539,10 @@ class PaymentsTestCase(unittest.TestCase):
 
     # ---------- Carga horária semanal: hora + minuto, sem decimal ----------
 
-    def test_create_form_has_hours_minutes_fields_and_hint(self):
+    def test_create_form_has_hours_minutes_fields(self):
         page = self.client.get('/payments/overtime/create').get_data(as_text=True)
         self.assertIn('id="weekly_workload_hours"', page)
         self.assertIn('id="weekly_workload_minutes"', page)
-        self.assertIn('id="workload-hint"', page)
 
     def test_create_grava_carga_e_listagem_mostra_hora_minuto(self):
         # 4h30 é gravado internamente como 4,5 — e exibido como 4h30, sem
