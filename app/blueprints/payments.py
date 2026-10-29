@@ -84,22 +84,24 @@ def _dica_janela_referencia(month_base):
     """Dica do Mês de Referência no formulário: o intervalo de lançamento
     (do dia 21 do mês anterior ao dia 20 do próprio mês) e o mês em que a
     entrada será paga — o mês posterior ao de referência. O ano só entra no
-    mês de pagamento quando ele muda em relação ao mês de referência."""
+    mês de pagamento quando ele muda em relação ao mês de referência.
+    As frases separam-se por \n: a tela exibe uma por linha."""
     inicio = _mes_anterior_de(month_base)
     pagamento = _mes_posterior_de(month_base)
     nome = MONTH_NAMES_PT[int(pagamento[5:7]) - 1]
     if pagamento[:4] != month_base[:4]:
         nome = f'{nome}/{pagamento[:4]}'
     return (f'Intervalo de lançamento de pagamento: '
-            f'21/{inicio[5:7]} - 20/{month_base[5:7]}. '
+            f'21/{inicio[5:7]} - 20/{month_base[5:7]}.\n'
             f'Mês de pagamento: {nome}.')
 
 
 # Notas de antecipação da dica: a segunda opção do Mês de Referência é
 # sempre um mês cuja janela ainda não abriu — lançar nele agora é antecipar.
-DICA_ANTECIPA_ATUAL = (' Selecionar o próximo mês antecipa o lançamento '
+# Entram com \n para virar a terceira linha da dica.
+DICA_ANTECIPA_ATUAL = ('\nSelecionar o próximo mês antecipa o lançamento '
                        'para o próximo mês de pagamento.')
-DICA_ANTECIPA_PROXIMO = (' Lançamentos feitos agora são antecipados '
+DICA_ANTECIPA_PROXIMO = ('\nLançamentos feitos agora são antecipados '
                          'para este mês.')
 
 
