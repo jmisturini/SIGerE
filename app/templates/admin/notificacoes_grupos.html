@@ -5,18 +5,13 @@
 <div class="row justify-content-center">
     <div class="col-lg-9 col-md-11">
         <div class="card">
-            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-collection"></i></span> Grupos de Notificação</h5>
-                <div class="d-flex gap-2">
-                    <a href="{{ url_for('admin.notificacoes_config') }}" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-sliders"></i> Configuração
-                    </a>
-                    <a href="{{ url_for('admin.create_notificacao_grupo') }}" class="btn btn-sm btn-primary">
-                        <i class="bi bi-plus-lg"></i> Novo grupo
-                    </a>
-                </div>
-            </div>
             <div class="card-body p-4">
+                <div class="form-card-head">
+                    <span class="hub-card-icone"><i class="bi bi-collection" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>Grupos de Notificação</h3>
+                    </div>
+                </div>
                 {% if current_unity %}
                 <p class="text-muted small mb-4">
                     <i class="bi bi-geo-alt me-1"></i> Grupos da unidade
@@ -88,6 +83,17 @@
                     </div>
                 </div>
                 {% endif %}
+
+                <div class="form-card-rodape">
+                    <div class="form-acoes">
+                        <a href="{{ url_for('admin.notificacoes_config') }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-sliders"></i> Configuração
+                        </a>
+                        <a href="{{ url_for('admin.create_notificacao_grupo') }}" class="btn btn-sm btn-primary">
+                            <i class="bi bi-plus-lg"></i> Novo grupo
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

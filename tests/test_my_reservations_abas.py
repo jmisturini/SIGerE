@@ -115,7 +115,7 @@ class MyReservationsAbasTestCase(unittest.TestCase):
         self.assertIn('Futura Unica', pagina)
         self.assertNotIn('Passada Um', pagina)
         self.assertIn('Reservas Atuais e Futuras', pagina)
-        self.assertNotIn('Reservas Passadas</h5>', pagina)
+        self.assertNotIn('Reservas Passadas</h3>', pagina)
 
     def test_aba_passadas_mostra_apenas_passadas(self):
         """?periodo=passadas lista só o histórico, em cinza."""
@@ -123,7 +123,7 @@ class MyReservationsAbasTestCase(unittest.TestCase):
         pagina = response.get_data(as_text=True)
         self.assertIn('Passada Um', pagina)
         self.assertNotIn('Futura Unica', pagina)
-        self.assertIn('Reservas Passadas</h5>', pagina)
+        self.assertIn('Reservas Passadas</h3>', pagina)
         self.assertIn('<tr class="text-muted">', pagina)
 
     def test_periodo_invalido_cai_no_padrao(self):

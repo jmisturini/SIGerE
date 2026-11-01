@@ -1,0 +1,57 @@
+{# Cabeçalho de página padrão (redesenho visual — referência Observatório):
+   eyebrow laranja + título + subtítulo + ações opcionais à direita, definidos
+   num único lugar para todas as páginas herdam a mesma estrutura.
+
+   Uso sem ações:
+     {% from '_cabecalho.html' import cabecalho_pagina %}
+     {{ cabecalho_pagina('Reservas', 'Todas as Reservas', 'Gerencie e acompanhe as solicitações.') }}
+
+   Uso com ações (botões/links à direita):
+     {% call cabecalho_pagina('Reservas', 'Todas as Reservas', None) %}
+         <div class="d-flex flex-wrap gap-2">
+             <a class="btn btn-outline-primary" href="...">…</a>
+         </div>
+     {% endcall %}
+
+   `titulo` e `subtitulo` passam pelo autoescape do Jinja — não passar
+   marcação. Eyebrow é opcional (None/'' omite). #}
+{% macro cabecalho_pagina(eyebrow, titulo, subtitulo) -%}
+<header class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        {% if eyebrow %}<p class="page-eyebrow">{{ eyebrow }}</p>{% endif %}
+        <h3 class="fw-bold mb-1">{{ titulo }}</h3>
+        {% if subtitulo %}<p class="text-muted mb-0">{{ subtitulo }}</p>{% endif %}
+    </div>
+    {% if caller %}{{ caller() }}{% endif %}
+</header>
+{%- endmacro %}
+
+{# Página-hub de seção (modelo do Observatório): faixa azul "Central de
+   informações" com os caminhos da seção dentro dela. O corpo vem do
+   {% call %} — grupos com <p class="hub-grupo">Título</p> seguidos de
+   <div class="hub-cards"> com os card_hub. #}
+{% macro hero_hub(icone, titulo, subtitulo) -%}
+<section class="hub-hero">
+    <div class="hub-hero-head">
+        <span class="hub-hero-icone"><i class="bi {{ icone }}" aria-hidden="true"></i></span>
+        <div>
+            <p class="hub-hero-eyebrow">Central de informações</p>
+            <h2>{{ titulo }}</h2>
+            {% if subtitulo %}<p class="hub-hero-sub">{{ subtitulo }}</p>{% endif %}
+        </div>
+    </div>
+    {{ caller() }}
+</section>
+{%- endmacro %}
+
+{# Card de hub: ícone em chip tintado + título + descrição + seta laranja. #}
+{% macro card_hub(url, icone, titulo, descricao) -%}
+<a class="hub-card" href="{{ url }}">
+    <span class="hub-card-icone"><i class="bi {{ icone }}" aria-hidden="true"></i></span>
+    <span class="hub-card-corpo">
+        <b>{{ titulo }}</b>
+        {% if descricao %}<small>{{ descricao }}</small>{% endif %}
+    </span>
+    <i class="bi bi-arrow-right hub-card-seta" aria-hidden="true"></i>
+</a>
+{%- endmacro %}

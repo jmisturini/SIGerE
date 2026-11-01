@@ -82,11 +82,11 @@ def _inteiro(valor):
 # ── Rotas ────────────────────────────────────────────────────────────────────
 
 @bp.route('/')
+@login_required
 def index():
-    """A importação do "Pedido de Compra" saiu do ar — o pedido público
-    (/vt/pedido) alimenta a listagem diretamente. Endpoints e URLs antigos
-    seguem vivos apenas como redirecionamento para links guardados."""
-    return redirect(url_for('vt.requests'))
+    """Compatibilidade: a raiz /vt abre a Central Financeiro/RH, onde os
+    caminhos do Vale-Transporte viraram cards (modelo do Observatório)."""
+    return redirect(url_for('main.hub_financeiro_rh'))
 
 
 @bp.route('/colaboradores')

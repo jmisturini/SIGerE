@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, request, session, flash
-from flask_login import login_required
+from flask_login import current_user, login_required
 from app.models import Reservation, Unity
 from app.extensions import db
+from app.permissions import require_module, require_permission
 from app.unity_context import (current_unity_id, can_switch_unity,
                                switchable_unities, reset_unity_cache)
 from datetime import datetime, date, time
@@ -83,6 +84,55 @@ def changelog():
     from app.version import APP_VERSION, RELEASES
     return render_template('changelog.html',
                            versao_atual=APP_VERSION, releases=RELEASES)
+
+# ── Centrais de seção (hubs) ─────────────────────────────────────────────
+# No modelo do Observatório, as seções da sidebar viraram páginas: cada uma
+# mostra os antigos itens de menu (e seus submenus) como cards. As rotas dos
+# módulos (/reservations/, /relatorios/, /payments/overtime, /vt/) viram
+# redirecionamentos para cá — ficam de compatibilidade para links guardados.
+
+@bp.route('/salas-e-reservas')
+@login_required
+def hub_salas_reservas():
+    """Central de Salas e Reservas: card de Salas e, conforme a permissão,
+    os caminhos de Reservas e os Relatórios do módulo."""
+    return render_template('hubs/salas_reservas.html')
+
+@bp.route('/financeiro-rh')
+@login_required
+@require_module('finance')
+def hub_financeiro_rh():
+    """Central Financeiro/RH: Hora Extra, Vale-Transporte, Vale Alimentação
+    e Adicional Noturno — cards-portais que abrem os blocos de conteúdos.
+    Os caminhos respeitam a permissão de quem acessa; sem nenhum deles,
+    volta ao Painel — a sidebar também esconde o item nesse caso."""
+    tem_secao = (current_user.has_permission('payment:read')
+                 or current_user.has_permission('vt:read')
+                 or current_user.has_permission('meal:read')
+                 or current_user.has_permission('an:read'))
+    if not tem_secao:
+        return redirect(url_for('main.index'))
+    return render_template('hubs/financeiro_rh.html')
+
+@bp.route('/financeiro')
+@login_required
+def hub_financeiro_shim():
+    """Compatibilidade: a central do Financeiro foi fundida com a de RH."""
+    return redirect(url_for('main.hub_financeiro_rh'))
+
+@bp.route('/rh')
+@login_required
+def hub_rh_shim():
+    """Compatibilidade: a central de RH foi fundida com a do Financeiro."""
+    return redirect(url_for('main.hub_financeiro_rh'))
+
+@bp.route('/cozinha')
+@login_required
+@require_permission('kitchen:read')
+@require_module('kitchen')
+def hub_cozinha():
+    """Central da Cozinha: fichas técnicas, preparações e compras."""
+    return render_template('hubs/cozinha.html')
 
 # Multi-unidade: alterna a unidade ativa de operação (armazenada na sessão)
 @bp.route('/unity/switch', methods=['POST'])

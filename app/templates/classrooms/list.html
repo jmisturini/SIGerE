@@ -1,12 +1,9 @@
 {% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Salas{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-    <div>
-        <h3 class="fw-bold mb-1">Salas e Espaços</h3>
-        <p class="text-muted mb-0">Encontre a sala ideal para sua atividade.</p>
-    </div>
+{% call cabecalho_pagina('Salas', 'Salas e Espaços', 'Encontre a sala ideal para sua atividade.') %}
     <div class="d-flex flex-wrap gap-2">
         {% if current_user.has_permission('reservation:read_all') %}
         <a class="btn btn-outline-primary" href="{{ url_for('relatorios.geral') }}" title="Relatório Geral de Salas e Reservas">
@@ -23,7 +20,7 @@
         </a>
         {% endif %}
     </div>
-</div>
+{% endcall %}
 
 <form method="GET" id="filterForm" class="card mb-4">
     <div class="card-body">
