@@ -231,24 +231,27 @@
                    visível para quem tem qualquer uma dessas permissões e fica
                    ativo em todas as páginas /admin/*. #}
                 {% if current_user.is_authenticated %}
-                {# Sino de notificações: dropdown com preview das últimas (buscado ao abrir) e badge com não lidas (atualizado por poll leve) #}
+                {# Sino de notificações: botão quadrado com borda (estilo card)
+                   e dropdown com preview das últimas (buscado ao abrir) + badge
+                   com não lidas (atualizado por poll leve) #}
                 <div class="dropdown">
-                    <a class="btn btn-link position-relative text-decoration-none text-muted"
+                    <a class="btn-sino position-relative text-decoration-none"
                        title="Notificações" href="{{ url_for('notifications.lista') }}" id="notif-bell"
-                       data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
-                        <i class="bi bi-bell fs-5"></i>
+                       data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false"
+                       aria-label="Notificações">
+                        <i class="bi bi-bell"></i>
                         <span id="notif-badge"
                               class="position-absolute top-0 start-100 translate-middle badge rounded-pill badge-acento {{ 'd-none' if not notificacoes_nao_lidas }}">
                             {{ notificacoes_nao_lidas }}
                         </span>
                     </a>
                     <div class="dropdown-menu dropdown-menu-end notif-dropdown p-0" id="notif-dropdown" style="min-width: 320px; max-width: 92vw;">
-                        <div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
-                            <span class="small fw-bold text-uppercase text-muted">Notificações</span>
-                            <a href="{{ url_for('notifications.lista') }}" class="small text-decoration-none link-seta">Ver todas <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                        <div class="notif-cabecalho">
+                            <span class="notif-titulo">Notificações</span>
                         </div>
-                        <div id="notif-dropdown-corpo" class="text-muted small px-3 py-3">Carregando…</div>
-                        <div class="px-3 py-2 border-top">
+                        <div id="notif-dropdown-corpo" class="text-muted small px-3 py-4 text-center">Carregando…</div>
+                        <div class="notif-rodape d-flex justify-content-between align-items-center">
+                            <a href="{{ url_for('notifications.lista') }}" class="small text-decoration-none link-seta">Ver todas <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                             <button type="button" id="notif-marcar-todas"
                                     class="btn btn-link btn-sm text-decoration-none text-muted p-0">
                                 <i class="bi bi-check2-all me-1"></i>Marcar todas como lidas
@@ -359,22 +362,19 @@
 
 {% if current_user.is_authenticated %}
 {# Confirmação antes de encerrar a sessão: o link "Sair" do menu abre este
-   modal (via .js-pedir-saida) em vez de sair direto. #}
+   modal (via .js-pedir-saida) em vez de sair direto. Layout centrado sem
+   barra de título — ícone circular, pergunta e par de ações. #}
 <div class="modal fade" id="modal-sair" tabindex="-1" aria-labelledby="modal-sair-titulo" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modal-sair-titulo"><i class="bi bi-box-arrow-right me-1"></i> Sair do sistema</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-            </div>
-            <div class="modal-body">
-                <p class="mb-0">Você será desconectado e precisará entrar novamente para acessar o painel. Deseja sair?</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Continuar aqui</button>
-                <a href="{{ url_for('auth.logout') }}" class="btn btn-danger">
-                    <i class="bi bi-box-arrow-right me-1"></i> Sair do sistema
-                </a>
+        <div class="modal-content modal-sair">
+            <div class="modal-body text-center px-4 py-5">
+                <span class="modal-sair-icone" aria-hidden="true"><i class="bi bi-question-lg"></i></span>
+                <h5 class="modal-sair-titulo" id="modal-sair-titulo">Sair do sistema?</h5>
+                <p class="modal-sair-texto">Você precisará informar suas credenciais para acessar novamente.</p>
+                <div class="d-flex justify-content-center gap-2 mt-4">
+                    <button type="button" class="btn btn-outline-primary px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <a href="{{ url_for('auth.logout') }}" class="btn btn-primary px-4">Sair</a>
+                </div>
             </div>
         </div>
     </div>
