@@ -513,6 +513,68 @@ body {
     color: #26160a;
 }
 
+/* Sino de notificações (topbar): botão quadrado branco com borda suave e
+   sino azul — substitui o antigo link fantasma sem contorno. */
+.btn-sino {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    font-size: 1.15rem;
+    color: var(--primary-color);
+    background: var(--topbar-bg);
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+    transition: background-color 0.15s ease, border-color 0.15s ease,
+                box-shadow 0.2s ease, color 0.15s ease;
+}
+
+.btn-sino:hover,
+.btn-sino:focus {
+    color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb), 0.06);
+    border-color: rgba(var(--primary-color-rgb), 0.25);
+}
+
+[data-theme="dark"] .btn-sino {
+    color: var(--primary-light);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+}
+
+[data-theme="dark"] .btn-sino:hover,
+[data-theme="dark"] .btn-sino:focus {
+    color: var(--primary-light);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+/* Caixa de notificações: card branco arredondado com sombra — título em
+   caixa alta foi trocado por rótulo forte na cor do texto; corpo centrado. */
+.notif-dropdown {
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-raised);
+    overflow: hidden;
+}
+
+.notif-cabecalho {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.notif-titulo {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-color);
+}
+
+.notif-rodape {
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
 /* Badges de estado (Aprovada, Pendente, Cancelada, Ativo, Inativo,
    Disponível…): pontinho na cor do próprio texto, sem borda e gap
    uniforme, como nos cards do Observatório. Usar JUNTO das utilidades
@@ -1408,6 +1470,52 @@ h1, h2, h3, h4, h5, h6 {
 }
 .modal[data-bs-theme="dark"] .modal-header .modal-title {
     color: #fff;
+}
+
+/* Modal de confirmação de saída: cartão centrado sem barra de título —
+   ícone em círculo azul, pergunta forte e par de ações claro/escuro. */
+.modal-sair {
+    border-radius: var(--radius-lg);
+}
+
+.modal-sair .modal-body {
+    padding-bottom: 2.5rem;
+}
+
+.modal-sair-icone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 84px;
+    height: 84px;
+    margin: 0 auto;
+    font-size: 2.75rem;
+    color: var(--primary-color);
+    border: 3px solid var(--primary-color);
+    border-radius: 50%;
+}
+
+.modal-sair-titulo {
+    margin-top: 1.1rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.modal-sair-texto {
+    max-width: 34ch;
+    margin: 0.35rem auto 0;
+    color: var(--text-muted);
+}
+
+[data-theme="dark"] .modal[data-bs-theme="dark"] .modal-sair-icone {
+    color: var(--primary-light);
+    border-color: var(--primary-light);
+}
+
+/* Especificidade acima de [data-theme="dark"] h5 (0,1,1), que pinta os
+   headings de branco e venceria o azul do título. */
+[data-theme="dark"] .modal-sair-titulo {
+    color: var(--primary-light);
 }
 
 .list-group-item {
