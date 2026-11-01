@@ -4,6 +4,7 @@
 {% block content %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
+        <p class="page-eyebrow">Cozinha</p>
         <h3 class="fw-bold mb-1"><i class="bi bi-egg-fried text-primary me-2"></i>{{ recipe.name }}</h3>
         <p class="text-muted mb-0">
             <i class="bi bi-clock me-1"></i>Tempo de Preparo: {{ recipe.prep_time or '—' }} ·
@@ -103,25 +104,13 @@
 
         {% for preparation in recipe.preparations %}
         <div class="card mb-4">
-            <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h6 class="fw-bold mb-0">
-                    <i class="bi bi-collection me-2"></i>
-                    {{ 'Ingredientes — ' ~ preparation.name if recipe.preparations|length > 1 else 'Ingredientes' }}
-                </h6>
-                <div class="d-flex gap-2 flex-wrap">
-                    <button type="button" class="btn btn-sm btn-outline-primary btn-sort-alpha" aria-pressed="false"
-                            title="Ordenar os ingredientes alfabeticamente — a escolha fica salva no navegador">
-                        <i class="bi bi-sort-alpha-down me-1"></i> Ordem A–Z
-                    </button>
-                    {% if can_edit %}
-                    <a class="btn btn-sm btn-outline-primary"
-                       href="{{ url_for('kitchen.edit_ingredients', recipe_id=recipe.id, prep_id=preparation.id) }}">
-                        <i class="bi bi-pencil-square me-1"></i> Editar ingredientes
-                    </a>
-                    {% endif %}
-                </div>
-            </div>
             <div class="card-body p-0">
+                <div class="form-card-head px-3 pt-3">
+                    <span class="hub-card-icone"><i class="bi bi-collection" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>{{ 'Ingredientes — ' ~ preparation.name if recipe.preparations|length > 1 else 'Ingredientes' }}</h3>
+                    </div>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover mb-0 align-middle">
                         <thead>
@@ -173,6 +162,21 @@
                         </tbody>
                     </table>
                 </div>
+
+                <div class="form-card-rodape px-3 pb-3">
+                    <div class="form-acoes">
+                        <button type="button" class="btn btn-sm btn-outline-primary btn-sort-alpha" aria-pressed="false"
+                                title="Ordenar os ingredientes alfabeticamente — a escolha fica salva no navegador">
+                            <i class="bi bi-sort-alpha-down me-1"></i> Ordem A–Z
+                        </button>
+                        {% if can_edit %}
+                        <a class="btn btn-sm btn-outline-primary"
+                           href="{{ url_for('kitchen.edit_ingredients', recipe_id=recipe.id, prep_id=preparation.id) }}">
+                            <i class="bi bi-pencil-square me-1"></i> Editar ingredientes
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
         </div>
         {% else %}
@@ -188,11 +192,14 @@
 
     <div class="col-lg-5">
         <div class="card mb-4">
-            <div class="card-header bg-transparent py-3 d-flex justify-content-between align-items-center">
-                <h6 class="fw-bold mb-0"><i class="bi bi-journal-text me-2"></i>Modo de Preparo</h6>
-                <span class="badge bg-light text-dark border">Geral</span>
-            </div>
             <div class="card-body">
+                <div class="form-card-head">
+                    <span class="hub-card-icone"><i class="bi bi-journal-text" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>Modo de Preparo</h3>
+                    </div>
+                    <span class="badge bg-light text-dark border">Geral</span>
+                </div>
                 {% if recipe.step_list %}
                 <ol class="mb-0">
                     {% for step in recipe.step_list %}

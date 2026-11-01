@@ -2,21 +2,30 @@
 {% block title %}Painel Administrativo{% endblock %}
 
 {% block content %}
-<div class="page-header mb-4">
-    <h3 class="fw-bold mb-1">Painel Administrativo</h3>
-    <p class="text-muted mb-0">Gerencie usuários, salas, cursos e configurações do sistema.</p>
-</div>
+<section class="hub-hero mb-4">
+    <div class="hub-hero-head">
+        <span class="hub-hero-icone"><i class="bi bi-gear" aria-hidden="true"></i></span>
+        <div>
+            <p class="hub-hero-eyebrow">Administração</p>
+            <h2>Painel Administrativo</h2>
+            <p class="hub-hero-sub">Gerencie usuários, salas, cursos e configurações do sistema.</p>
+        </div>
+    </div>
+</section>
 
 {% if setup_checklist %}
 {% set concluidos = setup_checklist | selectattr('concluido') | list | length %}
 {% set total = setup_checklist | length %}
 <!-- Checklist de configuração inicial (super-admin, some quando completo) -->
 <div class="card border-primary shadow-sm mb-4">
-    <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-list-check"></i></span> Configuração inicial</h5>
-        <span class="small text-muted">{{ concluidos }} de {{ total }} concluídos</span>
-    </div>
     <div class="card-body py-3">
+        <div class="form-card-head">
+            <span class="hub-card-icone"><i class="bi bi-list-check" aria-hidden="true"></i></span>
+            <div>
+                <h3>Configuração inicial</h3>
+            </div>
+            <span class="small text-muted">{{ concluidos }} de {{ total }} concluídos</span>
+        </div>
         <div class="progress mb-3" style="height: 6px;">
             <div class="progress-bar bg-success"
                  style="width: {{ ((concluidos / total * 100) | round(1)) }}%"></div>

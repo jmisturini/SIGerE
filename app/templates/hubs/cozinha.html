@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina, hero_hub, card_hub %}
+{% block title %}Cozinha{% endblock %}
+
+{% block content %}
+{{ cabecalho_pagina('Cozinha', 'Cozinha', 'Fichas técnicas, preparações e lista de compras da unidade.') }}
+
+{% call hero_hub('bi-egg-fried', 'Central da Cozinha', 'Da ficha técnica à lista de compras — os caminhos da seção.') %}
+    <div class="hub-cards">
+        {{ card_hub(url_for('kitchen.sheets'), 'bi-file-earmark-word', 'Ficha Técnica', 'Monte e acompanhe as fichas das preparações.') }}
+        {{ card_hub(url_for('kitchen.preparations'), 'bi-journal-text', 'Preparações', 'Receitas geradas a partir das fichas técnicas.') }}
+        {% if current_user.has_permission('kitchen:shopping_export') %}
+        {{ card_hub(url_for('kitchen.shopping'), 'bi-cart-check', 'Compras', 'Consolide os ingredientes e exporte a lista.') }}
+        {% endif %}
+    </div>
+{% endcall %}
+{% endblock %}

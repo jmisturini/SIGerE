@@ -297,6 +297,14 @@ def decimal_to_minutes(value):
 
 # ================= OVERTIME ROUTES =================
 
+@bp.route('/overtime')
+@login_required
+def overtime():
+    """Compatibilidade: a central de Hora Extra virou a Central
+    Financeiro/RH, com os caminhos do módulo como cards."""
+    return redirect(url_for('main.hub_financeiro_rh'))
+
+
 @bp.route('/overtime/list')
 @login_required
 @require_permission('payment:read')

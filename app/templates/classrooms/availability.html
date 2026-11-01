@@ -24,6 +24,7 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
 {%- endmacro %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
+        <p class="page-eyebrow">Salas</p>
         <h3 class="fw-bold mb-1">Disponibilidade: {{ classroom.name }}</h3>
         <p class="text-muted mb-0">
             <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle me-1">{{ classroom.code }}</span>
@@ -229,11 +230,11 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
         const badge = document.getElementById('modalStatus');
         const status = atributo('status');
         badge.textContent = status;
-        badge.className = 'badge flex-shrink-0 mt-1 ' + ({
-            'Aprovada': 'text-bg-success-subtle text-success-emphasis border border-success-subtle',
-            'Pendente': 'text-bg-warning-subtle text-warning-emphasis border border-warning-subtle',
-            'Cancelada': 'text-bg-danger-subtle text-danger-emphasis border border-danger-subtle'
-        }[status] || 'text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle');
+        badge.className = 'badge badge-estado flex-shrink-0 mt-1 ' + ({
+            'Aprovada': 'text-bg-success-subtle text-success-emphasis',
+            'Pendente': 'text-bg-warning-subtle text-warning-emphasis',
+            'Cancelada': 'text-bg-danger-subtle text-danger-emphasis'
+        }[status] || 'text-bg-secondary-subtle text-secondary-emphasis');
         // Linha de contexto (curso · disciplina · professor) some se não houver nenhum
         const contexto = [atributo('curso'), atributo('disciplina'), atributo('professor')].filter(Boolean).join(' · ');
         const linhaContexto = document.getElementById('modalLinhaContexto');

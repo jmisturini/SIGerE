@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina, hero_hub, card_hub %}
+{% block title %}Salas e Reservas{% endblock %}
+
+{% block content %}
+{{ cabecalho_pagina('Salas e Reservas', 'Salas e Reservas', 'Consulta dos ambientes, reservas e relatórios do módulo.') }}
+
+{# Modelo do Observatório: três cards-portais no hero; o clique abre logo
+   abaixo o bloco de conteúdos daquele caminho (um por vez). #}
+{% call hero_hub('bi-building', 'Central de Salas e Reservas', 'Escolha por onde começar — o conteúdo abre logo abaixo.') %}
+
+    <div class="hub-cards hub-cards-portais">
+        <button type="button" class="hub-portal" data-hub-alvo="hub-salas"
+                aria-expanded="false" aria-controls="hub-salas">
+            <span class="hub-card-icone"><i class="bi bi-door-open" aria-hidden="true"></i></span>
+            <b>Salas</b>
+            <small>Consulta os ambientes, categorias e a disponibilidade.</small>
+            <span class="hub-portal-acessar">Acessar <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+        </button>
+
+        {% if current_user.has_permission('reservation:create')
+              or current_user.has_permission('reservation:read_all')
+              or current_user.has_permission('reservation:read_own') %}
+        <button type="button" class="hub-portal" data-hub-alvo="hub-reservas"
+                aria-expanded="false" aria-controls="hub-reservas">
+            <span class="hub-card-icone"><i class="bi bi-calendar-week" aria-hidden="true"></i></span>
+            <b>Reservas</b>
+            <small>Solicite e acompanhe o uso das salas e laboratórios.</small>
+            <span class="hub-portal-acessar">Acessar <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+        </button>
+        {% endif %}
+
+        {% if current_user.has_permission('reservation:read_all') %}
+        <button type="button" class="hub-portal" data-hub-alvo="hub-relatorios"
+                aria-expanded="false" aria-controls="hub-relatorios">
+            <span class="hub-card-icone"><i class="bi bi-clipboard-data" aria-hidden="true"></i></span>
+            <b>Relatórios</b>
+            <small>Relatórios gerenciais de salas e reservas da unidade.</small>
+            <span class="hub-portal-acessar">Acessar <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+        </button>
+        {% endif %}
+    </div>
+
+{% endcall %}
+
+{# Blocos de conteúdo: um por caminho, abertos pelo card-portal acima. #}
+<div class="hub-bloco d-none" id="hub-salas">
+    <div class="hub-bloco-head">
+        <span class="hub-card-icone"><i class="bi bi-door-open" aria-hidden="true"></i></span>
+        <div>
+            <h3>Salas</h3>
+            <p>Ambientes, categorias e disponibilidade da unidade.</p>
+        </div>
+    </div>
+    <div class="hub-cards">
+        {{ card_hub(url_for('classrooms.list_classrooms'), 'bi-door-open', 'Salas', 'Lista completa dos ambientes para consulta e gestão.') }}
+    </div>
+</div>
+
+{% if current_user.has_permission('reservation:create')
+      or current_user.has_permission('reservation:read_all')
+      or current_user.has_permission('reservation:read_own') %}
+<div class="hub-bloco d-none" id="hub-reservas">
+    <div class="hub-bloco-head">
+        <span class="hub-card-icone"><i class="bi bi-calendar-week" aria-hidden="true"></i></span>
+        <div>
+            <h3>Reservas</h3>
+            <p>Solicitações e acompanhamento das reservas de salas.</p>
+        </div>
+    </div>
+    <div class="hub-cards">
+        {% if current_user.has_permission('reservation:create') %}
+        {{ card_hub(url_for('reservations.create'), 'bi-plus-circle', 'Nova Reserva', 'Abre o formulário de solicitação com detecção de conflitos.') }}
+        {% endif %}
+        {% if current_user.has_permission('reservation:read_own') %}
+        {{ card_hub(url_for('reservations.my_reservations'), 'bi-calendar-check', 'Minhas Reservas', 'Acompanhe as suas solicitações e os status de aprovação.') }}
+        {% endif %}
+        {% if current_user.has_permission('reservation:read_all') %}
+        {{ card_hub(url_for('reservations.all_reservations'), 'bi-people', 'Todas as Reservas', 'Filtre e gerencie as reservas de toda a unidade.') }}
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if current_user.has_permission('reservation:read_all') %}
+<div class="hub-bloco d-none" id="hub-relatorios">
+    <div class="hub-bloco-head">
+        <span class="hub-card-icone"><i class="bi bi-clipboard-data" aria-hidden="true"></i></span>
+        <div>
+            <h3>Relatórios</h3>
+            <p>Relatórios gerenciais do módulo de salas e reservas.</p>
+        </div>
+    </div>
+    <div class="hub-cards">
+        {{ card_hub(url_for('relatorios.geral'), 'bi-graph-up', 'Relatório Geral', 'Volume por status, ocupação por sala e carga por docente.') }}
+        {{ card_hub(url_for('relatorios.personalizado'), 'bi-sliders', 'Relatório Personalizado', 'Monte a consulta combinando os filtros disponíveis.') }}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

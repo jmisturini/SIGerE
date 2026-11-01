@@ -1,15 +1,17 @@
 {% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Gerenciar Série de Repetição{% endblock %}
 
 {% block content %}
+{{ cabecalho_pagina('Salas e Reservas', 'Gerenciar Série de Repetição', None) }}
 <div class="card">
-    <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-        <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-collection"></i></span> Gerenciar Série de Repetição</h5>
-        <a href="{{ url_for('reservations.detail', reservation_id=res.id) }}" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Voltar
-        </a>
-    </div>
     <div class="card-body p-4">
+        <div class="form-card-head">
+            <span class="hub-card-icone"><i class="bi bi-collection" aria-hidden="true"></i></span>
+            <div>
+                <h3>Gerenciar Série de Repetição</h3>
+            </div>
+        </div>
 
         <div class="alert alert-primary-subtle text-primary border border-primary-subtle d-flex align-items-center mb-4" role="alert">
             <i class="bi bi-info-circle-fill me-3 fs-5"></i>
@@ -110,21 +112,26 @@
 
             <!-- ============ EXCLUIR / CANCELAR EM LOTE ============ -->
             {% if can_cancel or can_delete %}
-            <div class="d-flex flex-wrap gap-2 border-top pt-3">
-                {% if can_cancel %}
-                <button type="submit" formaction="{{ url_for('reservations.series_delete', reservation_id=res.id) }}"
-                        class="btn btn-outline-warning"
-                        onclick="setMode('cancel'); return confirm('Cancelar as reservas selecionadas? A sala voltará a ficar livre nestas datas.');">
-                    <i class="bi bi-x-circle me-1"></i> Cancelar selecionadas
-                </button>
-                {% endif %}
-                {% if can_delete %}
-                <button type="submit" formaction="{{ url_for('reservations.series_delete', reservation_id=res.id) }}"
-                        class="btn btn-outline-danger"
-                        onclick="setMode('delete'); return confirm('EXCLUIR PERMANENTEMENTE as reservas selecionadas? Isso não pode ser desfeito.');">
-                    <i class="bi bi-trash me-1"></i> Excluir permanentemente
-                </button>
-                {% endif %}
+            <div class="form-card-rodape">
+                <div class="form-acoes">
+                    <a href="{{ url_for('reservations.detail', reservation_id=res.id) }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Voltar
+                    </a>
+                    {% if can_cancel %}
+                    <button type="submit" formaction="{{ url_for('reservations.series_delete', reservation_id=res.id) }}"
+                            class="btn btn-outline-warning"
+                            onclick="setMode('cancel'); return confirm('Cancelar as reservas selecionadas? A sala voltará a ficar livre nestas datas.');">
+                        <i class="bi bi-x-circle me-1"></i> Cancelar selecionadas
+                    </button>
+                    {% endif %}
+                    {% if can_delete %}
+                    <button type="submit" formaction="{{ url_for('reservations.series_delete', reservation_id=res.id) }}"
+                            class="btn btn-outline-danger"
+                            onclick="setMode('delete'); return confirm('EXCLUIR PERMANENTEMENTE as reservas selecionadas? Isso não pode ser desfeito.');">
+                        <i class="bi bi-trash me-1"></i> Excluir permanentemente
+                    </button>
+                    {% endif %}
+                </div>
                 <input type="hidden" name="mode" id="delete-mode" value="cancel">
             </div>
             {% endif %}

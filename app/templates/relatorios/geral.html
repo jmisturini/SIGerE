@@ -14,6 +14,7 @@
 
 <div class="page-header d-flex flex-wrap justify-content-between align-items-start mb-4 gap-2">
     <div>
+        <p class="page-eyebrow">Relatórios</p>
         <h3 class="d-flex align-items-center gap-2 mb-1 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-clipboard-data"></i></span>Relatório Geral de Salas e Reservas</h3>
         <p class="text-muted mb-0">
             Panorama das reservas da unidade <strong>{{ current_unity.name if current_unity else '—' }}</strong>
@@ -33,7 +34,13 @@
 
 {# ── Período do relatório ── #}
 <div class="card mb-4 no-print">
-    <div class="card-body py-2">
+    <div class="card-body">
+        <div class="form-card-head">
+            <span class="hub-card-icone"><i class="bi bi-funnel" aria-hidden="true"></i></span>
+            <div>
+                <h3>Período do relatório</h3>
+            </div>
+        </div>
         <form method="GET" class="row g-3 align-items-end">
             <div class="col-sm-4 col-md-3">
                 <label class="form-label small mb-1">Data Inicial</label>
@@ -43,11 +50,13 @@
                 <label class="form-label small mb-1">Data Final</label>
                 <input type="date" name="end" class="form-control" value="{{ fim.isoformat() }}">
             </div>
-            <div class="col-sm-4 col-md-3">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i> Atualizar</button>
-                <a class="btn btn-outline-secondary" href="{{ url_for('relatorios.geral') }}" title="Voltar ao mês corrente">
-                    <i class="bi bi-eraser"></i>
-                </a>
+            <div class="form-card-rodape col-12">
+                <div class="form-acoes">
+                    <a class="btn btn-outline-secondary" href="{{ url_for('relatorios.geral') }}" title="Voltar ao mês corrente">
+                        <i class="bi bi-eraser"></i>
+                    </a>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i> Atualizar</button>
+                </div>
             </div>
         </form>
     </div>

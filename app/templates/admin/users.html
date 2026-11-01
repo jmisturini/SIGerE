@@ -1,15 +1,12 @@
 {% extends 'base.html' %}
 {% from '_pagination.html' import render_pagination %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Gerenciar Usuários{% endblock %}
 
 {% block content %}
 {% set args_alternar = request.args.to_dict() %}
 {% set _ = args_alternar.update({'inativos': '0' if mostrar_inativos else '1'}) %}
-<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-    <div>
-        <h3 class="fw-bold mb-1">Gerenciar Usuários</h3>
-        <p class="text-muted mb-0">Visualize, edite e gerencie contas de professores e funcionários.</p>
-    </div>
+{% call cabecalho_pagina('Administração', 'Gerenciar Usuários', 'Visualize, edite e gerencie contas de professores e funcionários.') %}
     <div class="d-flex flex-wrap gap-2">
         <a class="btn {{ 'btn-outline-secondary' if mostrar_inativos else 'btn-outline-secondary border-dashed' }}"
            href="{{ url_for('admin.list_users', **args_alternar) }}"
@@ -21,7 +18,7 @@
             <i class="bi bi-plus-lg me-1"></i> Cadastrar Usuário
         </a>
     </div>
-</div>
+{% endcall %}
 
 <form method="GET" class="card mb-4">
     <div class="card-body">
@@ -101,12 +98,12 @@
                         </td>
                         <td>
                             {% if u.is_active_user %}
-                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Ativo</span>
+                                <span class="badge bg-success-subtle text-success-emphasis badge-estado">Ativo</span>
                             {% else %}
-                                <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Inativo</span>
+                                <span class="badge bg-danger-subtle text-danger-emphasis badge-estado">Inativo</span>
                             {% endif %}
                             {% if u.is_locked %}
-                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle"
+                                <span class="badge bg-warning-subtle text-warning-emphasis badge-estado"
                                       title="Login bloqueado (excesso de tentativas ou bloqueio manual) — desbloqueie no perfil">
                                     <i class="bi bi-lock-fill"></i> Bloqueada
                                 </span>

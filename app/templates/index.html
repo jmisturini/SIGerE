@@ -7,42 +7,46 @@
 {% set todas_reservas = category_sections | sum(attribute='reservations', start=[]) %}
 {% set espacos_usados = todas_reservas | map(attribute='classroom.code') | list | unique | list %}
 
-<header class="dash-hero">
-    <div>
-        <h1>Bem-vindo, {{ current_user.full_name }} 👋</h1>
-        <div class="dash-hero-date">
-            <i class="bi bi-calendar3"></i> {{ formatted_today }}
-            <span class="dash-hero-period">
-                <i class="bi bi-clock"></i> Período: {{ current_period }}
-            </span>
-        </div>
-    </div>
-
-    <div class="d-flex flex-wrap gap-2">
-        <!-- Novidades: abre a tela de changelog da versão atual -->
-        <a href="{{ url_for('main.changelog') }}" class="btn btn-outline-secondary"
-           title="Veja o que mudou nesta e nas versões anteriores">
-            <i class="bi bi-stars me-1"></i> Novidades <span class="badge text-bg-secondary ms-1">v{{ app_version }}</span>
-        </a>
-
-        <!-- View Toggle Dropdown -->
-        <div class="dropdown">
-            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="viewDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-layout-three-columns"></i> <span id="viewModeText">Visão em Lista</span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="viewDropdown">
-                <li><a class="dropdown-item view-toggle" href="#" data-view="list"><i class="bi bi-list-ul me-2"></i> Visão em Lista</a></li>
-                <li><a class="dropdown-item view-toggle" href="#" data-view="card"><i class="bi bi-grid-3x3-gap me-2"></i> Visão em Cartões</a></li>
-            </ul>
+<section class="hub-hero">
+    <div class="hub-hero-linha">
+        <div class="hub-hero-head mb-0">
+            <span class="hub-hero-icone"><i class="bi bi-calendar-week" aria-hidden="true"></i></span>
+            <div>
+                <p class="hub-hero-eyebrow">Painel de controle</p>
+                <h2>Bem-vindo, {{ current_user.full_name }} 👋</h2>
+                <p class="hub-hero-sub">
+                    <i class="bi bi-calendar3 me-1"></i> {{ formatted_today }}
+                    <span class="chip-claro ms-2"><i class="bi bi-clock me-1"></i> Período: {{ current_period }}</span>
+                </p>
+            </div>
         </div>
 
-        {% if current_user.has_permission('reservation:create') %}
-        <a href="{{ url_for('reservations.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle me-1"></i> Nova Reserva
-        </a>
-        {% endif %}
+        <div class="hub-hero-acoes">
+            <!-- Novidades: abre a tela de changelog da versão atual -->
+            <a href="{{ url_for('main.changelog') }}" class="btn-hero-ghost"
+               title="Veja o que mudou nesta e nas versões anteriores">
+                <i class="bi bi-stars"></i> Novidades <span class="badge text-bg-secondary ms-1">v{{ app_version }}</span>
+            </a>
+
+            <!-- View Toggle Dropdown -->
+            <div class="dropdown">
+                <button class="btn-hero-ghost dropdown-toggle" type="button" id="viewDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-layout-three-columns"></i> <span id="viewModeText">Visão em Lista</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="viewDropdown">
+                    <li><a class="dropdown-item view-toggle" href="#" data-view="list"><i class="bi bi-list-ul me-2"></i> Visão em Lista</a></li>
+                    <li><a class="dropdown-item view-toggle" href="#" data-view="card"><i class="bi bi-grid-3x3-gap me-2"></i> Visão em Cartões</a></li>
+                </ul>
+            </div>
+
+            {% if current_user.has_permission('reservation:create') %}
+            <a href="{{ url_for('reservations.create') }}" class="btn btn-light">
+                <i class="bi bi-plus-circle me-1"></i> Nova Reserva
+            </a>
+            {% endif %}
+        </div>
     </div>
-</header>
+</section>
 
 {% if todas_reservas %}
 <!-- Resumo do dia: contagens simples derivadas das seções já consultadas -->
@@ -155,10 +159,20 @@
 
 {% if not category_sections %}
 <!-- Estado vazio único para as duas visões (list/card não têm seções) -->
-<div class="card empty-state fade-up">
-    <i class="bi bi-emoji-smile"></i>
-    <h5 class="mb-1">Nenhum espaço agendado</h5>
-    <p class="small mb-0">Nenhuma reserva para o período {{ current_period|lower }}.</p>
+<div class="estado-vazio fade-up">
+    <span class="ev-icone"><i class="bi bi-calendar-x"></i></span>
+    <h3>Nenhum espaço agendado</h3>
+    <p>Nenhuma reserva para o período {{ current_period|lower }}. Quando houver, elas aparecem aqui.</p>
+    <div class="ev-acoes">
+        {% if current_user.has_permission('reservation:create') %}
+        <a href="{{ url_for('reservations.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Nova Reserva
+        </a>
+        {% endif %}
+        <a href="{{ url_for('schedule.view') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-calendar3 me-1"></i> Ver agenda completa
+        </a>
+    </div>
 </div>
 {% endif %}
 

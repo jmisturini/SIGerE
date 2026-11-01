@@ -164,6 +164,16 @@ def _get_reservation_scoped(reservation_id):
 # app/services/scheduling.py — ponto único de validação e gravação atômica
 # (proteção contra condição de corrida) e re-exportados acima.
 
+@bp.route('/')
+@login_required
+def index():
+    """Compatibilidade: a raiz de /reservations levava à central do módulo;
+    com as seções virando hubs (modelo do Observatório), o caminho da
+    Central de reservas agora é /salas-e-reservas — os cards de Reservas
+    moram lá."""
+    return redirect(url_for('main.hub_salas_reservas'))
+
+
 # AJAX endpoint to check for holiday/sunday warnings before form submission
 @bp.route('/check_holiday', methods=['GET'])
 @login_required

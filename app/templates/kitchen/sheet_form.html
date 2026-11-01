@@ -4,6 +4,7 @@
 {% block content %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
+        <p class="page-eyebrow">Cozinha</p>
         <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-plus text-primary me-2"></i>Criar Ficha Técnica</h3>
         <p class="text-muted mb-0">Preencha a ficha no mesmo modelo das fichas enviadas (.docx) — ao salvar, a
             preparação é gerada diretamente em <strong>Preparações</strong>.</p>
@@ -17,10 +18,14 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {# ── Identificação ── #}
     <div class="card mb-4">
-        <div class="card-header bg-transparent py-3">
-            <h6 class="fw-bold mb-0"><i class="bi bi-card-heading me-2"></i>Identificação</h6>
-        </div>
         <div class="card-body">
+            <div class="form-card-head">
+                <span class="hub-card-icone"><i class="bi bi-card-heading" aria-hidden="true"></i></span>
+                <div>
+                    <h3>Identificação</h3>
+                    <p class="legenda-obrigatorios">Campos com <span class="text-danger fw-bold">*</span> são obrigatórios.</p>
+                </div>
+            </div>
             <div class="mb-3">
                 <label class="form-label fw-semibold">Nome da Preparação <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" name="nome" required maxlength="255"
@@ -85,10 +90,13 @@
 
     {# ── Modo de preparo e notas ── #}
     <div class="card mb-4">
-        <div class="card-header bg-transparent py-3">
-            <h6 class="fw-bold mb-0"><i class="bi bi-journal-text me-2"></i>Modo de Preparo e Notas Técnicas</h6>
-        </div>
         <div class="card-body">
+            <div class="form-card-head">
+                <span class="hub-card-icone"><i class="bi bi-journal-text" aria-hidden="true"></i></span>
+                <div>
+                    <h3>Modo de Preparo e Notas Técnicas</h3>
+                </div>
+            </div>
             <div class="mb-3">
                 <label class="form-label fw-semibold">Modo de Preparo <span
                         class="fw-normal text-muted small">(um passo por linha)</span></label>
@@ -110,14 +118,16 @@
                     <textarea class="form-control" name="referencias" rows="3"></textarea>
                 </div>
             </div>
+            <div class="form-card-rodape">
+                <small>Ao salvar, a preparação é gerada diretamente em Preparações.</small>
+                <div class="form-acoes">
+                    <a href="{{ url_for('kitchen.sheets') }}" class="btn btn-outline-secondary">Cancelar</a>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-save me-1"></i> Salvar Ficha Técnica
+                    </button>
+                </div>
+            </div>
         </div>
-    </div>
-
-    <div class="d-flex gap-2 mb-4">
-        <button type="submit" class="btn btn-success">
-            <i class="bi bi-save me-1"></i> Salvar Ficha Técnica
-        </button>
-        <a href="{{ url_for('kitchen.sheets') }}" class="btn btn-outline-secondary">Cancelar</a>
     </div>
 </form>
 

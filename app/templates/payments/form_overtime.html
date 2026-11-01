@@ -1,17 +1,20 @@
 {% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
+{{ cabecalho_pagina('Financeiro/RH', title, None) }}
 <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
         <div class="card">
-            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-cash-stack"></i></span> {{ title }}</h5>
-                <a href="{{ url_for('payments.list_overtime') }}" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-arrow-left"></i> Voltar
-                </a>
-            </div>
             <div class="card-body p-4">
+                <div class="form-card-head">
+                    <span class="hub-card-icone"><i class="bi bi-cash-stack" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>{{ title }}</h3>
+                        <p class="legenda-obrigatorios">Campos com <span class="text-danger fw-bold">*</span> são obrigatórios.</p>
+                    </div>
+                </div>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
 
@@ -139,9 +142,14 @@
                         </div>
                     </div>
                     
-                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-                        <a href="{{ url_for('payments.list_overtime') }}" class="btn btn-outline-secondary">Cancelar</a>
-                        {{ form.submit(class="btn btn-primary px-4") }}
+                    <div class="form-card-rodape">
+                        <div class="form-acoes">
+                            <a href="{{ url_for('payments.list_overtime') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Voltar
+                            </a>
+                            <a href="{{ url_for('payments.list_overtime') }}" class="btn btn-outline-secondary">Cancelar</a>
+                            {{ form.submit(class="btn btn-primary px-4") }}
+                        </div>
                     </div>
                 </form>
             </div>

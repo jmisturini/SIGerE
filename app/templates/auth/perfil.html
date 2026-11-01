@@ -1,14 +1,20 @@
 {% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Meu Perfil{% endblock %}
 
 {% block content %}
+{{ cabecalho_pagina('Minha conta', 'Meu Perfil', None) }}
 <div class="row justify-content-center">
     <div class="col-md-8 col-lg-7">
         <div class="card">
-            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-person-circle"></i></span> Meu Perfil</h5>
-            </div>
             <div class="card-body p-4">
+                <div class="form-card-head">
+                    <span class="hub-card-icone"><i class="bi bi-person" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>Meu Perfil</h3>
+                        <p class="legenda-obrigatorios">Campos com <span class="text-danger fw-bold">*</span> são obrigatórios.</p>
+                    </div>
+                </div>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
 
@@ -95,8 +101,10 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-end">
-                        {{ form.submit(class="btn btn-primary px-4") }}
+                    <div class="form-card-rodape">
+                        <div class="form-acoes">
+                            {{ form.submit(class="btn btn-primary px-4") }}
+                        </div>
                     </div>
                 </form>
             </div>

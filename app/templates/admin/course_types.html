@@ -1,18 +1,17 @@
 {% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Tipos de Curso{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-    <div>
-        <h3 class="fw-bold mb-1">Tipos de Curso</h3>
-        <p class="text-muted mb-0">Catálogo usado no campo "Tipo de Curso" do lançamento de Hora Extra.</p>
-    </div>
+{% call cabecalho_pagina('Administração', 'Tipos de Curso', 'Catálogo usado no campo "Tipo de Curso" do lançamento de Hora Extra.') %}
     {% if current_user.has_permission('course_type:create') %}
-    <a href="{{ url_for('admin.create_course_type') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> Adicionar Tipo
-    </a>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.create_course_type') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Adicionar Tipo
+        </a>
+    </div>
     {% endif %}
-</div>
+{% endcall %}
 
 <form method="GET" class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <label class="form-label small mb-0" for="ordem-tipo-curso">Ordenar por</label>
@@ -41,9 +40,9 @@
                         <td class="ps-4 fw-bold">{{ t.name }}</td>
                         <td>
                             {% if t.is_active %}
-                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Ativo</span>
+                                <span class="badge bg-success-subtle text-success-emphasis badge-estado">Ativo</span>
                             {% else %}
-                                <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Inativo</span>
+                                <span class="badge bg-danger-subtle text-danger-emphasis badge-estado">Inativo</span>
                             {% endif %}
                         </td>
                         <td class="text-end pe-4">
