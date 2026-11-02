@@ -40,7 +40,7 @@
             </div>
 
             {% if current_user.has_permission('reservation:create') %}
-            <a href="{{ url_for('reservations.create') }}" class="btn btn-light">
+            <a href="{{ url_for('reservations.create') }}" class="btn-hero-branco">
                 <i class="bi bi-plus-circle me-1"></i> Nova Reserva
             </a>
             {% endif %}
