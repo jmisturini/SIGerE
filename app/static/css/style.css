@@ -51,7 +51,14 @@
     --bs-focus-ring-color: rgba(0, 74, 141, 0.25);
 }
 
-[data-theme="dark"] {
+/* O segundo seletor é necessário porque os blocos [data-accent] vêm depois
+   deste no arquivo com a mesma especificidade: sem ele, os valores CLAROS
+   de link (ex.: --bs-link-color: #b45309 no laranja) venciam também no
+   tema escuro, onde os blocos [data-theme="dark"][data-accent=...] só
+   redefinem os tons derivados (--primary-light*) que as var() abaixo
+   consomem. */
+[data-theme="dark"],
+[data-theme="dark"][data-accent] {
     color-scheme: dark;
     --sidebar-bg: #0a1624;
     --topbar-bg: #161b22;
@@ -1289,6 +1296,9 @@ body {
 [data-theme="dark"] .dropdown-menu {
     background-color: #161b22;
     border: 1px solid rgba(255,255,255,0.1);
+    /* Accent claro no escuro: item ativo com texto escuro mantém o
+       contraste (var(--bs-primary) clareia no tema escuro). */
+    --bs-dropdown-link-active-color: #000;
 }
 
 [data-theme="dark"] .dropdown-item {
@@ -1297,6 +1307,14 @@ body {
 
 [data-theme="dark"] .dropdown-item:hover {
     background-color: rgba(255,255,255,0.1);
+}
+
+/* O item ativo precisa vencer a regra genérica de cor acima (mesma
+   especificidade, mas ela vem depois do Bootstrap): sem isso o texto do
+   item ativo ficava cinza-claro sobre o accent claro do escuro. */
+[data-theme="dark"] .dropdown-item.active,
+[data-theme="dark"] .dropdown-item:active {
+    color: var(--bs-dropdown-link-active-color);
 }
 
 /* Seletor de unidade da topbar: inline no base.html não dá para sobrescrever,
@@ -1616,6 +1634,11 @@ h1, h2, h3, h4, h5, h6 {
 .ts-dropdown {
     /* Acima de modais (1055) e da topbar */
     z-index: 1060;
+    /* Mesmo tratamento dos .dropdown-menu (o tema bootstrap5 do Tom Select
+       traz raio 6px, borda e sombra próprias que destoavam dos cards) */
+    border-radius: var(--radius-md);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-raised);
 }
 
 /* Ao digitar na busca de um select simples (dropdown aberto), o item
@@ -1944,6 +1967,18 @@ h1, h2, h3, h4, h5, h6 {
     --bs-focus-ring-color: rgba(23, 184, 166, 0.35);
 }
 
+/* Hover dos links segue o tema: o `a:hover` do Bootstrap 5.3 pinta com
+   `--bs-link-hover-color-rgb`, triplo que nunca redefinimos (nem aqui nem
+   nos [data-accent]) — sem isso o hover de TODO link caía no azul padrão
+   do Bootstrap (#0a58ca), trocando de tema de cor para azul no passar do
+   mouse. Esta regra, carregada depois do bootstrap.min.css, usa a cor
+   simples que os tokens já definem (incl. --primary-light-hover no
+   escuro); seletores mais específicos (.dropdown-item:hover, hovers de
+   chip/sidebar) continuam valendo. */
+a:hover {
+    color: var(--bs-link-hover-color);
+}
+
 /* Seletor de tema de cor da topbar: amostras redondas; a escolhida recebe
    um contorno e o "check". */
 .accent-swatch {
@@ -2023,6 +2058,43 @@ h1, h2, h3, h4, h5, h6 {
 .form-control,
 .form-select {
     border-radius: var(--radius-sm);
+}
+
+/* Dropdowns no padrão visual do app: sem isso eles usam o estilo cru do
+   Bootstrap (raio 6px, borda cinza fina, sem sombra), que destoava dos
+   cards — o sino de notificações já usava o mesmo tratamento via
+   .notif-dropdown (raio/sombra próprios). Os tokens de item ativo têm que
+   ser redefinidos AQUI dentro: o Bootstrap 5.3 os declara em escopo de
+   elemento (.dropdown-menu), que vence o :root — os overrides globais
+   nunca chegavam e o item ativo ficava no azul padrão (#0d6efd) em
+   qualquer accent. */
+.dropdown-menu {
+    border-radius: var(--radius-md);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-raised);
+    --bs-dropdown-link-active-bg: var(--bs-primary);
+    --bs-dropdown-link-active-color: #fff;
+}
+
+/* Paginação: mesmo caso dos dropdowns — o Bootstrap 5.3 define os tokens
+   --bs-pagination-* no próprio .pagination (escopo de elemento), então os
+   overrides de :root e do bloco escuro não chegavam e a página ativa
+   ficava no azul padrão (#0d6efd) em qualquer accent/tema. */
+.pagination {
+    --bs-pagination-active-bg: var(--bs-primary);
+    --bs-pagination-active-border-color: var(--bs-primary);
+}
+
+[data-theme="dark"] .pagination {
+    --bs-pagination-bg: transparent;
+    --bs-pagination-color: #c9d1d9;
+    --bs-pagination-border-color: #30363d;
+    --bs-pagination-hover-bg: rgba(255, 255, 255, 0.06);
+    --bs-pagination-hover-color: #fff;
+    --bs-pagination-hover-border-color: #30363d;
+    --bs-pagination-active-color: #000;
+    --bs-pagination-active-bg: var(--bs-primary);
+    --bs-pagination-active-border-color: var(--bs-primary);
 }
 
 .btn {
@@ -2366,7 +2438,10 @@ h1, h2, h3, h4, h5, h6 {
     color: #fff;
 }
 
-/* Ação primária branca sobre o hero (ficha da reserva). */
+/* Ação primária branca sobre o hero (ficha da reserva). O raio segue o
+   dos botões ghost da mesma fileira (--radius-sm): antes usava
+   var(--radius-ctl), token que nunca existiu — o raio caía em 0 e o botão
+   ficava de cantos retos ao lado dos vizinhos arredondados. */
 .btn-hero-branco {
     display: inline-flex;
     align-items: center;
@@ -2374,11 +2449,12 @@ h1, h2, h3, h4, h5, h6 {
     background: #fff;
     color: var(--primary-color);
     border: 0;
-    border-radius: var(--radius-ctl);
+    border-radius: var(--radius-sm);
     padding: 0.45rem 0.9rem;
     font-size: 0.875rem;
     font-weight: 600;
     text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
 }
 
 .btn-hero-branco:hover,
