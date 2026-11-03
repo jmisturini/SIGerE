@@ -1,0 +1,39 @@
+{# Formulário de login compartilhado — usado pela página /login e pelo card
+   "Entrar no sistema" da landing. Único lugar que define rótulos, ícones
+   embutidos, placeholders, botão e nota de segurança: as duas páginas não
+   podem divergir de novo.
+
+   Requer `form` (LoginForm) no contexto. Variáveis opcionais:
+   - id_senha: id do input de senha — o botão de revelar depende dele para
+     não colidir quando as duas páginas existem em sessões distintas;
+     padrão 'login-password'.
+   - botao_largo: verdadeiro empurra o botão para o rodapé do card
+     (mt-auto) — a landing alinha a altura do card com os vizinhos. #}
+{{ form.hidden_tag() }}
+<div class="mb-3">
+    {{ form.email.label(class="form-label fw-semibold") }}
+    <div class="input-group login-campo">
+        <span class="input-group-text"><i class="bi bi-person" aria-hidden="true"></i></span>
+        {{ form.email(class="form-control", placeholder="nome@instituicao.edu.br", autocomplete="username") }}
+    </div>
+</div>
+<div class="mb-4">
+    {{ form.password.label(class="form-label fw-semibold") }}
+    <div class="input-group login-campo">
+        <span class="input-group-text"><i class="bi bi-lock" aria-hidden="true"></i></span>
+        {{ form.password(class="form-control", id=id_senha or 'login-password', placeholder="Informe sua senha", autocomplete="current-password") }}
+        <button class="btn btn-outline-secondary" type="button" data-password-toggle="{{ id_senha or 'login-password' }}"
+                title="Mostrar/ocultar senha" tabindex="-1">
+            <i class="bi bi-eye"></i>
+        </button>
+    </div>
+</div>
+<div class="d-grid{{ ' mt-auto' if botao_largo }}">
+    <button type="submit" class="btn btn-primary fw-semibold">
+        Entrar no sistema <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+    </button>
+</div>
+<p class="login-nota">
+    <i class="bi bi-shield-check" aria-hidden="true"></i>
+    Acesso protegido e restrito a usuários autorizados.
+</p>

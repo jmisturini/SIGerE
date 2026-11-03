@@ -3,7 +3,7 @@
 {% block title %}Bem-vindo - SIGerE{% endblock %}
 
 {% block content %}
-<div class="page-header text-center mb-4">
+<div class="page-header mb-4">
     <p class="page-eyebrow">Senac Santa Catarina</p>
     <h1 class="home-titulo mb-0">Bem-vindo ao SIGerE</h1>
 </div>
@@ -32,7 +32,6 @@
     {# ── Card busca funcional: submete direto para a página de resultados ── #}
     <div class="col-md-6 col-lg-4 d-flex">
         <div class="card card-func w-100">
-            <div class="faixa-topo"></div>
             <div class="card-body d-flex flex-column">
                 <div class="icone-chip"><i class="bi bi-search"></i></div>
                 <h4 class="fw-bold">Buscar minha aula</h4>
@@ -61,7 +60,6 @@
     {# ── Card cronograma: prévia curta das aulas que ainda vêm hoje ── #}
     <div class="col-md-6 col-lg-4 d-flex">
         <div class="card card-func w-100">
-            <div class="faixa-topo"></div>
             <div class="card-body d-flex flex-column">
                 <div class="icone-chip"><i class="bi bi-calendar-day"></i></div>
                 <h4 class="fw-bold">Cronograma de hoje</h4>
@@ -109,30 +107,14 @@
     {# ── Card login: form completo embutido (CSRF + WTForms) ── #}
     <div class="col-md-6 col-lg-4 d-flex">
         <div class="card card-func w-100">
-            <div class="faixa-topo"></div>
             <div class="card-body d-flex flex-column">
                 <div class="icone-chip"><i class="bi bi-shield-lock"></i></div>
                 <h4 class="fw-bold">Entrar no sistema</h4>
                 <p class="desc mb-3">Para a equipe do campus: gerencie reservas e consultas.</p>
                 <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
-                    {{ form.hidden_tag() }}
-                    <div class="mb-2">
-                        {{ form.email.label(class="form-label") }}
-                        {{ form.email(class="form-control", placeholder="Digite seu e-mail", autocomplete="username") }}
-                    </div>
-                    <div class="mb-3">
-                        {{ form.password.label(class="form-label") }}
-                        <div class="input-group">
-                            {{ form.password(class="form-control", id="home-password", placeholder="Digite sua senha", autocomplete="current-password") }}
-                            <button class="btn btn-outline-secondary" type="button" data-password-toggle="home-password"
-                                    title="Mostrar/ocultar senha" tabindex="-1">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100 mt-auto">
-                        <i class="bi bi-box-arrow-in-right me-1"></i> Fazer login
-                    </button>
+                    {% set id_senha = 'home-password' %}
+                    {% set botao_largo = true %}
+                    {% include '_form_login.html' %}
                 </form>
             </div>
         </div>
@@ -158,14 +140,13 @@
         border-radius: 12px;
         padding: .65rem 1.1rem;
         font-size: .88rem;
-        max-width: 720px;
-        margin: 0 auto 1.8rem;
+        margin: 0 0 1.8rem;
     }
     .faixa-agora .pulso {
         width: 9px;
         height: 9px;
         border-radius: 50%;
-        background: var(--primary-color);
+        background: var(--accent-orange);
         animation: pulso-agora 1.6s infinite;
         flex-shrink: 0;
     }
@@ -175,16 +156,12 @@
     }
     .faixa-agora .ver-tudo { color: var(--primary-color); }
 
-    /* Sem overflow: hidden no card — o dropdown do seletor de unidade abre
-       para fora do card e seria cortado. A faixa do topo carrega o próprio
-       raio superior, então nada escapa das bordas arredondadas. */
+    /* Cards da landing no idioma do sistema: chip tintado + sombra suave,
+       sem faixas decorativas no topo (o mesmo padrão dos hubs e do login).
+       Raio/sombra vêm dos tokens; sem overflow: hidden — o dropdown do
+       seletor de unidade abre para fora do card e seria cortado. */
     .card-func {
-        border-radius: 18px;
-    }
-    .card-func .faixa-topo {
-        height: 5px;
-        border-radius: 18px 18px 0 0;
-        background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
+        border-radius: var(--radius-lg);
     }
     .card-func .icone-chip {
         width: 54px;
@@ -203,12 +180,12 @@
         color: var(--text-muted);
         font-size: .87rem;
     }
+    /* Rótulos no padrão do sistema (sentence-case, como no /login e nas
+       páginas internas) — não mais em caixa-alta miúda. */
     .card-func .form-label {
-        font-size: .74rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        letter-spacing: .04em;
+        font-size: .875rem;
+        font-weight: 600;
+        color: var(--text-color);
     }
 
     /* Linha de aula compacta: título de aula é longo demais para caber ao
@@ -235,8 +212,10 @@
     .mini-aula .badge-agora {
         order: 2;
         flex-shrink: 0;
-        background: var(--primary-color);
-        color: #fff;
+        /* Selo "ao vivo" no laranja de acento (badge-acento) — mesma cor do
+           sino e das setas, amarrando a identidade Observatório. */
+        background: var(--accent-orange);
+        color: #26160a;
         font-weight: 700;
         font-size: .64rem;
     }
