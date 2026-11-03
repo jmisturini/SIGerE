@@ -50,35 +50,10 @@
                 <h1 class="login-title">Acesse sua conta</h1>
                 <p class="text-muted">Use suas credenciais institucionais para continuar.</p>
 
+                {# Campos, botão e nota vivem no partial compartilhado com o
+                   card de login da landing (mesmos rótulos e acabamento). #}
                 <form method="POST" novalidate class="mt-4">
-                    {{ form.hidden_tag() }}
-                    <div class="mb-3">
-                        {{ form.email.label(class="form-label fw-semibold") }}
-                        <div class="input-group login-campo">
-                            <span class="input-group-text"><i class="bi bi-person" aria-hidden="true"></i></span>
-                            {{ form.email(class="form-control", placeholder="nome@instituicao.edu.br") }}
-                        </div>
-                    </div>
-                    <div class="mb-4">
-                        {{ form.password.label(class="form-label fw-semibold") }}
-                        <div class="input-group login-campo">
-                            <span class="input-group-text"><i class="bi bi-lock" aria-hidden="true"></i></span>
-                            {{ form.password(class="form-control", id="login-password", placeholder="Informe sua senha") }}
-                            <button class="btn btn-outline-secondary" type="button" data-password-toggle="login-password"
-                                    title="Mostrar/ocultar senha" tabindex="-1">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary fw-semibold">
-                            Entrar no sistema <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                    <p class="login-nota">
-                        <i class="bi bi-shield-check" aria-hidden="true"></i>
-                        Acesso protegido e restrito a usuários autorizados.
-                    </p>
+                    {% include '_form_login.html' %}
                 </form>
             </div>
             <div class="card-footer bg-transparent text-center py-3">

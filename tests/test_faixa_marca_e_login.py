@@ -106,6 +106,16 @@ class FaixaMarcaLoginTestCase(unittest.TestCase):
         page = self.client.get('/dashboard', follow_redirects=True)
         self.assertIn('/login', page.request.url)
 
+    def test_landing_usa_o_mesmo_formulario(self):
+        """O card "Entrar no sistema" da landing renderiza o partial
+        compartilhado com a página /login — mesma linguagem, sem divergir."""
+        page = self.client.get('/').get_data(as_text=True)
+        self.assertIn('login-campo', page)
+        self.assertIn('Entrar no sistema', page)
+        self.assertIn('Acesso protegido e restrito a usuários autorizados.', page)
+        # Sem as faixas decorativas do layout antigo
+        self.assertNotIn('faixa-topo', page)
+
 
 if __name__ == '__main__':
     unittest.main()
