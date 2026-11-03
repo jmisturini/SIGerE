@@ -78,6 +78,12 @@
         {% if current_user.has_permission('reservation:read_all') %}
         {{ card_hub(url_for('reservations.all_reservations'), 'bi-people', 'Todas as Reservas', 'Filtre e gerencie as reservas de toda a unidade.') }}
         {% endif %}
+        {% if current_user.has_permission('reservation:approve')
+              and current_user.has_permission('reservation:read_all') %}
+        {# Atalho do aprovador: a listagem já aceita o filtro de status —
+           o card abre direto nas pendências. #}
+        {{ card_hub(url_for('reservations.all_reservations', status='pending'), 'bi-hourglass-split', 'Reservas pendentes', 'Aprove ou recuse as solicitações aguardando revisão.') }}
+        {% endif %}
     </div>
 </div>
 {% endif %}

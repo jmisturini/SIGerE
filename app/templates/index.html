@@ -93,6 +93,21 @@
 </div>
 {% endif %}
 
+{% if pendentes_count %}
+{# Atalho de aprovação: só nasce para quem pode aprovar (e ver a listagem
+   da unidade) e há pendências atuais — clicar abre a listagem já
+   filtrada em status=pendente. #}
+<a class="painel-pendentes fade-up" href="{{ url_for('reservations.all_reservations', status='pending') }}"
+   title="Revise e aprove as solicitações aguardando aprovação">
+    <span class="pp-icone"><i class="bi bi-hourglass-split" aria-hidden="true"></i></span>
+    <span class="pp-corpo">
+        <b>{{ pendentes_count }} reserva{{ 's' if pendentes_count != 1 }} aguardando aprovação</b>
+        <small>Revise e aprove na listagem da unidade.</small>
+    </span>
+    <i class="bi bi-arrow-right pp-seta" aria-hidden="true"></i>
+</a>
+{% endif %}
+
 <!-- ================= LIST VIEW ================= -->
 <div id="listView">
     {% for sec in category_sections %}

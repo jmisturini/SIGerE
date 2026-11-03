@@ -2696,6 +2696,63 @@ a:hover {
     font-size: 0.82rem;
 }
 
+/* Atalho de aprovação (Painel): linha-card com o chip no laranja de
+   acento — o idioma "ao vivo" do sistema (selo Agora, sino) — e a seta
+   laranja dos cards do Observatório. Só aparece para quem aprova reservas
+   e há pendências na unidade; o hover levanta o card, como nos hubs. */
+.painel-pendentes {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.95rem 1.15rem;
+    margin-bottom: 1.5rem;
+    background: var(--topbar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.painel-pendentes:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+}
+
+.painel-pendentes .pp-icone {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    background: var(--accent-orange-tint);
+    color: var(--accent-orange-text);
+}
+
+.painel-pendentes .pp-corpo b {
+    display: block;
+    font-size: 0.95rem;
+    color: var(--text-color);
+}
+
+.painel-pendentes .pp-corpo small {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.painel-pendentes .pp-seta {
+    margin-left: auto;
+    color: var(--accent-orange);
+    transition: transform 0.15s ease;
+}
+
+.painel-pendentes:hover .pp-seta {
+    transform: translateX(3px);
+}
+
 /* Cabeçalho de seção genérico (painel por categoria, dia da agenda):
    ícone em chip tintado + título. A cor do chip vem inline do template
    (tint de 12% via sufixo alpha do hex #rrggbb + cor cheia no ícone). */

@@ -70,11 +70,24 @@ def index():
         for cat, res in sorted(sections_by_cat.items(), key=lambda kv: kv[0].name.lower())
     ]
 
+    # Atalho de aprovação: contagem de pendências atuais da unidade (mesma
+    # janela da listagem "Todas as Reservas", aba Atuais) — só quem aprova
+    # e enxerga a listagem paga a query; o card não nasce para os demais.
+    pendentes_count = None
+    if (current_user.has_permission('reservation:approve')
+            and current_user.has_permission('reservation:read_all')):
+        pendentes_count = Reservation.query.filter(
+            Reservation.unity_id == current_unity_id(),
+            Reservation.status == 'pending',
+            Reservation.date >= today,
+        ).count()
+
     return render_template(
         'index.html',
         category_sections=category_sections,
         current_period=current_period,
-        formatted_today=formatted_today # Pass the pre-formatted string
+        formatted_today=formatted_today, # Pass the pre-formatted string
+        pendentes_count=pendentes_count,
     )
 
 # Tela de novidades: histórico de versões da aplicação (app/version.py).
