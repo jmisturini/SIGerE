@@ -669,6 +669,94 @@ body {
     gap: 0.9rem;
 }
 
+/* ── Faixa de marca do Painel (modelo do Observatório) ────────────────
+   Título grande + strip de módulos em círculos do accent com separadores
+   e tagline espaçada — espelha a faixa central da home do Observatório.
+   Os círculos usam o accent vigente (a cor da interface), como os chips
+   dos cards-portais; superfícies e textos saem dos tokens de tema. */
+.painel-faixa {
+    background: var(--topbar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    padding: 2.25rem 2rem 1.9rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.painel-faixa-titulo {
+    margin: 0;
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.painel-faixa-titulo small {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-top: 0.15rem;
+}
+
+.painel-faixa-strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.6rem 1.4rem;
+    margin-top: 1.4rem;
+}
+
+.painel-faixa-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-color);
+}
+
+.painel-faixa-item i {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: #fff;
+    font-size: 0.95rem;
+}
+
+.painel-faixa-sep {
+    color: var(--border-color);
+    font-size: 1.1rem;
+    user-select: none;
+}
+
+.painel-faixa-tagline {
+    margin: 1.3rem 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+@media (max-width: 575.98px) {
+    .painel-faixa { padding: 1.75rem 1.25rem 1.5rem; }
+    .painel-faixa-titulo { font-size: 1.7rem; }
+    .painel-faixa-titulo small { font-size: 1.15rem; }
+    .painel-faixa-strip { gap: 0.7rem 0.9rem; margin-top: 1.2rem; }
+    .painel-faixa-sep { display: none; }
+    .painel-faixa-tagline { letter-spacing: 0.18em; }
+}
+
 /* Cards-portais do hero sempre numa única linha (repartem a largura em
    partes iguais); só recuam para 2 colunas / 1 coluna em telas estreitas. */
 .hub-cards-portais {
@@ -2306,12 +2394,28 @@ a:hover {
 }
 
 /* Tagline com barra laranja à esquerda (acento fixo), como na frase de
-   abertura do login do Observatório. */
+   abertura do login do Observatório — em duas linhas: gancho forte e
+   explicação curta. */
 .login-brand-tagline {
     color: rgba(255, 255, 255, 0.85);
     border-left: 4px solid var(--accent-orange);
     padding-left: 1rem;
     margin-bottom: 2.25rem;
+}
+
+.login-brand-tagline strong {
+    display: block;
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.login-brand-tagline span {
+    display: block;
+    font-size: 0.8rem;
+    opacity: 0.8;
+    margin-top: 0.15rem;
 }
 
 .login-benefits {
@@ -2390,6 +2494,42 @@ a:hover {
 
 .login-card .btn-primary {
     padding: 0.7rem 1rem;
+}
+
+/* Ícones embutidos nos campos (modelo do Observatório): o prefixo é
+   transparente e sem borda própria — vira parte do campo. */
+.login-campo .input-group-text {
+    background: transparent;
+    border: none;
+    border-right: none;
+    color: var(--text-muted);
+    padding-left: 0.9rem;
+    padding-right: 0.35rem;
+}
+
+.login-campo .form-control {
+    border-left: none;
+    padding-left: 0.5rem;
+}
+
+.login-campo .form-control:focus + .btn-outline-secondary,
+.login-campo:focus-within .input-group-text {
+    color: var(--primary-color);
+}
+
+/* Nota de segurança sob o botão: caixinha suave com escudo, como no
+   login do Observatório. */
+.login-nota {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    background: rgba(var(--primary-color-rgb), 0.06);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin: 1.25rem 0 0;
 }
 
 @media (max-width: 991.98px) {

@@ -48,6 +48,24 @@
     </div>
 </section>
 
+{# Faixa de marca (modelo do Observatório): identidade do sistema com os
+   módulos em strip, entre o cabeçalho de boas-vindas e o resumo do dia —
+   decorativa (sem navegação); os separadores são omitem de leitores de
+   tela e em telas estreitas. #}
+<section class="painel-faixa fade-up">
+    <h2 class="painel-faixa-titulo">SIGerE <small>Gestão de Salas e Reservas</small></h2>
+    <div class="painel-faixa-strip">
+        <span class="painel-faixa-item"><i class="bi bi-calendar-week" aria-hidden="true"></i> Reservas</span>
+        <span class="painel-faixa-sep" aria-hidden="true">|</span>
+        <span class="painel-faixa-item"><i class="bi bi-door-open" aria-hidden="true"></i> Salas</span>
+        <span class="painel-faixa-sep" aria-hidden="true">|</span>
+        <span class="painel-faixa-item"><i class="bi bi-graph-up" aria-hidden="true"></i> Relatórios</span>
+        <span class="painel-faixa-sep" aria-hidden="true">|</span>
+        <span class="painel-faixa-item"><i class="bi bi-wallet2" aria-hidden="true"></i> Financeiro</span>
+    </div>
+    <p class="painel-faixa-tagline">Rotina acadêmica sem conflito de horário</p>
+</section>
+
 {% if todas_reservas %}
 <!-- Resumo do dia: contagens simples derivadas das seções já consultadas -->
 <div class="dash-stats fade-up">

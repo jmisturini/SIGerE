@@ -139,9 +139,9 @@ def validar_politica_senha(form, field):
 
 class LoginForm(BaseForm):
     # O e-mail é o identificador de login (não há username no sistema).
-    email = StringField('E-mail', validators=[DataRequired(), Length(max=120)])
+    email = StringField('E-mail institucional', validators=[DataRequired(), Length(max=120)])
     password = PasswordField('Senha', validators=[DataRequired()])
-    submit = SubmitField('Entrar')
+    submit = SubmitField('Entrar no sistema')
 
 
 class ChangePasswordForm(BaseForm):
