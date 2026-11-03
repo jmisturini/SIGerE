@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from app.models import (User, Reservation, TeacherOvertimePay, TeacherMealAllowance,
-                        OvertimeMonthClosure, CourseType)
+                        OvertimeMonthClosure)
 from app.forms import FormTeacherOvertimePay, FormValeAlimentacao
 from app.extensions import db
 from app.unity_context import current_unity_id
@@ -94,15 +94,6 @@ def _dica_janela_referencia(month_base):
     return (f'Intervalo de lançamento de pagamento: '
             f'21/{inicio[5:7]} - 20/{month_base[5:7]}.\n'
             f'Mês de pagamento: {nome}.')
-
-
-# Notas de antecipação da dica: a segunda opção do Mês de Referência é
-# sempre um mês cuja janela ainda não abriu — lançar nele agora é antecipar.
-# Entram com \n para virar a terceira linha da dica.
-DICA_ANTECIPA_ATUAL = ('\nSelecionar o próximo mês antecipa o lançamento '
-                       'para o próximo mês de pagamento.')
-DICA_ANTECIPA_PROXIMO = ('\nLançamentos feitos agora são antecipados '
-                         'para este mês.')
 
 
 def _proximo_mes(now=None):
@@ -377,7 +368,6 @@ def list_overtime():
 def create_overtime():
     form = FormTeacherOvertimePay()
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
-    form.course_type.choices = _course_type_choices()
 
     # Mês de referência: as opções seguem sempre a janela 20→20 — o mês dela
     # e o seguinte. Antes do dia 21 são [atual, próximo]; depois do dia 20 o
@@ -423,7 +413,7 @@ def create_overtime():
 
         overtime = TeacherOvertimePay(
             teacher_id=form.teacher.data, teaching_level=form.teaching_level.data,
-            course_type_id=form.course_type.data,
+            course_type=form.course_type.data.strip(),
             unity_id=current_unity_id(),
             weekly_workload=weekly_workload, hourly_value=hourly_value,
             budget_code=format_budget_code(form.budget_code.data), shift=form.shift.data,
@@ -438,11 +428,10 @@ def create_overtime():
         return redirect_preserving_args('payments.list_overtime')
 
     # Dicas do Mês de Referência: a primeira opção é o mês da janela (o
-    # intervalo dela inclui hoje); a segunda é sempre um mês cuja janela
-    # ainda não abriu — lançar nele agora é antecipar, e a nota informa.
+    # intervalo dela inclui hoje); a segunda é o mês seguinte.
     dicas_referencia = {
-        base_janela: _dica_janela_referencia(base_janela) + DICA_ANTECIPA_ATUAL,
-        seguinte_janela: _dica_janela_referencia(seguinte_janela) + DICA_ANTECIPA_PROXIMO,
+        base_janela: _dica_janela_referencia(base_janela),
+        seguinte_janela: _dica_janela_referencia(seguinte_janela),
     }
     opcoes_referencia = [(base_janela, _rotulo_mes(base_janela)),
                          (seguinte_janela, _rotulo_mes(seguinte_janela))]
@@ -482,19 +471,16 @@ def edit_overtime(overtime_id):
 
     form = FormTeacherOvertimePay(obj=overtime)
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
-    form.course_type.choices = _course_type_choices()
 
     # Mês ao qual pertencem os dias gravados (dates_month, ou o mês base nos
     # lançamentos antigos): usado no POST e na reexibição do calendário.
     mes_datas = _mes_datas_salvas(overtime)
 
     if request.method == 'GET':
-        # Os relationships overtime.teacher e overtime.course_type (objetos)
-        # têm os mesmos nomes dos campos: o WTForms tenta int(objeto), falha
-        # em silêncio e a seleção volta para o primeiro da lista — restaura
-        # pelos ids.
+        # O relationship overtime.teacher (objeto) tem o mesmo nome do campo:
+        # o WTForms tenta int(objeto), falha em silêncio e a seleção volta
+        # para o primeiro da lista — restaura pelo id.
         form.teacher.data = overtime.teacher_id
-        form.course_type.data = overtime.course_type_id
         form.hourly_value.data = f"{overtime.hourly_value:.2f}".replace('.', ',')
         # A carga em hora decimal volta para os dois campos (ex: 4.33 → 4h20)
         total_minutes = decimal_to_minutes(overtime.weekly_workload)
@@ -518,7 +504,7 @@ def edit_overtime(overtime_id):
 
         overtime.teacher_id = form.teacher.data
         overtime.teaching_level = form.teaching_level.data
-        overtime.course_type_id = form.course_type.data
+        overtime.course_type = form.course_type.data.strip()
         overtime.weekly_workload = weekly_workload
         overtime.hourly_value = hourly_value
         overtime.budget_code = format_budget_code(form.budget_code.data)
@@ -659,12 +645,6 @@ def _meses_agendamentos(unity_id):
                 break
             mes = _mes_anterior_de(mes)
     return [(valor, _rotulo_mes(valor)) for valor in sorted(meses, reverse=True)]
-
-
-def _course_type_choices():
-    """Tipos de curso ativos (catálogo do Painel Admin) para o dropdown."""
-    return [(ct.id, ct.name) for ct in
-            CourseType.query.filter_by(is_active=True).order_by(CourseType.name).all()]
 
 
 def _get_meal_scoped(entry_id):
@@ -968,7 +948,7 @@ def _planilha_overtime(overtimes, month_base):
         cell_data = [
             (1, data.teacher.full_name),
             (2, data.teaching_level),
-            (3, data.course_type.name if data.course_type else '—'),
+            (3, data.course_type or '—'),
             (4, f'{minutos // 60}h{minutos % 60:02d}'),
             (5, float(data.hourly_value) if data.hourly_value else 0),
             (6, data.multiple_dates or ''),

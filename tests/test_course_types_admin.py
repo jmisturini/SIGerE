@@ -122,13 +122,20 @@ class CourseTypesAdminTestCase(unittest.TestCase):
         with self.app.app_context():
             self.assertTrue(db.session.get(CourseType, tipo_id).is_active)
 
-    def test_tipo_inativo_sai_do_form_de_hora_extra(self):
+    def test_form_de_hora_extra_nao_usa_mais_o_catalogo(self):
+        # O Tipo de Curso virou texto livre no lançamento: o formulário não
+        # consome mais o catálogo (não há dropdown de tipos no form).
         self._criar('Técnico', is_active='on')
         self._criar('FIC')  # sem is_active → inativo
-        from app.blueprints.payments import _course_type_choices
         with self.app.app_context():
-            nomes = [nome for _, nome in _course_type_choices()]
-        self.assertEqual(nomes, ['Técnico'])
+            role = Role.query.filter_by(name='admin-teste').first()
+            leitura = Permission(code='payment:create', module='payment', action='create')
+            db.session.add(leitura)
+            role.permissions.append(leitura)
+            db.session.commit()
+        page = self.client.get('/payments/overtime/create').get_data(as_text=True)
+        self.assertIn('id="course_type"', page)
+        self.assertNotIn('<select id="course_type"', page)
 
     def test_sem_permissao_vira_403(self):
         with self.app.app_context():
