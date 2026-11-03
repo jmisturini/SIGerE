@@ -2496,25 +2496,65 @@ a:hover {
     padding: 0.7rem 1rem;
 }
 
-/* Ícones embutidos nos campos (modelo do Observatório): o prefixo é
-   transparente e sem borda própria — vira parte do campo. */
-.login-campo .input-group-text {
-    background: transparent;
+/* Ícones embutidos nos campos (modelo do Observatório): a CAIXA é o
+   grupo inteiro (ícone + campo + botão olho) — os filhos ficam sem borda
+   e sem raio próprios, para a linha não se desfazer entre eles. O foco do
+   campo acende a caixa via :focus-within (o anel nativo do input fica
+   desligado para não duplicar). */
+.login-campo {
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.login-campo .input-group-text,
+.login-campo .form-control,
+.login-campo .btn-outline-secondary {
     border: none;
-    border-right: none;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    margin-left: 0;
+}
+
+.login-campo .input-group-text {
     color: var(--text-muted);
     padding-left: 0.9rem;
     padding-right: 0.35rem;
 }
 
 .login-campo .form-control {
-    border-left: none;
     padding-left: 0.5rem;
+}
+
+.login-campo .form-control:focus {
+    box-shadow: none;
+}
+
+.login-campo .btn-outline-secondary {
+    color: var(--text-muted);
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+.login-campo .btn-outline-secondary:hover,
+.login-campo .btn-outline-secondary:focus {
+    color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb), 0.06);
 }
 
 .login-campo .form-control:focus + .btn-outline-secondary,
 .login-campo:focus-within .input-group-text {
     color: var(--primary-color);
+}
+
+.login-campo:focus-within {
+    border-color: rgba(var(--primary-color-rgb), 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.15);
+}
+
+[data-theme="dark"] .login-campo {
+    border-color: #30363d;
 }
 
 /* Nota de segurança sob o botão: caixinha suave com escudo, como no
