@@ -525,10 +525,10 @@ class FormTeacherOvertimePay(BaseForm):
         ('FIC II', 'FIC II'),
         ('FIC III', 'FIC III')
     ], validators=[DataRequired()])
-    # Catálogo gerenciado no Painel Admin (/admin/tipos-curso): os choices
-    # vêm da rota (apenas tipos ativos).
-    course_type = SelectField('Tipo de Curso', coerce=int,
-                              validators=[DataRequired(message='Selecione o tipo de curso.')])
+    # Tipo de curso é texto livre (ex.: "Técnico", "Superior", "FIC") —
+    # não mais dropdown do catálogo /admin/tipos-curso.
+    course_type = StringField('Tipo de Curso', validators=[
+        DataRequired(message='Informe o tipo de curso.'), Length(max=60)])
     # Carga Horária Semanal em dois campos (hora e minuto): a conversão para
     # hora decimal fica em workload_decimal() — é esse valor que é gravado,
     # exportado na planilha e exibido na consulta. A validação do total (> 0)

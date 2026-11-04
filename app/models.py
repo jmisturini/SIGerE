@@ -409,7 +409,9 @@ class TeacherOvertimePay(db.Model):
     justification = db.Column(db.String(100))
     # Tipo de curso é obrigatório no formulário; nullable no banco apenas para
     # os lançamentos anteriores à existência do campo (exibem "—" nos detalhes).
-    course_type_id = db.Column(db.Integer, db.ForeignKey('course_types.id'), nullable=True)
+    # Texto livre (ex.: "Técnico", "Superior", "FIC") — lançamentos antigos
+    # guardam o nome do antigo catálogo, migrado na conversão do FK.
+    course_type = db.Column(db.String(60), nullable=True)
     observation = db.Column(db.Text)
     month_base = db.Column(db.String(7), nullable=False) # YYYY-MM
     accountable_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -420,17 +422,16 @@ class TeacherOvertimePay(db.Model):
     accountable = db.relationship('User', foreign_keys=[accountable_id])
 
 
-# Tipo de curso do lançamento de Hora Extra (ex.: Técnico, Superior, FIC):
-# catálogo gerenciado no Painel Admin (/admin/tipos-curso) — nada fixo no
-# código. Nome único: a lista alimenta o dropdown do formulário.
+# Tipo de curso do lançamento de Hora Extra: o catálogo course_types
+# administrado no Painel Admin (/admin/tipos-curso) precedeu o campo, que
+# hoje é texto livre no próprio lançamento — a tabela segue existindo para
+# o histórico dos nomes migrados e a gestão administrativa.
 class CourseType(db.Model):
     __tablename__ = 'course_types'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(60), nullable=False, unique=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-    overtime_pays = db.relationship('TeacherOvertimePay', backref='course_type')
 
     def __repr__(self):
         return f'<CourseType {self.name}>'
