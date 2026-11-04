@@ -79,7 +79,7 @@
                             {{ form.course_type.label(class="form-label small mb-1") }}
                             {# Texto livre (ex.: Técnico, Superior, FIC) — não
                                mais dropdown do catálogo de tipos de curso. #}
-                            {{ form.course_type(class="form-control", placeholder="Ex.: Técnico, Superior, FIC") }}
+                            {{ form.course_type(class="form-control") }}
                             {% for err in form.course_type.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
                         
