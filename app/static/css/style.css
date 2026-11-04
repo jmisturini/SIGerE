@@ -1551,6 +1551,12 @@ body {
     scroll-margin-top: 7.5rem;
 }
 
+/* Âncora do formulário de upload das fichas técnicas (atalho do hub da
+   Cozinha): mesmo recuo das âncoras de período. */
+#upload-fichas {
+    scroll-margin-top: 7.5rem;
+}
+
 /* Styles to match screenshots */
 h1, h2, h3, h4, h5, h6 {
     color: var(--text-color);
