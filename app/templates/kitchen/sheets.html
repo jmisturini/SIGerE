@@ -19,21 +19,20 @@
 {% if can_manage %}
 <div class="card mb-4 border-primary-subtle">
     <div class="card-body">
-        <form method="POST" action="{{ url_for('kitchen.upload_sheets') }}" enctype="multipart/form-data"
-              class="row g-3 align-items-end">
+        <form method="POST" action="{{ url_for('kitchen.upload_sheets') }}" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="col-lg-8">
-                <label for="files" class="form-label fw-semibold">
-                    <i class="bi bi-cloud-arrow-up me-1"></i> Arquivos das fichas técnicas
-                </label>
+            <label for="files" class="form-label fw-semibold">
+                <i class="bi bi-cloud-arrow-up me-1"></i> Arquivos das fichas técnicas
+            </label>
+            {# Input e botão na mesma linha (o grid de colunas com
+               align-items-end empurrava o botão para o canto inferior). #}
+            <div class="d-flex gap-2">
                 <input type="file" class="form-control" id="files" name="files" accept=".docx" multiple required>
-                <div class="form-text small">É possível enviar várias fichas de uma vez. Formato aceito: .docx (Word).</div>
-            </div>
-            <div class="col-lg-4">
-                <button type="submit" class="btn btn-primary w-100">
+                <button type="submit" class="btn btn-primary text-nowrap">
                     <i class="bi bi-file-earmark-text me-1"></i> Ler arquivos
                 </button>
             </div>
+            <div class="form-text small">É possível enviar várias fichas de uma vez. Formato aceito: .docx (Word).</div>
         </form>
     </div>
 </div>
