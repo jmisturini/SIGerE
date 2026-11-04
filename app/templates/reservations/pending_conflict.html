@@ -55,9 +55,8 @@
                 </div>
                 
                 <div class="d-flex flex-wrap justify-content-end gap-2 mt-4 pt-3 border-top">
-                    <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-arrow-left"></i> Voltar
-                    </a>
+                    {# Sem botão "Voltar": apontava para Minhas Reservas — o
+                       mesmo destino do botão primário ao lado, era redundante. #}
                     <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">Ver Detalhes</a>
                     <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-primary px-4">Ver Minhas Reservas</a>
                 </div>
