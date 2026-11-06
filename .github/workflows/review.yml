@@ -1,0 +1,130 @@
+# Revisão automática de PRs com IA via Open Code Review (alibaba/open-code-review),
+# no lugar do CodeRabbit. A action instala a CLI `ocr`, faz checkout da branch base
+# (confiável), busca só os blobs da head do PR, roda `ocr review` no diff
+# merge-base..head e publica um comentário-resumo fixo (atualizado a cada run) mais
+# comentários inline no PR — nunca executa código vindo do PR.
+#
+# Segredo necessário (Settings → Secrets and variables → Actions → Secrets):
+#   OCR_LLM_AUTH_TOKEN — chave de API da Z.AI (Coding Plan ou pay-as-you-go).
+#
+# Re-revisão sob demanda: comente no PR com `/open-code-review` ou
+# `@open-code-review` (só colaboradores; comentário comum não dispara nada).
+
+name: Revisão de código
+
+# Grupo de concorrência condicional (padrão do exemplo oficial do OCR): eventos de
+# revisão de um mesmo PR compartilham o grupo ocr-<nº>, então um push novo cancela a
+# revisão antiga do mesmo PR. Comentários que não são gatilho caem num grupo único
+# noop-<run_id> e são descartados sem atrapalhar uma revisão em andamento. O GitHub
+# avalia a concurrency ANTES do if do job — por isso o grupo precisa distinguir os
+# dois casos em vez de usar um grupo fixo por PR.
+concurrency:
+  group: >-
+    ${{
+      (
+        github.event_name == 'pull_request_target'
+        || (
+          github.event_name == 'issue_comment'
+          && github.event.issue.pull_request
+          && github.event.comment.user.type != 'Bot'
+          && (
+            github.event.comment.author_association == 'MEMBER'
+            || github.event.comment.author_association == 'OWNER'
+            || github.event.comment.author_association == 'COLLABORATOR'
+          )
+          && (
+            startsWith(github.event.comment.body, '/open-code-review')
+            || startsWith(github.event.comment.body, '@open-code-review')
+          )
+        )
+      )
+      && format('ocr-{0}', github.event.pull_request.number || github.event.issue.number)
+      || format('noop-{0}', github.run_id)
+    }}
+  cancel-in-progress: true
+
+on:
+  # pull_request_target (e não pull_request) para o segredo ficar disponível mesmo
+  # em PRs de forks. Seguro porque a action só lê o diff e nunca executa código do
+  # PR. Como esse gatilho roda o workflow da branch BASE do PR, a revisão só passa
+  # a valer depois que este arquivo estiver em main/dev.
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main, dev]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  revisao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Roda nos eventos de PR (ignorando drafts, para não gastar cota de LLM), ou em
+    # comentário de humano autorizado com o gatilho. Comentários postados pelo
+    # GITHUB_TOKEN já são suprimidos pelo próprio GitHub; o filtro de
+    # author_association impede que quem não é colaborador queime cota de LLM.
+    if: |
+      (
+        github.event_name == 'pull_request_target'
+        && github.event.pull_request.draft == false
+      ) || (
+        github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && github.event.comment.user.type != 'Bot'
+        && (
+          github.event.comment.author_association == 'MEMBER'
+          || github.event.comment.author_association == 'OWNER'
+          || github.event.comment.author_association == 'COLLABORATOR'
+        )
+        && (
+          startsWith(github.event.comment.body, '/open-code-review')
+          || startsWith(github.event.comment.body, '@open-code-review')
+        )
+      )
+    steps:
+      # Em issue_comment o evento não traz o payload do PR; resolve base/head/título
+      # pela API para a action revisar o diff certo.
+      - name: Resolve o PR (gatilho por comentário)
+        id: pr-context
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            core.setOutput('base_ref', pr.base.ref);
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('title', pr.title);
+
+      - name: Open Code Review
+        # Pinada em SHA da action + versão da CLI no npm — o par que a documentação
+        # do OCR recomenda para runs reproduzíveis. Importante aqui: o job carrega
+        # segredo sob pull_request_target, e acompanhar @main deixaria uma mudança
+        # upstream executar com esse token em mãos. As actions oficiais do GitHub
+        # seguem em tag major, como no resto do repo.
+        uses: alibaba/open-code-review@891df1b63f380845d882a289a67a6e36c331120c # v1.13.6
+        with:
+          ocr_version: '1.13.6'
+          # Z.AI / GLM por protocolo OpenAI-compatível. Chave do Coding Plan usa a
+          # URL abaixo; chave pay-as-you-go usa https://api.z.ai/api/paas/v4.
+          # Modelos alternativos mais baratos: glm-4.7, glm-5-turbo.
+          llm_url: https://api.z.ai/api/coding/paas/v4
+          llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+          llm_model: glm-5.3
+          llm_use_anthropic: 'false'
+          language: 'Português (Brasil)'
+          # Não republica comentário inline que já existe no PR (pushes seguidos);
+          # o resumo fixo é atualizado no lugar (sticky_summary, padrão).
+          incremental: 'true'
+          # Título do PR como contexto para o revisor (vazio no gatilho por comentário,
+          # caso em que vale o title resolvido no step acima).
+          background: ${{ steps.pr-context.outputs.title || github.event.pull_request.title }}
+          # No gatilho por comentário a action não consegue resolver os refs sozinha.
+          base_ref: ${{ steps.pr-context.outputs.base_ref }}
+          head_sha: ${{ steps.pr-context.outputs.head_sha }}
