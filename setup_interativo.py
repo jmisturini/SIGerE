@@ -414,6 +414,8 @@ def capturar_inventario_antes(venv_python, env):
             conteudo = ARQUIVO_INVENTARIO_PENDENTE.read_text(encoding='utf-8')
             # Mesma separação do capturar_flask: só \n delimita linhas.
             return [linha for linha in conteudo.split('\n') if linha.strip()]
+        # Se a remoção falhar, a gravação atômica abaixo substitui o arquivo
+        # pelo inventário novo — ou também falha e interrompe antes do sync.
         descartar_inventario_pendente()
     print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
     antes = capturar_flask(venv_python, env, ['dump-permissions'])
@@ -430,21 +432,28 @@ def capturar_inventario_antes(venv_python, env):
             temporario.unlink(missing_ok=True)
         except OSError:
             pass
-        aviso(f'Não foi possível preservar o inventário pré-sync em disco: {exc} — '
-              'se a execução falhar depois do sync, o estado anterior se perde.')
+        # Sem o "antes" em disco, uma falha depois do commit do sync o perderia
+        # e a próxima execução esconderia revogações a reaplicar: o sync não
+        # roda sem essa garantia.
+        erro(f'Não foi possível preservar o inventário pré-sync em disco: {exc} — '
+             'corrija a falha (permissão ou espaço em logs/) antes de executar o sync.')
+        raise SystemExit(1)
     return antes
 
 
 def descartar_inventario_pendente():
-    """Conferência concluída (snapshots em logs/): o pendente não é mais
-    necessário."""
+    """Remove o inventário pendente. Devolve True quando ele não existe mais
+    (removido ou já ausente) e False quando a remoção falhou — quem chama
+    decide se a falha interrompe o fluxo (a restauração interrompe)."""
     try:
         ARQUIVO_INVENTARIO_PENDENTE.unlink()
     except FileNotFoundError:
         pass
     except OSError as exc:
-        aviso(f'Não foi possível remover {ARQUIVO_INVENTARIO_PENDENTE}: {exc} — '
-              'apague-o à mão para a próxima execução não oferecê-lo de novo.')
+        erro(f'Não foi possível remover {ARQUIVO_INVENTARIO_PENDENTE}: {exc} — '
+             'apague-o à mão para a próxima execução não oferecê-lo de novo.')
+        return False
+    return True
 
 
 def aplicar_schema(venv_python, env, rotulo='5. Schema do banco (Flask-Migrate/Alembic)'):
@@ -540,6 +549,26 @@ def preparar_manutencao():
     return venv_python, {**os.environ, **env_arquivo}, env_arquivo
 
 
+# Estados do `systemctl is-active` que contam como serviço no ar (inclusive em
+# transição). inactive/failed contam como parado; qualquer outra saída
+# (unknown, vazia, erro de barramento) é falha de consulta.
+ESTADOS_SYSTEMD_ATIVOS = {'active', 'activating', 'deactivating', 'reloading', 'refreshing'}
+
+
+def servico_ativo(servico):
+    """True com o serviço no ar, False parado e None quando o systemctl não
+    informa o estado — uma falha na consulta não pode passar por serviço
+    parado e liberar o sync-permissions."""
+    resultado = subprocess.run(['systemctl', 'is-active', servico],
+                               capture_output=True, text=True)
+    estado = resultado.stdout.strip()
+    if resultado.returncode == 0 or estado in ESTADOS_SYSTEMD_ATIVOS:
+        return True
+    if estado in ('inactive', 'failed'):
+        return False
+    return None
+
+
 def conferir_servicos_parados(permitir_nginx_alheio=False):
     """Interrompe a manutenção com os serviços no ar: o sync-permissions
     devolve revogações intencionais ao papel e, com a aplicação acessível,
@@ -549,11 +578,21 @@ def conferir_servicos_parados(permitir_nginx_alheio=False):
     sites da máquina (comum em desenvolvimento): com permitir_nginx_alheio, o
     operador confirma que ele não encaminha tráfego a esta instalação e a
     atualização segue — a proteção continua quando ele publica o SIGerE. Na
-    restauração (padrão), qualquer um dos dois ativo interrompe."""
-    if not shutil.which('systemctl'):
+    restauração (padrão), qualquer um dos dois ativo interrompe. Estado que
+    o systemctl não consegue informar também interrompe. Sem systemd em
+    execução (sem systemctl, ou sem /run/systemd/system — contêineres, WSL
+    sem systemd) não há serviço gerenciado a conferir."""
+    if not shutil.which('systemctl') or not Path('/run/systemd/system').is_dir():
         return
-    ativos = [s for s in ('sigere', 'nginx')
-              if subprocess.run(['systemctl', 'is-active', '--quiet', s]).returncode == 0]
+    estados = {s: servico_ativo(s) for s in ('sigere', 'nginx')}
+    sem_estado = [s for s, ativo in estados.items() if ativo is None]
+    if sem_estado:
+        erro(f"Não foi possível consultar o estado de {', '.join(sem_estado)} pelo "
+             'systemctl — sem essa confirmação o sync-permissions não roda. Confira à '
+             'mão (sudo systemctl is-active nginx sigere: ambos devem estar inactive) '
+             'e rode o setup de novo.')
+        raise SystemExit(1)
+    ativos = [s for s, ativo in estados.items() if ativo]
     if 'nginx' in ativos and 'sigere' not in ativos and permitir_nginx_alheio:
         if not sim_nao('O Nginx ativo encaminha tráfego para esta instalação do SIGerE?',
                        padrao=True):
@@ -898,11 +937,16 @@ def restaurar_backup():
 
     # Um inventário pré-sync pendente descreve o banco que vai ser substituído
     # — reaproveitá-lo como "antes" depois da restauração compararia o sync
-    # com outro banco. A captura posterior parte do estado desta execução.
+    # com outro banco. A captura posterior parte do estado desta execução; sem
+    # conseguir removê-lo, a restauração para antes de tocar no banco (ele
+    # seria oferecido por padrão e esconderia vínculos revogados no backup).
     if ARQUIVO_INVENTARIO_PENDENTE.exists():
+        if not descartar_inventario_pendente():
+            erro('Restauração interrompida antes de substituir o banco: o inventário '
+                 'pré-sync pendente não pôde ser removido.')
+            raise SystemExit(1)
         aviso('Inventário pré-sync pendente de uma execução anterior descartado: '
-              'ele descreve o banco que será substituído pelo backup.')
-        descartar_inventario_pendente()
+              'ele descrevia o banco que será substituído pelo backup.')
 
     if sim_nao('Guardar um backup do estado atual antes de sobrescrever (recomendado)?',
                padrao=True):
