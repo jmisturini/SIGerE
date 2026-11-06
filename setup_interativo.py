@@ -418,7 +418,10 @@ def capturar_inventario_antes(venv_python, env):
     Sem o arquivo pendente, uma falha depois do commit do sync perderia o
     "antes": na nova execução o dump já sairia sincronizado, o sync diria
     que nada foi adicionado e as revogações a reaplicar ficariam ocultas.
-    Havendo inventário pendente, ele é oferecido como estado anterior."""
+    Havendo inventário pendente, ele é oferecido como estado anterior — com a
+    durabilidade reconfirmada (sync de logs/ e da raiz) antes de liberar o
+    sync-permissions: a execução anterior pode ter caído entre o replace e a
+    sincronização, deixando o arquivo publicado porém não garantido em disco."""
     if ARQUIVO_INVENTARIO_PENDENTE.exists():
         aviso('Inventário pré-sync pendente encontrado '
               f'({ARQUIVO_INVENTARIO_PENDENTE.relative_to(RAIZ)}): uma execução '
@@ -426,7 +429,22 @@ def capturar_inventario_antes(venv_python, env):
               'sincronizado e não serve de estado "antes".')
         if sim_nao('Reutilizar o inventário pendente como estado anterior ao sync?',
                    padrao=True):
-            conteudo = ARQUIVO_INVENTARIO_PENDENTE.read_text(encoding='utf-8')
+            # A publicação anterior pode não ter chegado ao disco (queda entre o
+            # replace e o sync do diretório): repete as duas sincronizações —
+            # logs/ e a raiz, pois o logs/ pode ter nascido naquela execução —
+            # antes de liberar o sync. Sem essa garantia o inventário não pode
+            # ser tratado como durável e o sync não roda.
+            try:
+                _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent)
+                _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent.parent)
+                conteudo = ARQUIVO_INVENTARIO_PENDENTE.read_text(encoding='utf-8')
+            except OSError as exc:
+                erro(f'Falha ao confirmar a durabilidade do inventário pendente ({exc}) — '
+                     'a falha ocorreu depois da publicação do arquivo: ele segue em logs/, '
+                     'mas não está garantido em disco e não pode ser tratado como durável. '
+                     'Corrija a falha (permissão ou espaço) e rode de novo; se o conteúdo '
+                     'importar, copie-o antes para um local seguro.')
+                raise SystemExit(1)
             # Mesma separação do capturar_flask: só \n delimita linhas.
             return [linha for linha in conteudo.split('\n') if linha.strip()]
         # Se a remoção falhar, a gravação atômica abaixo substitui o arquivo
@@ -868,10 +886,29 @@ def escolher_arquivo_backup(motor, env):
 def _copiar_metadados_arquivo(origem, destino):
     """Replica dono, grupo e modo do arquivo existente no novo (Linux: só o
     root muda o dono — chown sem permissão levanta e a restauração para
-    antes de trocar o banco; no Windows só o modo importa e é ignorado)."""
-    stat = origem.stat()
-    os.chmod(destino, stat.st_mode & 0o7777)
-    if hasattr(os, 'chown'):
+    antes de trocar o banco; no Windows só o modo importa e é ignorado).
+
+    Banco ausente (perdido, ou o operador pulou o backup do estado atual):
+    em vez de abortar com uma orientação sobre um arquivo que não existe,
+    aplica a política da instalação ao restaurado — modo 0o644 e o dono/grupo
+    de instance/, a pasta que a implantação entrega ao usuário do serviço —
+    e avisa para conferir o dono antes de reiniciar os serviços."""
+    try:
+        stat = origem.stat()
+    except FileNotFoundError:
+        aviso(f'O banco {origem.name} não existe (perdido, ou o backup do estado '
+              'atual foi pulado): o restaurado nasce com modo 0o644 e o dono/grupo '
+              'de instance/ — confirme que o dono é o usuário do serviço '
+              '(www-data em produção) antes de reiniciar os serviços.')
+        modo = 0o644
+        try:
+            stat = (origem.parent / 'instance').stat()
+        except OSError:
+            stat = None
+    else:
+        modo = stat.st_mode & 0o7777
+    os.chmod(destino, modo)
+    if stat is not None and hasattr(os, 'chown'):
         os.chown(destino, stat.st_uid, stat.st_gid)
 
 
