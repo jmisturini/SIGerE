@@ -35,6 +35,10 @@
 <body>
 <div class="app-container {{ 'sem-sidebar' if ocultar_sidebar else '' }}">
     {% if not ocultar_sidebar %}
+    <!-- Backdrop do menu no celular: a sidebar aberta (z-index 1000) cobre o
+         botão hamburger (na topbar, z-index 100), então sem esta camada não
+         havia como fechar o menu — tocar fora agora fecha. -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
     <!-- Sidebar -->
     <nav class="sidebar">
         <div class="sidebar-header">
@@ -185,7 +189,11 @@
             {% set bc_admin = (ep_bc.startswith('admin.') and not bc_salas) %}
             {% set bc_secao_nome = 'Salas e Reservas' if bc_salas else ('Financeiro/RH' if bc_financeiro else ('Cozinha' if bc_cozinha else ('Painel Admin' if bc_admin else None))) %}
             {% set bc_secao_url = url_for('main.hub_salas_reservas') if bc_salas else (url_for('main.hub_financeiro_rh') if bc_financeiro else (url_for('main.hub_cozinha') if bc_cozinha else (url_for('admin.dashboard') if bc_admin else None))) %}
-            <div class="topbar-identidade d-none d-md-flex flex-column justify-content-center gap-1 me-3">
+            {# Unidade + trilha também no celular: sem este bloco não havia
+               forma de trocar de unidade no mobile (o Perfil não oferece o
+               seletor). Abaixo de 768px ele compacta via CSS — nome e
+               trilha truncam e o botão "Trocar" vira só o chevron. #}
+            <div class="topbar-identidade d-flex flex-column justify-content-center gap-1 me-3">
                 <div class="topbar-unidade unity-area d-flex align-items-center gap-2" title="{{ current_unity.name }} — unidade ativa de operação">
                     <i class="bi bi-geo-alt text-muted"></i>
                     <span class="fw-semibold unity-name">{{ current_unity.name }}</span>
@@ -193,7 +201,9 @@
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-0" data-bs-toggle="dropdown"
                                 aria-expanded="false" title="Trocar unidade ativa">
-                            Trocar
+                            {# No celular o texto some e fica só o caret do
+                               .dropdown-toggle (um ícone próprio duplicaria). #}
+                            <span class="d-none d-md-inline">Trocar</span>
                         </button>
                         <ul class="dropdown-menu">
                             {% for u in switchable_unities %}
@@ -550,6 +560,21 @@
             appContainer.classList.toggle('sidebar-open');
         });
     }
+
+    // Fechar o menu lateral do celular: a sidebar aberta cobre o próprio
+    // botão hamburger, então o fechamento acontece pelo backdrop (tocar
+    // fora) ou pela tecla ESC. No desktop a classe nunca é aplicada,
+    // então ambos os handlers ficam inertes.
+    const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+    if (sidebarBackdrop) {
+        sidebarBackdrop.addEventListener('click', () =>
+            appContainer.classList.remove('sidebar-open'));
+    }
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' && appContainer.classList.contains('sidebar-open')) {
+            appContainer.classList.remove('sidebar-open');
+        }
+    });
 
     // Contrair/expandir a sidebar no desktop (preferência salva no navegador)
     const collapseBtn = document.getElementById('sidebar-collapse');
