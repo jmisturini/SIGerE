@@ -398,6 +398,20 @@ def registrar_snapshot_vinculos(antes, depois):
 ARQUIVO_INVENTARIO_PENDENTE = RAIZ / 'logs' / 'sync-permissions-antes-pendente.txt'
 
 
+def _sync_diretorio(pasta):
+    """Sincroniza as entradas de uma pasta no disco, para o nome novo do
+    pendente sobreviver a uma queda (POSIX: fsync no fd do diretório). No
+    Windows não há como abrir um diretório — e o replace já é durável pela
+    semântica do NTFS — então não há nada a fazer."""
+    if os.name != 'posix':
+        return
+    fd = os.open(pasta, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def capturar_inventario_antes(venv_python, env):
     """Estado dos vínculos antes do sync, preservado entre tentativas.
 
@@ -420,22 +434,29 @@ def capturar_inventario_antes(venv_python, env):
         descartar_inventario_pendente()
     print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
     antes = capturar_flask(venv_python, env, ['dump-permissions'])
-    # Publicação atômica: grava num temporário da mesma pasta e troca pelo
-    # destino — uma interrupção no meio nunca deixa o pendente vazio ou
-    # truncado (que seria reutilizado como um "antes" incompleto).
+    # Publicação durável: grava num temporário da mesma pasta, força os dados
+    # para o disco (flush + fsync — o host pode cair logo após o commit do
+    # sync) e troca pelo destino; o diretório é sincronizado depois para o
+    # nome novo sobreviver a uma queda. Sem essa garantia o sync não roda:
+    # uma falha depois do commit perderia o "antes" e a próxima execução
+    # esconderia as revogações a reaplicar.
     temporario = ARQUIVO_INVENTARIO_PENDENTE.with_suffix('.tmp')
+    pasta_criada = not ARQUIVO_INVENTARIO_PENDENTE.parent.exists()
     try:
         ARQUIVO_INVENTARIO_PENDENTE.parent.mkdir(exist_ok=True)
-        temporario.write_text('\n'.join(antes) + '\n', encoding='utf-8')
+        with open(temporario, 'w', encoding='utf-8') as arquivo:
+            arquivo.write('\n'.join(antes) + '\n')
+            arquivo.flush()
+            os.fsync(arquivo.fileno())
         temporario.replace(ARQUIVO_INVENTARIO_PENDENTE)
+        _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent)
+        if pasta_criada:
+            _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent.parent)
     except OSError as exc:
         try:
             temporario.unlink(missing_ok=True)
         except OSError:
             pass
-        # Sem o "antes" em disco, uma falha depois do commit do sync o perderia
-        # e a próxima execução esconderia revogações a reaplicar: o sync não
-        # roda sem essa garantia.
         erro(f'Não foi possível preservar o inventário pré-sync em disco: {exc} — '
              'corrija a falha (permissão ou espaço em logs/) antes de executar o sync.')
         raise SystemExit(1)
@@ -844,6 +865,16 @@ def escolher_arquivo_backup(motor, env):
         return candidato
 
 
+def _copiar_metadados_arquivo(origem, destino):
+    """Replica dono, grupo e modo do arquivo existente no novo (Linux: só o
+    root muda o dono — chown sem permissão levanta e a restauração para
+    antes de trocar o banco; no Windows só o modo importa e é ignorado)."""
+    stat = origem.stat()
+    os.chmod(destino, stat.st_mode & 0o7777)
+    if hasattr(os, 'chown'):
+        os.chown(destino, stat.st_uid, stat.st_gid)
+
+
 def restaurar_sqlite(caminho_db, arquivo_backup):
     """Substitui o arquivo do banco pelo snapshot gzip
     (docs/implantacao-producao.md, seção "Restaurar").
@@ -868,6 +899,17 @@ def restaurar_sqlite(caminho_db, arquivo_backup):
         except (OSError, EOFError, zlib.error) as exc:
             erro(f'Falha ao descompactar o backup ({exc}) — restauração abortada, o banco '
                  'atual não foi tocado.')
+            raise SystemExit(1)
+        # O serviço (www-data no Linux) precisa continuar dono e com permissão
+        # de escrita do banco: o temporário pode ter nascido de outro usuário
+        # e, na troca, deixaria o SQLite readonly. Falha em preservar
+        # interrompe antes de substituir o banco.
+        try:
+            _copiar_metadados_arquivo(caminho_db, temporario)
+        except OSError as exc:
+            erro(f'Não foi possível replicar dono/permissões de {caminho_db.name} no '
+                 f'arquivo temporário ({exc}) — ajuste-os à mão e rode a restauração '
+                 'de novo. O banco atual não foi tocado.')
             raise SystemExit(1)
         invalidado = invalidar_inventario_pendente()
         try:
@@ -947,6 +989,7 @@ def restaurar_postgres(uri, arquivo_backup):
         dono = ['--owner', parametros['usuario']] if parametros['usuario'] else []
         if subprocess.run([str(createdb), *dono, parametros['banco']],
                           env=env_psql).returncode != 0:
+            reabilitar_inventario_pendente(invalidado)
             erro('Falha ao criar o banco (createdb).')
             raise SystemExit(1)
         print('   Banco vazio recriado.')
