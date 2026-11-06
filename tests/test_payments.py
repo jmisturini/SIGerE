@@ -357,18 +357,34 @@ class PaymentsTestCase(unittest.TestCase):
             record = db.session.query(TeacherOvertimePay).first()
             self.assertEqual(record.month_base, self._mes_seguinte())
 
-    def test_create_apos_dia_20_mes_atual_postado_conta_proximo(self):
-        # Depois do dia 20 a janela já aponta para o mês seguinte: selecionar
-        # o mês atual no Mês de Referência não traz a entrada de volta.
+    def test_create_apos_dia_20_mes_atual_postado_e_recusado(self):
+        # Depois do dia 20 a janela já aponta para o mês seguinte: o mês atual
+        # postado (formulário antigo, dia virado) saiu do par e o lançamento é
+        # recusado com pedido de correção — antes, o mês base caía em silêncio
+        # no mês da janela enquanto o mês das datas seguia o valor postado.
         with patch('app.blueprints.payments.datetime', FixedDatetimeDia25):
             response = self.client.post('/payments/overtime/create',
                                         data=self._create_payload(
-                                            reference_month=self._mes_atual()),
+                                            reference_month=self._mes_atual(),
+                                            dates_month=self._mes_atual()),
                                         follow_redirects=True)
-        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        page = response.get_data(as_text=True)
+        self.assertIn('saiu da janela de lançamento', page)
+        self.assertNotIn('Lançamento de Hora Extra realizado', page)
         with self.app.app_context():
-            record = db.session.query(TeacherOvertimePay).first()
-            self.assertEqual(record.month_base, self._mes_seguinte())
+            self.assertEqual(db.session.query(TeacherOvertimePay).count(), 0)
+
+    def test_form_post_mes_invalido_nao_vira_referencia(self):
+        # Mês 13 tem o formato YYYY-MM, mas não é mês: não entra como opção
+        # extra nem gera a dica com intervalo inexistente ("21/12 - 20/13").
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(reference_month='2026-13',
+                                                              hourly_value=''))
+        self.assertEqual(response.status_code, 200)  # re-render, sem redirect
+        page = response.get_data(as_text=True)
+        referencia = self._opcoes_do_select(page, 'reference_month')
+        self.assertNotIn('2026-13', {v for v, _ in referencia})
+        self.assertNotIn('20/13', page)
 
     def test_form_mostra_mes_referencia_selecionavel(self):
         # 15/dezembro: dentro da janela e na virada do ano — o mês de

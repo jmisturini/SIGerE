@@ -154,8 +154,10 @@ def _meses_fechados(unity_id):
 
 
 def _mes_valido(valor):
-    """Valor em formato de mês (YYYY-MM) ou None."""
-    if valor and re.match(r'^\d{4}-\d{2}$', valor):
+    """Mês no formato YYYY-MM com mês de 01 a 12, ou None — um valor como
+    '2026-13' não vira referência: as dicas e os rótulos derivam datas do
+    texto e um mês inválido renderizaria intervalos inexistentes."""
+    if valor and re.match(r'^\d{4}-(0[1-9]|1[0-2])$', valor):
         return valor
     return None
 
@@ -377,7 +379,13 @@ def create_overtime():
     # [próximo, seguinte]. Selecionar o segundo antecipa o lançamento.
     base_janela = _month_base_janela()
     seguinte_janela = _mes_posterior_de(base_janela)
-    month_base = (seguinte_janela if request.form.get('reference_month') == seguinte_janela
+    # Referência posta pelo formulário: só o par da janela grava. Um valor
+    # fora dele (formulário antigo, com o dia virado) não cai mais em
+    # silêncio no mês da janela — o lançamento é recusado, pedindo a correção
+    # da referência; antes, o mês base saía da janela e o mês das datas do
+    # valor postado, misturando duas referências no mesmo lançamento.
+    referencia_postada = _mes_valido(request.form.get('reference_month'))
+    month_base = (seguinte_janela if referencia_postada == seguinte_janela
                   else base_janela)
 
     # O campo Mês segue o mês de referência escolhido: oferece o mês anterior
@@ -391,6 +399,15 @@ def create_overtime():
         mes_datas_selecionada = referencia_selecionada
 
     if form.validate_on_submit():
+        # Referência fora da janela: um valor válido, mas fora do par atual,
+        # não grava — o operador corrige a seleção (o mês não é alterável na
+        # edição, então entrar errado seria irreversível pelo painel).
+        if referencia_postada and referencia_postada not in (base_janela, seguinte_janela):
+            flash('Erro: O Mês de Referência escolhido saiu da janela de lançamento '
+                  '(o dia virou ou o mês já passou). Selecione um dos meses oferecidos '
+                  'e revise as datas antes de salvar.', 'danger')
+            return redirect(url_for('payments.create_overtime'))
+
         # Fechamento antecipado: se a unidade já fechou o mês de referência
         # deste lançamento (janela ou próximo mês selecionado), ele não entra.
         if _mes_fechado(current_unity_id(), month_base):
