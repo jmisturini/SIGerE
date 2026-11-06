@@ -355,7 +355,10 @@ def executar_flask(venv_python, env, argumentos):
 
 def capturar_flask(venv_python, env, argumentos):
     """Roda um comando da CLI capturando o stdout em linhas — usado para
-    registrar o estado dos vínculos papel↔permissão antes/depois do sync."""
+    registrar o estado dos vínculos papel↔permissão antes/depois do sync.
+    Separa só por \\n (o delimitador do dump-permissions, que escapa \\n e \\r
+    nos nomes): splitlines() também quebraria em \\x85, \\u2028 e afins,
+    que podem existir em nomes de papéis legados."""
     resultado = subprocess.run([venv_python, '-m', 'flask', '--app', 'run'] + argumentos,
                                env=env, capture_output=True, text=True)
     if resultado.returncode != 0:
@@ -363,12 +366,14 @@ def capturar_flask(venv_python, env, argumentos):
         if resultado.stderr.strip():
             erro('Saída de erro capturada:\n' + resultado.stderr.strip())
         raise SystemExit(1)
-    return [linha for linha in resultado.stdout.splitlines() if linha.strip()]
+    return [linha for linha in resultado.stdout.split('\n') if linha.strip()]
 
 
 def registrar_snapshot_vinculos(antes, depois):
     """Grava os snapshots pré/pós-sync em logs/ — fica de registro para o
-    operador reaplicar revogações confirmadas (e auditar o que mudou)."""
+    operador reaplicar revogações confirmadas (e auditar o que mudou).
+    Devolve True só quando os dois arquivos foram gravados: sem essa
+    confirmação, o inventário pré-sync pendente não pode ser descartado."""
     pasta = RAIZ / 'logs'
     try:
         pasta.mkdir(exist_ok=True)
@@ -378,9 +383,12 @@ def registrar_snapshot_vinculos(antes, depois):
         (pasta / f'sync-permissions-{marca}-depois.txt').write_text(
             '\n'.join(depois) + '\n', encoding='utf-8')
         ok(f'Snapshots dos vínculos salvos em {pasta} (sync-permissions-{marca}-*.txt)')
+        return True
     except OSError as exc:
         aviso(f'Não foi possível gravar os snapshots em {pasta}: {exc} — '
-              'os vínculos alterados seguem listados acima.')
+              'os vínculos alterados seguem listados abaixo e o inventário '
+              'pré-sync pendente fica preservado para a próxima execução.')
+        return False
 
 
 # Inventário pré-sync gravado ANTES de qualquer mudança: se a execução falhar
@@ -404,15 +412,24 @@ def capturar_inventario_antes(venv_python, env):
         if sim_nao('Reutilizar o inventário pendente como estado anterior ao sync?',
                    padrao=True):
             conteudo = ARQUIVO_INVENTARIO_PENDENTE.read_text(encoding='utf-8')
-            return [linha for linha in conteudo.splitlines() if linha.strip()]
+            # Mesma separação do capturar_flask: só \n delimita linhas.
+            return [linha for linha in conteudo.split('\n') if linha.strip()]
         descartar_inventario_pendente()
     print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
     antes = capturar_flask(venv_python, env, ['dump-permissions'])
+    # Publicação atômica: grava num temporário da mesma pasta e troca pelo
+    # destino — uma interrupção no meio nunca deixa o pendente vazio ou
+    # truncado (que seria reutilizado como um "antes" incompleto).
+    temporario = ARQUIVO_INVENTARIO_PENDENTE.with_suffix('.tmp')
     try:
         ARQUIVO_INVENTARIO_PENDENTE.parent.mkdir(exist_ok=True)
-        ARQUIVO_INVENTARIO_PENDENTE.write_text('\n'.join(antes) + '\n',
-                                               encoding='utf-8')
+        temporario.write_text('\n'.join(antes) + '\n', encoding='utf-8')
+        temporario.replace(ARQUIVO_INVENTARIO_PENDENTE)
     except OSError as exc:
+        try:
+            temporario.unlink(missing_ok=True)
+        except OSError:
+            pass
         aviso(f'Não foi possível preservar o inventário pré-sync em disco: {exc} — '
               'se a execução falhar depois do sync, o estado anterior se perde.')
     return antes
@@ -604,8 +621,10 @@ def atualizar_sistema():
     executar_flask(venv_python, env_processo, ['sync-permissions'])
     depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
     ok('Permissões e papéis sincronizados (sync-permissions).')
-    registrar_snapshot_vinculos(antes, depois)
-    descartar_inventario_pendente()
+    # O pendente só sai daí quando os snapshots confirmam a gravação — sem
+    # eles, o "antes" permanece preservado para a próxima execução.
+    if registrar_snapshot_vinculos(antes, depois):
+        descartar_inventario_pendente()
     adicionados = sorted(set(depois) - set(antes))
     removidos = sorted(set(antes) - set(depois))
     titulo('Vínculos papel↔permissão alterados pelo sync')
@@ -877,6 +896,14 @@ def restaurar_backup():
         print('   Restauração cancelada.')
         return
 
+    # Um inventário pré-sync pendente descreve o banco que vai ser substituído
+    # — reaproveitá-lo como "antes" depois da restauração compararia o sync
+    # com outro banco. A captura posterior parte do estado desta execução.
+    if ARQUIVO_INVENTARIO_PENDENTE.exists():
+        aviso('Inventário pré-sync pendente de uma execução anterior descartado: '
+              'ele descreve o banco que será substituído pelo backup.')
+        descartar_inventario_pendente()
+
     if sim_nao('Guardar um backup do estado atual antes de sobrescrever (recomendado)?',
                padrao=True):
         executar_flask(venv_python, env_processo, ['backup'])
@@ -919,8 +946,9 @@ def restaurar_backup():
         executar_flask(venv_python, env_processo, ['sync-permissions'])
         depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
         ok('Permissões e papéis sincronizados (sync-permissions).')
-        registrar_snapshot_vinculos(antes, depois)
-        descartar_inventario_pendente()
+        # Igual à atualização: descarte só com snapshots gravados.
+        if registrar_snapshot_vinculos(antes, depois):
+            descartar_inventario_pendente()
         adicionados = sorted(set(depois) - set(antes))
         removidos = sorted(set(antes) - set(depois))
         titulo('Vínculos papel↔permissão alterados pelo sync')

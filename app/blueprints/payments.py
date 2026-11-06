@@ -369,6 +369,12 @@ def list_overtime():
 @require_permission('payment:create')
 @require_module('finance')
 def create_overtime():
+    """Lançamento de Hora Extra na unidade ativa.
+
+    O Mês de Referência segue a janela 20→20 (o mês da janela ou o seguinte,
+    que antecipa o lançamento); uma referência postada fora desse par é
+    recusada com pedido de correção. O mês das datas acompanha a referência
+    escolhida e é gravado para a edição restaurar o calendário."""
     form = FormTeacherOvertimePay()
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
     form.course_type.choices = _course_type_choices()
