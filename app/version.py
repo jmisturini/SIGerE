@@ -10,12 +10,61 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.37.0'
+APP_VERSION = '1.38.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.38.0',
+        'data': '2026-11-06',
+        'titulo': 'Acabamento do redesign com hubs de navegação, portal de fichas técnicas na cozinha e ajustes mobile',
+        'grupos': [
+            ('Adicionado', [
+                'Portal de Fichas Técnicas no hub da Cozinha: criação da ficha e upload dos '
+                'arquivos direto do hub, no mesmo modelo do hub de reservas, com o botão '
+                '"Ler arquivos" alinhado na mesma linha do campo de arquivos.',
+                'Atalho de reservas pendentes para aprovadores no painel e no hub de Salas '
+                'e Reservas: a fila de pendências fica a um clique de quem aprova.',
+                'Dica do Mês de Referência da Hora Extra informa o intervalo de lançamento '
+                '(dia 20 do mês anterior ao dia 20 do mês corrente) e o mês de pagamento, '
+                'com uma frase por linha.',
+            ]),
+            ('Alterado', [
+                'Sidebar achatada com hubs de navegação (fase 3 do redesign) e faixa de '
+                'marca no painel, no modelo observatório.',
+                'Login e landing coesos: as duas telas compartilham o mesmo formulário, '
+                'com caixa única para os campos e acabamento geral da landing.',
+                'Sino da topbar e modal de saída no estilo de card centrado; coerência '
+                'visual de componentes em todo o sistema (hover de links, hero, dropdowns '
+                'e paginação).',
+                'Hora Extra: o Tipo de Curso passa a ser texto livre (sem placeholder no '
+                'campo) e as notas de antecipação saem do formulário; as opções do Mês de '
+                'Referência seguem a janela 20→20.',
+                'CI: o CodeRabbit passa a revisar apenas os PRs dev → main — nos PRs de '
+                'feature o gate de qualidade fica com ruff, bandit, pip-audit e a suíte '
+                'de testes.',
+                'Documentação revisada conforme os comentários da auditoria automatizada '
+                'da v1.37.0 (guias de API, implantação, desenvolvimento e manual).',
+            ]),
+            ('Corrigido', [
+                'Tema escuro completo: linhas de grupo das tabelas, trilha de progresso, '
+                'campo de arquivo e modal de disponibilidade seguem o modo escuro; a '
+                'ordenação das tabelas do relatório preserva os grupos de professores e '
+                'cursos.',
+                'Linha de ações da reserva pendente sem o botão redundante, com o botão '
+                'Voltar no tamanho padrão da linha.',
+                'Mobile: o menu lateral ganha backdrop e fecha ao tocar fora (ou com ESC) '
+                '— antes, a sidebar aberta cobria o próprio botão hamburger e não havia '
+                'como fechá-la; a unidade ativa e a trilha aparecem na topbar do celular '
+                '(era impossível trocar de unidade); os botões "Marcar todas"/"Limpar" do '
+                'acordeão de permissões quebram para a linha de baixo sem serem cortados; '
+                'e o texto do rendimento da preparação não empurra mais a página para a '
+                'horizontal.',
+            ]),
+        ],
+    },
     {
         'versao': '1.37.0',
         'data': '2026-10-27',
