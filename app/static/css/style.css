@@ -388,6 +388,29 @@ body {
     max-width: 30vw;
 }
 
+/* Celular (<768px): a identidade completa entra na topbar — sem ela não
+   havia forma de trocar de unidade no mobile (o Perfil não oferece o
+   seletor). Ocupa o espaço entre o hamburger e as ações; nome da unidade
+   e trilha truncam com reticências, e o menu de unidades nunca passa da
+   largura da tela. */
+@media (max-width: 767.98px) {
+    .topbar-identidade {
+        flex: 1;
+        margin-left: 0.5rem;
+        max-width: none;
+    }
+    .topbar-unidade .unity-name {
+        font-size: 0.8rem;
+        max-width: 38vw;
+    }
+    .topbar-unidade .dropdown-menu {
+        max-width: calc(100vw - 2rem);
+    }
+    .crumb-linha {
+        font-size: 0.68rem;
+    }
+}
+
 .crumb-linha {
     display: flex;
     align-items: center;
@@ -1443,6 +1466,27 @@ body {
 
 .pagination {
     flex-wrap: wrap;
+}
+
+/* Backdrop do menu lateral no celular: escurece o conteúdo atrás da
+   sidebar e fecha o menu ao tocar (JS no base.html). Fica sob a sidebar
+   (z-index 1000) e sobre todo o resto (a topbar é z-index 100) — e só
+   existe abaixo de 992px, onde a sidebar é off-canvas. */
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+@media (max-width: 991.98px) {
+    .app-container.sidebar-open .sidebar-backdrop {
+        display: block;
+        opacity: 1;
+    }
 }
 
 /* Sidebar toggle for mobile */

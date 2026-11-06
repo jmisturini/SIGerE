@@ -129,6 +129,19 @@
         border-radius: 12px;
         overflow: hidden;
     }
+    /* No celular os botões "Marcar todas"/"Limpar" não cabem ao lado do
+       título do módulo (flex-shrink-0) e o excesso é cortado pelo
+       overflow: hidden da caixa — quebram para a linha de baixo, com o
+       divisor virando uma borda superior. */
+    @media (max-width: 575.98px) {
+        .caixa-permissoes .accordion-header { flex-wrap: wrap; }
+        .caixa-permissoes .accordion-header > div {
+            flex: 1 1 100%;
+            justify-content: flex-end;
+            border-left: 0;
+            border-top: 1px solid var(--border-color);
+        }
+    }
     /* O acordeão do Bootstrap usa --bs-body-bg (branco fixo), que destoa do
        tema claro/escuro do app — dentro da caixa ele fica transparente e
        usa as variáveis de texto/borda dos .card. */

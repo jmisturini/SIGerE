@@ -64,7 +64,10 @@
                     </button>
                 </form>
                 {% endif %}
-                <span class="small text-muted ms-auto text-nowrap">
+                {# Sem text-nowrap: no celular o texto longo ("Rendimento base: …
+                   (menor valor do rendimento informado)") não caberia na linha
+                   e empurrava a página inteira para a horizontal. #}
+                <span class="small text-muted ms-auto">
                     {% if recipe.scale_factor != 1.0 %}
                     <span class="badge bg-success-subtle text-success border border-success-subtle me-1"
                           title="Escala salva: a requisição de compras usa estes valores">
