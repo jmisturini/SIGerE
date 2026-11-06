@@ -39,6 +39,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import zlib
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs, unquote
@@ -456,6 +457,46 @@ def descartar_inventario_pendente():
     return True
 
 
+# Na restauração, o pendente é renomeado (não apagado) logo antes da primeira
+# alteração no banco: se a etapa falhar sem alterá-lo, volta a ser o pendente;
+# senão fica só como registro em logs/.
+ARQUIVO_INVENTARIO_INVALIDADO = ARQUIVO_INVENTARIO_PENDENTE.with_name(
+    'sync-permissions-antes-invalidado.txt')
+
+
+def invalidar_inventario_pendente():
+    """Invalida o inventário pendente imediatamente antes da primeira
+    alteração no banco restaurado: ele descreve o banco que será substituído
+    e não pode ser reaproveitado depois de uma restauração, nem parcial. Sem
+    conseguir invalidá-lo, a restauração para antes de alterar o banco.
+    Devolve True quando havia um pendente (agora invalidado)."""
+    if not ARQUIVO_INVENTARIO_PENDENTE.exists():
+        return False
+    try:
+        ARQUIVO_INVENTARIO_PENDENTE.replace(ARQUIVO_INVENTARIO_INVALIDADO)
+    except OSError as exc:
+        erro('Restauração interrompida antes de alterar o banco: o inventário '
+             f'pré-sync pendente não pôde ser invalidado ({exc}).')
+        raise SystemExit(1)
+    aviso('Inventário pré-sync pendente de uma execução anterior invalidado '
+          f'({ARQUIVO_INVENTARIO_INVALIDADO.name}): ele descreve o banco que está '
+          'sendo substituído pelo backup.')
+    return True
+
+
+def reabilitar_inventario_pendente(invalidado):
+    """Etapa interrompida sem alterar o banco: o inventário invalidado volta a
+    ser o pendente, pois continua descrevendo o banco atual."""
+    if not invalidado:
+        return
+    try:
+        ARQUIVO_INVENTARIO_INVALIDADO.replace(ARQUIVO_INVENTARIO_PENDENTE)
+    except OSError as exc:
+        erro(f'Não foi possível reabilitar o inventário pendente ({exc}) — em logs/, '
+             f'renomeie {ARQUIVO_INVENTARIO_INVALIDADO.name} para '
+             f'{ARQUIVO_INVENTARIO_PENDENTE.name} antes da próxima atualização.')
+
+
 def aplicar_schema(venv_python, env, rotulo='5. Schema do banco (Flask-Migrate/Alembic)'):
     titulo(rotulo)
     print('   Executando: flask --app run db upgrade')
@@ -804,8 +845,13 @@ def escolher_arquivo_backup(motor, env):
 
 
 def restaurar_sqlite(caminho_db, arquivo_backup):
-    """Sobrescreve o arquivo do banco com o snapshot gzip
-    (docs/implantacao-producao.md, seção "Restaurar")."""
+    """Substitui o arquivo do banco pelo snapshot gzip
+    (docs/implantacao-producao.md, seção "Restaurar").
+
+    O snapshot é descompactado num temporário ao lado do banco e só então
+    troca de lugar com ele (os.replace, atômico): falhas até a troca deixam
+    o banco atual intocado — e o inventário pré-sync pendente, invalidado
+    só imediatamente antes dela, preservado."""
     with gzip.open(arquivo_backup, 'rb') as gz:
         cabecalho = gz.read(16)
     if not cabecalho.startswith(b'SQLite format 3'):
@@ -814,13 +860,29 @@ def restaurar_sqlite(caminho_db, arquivo_backup):
         raise SystemExit(1)
 
     caminho_db.parent.mkdir(parents=True, exist_ok=True)
+    temporario = caminho_db.with_name(caminho_db.name + '.restaurando')
     try:
-        with gzip.open(arquivo_backup, 'rb') as origem, open(caminho_db, 'wb') as destino:
-            shutil.copyfileobj(origem, destino)
-    except PermissionError:
-        erro(f'O arquivo {caminho_db} está em uso — pare a aplicação/servidor e rode a '
-             'restauração de novo.')
-        raise SystemExit(1)
+        try:
+            with gzip.open(arquivo_backup, 'rb') as origem, open(temporario, 'wb') as destino:
+                shutil.copyfileobj(origem, destino)
+        except (OSError, EOFError, zlib.error) as exc:
+            erro(f'Falha ao descompactar o backup ({exc}) — restauração abortada, o banco '
+                 'atual não foi tocado.')
+            raise SystemExit(1)
+        invalidado = invalidar_inventario_pendente()
+        try:
+            os.replace(temporario, caminho_db)
+        except OSError as exc:
+            reabilitar_inventario_pendente(invalidado)
+            erro(f'Não foi possível substituir {caminho_db} ({exc}) — se estiver em uso, '
+                 'pare a aplicação/servidor e rode a restauração de novo. O banco atual '
+                 'não foi alterado.')
+            raise SystemExit(1)
+    finally:
+        try:
+            temporario.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     # Restos de WAL de sessões anteriores podem invalidar o banco recém-gravado.
     for sufixo in ('-wal', '-shm'):
@@ -846,7 +908,13 @@ def localizar_binario(nome, dica_instalacao):
 
 
 def restaurar_postgres(uri, arquivo_backup):
-    """Executa o dump no PostgreSQL via psql. Devolve True quando restaurou."""
+    """Executa o dump no PostgreSQL via psql. Devolve True quando restaurou.
+
+    O inventário pré-sync pendente é invalidado imediatamente antes da
+    primeira alteração (dropdb ou psql) e só volta a valer se o dropdb
+    falhar — o DROP DATABASE é atômico, então a falha não alterou nada.
+    Falhas no createdb ou no psql deixam o banco alterado: o inventário
+    continua invalidado."""
     parametros = parametros_postgres(uri)
     env_psql = _ambiente_psql(parametros)
 
@@ -857,18 +925,23 @@ def restaurar_postgres(uri, arquivo_backup):
         print('   Restauração cancelada.')
         return False
 
-    if sim_nao('Recriar o banco antes de restaurar (apaga o atual e restaura limpo — recomendado)?',
-               padrao=True):
+    recriar = sim_nao('Recriar o banco antes de restaurar (apaga o atual e restaura '
+                      'limpo — recomendado)?', padrao=True)
+    if recriar:
         pasta_bin = Path(psql).parent
         sufixo = '.exe' if os.name == 'nt' else ''
         dropdb, createdb = pasta_bin / f'dropdb{sufixo}', pasta_bin / f'createdb{sufixo}'
         if not (dropdb.is_file() and createdb.is_file()):
             erro(f'Binários dropdb/createdb não encontrados ao lado de "{psql}".')
             raise SystemExit(1)
+
+    invalidado = invalidar_inventario_pendente()
+    if recriar:
         print(f'   Recriando o banco {parametros["banco"]} em '
               f'{parametros["host"]}:{parametros["porta"]}...')
         if subprocess.run([str(dropdb), '--if-exists', parametros['banco']],
                           env=env_psql).returncode != 0:
+            reabilitar_inventario_pendente(invalidado)
             erro('Falha ao apagar o banco (dropdb) — confira as credenciais no .env.')
             raise SystemExit(1)
         dono = ['--owner', parametros['usuario']] if parametros['usuario'] else []
@@ -935,18 +1008,10 @@ def restaurar_backup():
         print('   Restauração cancelada.')
         return
 
-    # Um inventário pré-sync pendente descreve o banco que vai ser substituído
-    # — reaproveitá-lo como "antes" depois da restauração compararia o sync
-    # com outro banco. A captura posterior parte do estado desta execução; sem
-    # conseguir removê-lo, a restauração para antes de tocar no banco (ele
-    # seria oferecido por padrão e esconderia vínculos revogados no backup).
-    if ARQUIVO_INVENTARIO_PENDENTE.exists():
-        if not descartar_inventario_pendente():
-            erro('Restauração interrompida antes de substituir o banco: o inventário '
-                 'pré-sync pendente não pôde ser removido.')
-            raise SystemExit(1)
-        aviso('Inventário pré-sync pendente de uma execução anterior descartado: '
-              'ele descrevia o banco que será substituído pelo backup.')
+    # O inventário pré-sync pendente (de uma atualização que falhou depois do
+    # sync) descreve o banco atual: fica preservado até a primeira alteração
+    # no banco — restaurar_sqlite/restaurar_postgres o invalidam logo antes
+    # dela e o reabilitam se a etapa falhar sem alterar nada.
 
     if sim_nao('Guardar um backup do estado atual antes de sobrescrever (recomendado)?',
                padrao=True):
