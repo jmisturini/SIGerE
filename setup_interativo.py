@@ -355,7 +355,10 @@ def executar_flask(venv_python, env, argumentos):
 
 def capturar_flask(venv_python, env, argumentos):
     """Roda um comando da CLI capturando o stdout em linhas — usado para
-    registrar o estado dos vínculos papel↔permissão antes/depois do sync."""
+    registrar o estado dos vínculos papel↔permissão antes/depois do sync.
+    Separa só por \\n (o delimitador do dump-permissions, que escapa \\n e \\r
+    nos nomes): splitlines() também quebraria em \\x85, \\u2028 e afins,
+    que podem existir em nomes de papéis legados."""
     resultado = subprocess.run([venv_python, '-m', 'flask', '--app', 'run'] + argumentos,
                                env=env, capture_output=True, text=True)
     if resultado.returncode != 0:
@@ -363,12 +366,14 @@ def capturar_flask(venv_python, env, argumentos):
         if resultado.stderr.strip():
             erro('Saída de erro capturada:\n' + resultado.stderr.strip())
         raise SystemExit(1)
-    return [linha for linha in resultado.stdout.splitlines() if linha.strip()]
+    return [linha for linha in resultado.stdout.split('\n') if linha.strip()]
 
 
 def registrar_snapshot_vinculos(antes, depois):
     """Grava os snapshots pré/pós-sync em logs/ — fica de registro para o
-    operador reaplicar revogações confirmadas (e auditar o que mudou)."""
+    operador reaplicar revogações confirmadas (e auditar o que mudou).
+    Devolve True só quando os dois arquivos foram gravados: sem essa
+    confirmação, o inventário pré-sync pendente não pode ser descartado."""
     pasta = RAIZ / 'logs'
     try:
         pasta.mkdir(exist_ok=True)
@@ -378,9 +383,77 @@ def registrar_snapshot_vinculos(antes, depois):
         (pasta / f'sync-permissions-{marca}-depois.txt').write_text(
             '\n'.join(depois) + '\n', encoding='utf-8')
         ok(f'Snapshots dos vínculos salvos em {pasta} (sync-permissions-{marca}-*.txt)')
+        return True
     except OSError as exc:
         aviso(f'Não foi possível gravar os snapshots em {pasta}: {exc} — '
-              'os vínculos alterados seguem listados acima.')
+              'os vínculos alterados seguem listados abaixo e o inventário '
+              'pré-sync pendente fica preservado para a próxima execução.')
+        return False
+
+
+# Inventário pré-sync gravado ANTES de qualquer mudança: se a execução falhar
+# depois do sync (a captura do pós, por exemplo), ele sobrevive e é
+# reutilizado na próxima tentativa até a conferência concluir.
+ARQUIVO_INVENTARIO_PENDENTE = RAIZ / 'logs' / 'sync-permissions-antes-pendente.txt'
+
+
+def capturar_inventario_antes(venv_python, env):
+    """Estado dos vínculos antes do sync, preservado entre tentativas.
+
+    Sem o arquivo pendente, uma falha depois do commit do sync perderia o
+    "antes": na nova execução o dump já sairia sincronizado, o sync diria
+    que nada foi adicionado e as revogações a reaplicar ficariam ocultas.
+    Havendo inventário pendente, ele é oferecido como estado anterior."""
+    if ARQUIVO_INVENTARIO_PENDENTE.exists():
+        aviso('Inventário pré-sync pendente encontrado '
+              f'({ARQUIVO_INVENTARIO_PENDENTE.relative_to(RAIZ)}): uma execução '
+              'anterior falhou depois de sincronizar. O dump atual já pode estar '
+              'sincronizado e não serve de estado "antes".')
+        if sim_nao('Reutilizar o inventário pendente como estado anterior ao sync?',
+                   padrao=True):
+            conteudo = ARQUIVO_INVENTARIO_PENDENTE.read_text(encoding='utf-8')
+            # Mesma separação do capturar_flask: só \n delimita linhas.
+            return [linha for linha in conteudo.split('\n') if linha.strip()]
+        # Se a remoção falhar, a gravação atômica abaixo substitui o arquivo
+        # pelo inventário novo — ou também falha e interrompe antes do sync.
+        descartar_inventario_pendente()
+    print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
+    antes = capturar_flask(venv_python, env, ['dump-permissions'])
+    # Publicação atômica: grava num temporário da mesma pasta e troca pelo
+    # destino — uma interrupção no meio nunca deixa o pendente vazio ou
+    # truncado (que seria reutilizado como um "antes" incompleto).
+    temporario = ARQUIVO_INVENTARIO_PENDENTE.with_suffix('.tmp')
+    try:
+        ARQUIVO_INVENTARIO_PENDENTE.parent.mkdir(exist_ok=True)
+        temporario.write_text('\n'.join(antes) + '\n', encoding='utf-8')
+        temporario.replace(ARQUIVO_INVENTARIO_PENDENTE)
+    except OSError as exc:
+        try:
+            temporario.unlink(missing_ok=True)
+        except OSError:
+            pass
+        # Sem o "antes" em disco, uma falha depois do commit do sync o perderia
+        # e a próxima execução esconderia revogações a reaplicar: o sync não
+        # roda sem essa garantia.
+        erro(f'Não foi possível preservar o inventário pré-sync em disco: {exc} — '
+             'corrija a falha (permissão ou espaço em logs/) antes de executar o sync.')
+        raise SystemExit(1)
+    return antes
+
+
+def descartar_inventario_pendente():
+    """Remove o inventário pendente. Devolve True quando ele não existe mais
+    (removido ou já ausente) e False quando a remoção falhou — quem chama
+    decide se a falha interrompe o fluxo (a restauração interrompe)."""
+    try:
+        ARQUIVO_INVENTARIO_PENDENTE.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        erro(f'Não foi possível remover {ARQUIVO_INVENTARIO_PENDENTE}: {exc} — '
+             'apague-o à mão para a próxima execução não oferecê-lo de novo.')
+        return False
+    return True
 
 
 def aplicar_schema(venv_python, env, rotulo='5. Schema do banco (Flask-Migrate/Alembic)'):
@@ -476,6 +549,63 @@ def preparar_manutencao():
     return venv_python, {**os.environ, **env_arquivo}, env_arquivo
 
 
+# Estados do `systemctl is-active` que contam como serviço no ar (inclusive em
+# transição). inactive/failed contam como parado; qualquer outra saída
+# (unknown, vazia, erro de barramento) é falha de consulta.
+ESTADOS_SYSTEMD_ATIVOS = {'active', 'activating', 'deactivating', 'reloading', 'refreshing'}
+
+
+def servico_ativo(servico):
+    """True com o serviço no ar, False parado e None quando o systemctl não
+    informa o estado — uma falha na consulta não pode passar por serviço
+    parado e liberar o sync-permissions."""
+    resultado = subprocess.run(['systemctl', 'is-active', servico],
+                               capture_output=True, text=True)
+    estado = resultado.stdout.strip()
+    if resultado.returncode == 0 or estado in ESTADOS_SYSTEMD_ATIVOS:
+        return True
+    if estado in ('inactive', 'failed'):
+        return False
+    return None
+
+
+def conferir_servicos_parados(permitir_nginx_alheio=False):
+    """Interrompe a manutenção com os serviços no ar: o sync-permissions
+    devolve revogações intencionais ao papel e, com a aplicação acessível,
+    elas ficam expostas antes da conferência.
+
+    O sigere no ar sempre interrompe. O Nginx pode estar ativo por outros
+    sites da máquina (comum em desenvolvimento): com permitir_nginx_alheio, o
+    operador confirma que ele não encaminha tráfego a esta instalação e a
+    atualização segue — a proteção continua quando ele publica o SIGerE. Na
+    restauração (padrão), qualquer um dos dois ativo interrompe. Estado que
+    o systemctl não consegue informar também interrompe. Sem systemd em
+    execução (sem systemctl, ou sem /run/systemd/system — contêineres, WSL
+    sem systemd) não há serviço gerenciado a conferir."""
+    if not shutil.which('systemctl') or not Path('/run/systemd/system').is_dir():
+        return
+    estados = {s: servico_ativo(s) for s in ('sigere', 'nginx')}
+    sem_estado = [s for s, ativo in estados.items() if ativo is None]
+    if sem_estado:
+        erro(f"Não foi possível consultar o estado de {', '.join(sem_estado)} pelo "
+             'systemctl — sem essa confirmação o sync-permissions não roda. Confira à '
+             'mão (sudo systemctl is-active nginx sigere: ambos devem estar inactive) '
+             'e rode o setup de novo.')
+        raise SystemExit(1)
+    ativos = [s for s, ativo in estados.items() if ativo]
+    if 'nginx' in ativos and 'sigere' not in ativos and permitir_nginx_alheio:
+        if not sim_nao('O Nginx ativo encaminha tráfego para esta instalação do SIGerE?',
+                       padrao=True):
+            aviso('Nginx mantido no ar: confirmado que ele não atende esta instalação.')
+            return
+    if ativos:
+        erro(f"Serviço(s) no ar ({', '.join(ativos)}): o sync-permissions devolve as "
+             'revogações intencionais ao papel e, com a aplicação acessível, elas ficam '
+             'expostas antes da conferência. Pare-os primeiro (sudo systemctl stop '
+             f"{' '.join(ativos)}) e rode o setup de novo.")
+        raise SystemExit(1)
+
+
 def atualizar_sistema():
     """Rotina da seção "Atualizando a aplicação" de docs/implantacao-producao.md,
     guiada: backup de segurança → git pull → dependências → db upgrade →
@@ -485,16 +615,9 @@ def atualizar_sistema():
 
     # O sync devolve revogações intencionais ao papel — com os serviços no ar,
     # elas ficam expostas antes da conferência. Guarda igual à rotina
-    # documentada e ao modo de restauração.
-    if shutil.which('systemctl'):
-        ativos = [s for s in ('sigere', 'nginx')
-                  if subprocess.run(['systemctl', 'is-active', '--quiet', s]).returncode == 0]
-        if ativos:
-            erro(f"Serviço(s) no ar ({', '.join(ativos)}): o sync-permissions devolve as "
-                 'revogações intencionais ao papel e, com a aplicação acessível, elas ficam '
-                 'expostas antes da conferência. Pare-os primeiro (sudo systemctl stop '
-                 'sigere nginx) e rode o setup de novo.')
-            raise SystemExit(1)
+    # documentada e ao modo de restauração; aqui o operador pode confirmar
+    # que um Nginx ativo atende apenas outros sites da máquina.
+    conferir_servicos_parados(permitir_nginx_alheio=True)
 
     titulo('Backup de segurança')
     if sim_nao('Criar um backup do banco antes de atualizar (recomendado)?', padrao=True):
@@ -532,13 +655,15 @@ def atualizar_sistema():
     # Snapshot antes/depois: sem ele, o operador não distingue um vínculo novo
     # de catálogo de uma revogação intencional que o sync acabou de devolver ao
     # papel (mesma proteção do modo de restauração).
-    print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
-    antes = capturar_flask(venv_python, env_processo, ['dump-permissions'])
+    antes = capturar_inventario_antes(venv_python, env_processo)
     print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
     executar_flask(venv_python, env_processo, ['sync-permissions'])
     depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
     ok('Permissões e papéis sincronizados (sync-permissions).')
-    registrar_snapshot_vinculos(antes, depois)
+    # O pendente só sai daí quando os snapshots confirmam a gravação — sem
+    # eles, o "antes" permanece preservado para a próxima execução.
+    if registrar_snapshot_vinculos(antes, depois):
+        descartar_inventario_pendente()
     adicionados = sorted(set(depois) - set(antes))
     removidos = sorted(set(antes) - set(depois))
     titulo('Vínculos papel↔permissão alterados pelo sync')
@@ -777,6 +902,11 @@ def restaurar_backup():
     titulo('Modo: restauração de backup')
     venv_python, env_processo, env_arquivo = preparar_manutencao()
 
+    # Antes de tocar no banco: com sigere/Nginx no ar, os usuários seguiriam
+    # acessando o sistema enquanto o banco é substituído e o sync devolve
+    # revogações — mesma guarda da atualização, sem a exceção do Nginx.
+    conferir_servicos_parados()
+
     instalar_dependencias(venv_python, rotulo='Dependências do ambiente',
                           perguntar_reinstalacao=False)
 
@@ -804,6 +934,19 @@ def restaurar_backup():
     if not sim_nao('Confirma a restauração? Os dados atuais serão perdidos.', padrao=False):
         print('   Restauração cancelada.')
         return
+
+    # Um inventário pré-sync pendente descreve o banco que vai ser substituído
+    # — reaproveitá-lo como "antes" depois da restauração compararia o sync
+    # com outro banco. A captura posterior parte do estado desta execução; sem
+    # conseguir removê-lo, a restauração para antes de tocar no banco (ele
+    # seria oferecido por padrão e esconderia vínculos revogados no backup).
+    if ARQUIVO_INVENTARIO_PENDENTE.exists():
+        if not descartar_inventario_pendente():
+            erro('Restauração interrompida antes de substituir o banco: o inventário '
+                 'pré-sync pendente não pôde ser removido.')
+            raise SystemExit(1)
+        aviso('Inventário pré-sync pendente de uma execução anterior descartado: '
+              'ele descrevia o banco que será substituído pelo backup.')
 
     if sim_nao('Guardar um backup do estado atual antes de sobrescrever (recomendado)?',
                padrao=True):
@@ -842,13 +985,14 @@ def restaurar_backup():
         # Snapshot antes/depois: sem ele, o operador não distingue um vínculo
         # novo de catálogo de uma revogação intencional que o sync acabou de
         # devolver ao papel.
-        print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
-        antes = capturar_flask(venv_python, env_processo, ['dump-permissions'])
+        antes = capturar_inventario_antes(venv_python, env_processo)
         print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
         executar_flask(venv_python, env_processo, ['sync-permissions'])
         depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
         ok('Permissões e papéis sincronizados (sync-permissions).')
-        registrar_snapshot_vinculos(antes, depois)
+        # Igual à atualização: descarte só com snapshots gravados.
+        if registrar_snapshot_vinculos(antes, depois):
+            descartar_inventario_pendente()
         adicionados = sorted(set(depois) - set(antes))
         removidos = sorted(set(antes) - set(depois))
         titulo('Vínculos papel↔permissão alterados pelo sync')

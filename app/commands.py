@@ -7,6 +7,7 @@ import string
 
 import click
 from flask.cli import with_appcontext
+from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.forms import senha_cumpre_politica
 from app.models import (
@@ -290,6 +291,17 @@ def sync_permissions_command():
     sync_permissions_impl(verbose=True)
 
 
+def _linha_inventario(papel, codigo):
+    """Par papel::código como uma única linha do inventário: quebras de linha
+    e barras invertidas viram escapes — um nome gravado com \n (a comparação
+    de dumps é linha a linha) não pode forjar vínculos falsos nem esconder
+    vínculos reais entre as linhas."""
+    for original, escape in (('\\', '\\\\'), ('\r', '\\r'), ('\n', '\\n')):
+        papel = papel.replace(original, escape)
+        codigo = codigo.replace(original, escape)
+    return f"{papel} :: {codigo}"
+
+
 @click.command('dump-permissions')
 @with_appcontext
 def dump_permissions_command():
@@ -300,12 +312,23 @@ def dump_permissions_command():
     estado antes/depois do sync-permissions: comparando as duas saídas,
     o operador enxerga exatamente quais vínculos o sync adicionou (entre
     eles podem estar revogações de propósito, a reaplicar no painel).
+    Quebras de linha em nomes aparecem escapadas (\\n, \\r).
 
     Uso: flask dump-permissions
     """
-    for role in Role.query.order_by(Role.name).all():
+    # Uma consulta só (JOIN): entre as leituras preguiçosas de role.permissions
+    # um sync-permissions concorrente poderia confirmar vínculos novos e o
+    # inventário classificá-los como preexistentes — sob READ COMMITTED cada
+    # statement vê seu próprio instante; um único statement é o snapshot.
+    inventario = (
+        db.session.query(Role)
+        .options(joinedload(Role.permissions))
+        .order_by(Role.name)
+        .all()
+    )
+    for role in inventario:
         for perm in sorted(role.permissions, key=lambda p: p.code):
-            click.echo(f"{role.name} :: {perm.code}")
+            click.echo(_linha_inventario(role.name, perm.code))
 
 
 def sync_permissions_impl(verbose=True):
