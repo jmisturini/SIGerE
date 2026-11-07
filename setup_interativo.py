@@ -1051,7 +1051,9 @@ def restaurar_postgres(uri, arquivo_backup):
     falhar — o DROP DATABASE é atômico, então a falha não alterou nada —
     ou se o dump nem abrir (sem recriar o banco, o psql nem começa e o
     banco segue intocado). Falhas no createdb ou no psql deixam o banco
-    alterado: o inventário continua invalidado."""
+    alterado: o inventário continua invalidado. A conclusão exige o
+    marcador final anexado ao stream na saída do psql: sair 0 sem
+    processar o dump inteiro (\\q em arquivo manual) também interrompe."""
     parametros = parametros_postgres(uri)
     env_psql = _ambiente_psql(parametros)
 
@@ -1103,35 +1105,66 @@ def restaurar_postgres(uri, arquivo_backup):
         raise SystemExit(1)
     # O psql não lê gzip: stdin=dump passaria o descritor do arquivo COMPRIMIDO
     # (o fileno() do GzipFile é do arquivo por baixo) e o psql engoliria bytes
-    # gzip como se fossem SQL. O conteúdo descomprimido é bombeado por PIPE.
-    psql_processo = subprocess.Popen([psql, '-q', '-v', 'ON_ERROR_STOP=1'],
-                                     stdin=subprocess.PIPE, env=env_psql)
-    copia_ok, falha_copia = True, None
+    # gzip como se fossem SQL. O conteúdo descomprimido é bombeado por PIPE —
+    # com a saída em arquivo, para o resultado das consultas do dump não encher
+    # um stdout=PIPE e travar o bombeio.
+    MARCA_FIM = b'SIGERE-RESTAURACAO-ATE-O-FIM'
+    descriptor_saida, caminho_saida = tempfile.mkstemp(
+        prefix='sigere-restauracao-psql-', suffix='.out')
     try:
-        shutil.copyfileobj(dump, psql_processo.stdin)
-    except (OSError, EOFError, zlib.error) as exc:
-        copia_ok, falha_copia = False, exc
-    finally:
-        dump.close()
-        try:
-            psql_processo.stdin.close()  # EOF: o psql processa o que recebeu
-        except OSError as exc:
-            # O flush pendente falhou (o psql saiu sem ler o resto do buffer —
-            # dump manual com \q, por exemplo): viraria falso sucesso com dump
-            # parcial. Sem uma falha de cópia anterior, é ela que conta.
-            if copia_ok:
+        with os.fdopen(descriptor_saida, 'w+b') as saida:
+            psql_processo = subprocess.Popen([psql, '-q', '-v', 'ON_ERROR_STOP=1'],
+                                             stdin=subprocess.PIPE, stdout=saida,
+                                             env=env_psql)
+            copia_ok, falha_copia = True, None
+            try:
+                shutil.copyfileobj(dump, psql_processo.stdin)
+                # Marcador anexado ao fim do stream: chega à saída só se o psql
+                # processou tudo que veio antes — um \q em limite de comando
+                # (arquivo manual) encerra o psql 0 sem executá-lo, e um \q
+                # dentro de um statement vira erro de SQL (ON_ERROR_STOP).
+                psql_processo.stdin.write(b'\n\\echo ' + MARCA_FIM + b'\n')
+            except (OSError, EOFError, zlib.error) as exc:
                 copia_ok, falha_copia = False, exc
-    if psql_processo.wait() != 0:
-        erro('Falha na restauração — o psql parou no primeiro erro (ON_ERROR_STOP). '
-             'Se o banco não estava vazio, tente de novo recriando-o antes.')
-        raise SystemExit(1)
-    if not copia_ok:
-        # Guarda contra falso sucesso: o psql saiu 0 sem receber o dump inteiro
-        # (gzip corrompido truncando num limite de comando, por exemplo).
-        erro(f'Falha ao transferir o backup ao psql ({falha_copia}) — o dump pode '
-             'estar corrompido: o psql saiu sem receber o conteúdo inteiro.')
-        raise SystemExit(1)
-    return True
+            finally:
+                dump.close()
+                try:
+                    psql_processo.stdin.close()  # EOF: o psql processa o que recebeu
+                except OSError as exc:
+                    # O flush pendente falhou (o psql saiu sem ler o resto do buffer —
+                    # dump manual com \q, por exemplo): viraria falso sucesso com dump
+                    # parcial. Sem uma falha de cópia anterior, é ela que conta.
+                    if copia_ok:
+                        copia_ok, falha_copia = False, exc
+            if psql_processo.wait() != 0:
+                erro('Falha na restauração — o psql parou no primeiro erro (ON_ERROR_STOP). '
+                     'Se o banco não estava vazio, tente de novo recriando-o antes.')
+                raise SystemExit(1)
+            if not copia_ok:
+                # Guarda contra falso sucesso: o psql saiu 0 sem receber o dump inteiro
+                # (gzip corrompido truncando num limite de comando, por exemplo).
+                erro(f'Falha ao transferir o backup ao psql ({falha_copia}) — o dump pode '
+                     'estar corrompido: o psql saiu sem receber o conteúdo inteiro.')
+                raise SystemExit(1)
+            # Prova de execução até o fim: saiu 0 e a cópia foi completa, mas um
+            # \q no meio do dump encerra o psql 0 também — sem o marcador na
+            # saída, o que veio antes dele não foi processado por completo.
+            saida.seek(0, os.SEEK_END)
+            saida.seek(max(0, saida.tell() - 2048))
+            rabo_bruto = saida.read()
+            if MARCA_FIM not in rabo_bruto:
+                erro('O psql saiu sem processar o dump até o fim (\\q no arquivo manual '
+                     'ou conteúdo interrompido): a restauração não foi confirmada.')
+                rabo = rabo_bruto.decode('utf-8', errors='replace').strip()
+                if rabo:
+                    aviso('Fim da saída do psql:\n   ' + rabo.replace('\n', '\n   '))
+                raise SystemExit(1)
+        return True
+    finally:
+        try:
+            os.unlink(caminho_saida)
+        except OSError:
+            pass
 
 
 def restaurar_backup():
