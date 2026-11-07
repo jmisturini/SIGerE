@@ -1101,12 +1101,31 @@ def restaurar_postgres(uri, arquivo_backup):
              + ('; o banco segue recriado e vazio até a restauração conseguir.'
                 if recriar else '; o banco atual segue intocado.'))
         raise SystemExit(1)
-    with dump:
-        resultado = subprocess.run([psql, '-q', '-v', 'ON_ERROR_STOP=1'],
-                                   stdin=dump, env=env_psql)
-    if resultado.returncode != 0:
+    # O psql não lê gzip: stdin=dump passaria o descritor do arquivo COMPRIMIDO
+    # (o fileno() do GzipFile é do arquivo por baixo) e o psql engoliria bytes
+    # gzip como se fossem SQL. O conteúdo descomprimido é bombeado por PIPE.
+    psql_processo = subprocess.Popen([psql, '-q', '-v', 'ON_ERROR_STOP=1'],
+                                     stdin=subprocess.PIPE, env=env_psql)
+    copia_ok, falha_copia = True, None
+    try:
+        shutil.copyfileobj(dump, psql_processo.stdin)
+    except (OSError, EOFError, zlib.error) as exc:
+        copia_ok, falha_copia = False, exc
+    finally:
+        dump.close()
+        try:
+            psql_processo.stdin.close()  # EOF: o psql processa o que recebeu
+        except OSError:
+            pass  # o psql já saiu (ON_ERROR_STOP) e fechou o próprio lado do pipe
+    if psql_processo.wait() != 0:
         erro('Falha na restauração — o psql parou no primeiro erro (ON_ERROR_STOP). '
              'Se o banco não estava vazio, tente de novo recriando-o antes.')
+        raise SystemExit(1)
+    if not copia_ok:
+        # Guarda contra falso sucesso: o psql saiu 0 sem receber o dump inteiro
+        # (gzip corrompido truncando num limite de comando, por exemplo).
+        erro(f'Falha ao transferir o backup ao psql ({falha_copia}) — o dump pode '
+             'estar corrompido: o psql saiu sem receber o conteúdo inteiro.')
         raise SystemExit(1)
     return True
 
