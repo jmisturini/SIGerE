@@ -4,6 +4,7 @@
 {% block content %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
+        <p class="page-eyebrow">Administração</p>
         <h3 class="fw-bold mb-1">Tokens da API</h3>
         <p class="text-muted mb-0">
             Autentiquem aplicativos externos na API de leitura de reservas
@@ -36,8 +37,13 @@
 {% endif %}
 
 <div class="card mb-4">
-    <div class="card-header"><i class="bi bi-plus-lg me-1"></i> Gerar novo token</div>
     <div class="card-body">
+        <div class="form-card-head">
+            <span class="hub-card-icone"><i class="bi bi-plus-lg" aria-hidden="true"></i></span>
+            <div>
+                <h3>Gerar novo token</h3>
+            </div>
+        </div>
         <form method="POST" action="{{ url_for('admin.create_api_token') }}" class="row g-3 align-items-end">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-5">
@@ -101,11 +107,11 @@
                         <td class="small text-muted">{{ t.expires_at.strftime('%d/%m/%Y') if t.expires_at else '—' }}</td>
                         <td>
                             {% if not t.is_active %}
-                                <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Revogado</span>
+                                <span class="badge bg-secondary-subtle text-secondary-emphasis badge-estado">Revogado</span>
                             {% elif t.is_expired %}
-                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">Expirado</span>
+                                <span class="badge bg-warning-subtle text-warning-emphasis badge-estado">Expirado</span>
                             {% else %}
-                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Ativo</span>
+                                <span class="badge bg-success-subtle text-success-emphasis badge-estado">Ativo</span>
                             {% endif %}
                         </td>
                         <td class="text-end pe-4">

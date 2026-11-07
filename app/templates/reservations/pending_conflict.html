@@ -1,17 +1,19 @@
 {% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Reserva Pendente{% endblock %}
 
 {% block content %}
+{{ cabecalho_pagina('Salas e Reservas', 'Reserva Pendente', None) }}
 <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
         <div class="card">
-            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i> Reserva Pendente</h5>
-                <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-arrow-left"></i> Voltar
-                </a>
-            </div>
             <div class="card-body p-4">
+                <div class="form-card-head">
+                    <span class="hub-card-icone"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>Reserva Pendente</h3>
+                    </div>
+                </div>
                 <div class="alert alert-warning border border-warning-subtle d-flex align-items-center mb-4" role="alert">
                     <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
                     <div>
@@ -53,6 +55,8 @@
                 </div>
                 
                 <div class="d-flex flex-wrap justify-content-end gap-2 mt-4 pt-3 border-top">
+                    {# Sem botão "Voltar": apontava para Minhas Reservas — o
+                       mesmo destino do botão primário ao lado, era redundante. #}
                     <a href="{{ url_for('reservations.detail', reservation_id=reservation.id) }}" class="btn btn-outline-secondary">Ver Detalhes</a>
                     <a href="{{ url_for('reservations.my_reservations') }}" class="btn btn-primary px-4">Ver Minhas Reservas</a>
                 </div>

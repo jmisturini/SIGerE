@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina, hero_hub, card_hub %}
+{% block title %}Financeiro/RH{% endblock %}
+
+{% block content %}
+{{ cabecalho_pagina('Financeiro/RH', 'Financeiro/RH', 'Hora extra, vale-transporte, vale-alimentação e adicional noturno.') }}
+
+{# Mesmo molde da Central de Salas e Reservas: cards-portais no hero; o
+   clique abre logo abaixo o bloco de conteúdos daquele caminho. #}
+{% call hero_hub('bi-wallet2', 'Central de Financeiro/RH', 'Escolha por onde começar — o conteúdo abre logo abaixo.') %}
+
+    <div class="hub-cards hub-cards-portais">
+        {% if current_user.has_permission('payment:read') %}
+        <button type="button" class="hub-portal" data-hub-alvo="hub-hora-extra"
+                aria-expanded="false" aria-controls="hub-hora-extra">
+            <span class="hub-card-icone"><i class="bi bi-cash-stack" aria-hidden="true"></i></span>
+            <b>Hora Extra</b>
+            <small>Lançamentos e consulta das horas extras dos professores.</small>
+            <span class="hub-portal-acessar">Acessar <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+        </button>
+        {% endif %}
+
+        {% if current_user.has_permission('vt:read') %}
+        <button type="button" class="hub-portal" data-hub-alvo="hub-vt"
+                aria-expanded="false" aria-controls="hub-vt">
+            <span class="hub-card-icone"><i class="bi bi-bus-front" aria-hidden="true"></i></span>
+            <b>Vale Transporte</b>
+            <small>Pedidos dos colaboradores e consolidação do benefício.</small>
+            <span class="hub-portal-acessar">Acessar <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+        </button>
+        {% endif %}
+
+        {% if current_user.has_permission('meal:read') %}
+        <button type="button" class="hub-portal" data-hub-alvo="hub-va"
+                aria-expanded="false" aria-controls="hub-va">
+            <span class="hub-card-icone"><i class="bi bi-basket2" aria-hidden="true"></i></span>
+            <b>Vale Alimentação</b>
+            <small>Lançamentos diários dos professores e exportação.</small>
+            <span class="hub-portal-acessar">Acessar <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+        </button>
+        {% endif %}
+
+        {% if current_user.has_permission('an:read') %}
+        <button type="button" class="hub-portal" data-hub-alvo="hub-an"
+                aria-expanded="false" aria-controls="hub-an">
+            <span class="hub-card-icone"><i class="bi bi-moon-stars" aria-hidden="true"></i></span>
+            <b>Adicional Noturno</b>
+            <small>Registro das horas noturnas trabalhadas.</small>
+            <span class="hub-portal-acessar">Acessar <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+        </button>
+        {% endif %}
+    </div>
+
+{% endcall %}
+
+{% if current_user.has_permission('payment:read') %}
+<div class="hub-bloco d-none" id="hub-hora-extra">
+    <div class="hub-bloco-head">
+        <span class="hub-card-icone"><i class="bi bi-cash-stack" aria-hidden="true"></i></span>
+        <div>
+            <h3>Hora Extra</h3>
+            <p>Lançamentos e consulta das horas extras por mês e professor.</p>
+        </div>
+    </div>
+    <div class="hub-cards">
+        {% if current_user.has_permission('payment:create') %}
+        {{ card_hub(url_for('payments.create_overtime'), 'bi-plus-circle', 'Nova Hora Extra', 'Registre um lançamento para um professor.') }}
+        {% endif %}
+        {{ card_hub(url_for('payments.list_overtime'), 'bi-list-ul', 'Consultar H. Extras', 'Filtre por mês e professor; feche o mês ao final.') }}
+    </div>
+</div>
+{% endif %}
+
+{% if current_user.has_permission('vt:read') %}
+<div class="hub-bloco d-none" id="hub-vt">
+    <div class="hub-bloco-head">
+        <span class="hub-card-icone"><i class="bi bi-bus-front" aria-hidden="true"></i></span>
+        <div>
+            <h3>Vale Transporte</h3>
+            <p>Pedidos dos colaboradores e consolidação dos valores.</p>
+        </div>
+    </div>
+    <div class="hub-cards">
+        {{ card_hub(url_for('vt.requests'), 'bi-inbox', 'Pedidos VT', 'Lista única de pedidos, com exportação para pagamento.') }}
+        {{ card_hub(url_for('vt.relatorio'), 'bi-graph-up', 'Relatório VT', 'Consolide os valores por colaborador e mês.') }}
+    </div>
+</div>
+{% endif %}
+
+{% if current_user.has_permission('meal:read') %}
+<div class="hub-bloco d-none" id="hub-va">
+    <div class="hub-bloco-head">
+        <span class="hub-card-icone"><i class="bi bi-basket2" aria-hidden="true"></i></span>
+        <div>
+            <h3>Vale Alimentação</h3>
+            <p>Lançamentos diários dos professores e exportação.</p>
+        </div>
+    </div>
+    <div class="hub-cards">
+        {{ card_hub(url_for('payments.list_meal_allowance'), 'bi-basket2', 'Vale Alimentação', 'Registro por dia trabalhado, com exportação consolidada.') }}
+    </div>
+</div>
+{% endif %}
+
+{% if current_user.has_permission('an:read') %}
+<div class="hub-bloco d-none" id="hub-an">
+    <div class="hub-bloco-head">
+        <span class="hub-card-icone"><i class="bi bi-moon-stars" aria-hidden="true"></i></span>
+        <div>
+            <h3>Adicional Noturno</h3>
+            <p>Horas noturnas trabalhadas pelos professores.</p>
+        </div>
+    </div>
+    <div class="hub-cards">
+        {{ card_hub(url_for('an.registros'), 'bi-moon-stars', 'Adicional Noturno', 'Registro e acompanhamento das horas noturnas.') }}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

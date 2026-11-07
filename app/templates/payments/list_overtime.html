@@ -1,14 +1,11 @@
 {% extends 'base.html' %}
 {% from '_pagination.html' import render_pagination %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Horas Extras{% endblock %}
 
 {% block content %}
 
-<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-    <div>
-        <h3 class="fw-bold mb-1">Horas Extras</h3>
-        <p class="text-muted mb-0">Gerencie as horas extras e exporte relatórios.</p>
-    </div>
+{% call cabecalho_pagina('Financeiro · Hora Extra', 'Horas Extras', 'Gerencie as horas extras e exporte relatórios.') %}
     <div class="d-flex flex-wrap gap-2">
         <a href="https://antigaintranet.sc.senac.br/formularios/classificaProjetosEspeciais/form.php" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary">
             <i class="bi bi-box-arrow-up-right me-1"></i> Formulário FIC
@@ -28,7 +25,7 @@
             <i class="bi bi-plus-lg me-1"></i> Nova Hora Extra
         </a>
     </div>
-</div>
+{% endcall %}
 
 {% if fechamento %}
 <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 px-3 mb-4 small" role="alert">
@@ -43,55 +40,65 @@
 {% endif %}
 
 <!-- Formulário Unificado de Filtro e Exportação -->
-<form method="GET" class="card mb-4">
+<div class="card mb-4">
     <div class="card-body">
-        <div class="row g-3 align-items-end">
-            <div class="col-md-4">
-                <label class="form-label small mb-1">Mês Base</label>
-                <select id="month_base" name="month_base" class="form-select">
-                    <option value="">Todos os meses</option>
-                    {% for value, label in month_options %}
-                        <option value="{{ value }}" {{ 'selected' if filter_month == value }}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label small mb-1">Professor</label>
-                <select id="teacher_filter" name="teacher_filter" class="form-select">
-                    <option value="">Todos os Professores</option>
-                    {% for t in list_teachers %}
-                        <option value="{{ t.id }}" {{ 'selected' if filter_teacher == t.id }}>{{ t.full_name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label small mb-1">Ordenar por</label>
-                <select name="ordem" class="form-select">
-                    <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Lançamento (mais recentes)</option>
-                    <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Lançamento (mais antigas)</option>
-                    <option value="professor" {{ 'selected' if ordem == 'professor' }}>Professor</option>
-                    <option value="mes" {{ 'selected' if ordem == 'mes' }}>Mês (mais antigo)</option>
-                    <option value="mes_desc" {{ 'selected' if ordem == 'mes_desc' }}>Mês (mais recente)</option>
-                </select>
-            </div>
-            <div class="col-md-4 d-flex gap-2">
-                <button type="submit" class="btn btn-outline-primary flex-grow-1">
-                    <i class="bi bi-funnel me-1"></i> Filtrar
-                </button>
-                <a href="{{ url_for('payments.list_overtime') }}"
-                   class="btn btn-outline-secondary {{ '' if (filter_month or filter_teacher) else 'disabled' }}"
-                   {{ '' if (filter_month or filter_teacher) else 'aria-disabled="true" tabindex="-1"' }}
-                   title="Limpar os filtros aplicados e voltar à consulta do mês atual">
-                    <i class="bi bi-x-circle me-1"></i> Limpar
-                </a>
-                <button type="submit" formaction="{{ url_for('payments.export_excel_overtime') }}" id="exportBtn" class="btn btn-success flex-grow-1" disabled
-                        title="Exporta a planilha com os filtros aplicados (mês e/ou professor)">
-                    <i class="bi bi-file-excel me-1"></i> Exportar
-                </button>
+        <div class="form-card-head">
+            <span class="hub-card-icone"><i class="bi bi-funnel" aria-hidden="true"></i></span>
+            <div>
+                <h3>Filtros</h3>
             </div>
         </div>
+        <form method="GET">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">Mês Base</label>
+                    <select id="month_base" name="month_base" class="form-select">
+                        <option value="">Todos os meses</option>
+                        {% for value, label in month_options %}
+                            <option value="{{ value }}" {{ 'selected' if filter_month == value }}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">Professor</label>
+                    <select id="teacher_filter" name="teacher_filter" class="form-select">
+                        <option value="">Todos os Professores</option>
+                        {% for t in list_teachers %}
+                            <option value="{{ t.id }}" {{ 'selected' if filter_teacher == t.id }}>{{ t.full_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">Ordenar por</label>
+                    <select name="ordem" class="form-select">
+                        <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Lançamento (mais recentes)</option>
+                        <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Lançamento (mais antigas)</option>
+                        <option value="professor" {{ 'selected' if ordem == 'professor' }}>Professor</option>
+                        <option value="mes" {{ 'selected' if ordem == 'mes' }}>Mês (mais antigo)</option>
+                        <option value="mes_desc" {{ 'selected' if ordem == 'mes_desc' }}>Mês (mais recente)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-card-rodape">
+                <div class="form-acoes">
+                    <a href="{{ url_for('payments.list_overtime') }}"
+                       class="btn btn-outline-secondary {{ '' if (filter_month or filter_teacher) else 'disabled' }}"
+                       {{ '' if (filter_month or filter_teacher) else 'aria-disabled="true" tabindex="-1"' }}
+                       title="Limpar os filtros aplicados e voltar à consulta do mês atual">
+                        <i class="bi bi-x-circle me-1"></i> Limpar
+                    </a>
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-funnel me-1"></i> Filtrar
+                    </button>
+                    <button type="submit" formaction="{{ url_for('payments.export_excel_overtime') }}" id="exportBtn" class="btn btn-success" disabled
+                            title="Exporta a planilha com os filtros aplicados (mês e/ou professor)">
+                        <i class="bi bi-file-excel me-1"></i> Exportar
+                    </button>
+                </div>
+            </div>
+        </form>
     </div>
-</form>
+</div>
 
 {# Caixa separada dos filtros: informa o período de lançamento do mês em
    vista — o JavaScript a atualiza quando o mês do seletor muda. #}
@@ -209,7 +216,7 @@
                     {% endif %}
                     <div class="col-md-6">
                         <div class="small fw-bold text-uppercase text-muted">Tipo de Curso</div>
-                        <div>{{ o.course_type.name if o.course_type else '—' }}</div>
+                        <div>{{ o.course_type or '—' }}</div>
                     </div>
                     <div class="col-md-6">
                         <div class="small fw-bold text-uppercase text-muted">Nível de Ensino</div>

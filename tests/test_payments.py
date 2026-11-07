@@ -180,7 +180,7 @@ class PaymentsTestCase(unittest.TestCase):
         payload = {
             'teacher': str(self.teacher_id),
             'teaching_level': 'Superior',
-            'course_type': str(self.course_type_id),
+            'course_type': 'Técnico',
             'shift': 'Noturno',
             'weekly_workload_hours': '4',
             'weekly_workload_minutes': '30',
@@ -209,11 +209,11 @@ class PaymentsTestCase(unittest.TestCase):
         return f'{ano:04d}-{12 if mes < 1 else mes:02d}'
 
     def _add_overtime(self, month_base, teacher_id=None, budget_code='950001234', created_at=None,
-                      weekly_workload=4, course_type_id='SET', observation=None):
+                      weekly_workload=4, course_type='Técnico', observation=None):
         with self.app.app_context():
             record = TeacherOvertimePay(
                 teacher_id=teacher_id or self.teacher_id, teaching_level='Superior',
-                course_type_id=self.course_type_id if course_type_id == 'SET' else course_type_id,
+                course_type=course_type,
                 unity_id=self.unity_id, weekly_workload=weekly_workload, hourly_value=25.5,
                 budget_code=budget_code, shift='Noturno', month_base=month_base,
                 observation=observation,
@@ -326,23 +326,24 @@ class PaymentsTestCase(unittest.TestCase):
 
     def test_create_exige_tipo_de_curso(self):
         response = self.client.post('/payments/overtime/create',
-                                    data=self._create_payload(course_type='0'),
+                                    data=self._create_payload(course_type=''),
                                     follow_redirects=True)
-        self.assertIn('Selecione o tipo de curso', response.get_data(as_text=True))
+        self.assertIn('Informe o tipo de curso', response.get_data(as_text=True))
         with self.app.app_context():
             self.assertEqual(db.session.query(TeacherOvertimePay).count(), 0)
 
     def test_create_salva_tipo_de_curso_e_observacao(self):
         response = self.client.post('/payments/overtime/create',
-                                    data=self._create_payload(), follow_redirects=True)
+                                    data=self._create_payload(course_type='FIC Integrado'),
+                                    follow_redirects=True)
         self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
         with self.app.app_context():
             record = db.session.query(TeacherOvertimePay).first()
-            self.assertEqual(record.course_type_id, self.course_type_id)
+            self.assertEqual(record.course_type, 'FIC Integrado')
             self.assertEqual(record.observation, 'Turma integral')
         # Campos também aparecem nos detalhes do lançamento
         page = self.client.get('/payments/overtime/list').get_data(as_text=True)
-        self.assertIn('Técnico', page)
+        self.assertIn('FIC Integrado', page)
         self.assertIn('Turma integral', page)
 
     def test_create_referencia_proximo_mes_anteipa_entrada(self):
@@ -401,17 +402,12 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertRegex(page, rf'<option value="{seguinte}"')
         # A dica visível é a do mês selecionado e cada opção carrega a sua:
         # intervalo de lançamento (dia 21 do mês anterior ao dia 20 do mês de
-        # referência), mês de pagamento (o posterior) e nota de antecipação —
-        # antes do dia 21, selecionar o próximo mês antecipa o lançamento.
-        # Frases separadas por \n: a tela exibe uma por linha.
+        # referência) e mês de pagamento (o posterior). Frases separadas por
+        # \n: a tela exibe uma por linha.
         dica_dezembro = (f'Intervalo de lançamento de pagamento: 21/11 - 20/12.\n'
-                         f'Mês de pagamento: Janeiro/{ano + 1}.\n'
-                         f'Selecionar o próximo mês antecipa o lançamento para '
-                         f'o próximo mês de pagamento.')
+                         f'Mês de pagamento: Janeiro/{ano + 1}.')
         dica_janeiro = ('Intervalo de lançamento de pagamento: 21/12 - 20/01.\n'
-                        'Mês de pagamento: Fevereiro.\n'
-                        'Lançamentos feitos agora são antecipados '
-                        'para este mês.')
+                        'Mês de pagamento: Fevereiro.')
         visivel, por_opcao = self._dicas_do_reference(page)
         self.assertEqual(visivel, dica_dezembro)
         self.assertEqual(por_opcao, {atual: dica_dezembro, seguinte: dica_janeiro})
@@ -462,11 +458,9 @@ class PaymentsTestCase(unittest.TestCase):
             datas = self._opcoes_do_select(page, 'dates_month')
             self.assertEqual([v for v, _ in datas], [anterior, atual])
             self.assertEqual([v for v, sel in datas if sel], [anterior])
-            # Dica visível é a da referência preservada, sem nota de
-            # antecipação (a janela dela já fechou).
+            # Dica visível é a da referência preservada.
             visivel, _ = self._dicas_do_reference(page)
             self.assertIn(f'21/{anterior[5:7]} - 20/{atual[5:7]}', visivel)
-            self.assertNotIn('antecipa', visivel)
 
     def _dicas_do_reference(self, page):
         """(dica visível no reference-hint, {mês: dica} das opções) do Mês de
@@ -487,8 +481,7 @@ class PaymentsTestCase(unittest.TestCase):
     def test_form_apos_dia_20_oferece_proximo_e_seguinte(self):
         """Depois do dia 20 o mês atual sai das opções do Mês de Referência:
         lançamento nele já vira o próximo. O par passa a ser [próximo,
-        seguinte], cada um com a dica de intervalo e mês de pagamento e a
-        nota de antecipação (a janela do segundo ainda não abriu)."""
+        seguinte], cada um com a dica de intervalo e mês de pagamento."""
         atual, seguinte = self._mes_atual(), self._mes_seguinte()
         ano, mes = int(seguinte[:4]), int(seguinte[5:7])
         mes += 1
@@ -505,9 +498,6 @@ class PaymentsTestCase(unittest.TestCase):
         # Intervalo e mês de pagamento de cada opção
         self.assertIn(f'21/{atual[5:7]} - 20/{seguinte[5:7]}', por_opcao[seguinte])
         self.assertIn(f'21/{seguinte[5:7]} - 20/{seguinte2[5:7]}', por_opcao[seguinte2])
-        # Nota de antecipação nas duas dicas
-        self.assertIn('antecipa', por_opcao[seguinte])
-        self.assertIn('antecipa', por_opcao[seguinte2])
 
     def test_create_apos_dia_20_seguinte_da_janela_anteipa(self):
         """Depois do dia 20, selecionar o mês seguinte ao da janela (o
@@ -723,13 +713,10 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn('selected', opcao.group(0))
 
     def test_edit_restaura_tipo_de_curso(self):
-        # Mesmo padrão do professor: o relationship course_type (objeto) tem o
-        # nome do campo — a rota restaura a seleção pelo id.
-        record_id = self._add_overtime(self._mes_atual())
+        # O campo é texto livre: o GET traz o valor salvo no input.
+        record_id = self._add_overtime(self._mes_atual(), course_type='Técnico Integrado')
         page = self.client.get(f'/payments/overtime/edit/{record_id}').get_data(as_text=True)
-        opcao = re.search(rf'<option[^>]*value="{self.course_type_id}"[^>]*>', page)
-        self.assertIsNotNone(opcao, 'option do tipo de curso não encontrada')
-        self.assertIn('selected', opcao.group(0))
+        self.assertRegex(page, r'id="course_type"[^>]*value="Técnico Integrado"')
 
     def test_edit_stores_converted_decimal(self):
         record_id = self._add_overtime(self._mes_atual())

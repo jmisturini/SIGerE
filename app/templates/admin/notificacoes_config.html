@@ -1,17 +1,19 @@
 {% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Notificações — Sobrecarga de Professor{% endblock %}
 
 {% block content %}
+{{ cabecalho_pagina('Administração', 'Notificações', None) }}
 <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
         <div class="card">
-            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-bell"></i></span> Notificações</h5>
-                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-arrow-left"></i> Voltar
-                </a>
-            </div>
             <div class="card-body p-4">
+                <div class="form-card-head">
+                    <span class="hub-card-icone"><i class="bi bi-bell" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>Notificações</h3>
+                    </div>
+                </div>
                 <div class="alert alert-light border small mb-4">
                     <i class="bi bi-info-circle me-1"></i>
                     Os avisos de <strong>atividade próxima</strong> (24h e 1h antes) passaram a ser
@@ -51,11 +53,14 @@
                     {% for err in form.overload_groups.errors %}<div class="text-danger small mb-3">{{ err }}</div>{% endfor %}
                     {% endif %}
 
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4 pt-3 border-top">
-                        <a href="{{ url_for('admin.notificacoes_grupos') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-collection me-1"></i> Gerenciar grupos
-                        </a>
-                        <div class="d-flex gap-2">
+                    <div class="form-card-rodape">
+                        <div class="form-acoes">
+                            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Voltar
+                            </a>
+                            <a href="{{ url_for('admin.notificacoes_grupos') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-collection me-1"></i> Gerenciar grupos
+                            </a>
                             <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">Cancelar</a>
                             {{ form.submit(class="btn btn-primary px-4") }}
                         </div>

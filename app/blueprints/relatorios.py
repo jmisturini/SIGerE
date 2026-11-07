@@ -93,8 +93,9 @@ def _juntar_nomes(nomes):
 @bp.route('/')
 @login_required
 def raiz():
-    """Atalho: /relatorios abre o Relatório Geral."""
-    return redirect(url_for('relatorios.geral'))
+    """Compatibilidade: a raiz /relatorios abre a Central de Salas e
+    Reservas, onde os relatórios do módulo viraram cards."""
+    return redirect(url_for('main.hub_salas_reservas'))
 
 
 @bp.route('/geral')
