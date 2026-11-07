@@ -124,9 +124,20 @@ Mudança só de docs pode ir direto por PR sem release.
   instância (imagem Ubuntu da Oracle só libera a 22; persistência via
   `/etc/iptables/rules.v4` com `netfilter-persistent save`). Abrir só uma não resolve.
 - **Update oficial** (`docs/implantacao-producao.md` seção 10): `git status` limpo →
-  `venv/bin/pip install -r requirements.txt gunicorn` → `flask --app run db upgrade` →
-  restart do serviço. Migrations pendentes **não derrubam o boot** (o app sobe com
-  aviso), mas o `db upgrade` é obrigatório para as features novas funcionarem.
+  registrar as revogações de **Painel Admin → Papéis** (nome interno do papel e
+  códigos das permissões) → `sudo systemctl stop nginx sigere` e confirmar ambos
+  parados → atualizar código e dependências na venv do serviço →
+  `venv/bin/flask --app run db upgrade` → `venv/bin/flask --app run sync-permissions`
+  (o boot não sincroniza) → reaplicar e conferir todas as revogações pelo
+  `venv/bin/flask --app run shell` via SSH, conforme a seção 10, mantendo Nginx e
+  sigere parados → iniciar sigere, confirmar `active (running)` e só então iniciar
+  Nginx para liberar o acesso externo. Em caso de falha, mantenha os serviços parados.
+  A mesma sequência de bloqueio e conferência se aplica ao update pelo setup guiado:
+  o comando devolve ao papel as permissões configuradas que estiverem ausentes, inclusive
+  as revogadas de propósito. Não reabra o acesso geral ao painel para reaplicá-las.
+  Migrations pendentes **não derrubam o boot** (o app sobe com aviso), mas o
+  `db upgrade` e o `sync-permissions` são obrigatórios para as features novas
+  funcionarem.
 - **Diagnóstico de crash do serviço:** o journal fica mudo — o gunicorn loga em
   **`/var/log/sigere/error.log`** (`--error-logfile` no unit). Ir direto lá e confirmar
   o ExecStart real com `systemctl cat sigere`.
@@ -200,7 +211,7 @@ Estado em **2026-10-27** (v1.37.0 publicada; documentação revisada):
 |---|---|
 | Documentação | Revisada em 2026-10-27: README, api-reservas, implantação-producao, desenvolvimento-debug, guia-continuidade, permissoes.md regenerado (73 permissões) e manual do usuário regenerado para a v1.37.0. |
 | Manual do usuário (`docs/manual-do-usuario.pdf`) | Atualizado para a v1.37.0 (2026-10-27): Adicional Noturno, fluxo de professor pendente, autocancel, política de senha, bloqueio de conta, auditoria. Regenerar com `python docs/gerar_manual.py` a cada release relevante. |
-| Produção (VM OCI) | Confirmar na VM: `db upgrade` **e `sync-permissions`** (o sync saiu do boot — há permissões novas na v1.37: `user:lock`, `system:audit`), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós update; ver seção 5). |
+| Produção (VM OCI) | Confirmar na VM: `db upgrade` **e `sync-permissions`** (o sync saiu do boot — há permissões novas na v1.37: `user:lock`, `system:audit`), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós-update; ver seção 5). |
 | CI | Status check do `tests` ainda não é *required* — pode ser endurecido em Settings depois de comprovado estável. |
 
 ## 9. Memória local do ZCode (não viaja com o git)

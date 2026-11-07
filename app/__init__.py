@@ -103,12 +103,13 @@ def create_app(config_class=Config):
                               import_legacy_command, notify_scan_command,
                               notify_email_command, notify_cleanup_command,
                               autocancel_pendentes_command,
-                              unlock_user_command)
+                              unlock_user_command, dump_permissions_command)
     from app.seed_demo import seed_demo_command
     from app.backup import backup_command
     app.cli.add_command(seed_command)
     app.cli.add_command(seed_admin_command)
     app.cli.add_command(sync_permissions_command)
+    app.cli.add_command(dump_permissions_command)
     app.cli.add_command(seed_unidades_command)
     app.cli.add_command(seed_demo_command)
     app.cli.add_command(import_legacy_command)

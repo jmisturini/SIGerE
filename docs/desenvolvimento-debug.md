@@ -235,9 +235,10 @@ flask --app run run --debug
   `instance/uploads/technical_sheets/` (fora de `static/`, fora do git — a pasta
   `instance/` inteira é ignorada). Instalações antigas com fichas em
   `app/static/uploads/technical_sheets` devem movê-las para a pasta da
-  instância — o caminho em `static/` é público no Nginx, não é mais lido pela
-  aplicação, e as exclusões na Cozinha removem também a cópia legada que ali
-  ainda existir.
+  instância — o caminho em `static/` é público no Nginx e não é mais lido pela
+  aplicação. As exclusões na Cozinha tentam remover também a cópia legada que
+  ali ainda existir; se o `www-data` não tiver permissão, a falha vai para o
+  log — confira e remova a cópia manualmente.
 
 ---
 
@@ -283,6 +284,7 @@ módulo `run.py`, onde vive a factory `create_app()`).
 | `seed-unidades` | Cadastra/atualiza as unidades do Senac SC a partir de `docs/unidades-senac-sc.json` | Idempotente; opção `--file CAMINHO` aceita outro JSON |
 | `seed-demo` | Cenário de demonstração **completo**: unidades (uma sem Cozinha, uma inativa), todos os papéis, 7 tipos de sala, reservas em todas as situações (datas relativas a hoje), feriados, hora extra, vale-transporte, cozinha e token da API | Recusa-se fora do modo desenvolvimento (`FLASK_DEBUG=true`; `SIGERE_PERMITIR_SEED_DEMO=1` força). Recusa duplicar — `--reset` apaga a demonstração anterior e recria; [contas na seção abaixo](#-contas-de-demonstração) |
 | `sync-permissions` | Cria permissões/papéis ausentes e vincula os códigos de `ROLES_CONFIG` | Idempotente; **aposenta** permissões removidas de `PERMISSION_DATA` (os vínculos com papéis caem por cascade) |
+| `dump-permissions` | Lista os vínculos papel↔permissão gravados no banco (`papel :: código`, um por linha, inclusive papéis fora de `ROLES_CONFIG`) | Registro do estado antes/depois do `sync-permissions`; o modo "Restaurar backup" do setup usa o par antes/depois para listar os vínculos que o sync adicionou |
 | `unlock-user EMAIL` | Desbloqueia conta travada por excesso de tentativas de login | Zera o contador e registra a origem `cli` na trilha de auditoria |
 | `backup` | Snapshot do banco comprimido (gzip) com retenção e upload opcional para S3 | `--no-upload`, `--dir`, `--keep-days` para execuções pontuais |
 | `notify-scan` / `notify-email` / `notify-cleanup` | Varredura de avisos de atividade próxima, dreno da fila de e-mail e limpeza de avisos antigos | Idempotentes; em produção `notify-scan`/`notify-email` rodam no timer `sigere-notify` e `notify-cleanup` no `sigere-backup` (ver [implantação](implantacao-producao.md)) |

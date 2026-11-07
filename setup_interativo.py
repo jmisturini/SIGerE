@@ -39,6 +39,8 @@ import socket
 import subprocess
 import sys
 import tempfile
+import zlib
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs, unquote
 
@@ -352,6 +354,196 @@ def executar_flask(venv_python, env, argumentos):
         raise SystemExit(1)
 
 
+def capturar_flask(venv_python, env, argumentos):
+    """Roda um comando da CLI capturando o stdout em linhas — usado para
+    registrar o estado dos vínculos papel↔permissão antes/depois do sync.
+    Separa só por \\n (o delimitador do dump-permissions, que escapa \\n e \\r
+    nos nomes): splitlines() também quebraria em \\x85, \\u2028 e afins,
+    que podem existir em nomes de papéis legados."""
+    resultado = subprocess.run([venv_python, '-m', 'flask', '--app', 'run'] + argumentos,
+                               env=env, capture_output=True, text=True)
+    if resultado.returncode != 0:
+        erro(f"Falha no comando: flask --app run {' '.join(argumentos)}.")
+        if resultado.stderr.strip():
+            erro('Saída de erro capturada:\n' + resultado.stderr.strip())
+        raise SystemExit(1)
+    return [linha for linha in resultado.stdout.split('\n') if linha.strip()]
+
+
+def registrar_snapshot_vinculos(antes, depois):
+    """Grava os snapshots pré/pós-sync em logs/ — fica de registro para o
+    operador reaplicar revogações confirmadas (e auditar o que mudou).
+    Devolve True só quando os dois arquivos foram gravados: sem essa
+    confirmação, o inventário pré-sync pendente não pode ser descartado."""
+    pasta = RAIZ / 'logs'
+    try:
+        pasta.mkdir(exist_ok=True)
+        marca = datetime.now().strftime('%Y%m%d-%H%M%S')
+        (pasta / f'sync-permissions-{marca}-antes.txt').write_text(
+            '\n'.join(antes) + '\n', encoding='utf-8')
+        (pasta / f'sync-permissions-{marca}-depois.txt').write_text(
+            '\n'.join(depois) + '\n', encoding='utf-8')
+        ok(f'Snapshots dos vínculos salvos em {pasta} (sync-permissions-{marca}-*.txt)')
+        return True
+    except OSError as exc:
+        aviso(f'Não foi possível gravar os snapshots em {pasta}: {exc} — '
+              'os vínculos alterados seguem listados abaixo e o inventário '
+              'pré-sync pendente fica preservado para a próxima execução.')
+        return False
+
+
+# Inventário pré-sync gravado ANTES de qualquer mudança: se a execução falhar
+# depois do sync (a captura do pós, por exemplo), ele sobrevive e é
+# reutilizado na próxima tentativa até a conferência concluir.
+ARQUIVO_INVENTARIO_PENDENTE = RAIZ / 'logs' / 'sync-permissions-antes-pendente.txt'
+
+
+def _sync_diretorio(pasta):
+    """Sincroniza as entradas de uma pasta no disco, para o nome novo do
+    pendente sobreviver a uma queda (POSIX: fsync no fd do diretório). No
+    Windows não há como abrir um diretório — e o replace já é durável pela
+    semântica do NTFS — então não há nada a fazer."""
+    if os.name != 'posix':
+        return
+    fd = os.open(pasta, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def capturar_inventario_antes(venv_python, env):
+    """Estado dos vínculos antes do sync, preservado entre tentativas.
+
+    Sem o arquivo pendente, uma falha depois do commit do sync perderia o
+    "antes": na nova execução o dump já sairia sincronizado, o sync diria
+    que nada foi adicionado e as revogações a reaplicar ficariam ocultas.
+    Havendo inventário pendente, ele é oferecido como estado anterior — com a
+    durabilidade reconfirmada (sync de logs/ e da raiz) antes de liberar o
+    sync-permissions: a execução anterior pode ter caído entre o replace e a
+    sincronização, deixando o arquivo publicado porém não garantido em disco."""
+    if ARQUIVO_INVENTARIO_PENDENTE.exists():
+        aviso('Inventário pré-sync pendente encontrado '
+              f'({ARQUIVO_INVENTARIO_PENDENTE.relative_to(RAIZ)}): uma execução '
+              'anterior falhou depois de sincronizar. O dump atual já pode estar '
+              'sincronizado e não serve de estado "antes".')
+        if sim_nao('Reutilizar o inventário pendente como estado anterior ao sync?',
+                   padrao=True):
+            # A publicação anterior pode não ter chegado ao disco: queda entre o
+            # replace e o sync do diretório, ou arquivo gravado por uma versão
+            # anterior do script, sem fsync do conteúdo. Reconfirma o arquivo
+            # (fsync nos dados — aberto para leitura/escrita porque o fsync do
+            # Windows exige handle de escrita) e as duas sincronizações de
+            # diretório — logs/ e a raiz, pois o logs/ pode ter nascido naquela
+            # execução — antes de liberar o sync. Sem essas garantias o
+            # inventário não pode ser tratado como durável e o sync não roda.
+            try:
+                with open(ARQUIVO_INVENTARIO_PENDENTE, 'r+b') as arquivo:
+                    os.fsync(arquivo.fileno())
+                # Leitura à parte, em modo texto: a publicação em Windows grava
+                # \r\n — read_text converte (universal newlines) e a separação
+                # continua sendo só por \n.
+                conteudo = ARQUIVO_INVENTARIO_PENDENTE.read_text(encoding='utf-8')
+                _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent)
+                _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent.parent)
+            except OSError as exc:
+                erro(f'Falha ao confirmar a durabilidade do inventário pendente ({exc}) — '
+                     'a falha ocorreu depois da publicação do arquivo: ele segue em logs/, '
+                     'mas não está garantido em disco e não pode ser tratado como durável. '
+                     'Corrija a falha (permissão ou espaço) e rode de novo; se o conteúdo '
+                     'importar, copie-o antes para um local seguro.')
+                raise SystemExit(1)
+            # Mesma separação do capturar_flask: só \n delimita linhas.
+            return [linha for linha in conteudo.split('\n') if linha.strip()]
+        # Se a remoção falhar, a gravação atômica abaixo substitui o arquivo
+        # pelo inventário novo — ou também falha e interrompe antes do sync.
+        descartar_inventario_pendente()
+    print('   Registrando o estado atual dos vínculos (flask --app run dump-permissions)')
+    antes = capturar_flask(venv_python, env, ['dump-permissions'])
+    # Publicação durável: grava num temporário da mesma pasta, força os dados
+    # para o disco (flush + fsync — o host pode cair logo após o commit do
+    # sync) e troca pelo destino; o diretório é sincronizado depois para o
+    # nome novo sobreviver a uma queda. Sem essa garantia o sync não roda:
+    # uma falha depois do commit perderia o "antes" e a próxima execução
+    # esconderia as revogações a reaplicar.
+    temporario = ARQUIVO_INVENTARIO_PENDENTE.with_suffix('.tmp')
+    pasta_criada = not ARQUIVO_INVENTARIO_PENDENTE.parent.exists()
+    try:
+        ARQUIVO_INVENTARIO_PENDENTE.parent.mkdir(exist_ok=True)
+        with open(temporario, 'w', encoding='utf-8') as arquivo:
+            arquivo.write('\n'.join(antes) + '\n')
+            arquivo.flush()
+            os.fsync(arquivo.fileno())
+        temporario.replace(ARQUIVO_INVENTARIO_PENDENTE)
+        _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent)
+        if pasta_criada:
+            _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent.parent)
+    except OSError as exc:
+        try:
+            temporario.unlink(missing_ok=True)
+        except OSError:
+            pass
+        erro(f'Não foi possível preservar o inventário pré-sync em disco: {exc} — '
+             'corrija a falha (permissão ou espaço em logs/) antes de executar o sync.')
+        raise SystemExit(1)
+    return antes
+
+
+def descartar_inventario_pendente():
+    """Remove o inventário pendente. Devolve True quando ele não existe mais
+    (removido ou já ausente) e False quando a remoção falhou — quem chama
+    decide se a falha interrompe o fluxo (a restauração interrompe)."""
+    try:
+        ARQUIVO_INVENTARIO_PENDENTE.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        erro(f'Não foi possível remover {ARQUIVO_INVENTARIO_PENDENTE}: {exc} — '
+             'apague-o à mão para a próxima execução não oferecê-lo de novo.')
+        return False
+    return True
+
+
+# Na restauração, o pendente é renomeado (não apagado) logo antes da primeira
+# alteração no banco: se a etapa falhar sem alterá-lo, volta a ser o pendente;
+# senão fica só como registro em logs/.
+ARQUIVO_INVENTARIO_INVALIDADO = ARQUIVO_INVENTARIO_PENDENTE.with_name(
+    'sync-permissions-antes-invalidado.txt')
+
+
+def invalidar_inventario_pendente():
+    """Invalida o inventário pendente imediatamente antes da primeira
+    alteração no banco restaurado: ele descreve o banco que será substituído
+    e não pode ser reaproveitado depois de uma restauração, nem parcial. Sem
+    conseguir invalidá-lo, a restauração para antes de alterar o banco.
+    Devolve True quando havia um pendente (agora invalidado)."""
+    if not ARQUIVO_INVENTARIO_PENDENTE.exists():
+        return False
+    try:
+        ARQUIVO_INVENTARIO_PENDENTE.replace(ARQUIVO_INVENTARIO_INVALIDADO)
+    except OSError as exc:
+        erro('Restauração interrompida antes de alterar o banco: o inventário '
+             f'pré-sync pendente não pôde ser invalidado ({exc}).')
+        raise SystemExit(1)
+    aviso('Inventário pré-sync pendente de uma execução anterior invalidado '
+          f'({ARQUIVO_INVENTARIO_INVALIDADO.name}): ele descreve o banco que está '
+          'sendo substituído pelo backup.')
+    return True
+
+
+def reabilitar_inventario_pendente(invalidado):
+    """Etapa interrompida sem alterar o banco: o inventário invalidado volta a
+    ser o pendente, pois continua descrevendo o banco atual."""
+    if not invalidado:
+        return
+    try:
+        ARQUIVO_INVENTARIO_INVALIDADO.replace(ARQUIVO_INVENTARIO_PENDENTE)
+    except OSError as exc:
+        erro(f'Não foi possível reabilitar o inventário pendente ({exc}) — em logs/, '
+             f'renomeie {ARQUIVO_INVENTARIO_INVALIDADO.name} para '
+             f'{ARQUIVO_INVENTARIO_PENDENTE.name} antes da próxima atualização.')
+
+
 def aplicar_schema(venv_python, env, rotulo='5. Schema do banco (Flask-Migrate/Alembic)'):
     titulo(rotulo)
     print('   Executando: flask --app run db upgrade')
@@ -445,12 +637,75 @@ def preparar_manutencao():
     return venv_python, {**os.environ, **env_arquivo}, env_arquivo
 
 
+# Estados do `systemctl is-active` que contam como serviço no ar (inclusive em
+# transição). inactive/failed contam como parado; qualquer outra saída
+# (unknown, vazia, erro de barramento) é falha de consulta.
+ESTADOS_SYSTEMD_ATIVOS = {'active', 'activating', 'deactivating', 'reloading', 'refreshing'}
+
+
+def servico_ativo(servico):
+    """True com o serviço no ar, False parado e None quando o systemctl não
+    informa o estado — uma falha na consulta não pode passar por serviço
+    parado e liberar o sync-permissions."""
+    resultado = subprocess.run(['systemctl', 'is-active', servico],
+                               capture_output=True, text=True)
+    estado = resultado.stdout.strip()
+    if resultado.returncode == 0 or estado in ESTADOS_SYSTEMD_ATIVOS:
+        return True
+    if estado in ('inactive', 'failed'):
+        return False
+    return None
+
+
+def conferir_servicos_parados(permitir_nginx_alheio=False):
+    """Interrompe a manutenção com os serviços no ar: o sync-permissions
+    devolve revogações intencionais ao papel e, com a aplicação acessível,
+    elas ficam expostas antes da conferência.
+
+    O sigere no ar sempre interrompe. O Nginx pode estar ativo por outros
+    sites da máquina (comum em desenvolvimento): com permitir_nginx_alheio, o
+    operador confirma que ele não encaminha tráfego a esta instalação e a
+    atualização segue — a proteção continua quando ele publica o SIGerE. Na
+    restauração (padrão), qualquer um dos dois ativo interrompe. Estado que
+    o systemctl não consegue informar também interrompe. Sem systemd em
+    execução (sem systemctl, ou sem /run/systemd/system — contêineres, WSL
+    sem systemd) não há serviço gerenciado a conferir."""
+    if not shutil.which('systemctl') or not Path('/run/systemd/system').is_dir():
+        return
+    estados = {s: servico_ativo(s) for s in ('sigere', 'nginx')}
+    sem_estado = [s for s, ativo in estados.items() if ativo is None]
+    if sem_estado:
+        erro(f"Não foi possível consultar o estado de {', '.join(sem_estado)} pelo "
+             'systemctl — sem essa confirmação o sync-permissions não roda. Confira à '
+             'mão (sudo systemctl is-active nginx sigere: ambos devem estar inactive) '
+             'e rode o setup de novo.')
+        raise SystemExit(1)
+    ativos = [s for s, ativo in estados.items() if ativo]
+    if 'nginx' in ativos and 'sigere' not in ativos and permitir_nginx_alheio:
+        if not sim_nao('O Nginx ativo encaminha tráfego para esta instalação do SIGerE?',
+                       padrao=True):
+            aviso('Nginx mantido no ar: confirmado que ele não atende esta instalação.')
+            return
+    if ativos:
+        erro(f"Serviço(s) no ar ({', '.join(ativos)}): o sync-permissions devolve as "
+             'revogações intencionais ao papel e, com a aplicação acessível, elas ficam '
+             'expostas antes da conferência. Pare-os primeiro (sudo systemctl stop '
+             f"{' '.join(ativos)}) e rode o setup de novo.")
+        raise SystemExit(1)
+
+
 def atualizar_sistema():
     """Rotina da seção "Atualizando a aplicação" de docs/implantacao-producao.md,
     guiada: backup de segurança → git pull → dependências → db upgrade →
     sync-permissions."""
     titulo('Modo: atualização do sistema')
     venv_python, env_processo, env_arquivo = preparar_manutencao()
+
+    # O sync devolve revogações intencionais ao papel — com os serviços no ar,
+    # elas ficam expostas antes da conferência. Guarda igual à rotina
+    # documentada e ao modo de restauração; aqui o operador pode confirmar
+    # que um Nginx ativo atende apenas outros sites da máquina.
+    conferir_servicos_parados(permitir_nginx_alheio=True)
 
     titulo('Backup de segurança')
     if sim_nao('Criar um backup do banco antes de atualizar (recomendado)?', padrao=True):
@@ -485,9 +740,31 @@ def atualizar_sistema():
                    rotulo='Schema do banco (Flask-Migrate/Alembic)')
 
     titulo('Permissões e papéis')
-    print('   Executando: flask --app run sync-permissions')
+    # Snapshot antes/depois: sem ele, o operador não distingue um vínculo novo
+    # de catálogo de uma revogação intencional que o sync acabou de devolver ao
+    # papel (mesma proteção do modo de restauração).
+    antes = capturar_inventario_antes(venv_python, env_processo)
+    print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
     executar_flask(venv_python, env_processo, ['sync-permissions'])
+    depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
     ok('Permissões e papéis sincronizados (sync-permissions).')
+    # O pendente só sai daí quando os snapshots confirmam a gravação — sem
+    # eles, o "antes" permanece preservado para a próxima execução.
+    if registrar_snapshot_vinculos(antes, depois):
+        descartar_inventario_pendente()
+    adicionados = sorted(set(depois) - set(antes))
+    removidos = sorted(set(antes) - set(depois))
+    titulo('Vínculos papel↔permissão alterados pelo sync')
+    if adicionados:
+        print('   Revise cada vínculo abaixo: entre eles podem estar permissões que')
+        print('   estavam revogadas de propósito no painel antes da atualização — as')
+        print('   confirmadas devem voltar a ficar ausentes (veja "Próximos passos"):')
+        for linha in adicionados:
+            print(f'     + {linha}')
+    else:
+        print('   Nenhum vínculo foi adicionado pelo sync.')
+    for linha in removidos:
+        print(f'     - {linha} (aposentada do catálogo pelo sync)')
 
     titulo('Resumo da atualização')
     for passo in passos:
@@ -496,7 +773,11 @@ def atualizar_sistema():
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         iniciar_servidor(venv_python, env_processo, rotulo='Servidor de desenvolvimento')
     else:
-        print('     • Reinicie o serviço: sudo systemctl restart sigere')
+        print('     • Com o tráfego ainda bloqueado, reaplique as revogações confirmadas:')
+        print('       os vínculos "+" acima que eram revogações intencionais devem voltar a')
+        print('       ficar ausentes — Flask shell via SSH com Nginx/sigere parados, ou')
+        print('       Painel Admin → Papéis numa instância local (docs/implantacao-producao.md).')
+        print('     • Só então reinicie o serviço: sudo systemctl restart sigere')
         print('     • Teste o login e a navegação: http://localhost:5000')
 
 
@@ -610,9 +891,76 @@ def escolher_arquivo_backup(motor, env):
         return candidato
 
 
+def _copiar_metadados_arquivo(origem, destino):
+    """Replica dono, grupo e modo do arquivo existente no novo (Linux: só o
+    root muda o dono — chown sem permissão levanta e a restauração para
+    antes de trocar o banco; no Windows só o modo importa e é ignorado).
+
+    Banco ausente (perdido, ou o operador pulou o backup do estado atual):
+    em vez de abortar com uma orientação sobre um arquivo que não existe,
+    aplica a política da instalação ao restaurado — modo 0o644 e o dono/grupo
+    de instance/, a pasta que a implantação entrega ao usuário do serviço —
+    e avisa para conferir o dono antes de reiniciar os serviços."""
+    try:
+        stat = origem.stat()
+    except FileNotFoundError:
+        aviso(f'O banco {origem.name} não existe (perdido, ou o backup do estado '
+              'atual foi pulado): o restaurado nasce com modo 0o644 e o dono/grupo '
+              'de instance/ — confirme que o dono é o usuário do serviço '
+              '(www-data em produção) antes de reiniciar os serviços.')
+        modo = 0o644
+        try:
+            # A pasta do projeto (RAIZ/instance), não relativa ao banco: um
+            # DATABASE_URL dentro de instance/ procuraria instance/instance.
+            stat = (RAIZ / 'instance').stat()
+        except OSError:
+            stat = None
+    else:
+        modo = stat.st_mode & 0o7777
+    os.chmod(destino, modo)
+    if stat is not None and hasattr(os, 'chown'):
+        os.chown(destino, stat.st_uid, stat.st_gid)
+
+
+def _afastar_wal_anterior(caminho_db):
+    """Renomeia -wal/-shm do banco atual para '<nome>.restaurando-antigo' antes
+    da troca: o banco restaurado nunca nasce com o WAL da sessão anterior ao
+    lado — o SQLite o recuperaria como transações dele, corrompendo os dados.
+    Devolve a lista de pares (nome original, nome afastado): o chamador recoloca
+    os arquivos se a troca falhar (banco atual segue par coerente com o WAL) e
+    apaga os afastados depois que ela tiver sucesso. Falha em renomear recoloca
+    o que já saiu e propaga: o banco atual não pode ficar sem o próprio WAL."""
+    afastados = []
+    try:
+        for sufixo in ('-wal', '-shm'):
+            lateral = Path(f'{caminho_db}{sufixo}')
+            if lateral.exists():
+                afastado = Path(f'{lateral}.restaurando-antigo')
+                lateral.replace(afastado)
+                afastados.append((lateral, afastado))
+    except OSError:
+        for lateral, afastado in afastados:
+            try:
+                afastado.replace(lateral)
+            except OSError:
+                pass
+        raise
+    return afastados
+
+
 def restaurar_sqlite(caminho_db, arquivo_backup):
-    """Sobrescreve o arquivo do banco com o snapshot gzip
-    (docs/implantacao-producao.md, seção "Restaurar")."""
+    """Substitui o arquivo do banco pelo snapshot gzip
+    (docs/implantacao-producao.md, seção "Restaurar").
+
+    O snapshot é descompactado num temporário ao lado do banco e só então
+    troca de lugar com ele (os.replace, atômico): falhas até a troca deixam
+    o banco atual intocado — e o inventário pré-sync pendente, invalidado
+    só imediatamente antes dela, preservado.
+
+    O -wal/-shm do banco atual é afastado ANTES da troca (função
+    _afastar_wal_anterior): o banco restaurado nunca fica exposto ao WAL
+    anterior, nem se a limpeza depois da troca falhar, nem se algo interromper
+    entre a troca e a limpeza."""
     with gzip.open(arquivo_backup, 'rb') as gz:
         cabecalho = gz.read(16)
     if not cabecalho.startswith(b'SQLite format 3'):
@@ -621,19 +969,62 @@ def restaurar_sqlite(caminho_db, arquivo_backup):
         raise SystemExit(1)
 
     caminho_db.parent.mkdir(parents=True, exist_ok=True)
+    temporario = caminho_db.with_name(caminho_db.name + '.restaurando')
     try:
-        with gzip.open(arquivo_backup, 'rb') as origem, open(caminho_db, 'wb') as destino:
-            shutil.copyfileobj(origem, destino)
-    except PermissionError:
-        erro(f'O arquivo {caminho_db} está em uso — pare a aplicação/servidor e rode a '
-             'restauração de novo.')
-        raise SystemExit(1)
-
-    # Restos de WAL de sessões anteriores podem invalidar o banco recém-gravado.
-    for sufixo in ('-wal', '-shm'):
-        lateral = Path(f'{caminho_db}{sufixo}')
-        if lateral.exists():
-            lateral.unlink()
+        try:
+            with gzip.open(arquivo_backup, 'rb') as origem, open(temporario, 'wb') as destino:
+                shutil.copyfileobj(origem, destino)
+        except (OSError, EOFError, zlib.error) as exc:
+            erro(f'Falha ao descompactar o backup ({exc}) — restauração abortada, o banco '
+                 'atual não foi tocado.')
+            raise SystemExit(1)
+        # O serviço (www-data no Linux) precisa continuar dono e com permissão
+        # de escrita do banco: o temporário pode ter nascido de outro usuário
+        # e, na troca, deixaria o SQLite readonly. Falha em preservar
+        # interrompe antes de substituir o banco.
+        try:
+            _copiar_metadados_arquivo(caminho_db, temporario)
+        except OSError as exc:
+            erro(f'Não foi possível replicar dono/permissões de {caminho_db.name} no '
+                 f'arquivo temporário ({exc}) — ajuste-os à mão e rode a restauração '
+                 'de novo. O banco atual não foi tocado.')
+            raise SystemExit(1)
+        invalidado = invalidar_inventario_pendente()
+        try:
+            afastados = _afastar_wal_anterior(caminho_db)
+        except OSError as exc:
+            reabilitar_inventario_pendente(invalidado)
+            erro(f'Não foi possível afastar o WAL do banco atual ({exc}) — restauração '
+                 'abortada: o banco atual segue intacto, com o WAL dele.')
+            raise SystemExit(1)
+        try:
+            os.replace(temporario, caminho_db)
+        except OSError as exc:
+            # A troca falhou: o banco atual volta a formar par com o próprio WAL.
+            for lateral, afastado in afastados:
+                try:
+                    afastado.replace(lateral)
+                except OSError:
+                    pass
+            reabilitar_inventario_pendente(invalidado)
+            erro(f'Não foi possível substituir {caminho_db} ({exc}) — se estiver em uso, '
+                 'pare a aplicação/servidor e rode a restauração de novo. O banco atual '
+                 'não foi alterado.')
+            raise SystemExit(1)
+        # Troca feita: o restaurado nasceu sem WAL anterior ao lado; os arquivos
+        # afastados são lixo (o nome não colide mais com o par banco+WAL) — a
+        # remoção que falhar é só aviso.
+        for lateral, afastado in afastados:
+            try:
+                afastado.unlink(missing_ok=True)
+            except OSError as exc:
+                aviso(f'Não foi possível remover o WAL anterior ({afastado.name}): {exc} — '
+                      'o banco restaurado não o usa; apague-o à mão quando puder.')
+    finally:
+        try:
+            temporario.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def localizar_binario(nome, dica_instalacao):
@@ -653,7 +1044,16 @@ def localizar_binario(nome, dica_instalacao):
 
 
 def restaurar_postgres(uri, arquivo_backup):
-    """Executa o dump no PostgreSQL via psql. Devolve True quando restaurou."""
+    """Executa o dump no PostgreSQL via psql. Devolve True quando restaurou.
+
+    O inventário pré-sync pendente é invalidado imediatamente antes da
+    primeira alteração (dropdb ou psql) e só volta a valer se o dropdb
+    falhar — o DROP DATABASE é atômico, então a falha não alterou nada —
+    ou se o dump nem abrir (sem recriar o banco, o psql nem começa e o
+    banco segue intocado). Falhas no createdb ou no psql deixam o banco
+    alterado: o inventário continua invalidado. A conclusão exige o
+    marcador final anexado ao stream na saída do psql: sair 0 sem
+    processar o dump inteiro (\\q em arquivo manual) também interrompe."""
     parametros = parametros_postgres(uri)
     env_psql = _ambiente_psql(parametros)
 
@@ -664,41 +1064,141 @@ def restaurar_postgres(uri, arquivo_backup):
         print('   Restauração cancelada.')
         return False
 
-    if sim_nao('Recriar o banco antes de restaurar (apaga o atual e restaura limpo — recomendado)?',
-               padrao=True):
+    recriar = sim_nao('Recriar o banco antes de restaurar (apaga o atual e restaura '
+                      'limpo — recomendado)?', padrao=True)
+    if recriar:
         pasta_bin = Path(psql).parent
         sufixo = '.exe' if os.name == 'nt' else ''
         dropdb, createdb = pasta_bin / f'dropdb{sufixo}', pasta_bin / f'createdb{sufixo}'
         if not (dropdb.is_file() and createdb.is_file()):
             erro(f'Binários dropdb/createdb não encontrados ao lado de "{psql}".')
             raise SystemExit(1)
+
+    invalidado = invalidar_inventario_pendente()
+    if recriar:
         print(f'   Recriando o banco {parametros["banco"]} em '
               f'{parametros["host"]}:{parametros["porta"]}...')
         if subprocess.run([str(dropdb), '--if-exists', parametros['banco']],
                           env=env_psql).returncode != 0:
+            reabilitar_inventario_pendente(invalidado)
             erro('Falha ao apagar o banco (dropdb) — confira as credenciais no .env.')
             raise SystemExit(1)
         dono = ['--owner', parametros['usuario']] if parametros['usuario'] else []
         if subprocess.run([str(createdb), *dono, parametros['banco']],
                           env=env_psql).returncode != 0:
+            reabilitar_inventario_pendente(invalidado)
             erro('Falha ao criar o banco (createdb).')
             raise SystemExit(1)
         print('   Banco vazio recriado.')
 
     print('   Restaurando o dump (pode levar alguns minutos)...')
-    with gzip.open(arquivo_backup, 'rb') as dump:
-        resultado = subprocess.run([psql, '-q', '-v', 'ON_ERROR_STOP=1'],
-                                   stdin=dump, env=env_psql)
-    if resultado.returncode != 0:
-        erro('Falha na restauração — o psql parou no primeiro erro (ON_ERROR_STOP). '
-             'Se o banco não estava vazio, tente de novo recriando-o antes.')
+    try:
+        dump = gzip.open(arquivo_backup, 'rb')
+    except OSError as exc:
+        # Sem o dump, o psql nem começa: quando o banco não foi recriado, a
+        # 1ª alteração ainda não aconteceu e o inventário volta a valer.
+        if not recriar:
+            reabilitar_inventario_pendente(invalidado)
+        erro(f'Falha ao abrir o backup ({exc}) — o psql não foi iniciado'
+             + ('; o banco segue recriado e vazio até a restauração conseguir.'
+                if recriar else '; o banco atual segue intocado.'))
         raise SystemExit(1)
-    return True
+    # O psql não lê gzip: stdin=dump passaria o descritor do arquivo COMPRIMIDO
+    # (o fileno() do GzipFile é do arquivo por baixo) e o psql engoliria bytes
+    # gzip como se fossem SQL. O conteúdo descomprimido é bombeado por PIPE —
+    # com a saída em arquivo, para o resultado das consultas do dump não encher
+    # um stdout=PIPE e travar o bombeio.
+    # Marcador sorteado por execução: um dump manual não pode imprimi-lo antes
+    # de um \q para fingir que processou o stream inteiro.
+    MARCA_FIM = ('SIGERE-RESTAURACAO-ATE-O-FIM-'
+                 + secrets.token_hex(16)).encode('ascii')
+    try:
+        descriptor_saida, caminho_saida = tempfile.mkstemp(
+            prefix='sigere-restauracao-psql-', suffix='.out')
+    except OSError as exc:
+        # Sem o arquivo de saída o psql nem começa: com o banco intacto (sem
+        # recriar), a 1ª alteração ainda não aconteceu e o inventário volta a
+        # valer — igual à falha de abertura do dump acima.
+        if not recriar:
+            reabilitar_inventario_pendente(invalidado)
+        erro(f'Não foi possível criar o arquivo temporário para a saída do psql '
+             f'({exc}) — o psql não foi iniciado'
+             + ('; o banco segue recriado e vazio até a restauração conseguir.'
+                if recriar else '; o banco atual segue intocado.'))
+        raise SystemExit(1)
+    try:
+        with os.fdopen(descriptor_saida, 'w+b') as saida:
+            psql_processo = subprocess.Popen([psql, '-q', '-v', 'ON_ERROR_STOP=1'],
+                                             stdin=subprocess.PIPE, stdout=saida,
+                                             env=env_psql)
+            copia_ok, falha_copia = True, None
+            try:
+                shutil.copyfileobj(dump, psql_processo.stdin)
+                # Marcador anexado ao fim do stream: chega à saída só se o psql
+                # processou tudo que veio antes — um \q em limite de comando
+                # (arquivo manual) encerra o psql 0 sem executá-lo, e um \q
+                # dentro de um statement vira erro de SQL (ON_ERROR_STOP).
+                psql_processo.stdin.write(b'\n\\echo ' + MARCA_FIM + b'\n')
+            except (OSError, EOFError, zlib.error) as exc:
+                copia_ok, falha_copia = False, exc
+            finally:
+                dump.close()
+                try:
+                    psql_processo.stdin.close()  # EOF: o psql processa o que recebeu
+                except OSError as exc:
+                    # O flush pendente falhou (o psql saiu sem ler o resto do buffer —
+                    # dump manual com \q, por exemplo): viraria falso sucesso com dump
+                    # parcial. Sem uma falha de cópia anterior, é ela que conta.
+                    if copia_ok:
+                        copia_ok, falha_copia = False, exc
+            if psql_processo.wait() != 0:
+                erro('Falha na restauração — o psql parou no primeiro erro (ON_ERROR_STOP). '
+                     'Se o banco não estava vazio, tente de novo recriando-o antes.')
+                raise SystemExit(1)
+            if not copia_ok:
+                # Guarda contra falso sucesso: o psql saiu 0 sem receber o dump inteiro
+                # (gzip corrompido truncando num limite de comando, por exemplo).
+                erro(f'Falha ao transferir o backup ao psql ({falha_copia}) — o dump pode '
+                     'estar corrompido: o psql saiu sem receber o conteúdo inteiro.')
+                raise SystemExit(1)
+            # Prova de execução até o fim: saiu 0 e a cópia foi completa, mas um
+            # \q no meio do dump encerra o psql 0 também — sem o marcador na
+            # saída, o que veio antes dele não foi processado por completo.
+            saida.seek(0, os.SEEK_END)
+            saida.seek(max(0, saida.tell() - 2048))
+            rabo_bruto = saida.read()
+            if MARCA_FIM not in rabo_bruto:
+                erro('O psql saiu sem processar o dump até o fim (\\q no arquivo manual '
+                     'ou conteúdo interrompido): a restauração não foi confirmada.')
+                rabo = rabo_bruto.decode('utf-8', errors='replace').strip()
+                if rabo:
+                    aviso('Fim da saída do psql:\n   ' + rabo.replace('\n', '\n   '))
+                raise SystemExit(1)
+        return True
+    finally:
+        try:
+            os.unlink(caminho_saida)
+        except OSError:
+            pass
 
 
 def restaurar_backup():
+    """Modo guiado de restauração de backup (SQLite ou PostgreSQL).
+
+    Substitui todos os dados atuais do banco pelo dump escolhido, aplica as
+    migrações posteriores ao backup (db upgrade) e oferece o sync-permissions
+    sob confirmação do operador: executá-lo devolve ao papel permissões
+    revogadas no backup, e pular o deixa ausentes as permissões novas do
+    catálogo — o resumo final orienta como tratar cada caso antes de
+    reiniciar os serviços e liberar o acesso.
+    """
     titulo('Modo: restauração de backup')
     venv_python, env_processo, env_arquivo = preparar_manutencao()
+
+    # Antes de tocar no banco: com sigere/Nginx no ar, os usuários seguiriam
+    # acessando o sistema enquanto o banco é substituído e o sync devolve
+    # revogações — mesma guarda da atualização, sem a exceção do Nginx.
+    conferir_servicos_parados()
 
     instalar_dependencias(venv_python, rotulo='Dependências do ambiente',
                           perguntar_reinstalacao=False)
@@ -728,6 +1228,11 @@ def restaurar_backup():
         print('   Restauração cancelada.')
         return
 
+    # O inventário pré-sync pendente (de uma atualização que falhou depois do
+    # sync) descreve o banco atual: fica preservado até a primeira alteração
+    # no banco — restaurar_sqlite/restaurar_postgres o invalidam logo antes
+    # dela e o reabilitam se a etapa falhar sem alterar nada.
+
     if sim_nao('Guardar um backup do estado atual antes de sobrescrever (recomendado)?',
                padrao=True):
         executar_flask(venv_python, env_processo, ['backup'])
@@ -746,15 +1251,84 @@ def restaurar_backup():
     executar_flask(venv_python, env_processo, ['db', 'upgrade'])
     ok('Migrações aplicadas ao banco restaurado (alembic head).')
 
+    titulo('Permissões após o backup')
+    aviso('O sync-permissions devolve aos papéis padrão da aplicação (ROLES_CONFIG) '
+          'cada permissão do catálogo que estiver ausente — inclusive uma que tenha '
+          'sido revogada de propósito no painel (Painel Admin → Papéis) antes do '
+          'backup. A adição de vínculos se limita aos papéis de ROLES_CONFIG, mas '
+          'permissões removidas de PERMISSION_DATA são apagadas com seus vínculos '
+          'de qualquer papel (inclusive legados ou criados manualmente) — confira '
+          'esses vínculos manualmente.')
+    aviso('Pular o sync também deixa ausentes as permissões NOVAS do catálogo: o painel '
+          'só lista as já gravadas no banco e não consegue recriá-las — fluxos param de '
+          'funcionar (ex.: reserva de Professor deixa de nascer Pendente). Recomendado: '
+          'rodar o sync e reaplicar as revogações no painel depois.')
+    sync_executado = sim_nao('Executar sync-permissions agora? Responda NÃO apenas se o '
+                             'backup veio da MESMA versão da aplicação (catálogo '
+                             'completo) e há revogações a preservar.', padrao=True)
+    if sync_executado:
+        # Snapshot antes/depois: sem ele, o operador não distingue um vínculo
+        # novo de catálogo de uma revogação intencional que o sync acabou de
+        # devolver ao papel.
+        antes = capturar_inventario_antes(venv_python, env_processo)
+        print('   Executando: flask --app run sync-permissions (idempotente; o boot não sincroniza)')
+        executar_flask(venv_python, env_processo, ['sync-permissions'])
+        depois = capturar_flask(venv_python, env_processo, ['dump-permissions'])
+        ok('Permissões e papéis sincronizados (sync-permissions).')
+        # Igual à atualização: descarte só com snapshots gravados.
+        if registrar_snapshot_vinculos(antes, depois):
+            descartar_inventario_pendente()
+        adicionados = sorted(set(depois) - set(antes))
+        removidos = sorted(set(antes) - set(depois))
+        titulo('Vínculos papel↔permissão alterados pelo sync')
+        if adicionados:
+            print('   Revise cada vínculo abaixo: entre eles podem estar permissões que')
+            print('   estavam revogadas de propósito no backup — as confirmadas devem')
+            print('   voltar a ficar ausentes em Painel Admin → Papéis, com o tráfego')
+            print('   ainda bloqueado:')
+            for linha in adicionados:
+                print(f'     + {linha}')
+        else:
+            print('   Nenhum vínculo foi adicionado pelo sync.')
+        for linha in removidos:
+            print(f'     - {linha} (aposentada do catálogo pelo sync)')
+    else:
+        aviso('sync-permissions pulado: revogações do backup preservadas. Confirme que o '
+              'catálogo está completo — se faltar permissão, rode o sync com o tráfego '
+              'bloqueado e reaplique as revogações em Painel Admin → Papéis ANTES de '
+              'liberar o acesso dos usuários.')
+
     titulo('Resumo da restauração')
     for passo in passos:
         print(f'   • {passo}')
     print('\n   Próximos passos:')
-    print('     • Teste o login e a navegação: http://localhost:5000')
+    print('     • Em servidor remoto, abra um túnel SSH antes de acessar o painel: '
+          'ssh -N -L 5000:127.0.0.1:5000 usuario@servidor')
+    print('     • Com Nginx e o serviço normal parados, suba uma instância local — '
+          f'PowerShell: & "{venv_python}" -m flask --app run run; demais shells: '
+          f'"{venv_python}" -m flask --app run run — com FLASK_DEBUG=true (somente '
+          'para esse acesso de restauração: fora do debug o cookie de sessão é '
+          'Secure e o login falha em HTTP; acesse http://localhost:5000) ou, sem '
+          'debug, por HTTPS: --cert /caminho/cert.pem --key /caminho/chave.pem '
+          '(acesse https://localhost:5000)')
+    if sync_executado:
+        print('     • Revise os vínculos adicionados pelo sync (listados acima) e '
+              'reaplique em Painel Admin → Papéis as revogações confirmadas; encerre '
+              'a instância local antes de reiniciar os serviços e liberar o acesso '
+              'normal')
+    if not sync_executado:
+        print('     • Confirme que o catálogo de permissões está completo (permissão '
+              'nova só entra rodando flask --app run sync-permissions; o painel não '
+              'a recria) e reaplique em Painel Admin → Papéis as revogações '
+              'preservadas do backup; encerre a instância local antes de liberar o '
+              'acesso normal')
     if env_arquivo.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on'):
         print('     • Suba o servidor: flask --app run run --debug')
+        print('     • Teste o login e a navegação: http://localhost:5000')
     else:
-        print('     • Reinicie o serviço: sudo systemctl restart sigere')
+        print('     • Reinicie Nginx e o serviço: sudo systemctl start nginx && '
+              'sudo systemctl restart sigere')
+        print('     • Teste o login e a navegação pelo endereço normal do sistema')
     print('     • O backup do banco não inclui os uploads (instance/uploads) nem o .env — '
           'para reconstruir uma máquina inteira, copie também essas partes '
           '(docs/implantacao-producao.md, "restaurar uma instalação completa").')
