@@ -358,22 +358,39 @@ class PaymentsTestCase(unittest.TestCase):
             record = db.session.query(TeacherOvertimePay).first()
             self.assertEqual(record.month_base, self._mes_seguinte())
 
-    def test_create_apos_dia_20_mes_atual_postado_conta_proximo(self):
-        # Depois do dia 20 a janela já aponta para o mês seguinte: selecionar
-        # o mês atual no Mês de Referência não traz a entrada de volta.
+    def test_create_apos_dia_20_mes_atual_postado_e_recusado(self):
+        """Depois do dia 20 a janela já aponta para o mês seguinte: o mês
+        atual postado (formulário antigo, dia virado) saiu do par e o
+        lançamento é recusado com pedido de correção — antes, o mês base caía
+        em silêncio no mês da janela enquanto o mês das datas seguia o valor
+        postado."""
         with patch('app.blueprints.payments.datetime', FixedDatetimeDia25):
             response = self.client.post('/payments/overtime/create',
                                         data=self._create_payload(
-                                            reference_month=self._mes_atual()),
+                                            reference_month=self._mes_atual(),
+                                            dates_month=self._mes_atual()),
                                         follow_redirects=True)
-        self.assertIn('Lançamento de Hora Extra realizado', response.get_data(as_text=True))
+        page = response.get_data(as_text=True)
+        self.assertIn('saiu da janela de lançamento', page)
+        self.assertNotIn('Lançamento de Hora Extra realizado', page)
         with self.app.app_context():
-            record = db.session.query(TeacherOvertimePay).first()
-            self.assertEqual(record.month_base, self._mes_seguinte())
+            self.assertEqual(db.session.query(TeacherOvertimePay).count(), 0)
+
+    def test_form_post_mes_invalido_nao_vira_referencia(self):
+        """Mês 13 tem o formato YYYY-MM, mas não é mês: não entra como opção
+        extra nem gera a dica com intervalo inexistente ("21/12 - 20/13")."""
+        response = self.client.post('/payments/overtime/create',
+                                    data=self._create_payload(reference_month='2026-13',
+                                                              hourly_value=''))
+        self.assertEqual(response.status_code, 200)  # re-render, sem redirect
+        page = response.get_data(as_text=True)
+        referencia = self._opcoes_do_select(page, 'reference_month')
+        self.assertNotIn('2026-13', {v for v, _ in referencia})
+        self.assertNotIn('20/13', page)
 
     def test_form_mostra_mes_referencia_selecionavel(self):
-        # 15/dezembro: dentro da janela e na virada do ano — o mês de
-        # pagamento do mês atual cai em janeiro do ano seguinte.
+        """15/dezembro: dentro da janela e na virada do ano — o mês de
+        pagamento do mês atual cai em janeiro do ano seguinte."""
         with patch('app.blueprints.payments.datetime', FixedDatetimeDez15):
             page = self.client.get('/payments/overtime/create').get_data(as_text=True)
         self.assertIn('Mês de Referência', page)
@@ -415,11 +432,11 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertEqual(por_opcao.get('2020-05'), visivel)
 
     def test_form_post_referencia_fora_da_janela_preserva_datas(self):
-        # POST com erro de validação em 25/10 trazendo a referência outubro
-        # (que saiu do par da janela) e datas em setembro: a referência volta
-        # como opção extra, selecionada, e o par de datas dela é preservado —
-        # sem isso o navegador cairia na primeira opção e o realinhamento do
-        # JavaScript reinterpretaria as datas de setembro em outro mês.
+        """POST com erro de validação em 25/10 trazendo a referência outubro
+        (que saiu do par da janela) e datas em setembro: a referência volta
+        como opção extra, selecionada, e o par de datas dela é preservado —
+        sem isso o navegador cairia na primeira opção e o realinhamento do
+        JavaScript reinterpretaria as datas de setembro em outro mês."""
         atual, seguinte, anterior = (self._mes_atual(), self._mes_seguinte(),
                                      self._mes_anterior())
         ano, mes = int(seguinte[:4]), int(seguinte[5:7])
@@ -462,9 +479,9 @@ class PaymentsTestCase(unittest.TestCase):
         return visivel.group(1), por_opcao
 
     def test_form_apos_dia_20_oferece_proximo_e_seguinte(self):
-        # Depois do dia 20 o mês atual sai das opções do Mês de Referência:
-        # lançamento nele já vira o próximo. O par passa a ser [próximo,
-        # seguinte], cada um com a dica de intervalo e mês de pagamento.
+        """Depois do dia 20 o mês atual sai das opções do Mês de Referência:
+        lançamento nele já vira o próximo. O par passa a ser [próximo,
+        seguinte], cada um com a dica de intervalo e mês de pagamento."""
         atual, seguinte = self._mes_atual(), self._mes_seguinte()
         ano, mes = int(seguinte[:4]), int(seguinte[5:7])
         mes += 1
@@ -483,8 +500,8 @@ class PaymentsTestCase(unittest.TestCase):
         self.assertIn(f'21/{seguinte[5:7]} - 20/{seguinte2[5:7]}', por_opcao[seguinte2])
 
     def test_create_apos_dia_20_seguinte_da_janela_anteipa(self):
-        # Depois do dia 20, selecionar o mês seguinte ao da janela (o segundo
-        # das opções) grava o lançamento nele — antecipação.
+        """Depois do dia 20, selecionar o mês seguinte ao da janela (o
+        segundo das opções) grava o lançamento nele — antecipação."""
         seguinte = self._mes_seguinte()
         ano, mes = int(seguinte[:4]), int(seguinte[5:7])
         mes += 1
