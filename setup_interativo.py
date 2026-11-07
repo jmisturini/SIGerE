@@ -922,6 +922,32 @@ def _copiar_metadados_arquivo(origem, destino):
         os.chown(destino, stat.st_uid, stat.st_gid)
 
 
+def _afastar_wal_anterior(caminho_db):
+    """Renomeia -wal/-shm do banco atual para '<nome>.restaurando-antigo' antes
+    da troca: o banco restaurado nunca nasce com o WAL da sessão anterior ao
+    lado — o SQLite o recuperaria como transações dele, corrompendo os dados.
+    Devolve a lista de pares (nome original, nome afastado): o chamador recoloca
+    os arquivos se a troca falhar (banco atual segue par coerente com o WAL) e
+    apaga os afastados depois que ela tiver sucesso. Falha em renomear recoloca
+    o que já saiu e propaga: o banco atual não pode ficar sem o próprio WAL."""
+    afastados = []
+    try:
+        for sufixo in ('-wal', '-shm'):
+            lateral = Path(f'{caminho_db}{sufixo}')
+            if lateral.exists():
+                afastado = Path(f'{lateral}.restaurando-antigo')
+                lateral.replace(afastado)
+                afastados.append((lateral, afastado))
+    except OSError:
+        for lateral, afastado in afastados:
+            try:
+                afastado.replace(lateral)
+            except OSError:
+                pass
+        raise
+    return afastados
+
+
 def restaurar_sqlite(caminho_db, arquivo_backup):
     """Substitui o arquivo do banco pelo snapshot gzip
     (docs/implantacao-producao.md, seção "Restaurar").
@@ -929,7 +955,12 @@ def restaurar_sqlite(caminho_db, arquivo_backup):
     O snapshot é descompactado num temporário ao lado do banco e só então
     troca de lugar com ele (os.replace, atômico): falhas até a troca deixam
     o banco atual intocado — e o inventário pré-sync pendente, invalidado
-    só imediatamente antes dela, preservado."""
+    só imediatamente antes dela, preservado.
+
+    O -wal/-shm do banco atual é afastado ANTES da troca (função
+    _afastar_wal_anterior): o banco restaurado nunca fica exposto ao WAL
+    anterior, nem se a limpeza depois da troca falhar, nem se algo interromper
+    entre a troca e a limpeza."""
     with gzip.open(arquivo_backup, 'rb') as gz:
         cabecalho = gz.read(16)
     if not cabecalho.startswith(b'SQLite format 3'):
@@ -960,24 +991,40 @@ def restaurar_sqlite(caminho_db, arquivo_backup):
             raise SystemExit(1)
         invalidado = invalidar_inventario_pendente()
         try:
+            afastados = _afastar_wal_anterior(caminho_db)
+        except OSError as exc:
+            reabilitar_inventario_pendente(invalidado)
+            erro(f'Não foi possível afastar o WAL do banco atual ({exc}) — restauração '
+                 'abortada: o banco atual segue intacto, com o WAL dele.')
+            raise SystemExit(1)
+        try:
             os.replace(temporario, caminho_db)
         except OSError as exc:
+            # A troca falhou: o banco atual volta a formar par com o próprio WAL.
+            for lateral, afastado in afastados:
+                try:
+                    afastado.replace(lateral)
+                except OSError:
+                    pass
             reabilitar_inventario_pendente(invalidado)
             erro(f'Não foi possível substituir {caminho_db} ({exc}) — se estiver em uso, '
                  'pare a aplicação/servidor e rode a restauração de novo. O banco atual '
                  'não foi alterado.')
             raise SystemExit(1)
+        # Troca feita: o restaurado nasceu sem WAL anterior ao lado; os arquivos
+        # afastados são lixo (o nome não colide mais com o par banco+WAL) — a
+        # remoção que falhar é só aviso.
+        for lateral, afastado in afastados:
+            try:
+                afastado.unlink(missing_ok=True)
+            except OSError as exc:
+                aviso(f'Não foi possível remover o WAL anterior ({afastado.name}): {exc} — '
+                      'o banco restaurado não o usa; apague-o à mão quando puder.')
     finally:
         try:
             temporario.unlink(missing_ok=True)
         except OSError:
             pass
-
-    # Restos de WAL de sessões anteriores podem invalidar o banco recém-gravado.
-    for sufixo in ('-wal', '-shm'):
-        lateral = Path(f'{caminho_db}{sufixo}')
-        if lateral.exists():
-            lateral.unlink()
 
 
 def localizar_binario(nome, dica_instalacao):
@@ -1001,9 +1048,10 @@ def restaurar_postgres(uri, arquivo_backup):
 
     O inventário pré-sync pendente é invalidado imediatamente antes da
     primeira alteração (dropdb ou psql) e só volta a valer se o dropdb
-    falhar — o DROP DATABASE é atômico, então a falha não alterou nada.
-    Falhas no createdb ou no psql deixam o banco alterado: o inventário
-    continua invalidado."""
+    falhar — o DROP DATABASE é atômico, então a falha não alterou nada —
+    ou se o dump nem abrir (sem recriar o banco, o psql nem começa e o
+    banco segue intocado). Falhas no createdb ou no psql deixam o banco
+    alterado: o inventário continua invalidado."""
     parametros = parametros_postgres(uri)
     env_psql = _ambiente_psql(parametros)
 
@@ -1042,7 +1090,18 @@ def restaurar_postgres(uri, arquivo_backup):
         print('   Banco vazio recriado.')
 
     print('   Restaurando o dump (pode levar alguns minutos)...')
-    with gzip.open(arquivo_backup, 'rb') as dump:
+    try:
+        dump = gzip.open(arquivo_backup, 'rb')
+    except OSError as exc:
+        # Sem o dump, o psql nem começa: quando o banco não foi recriado, a
+        # 1ª alteração ainda não aconteceu e o inventário volta a valer.
+        if not recriar:
+            reabilitar_inventario_pendente(invalidado)
+        erro(f'Falha ao abrir o backup ({exc}) — o psql não foi iniciado'
+             + ('; o banco segue recriado e vazio até a restauração conseguir.'
+                if recriar else '; o banco atual segue intocado.'))
+        raise SystemExit(1)
+    with dump:
         resultado = subprocess.run([psql, '-q', '-v', 'ON_ERROR_STOP=1'],
                                    stdin=dump, env=env_psql)
     if resultado.returncode != 0:
