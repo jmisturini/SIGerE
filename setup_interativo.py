@@ -1108,9 +1108,24 @@ def restaurar_postgres(uri, arquivo_backup):
     # gzip como se fossem SQL. O conteúdo descomprimido é bombeado por PIPE —
     # com a saída em arquivo, para o resultado das consultas do dump não encher
     # um stdout=PIPE e travar o bombeio.
-    MARCA_FIM = b'SIGERE-RESTAURACAO-ATE-O-FIM'
-    descriptor_saida, caminho_saida = tempfile.mkstemp(
-        prefix='sigere-restauracao-psql-', suffix='.out')
+    # Marcador sorteado por execução: um dump manual não pode imprimi-lo antes
+    # de um \q para fingir que processou o stream inteiro.
+    MARCA_FIM = ('SIGERE-RESTAURACAO-ATE-O-FIM-'
+                 + secrets.token_hex(16)).encode('ascii')
+    try:
+        descriptor_saida, caminho_saida = tempfile.mkstemp(
+            prefix='sigere-restauracao-psql-', suffix='.out')
+    except OSError as exc:
+        # Sem o arquivo de saída o psql nem começa: com o banco intacto (sem
+        # recriar), a 1ª alteração ainda não aconteceu e o inventário volta a
+        # valer — igual à falha de abertura do dump acima.
+        if not recriar:
+            reabilitar_inventario_pendente(invalidado)
+        erro(f'Não foi possível criar o arquivo temporário para a saída do psql '
+             f'({exc}) — o psql não foi iniciado'
+             + ('; o banco segue recriado e vazio até a restauração conseguir.'
+                if recriar else '; o banco atual segue intocado.'))
+        raise SystemExit(1)
     try:
         with os.fdopen(descriptor_saida, 'w+b') as saida:
             psql_processo = subprocess.Popen([psql, '-q', '-v', 'ON_ERROR_STOP=1'],
