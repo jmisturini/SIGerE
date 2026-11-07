@@ -1115,8 +1115,12 @@ def restaurar_postgres(uri, arquivo_backup):
         dump.close()
         try:
             psql_processo.stdin.close()  # EOF: o psql processa o que recebeu
-        except OSError:
-            pass  # o psql já saiu (ON_ERROR_STOP) e fechou o próprio lado do pipe
+        except OSError as exc:
+            # O flush pendente falhou (o psql saiu sem ler o resto do buffer —
+            # dump manual com \q, por exemplo): viraria falso sucesso com dump
+            # parcial. Sem uma falha de cópia anterior, é ela que conta.
+            if copia_ok:
+                copia_ok, falha_copia = False, exc
     if psql_processo.wait() != 0:
         erro('Falha na restauração — o psql parou no primeiro erro (ON_ERROR_STOP). '
              'Se o banco não estava vazio, tente de novo recriando-o antes.')
