@@ -429,15 +429,23 @@ def capturar_inventario_antes(venv_python, env):
               'sincronizado e não serve de estado "antes".')
         if sim_nao('Reutilizar o inventário pendente como estado anterior ao sync?',
                    padrao=True):
-            # A publicação anterior pode não ter chegado ao disco (queda entre o
-            # replace e o sync do diretório): repete as duas sincronizações —
-            # logs/ e a raiz, pois o logs/ pode ter nascido naquela execução —
-            # antes de liberar o sync. Sem essa garantia o inventário não pode
-            # ser tratado como durável e o sync não roda.
+            # A publicação anterior pode não ter chegado ao disco: queda entre o
+            # replace e o sync do diretório, ou arquivo gravado por uma versão
+            # anterior do script, sem fsync do conteúdo. Reconfirma o arquivo
+            # (fsync nos dados — aberto para leitura/escrita porque o fsync do
+            # Windows exige handle de escrita) e as duas sincronizações de
+            # diretório — logs/ e a raiz, pois o logs/ pode ter nascido naquela
+            # execução — antes de liberar o sync. Sem essas garantias o
+            # inventário não pode ser tratado como durável e o sync não roda.
             try:
+                with open(ARQUIVO_INVENTARIO_PENDENTE, 'r+b') as arquivo:
+                    os.fsync(arquivo.fileno())
+                # Leitura à parte, em modo texto: a publicação em Windows grava
+                # \r\n — read_text converte (universal newlines) e a separação
+                # continua sendo só por \n.
+                conteudo = ARQUIVO_INVENTARIO_PENDENTE.read_text(encoding='utf-8')
                 _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent)
                 _sync_diretorio(ARQUIVO_INVENTARIO_PENDENTE.parent.parent)
-                conteudo = ARQUIVO_INVENTARIO_PENDENTE.read_text(encoding='utf-8')
             except OSError as exc:
                 erro(f'Falha ao confirmar a durabilidade do inventário pendente ({exc}) — '
                      'a falha ocorreu depois da publicação do arquivo: ele segue em logs/, '
@@ -902,7 +910,9 @@ def _copiar_metadados_arquivo(origem, destino):
               '(www-data em produção) antes de reiniciar os serviços.')
         modo = 0o644
         try:
-            stat = (origem.parent / 'instance').stat()
+            # A pasta do projeto (RAIZ/instance), não relativa ao banco: um
+            # DATABASE_URL dentro de instance/ procuraria instance/instance.
+            stat = (RAIZ / 'instance').stat()
         except OSError:
             stat = None
     else:
