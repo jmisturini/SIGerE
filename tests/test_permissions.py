@@ -9,12 +9,14 @@ por módulo desligado na unidade (@require_module).
 import os
 import tempfile
 import unittest
+from datetime import date, time, timedelta
 
 from app import create_app
 from app.commands import _seed_permissions, sync_permissions_impl
 from app.config import Config
 from app.extensions import db
-from app.models import Permission, Role, Unity, User
+from app.models import (Classroom, Permission, Reservation, Role, RoomCategory,
+                        Unity, User)
 
 SENHA = 'SenhaForte123'
 
@@ -170,6 +172,107 @@ class PermissionsAccessTestCase(unittest.TestCase):
             unity.kitchen_enabled = False
             db.session.commit()
         self._asserta('teacher+kitchen', '/kitchen/fichas', 403)
+
+    # ---------- Escopo da aprovação (reservation:approve) ----------
+
+    def _criar_pendencia(self, email_criador, email_docente):
+        """Cria sala e reserva pendente direto no banco; devolve o id."""
+        with self.app.app_context():
+            criador = User.query.filter_by(email=email_criador).first()
+            docente = User.query.filter_by(email=email_docente).first()
+            # Códigos com sufixo: category/room têm code único no banco e o
+            # teste cria mais de uma reserva.
+            sufixo = RoomCategory.query.count() + 1
+            category = RoomCategory(name=f'Categoria Aprovação {sufixo}',
+                                    code=f'CA{sufixo}')
+            db.session.add(category)
+            db.session.flush()
+            room = Classroom(name=f'Sala Aprovação {sufixo}', code=f'SAP{sufixo}',
+                             capacity=10, unity_id=Unity.query.first().id,
+                             category_id=category.id)
+            db.session.add(room)
+            db.session.flush()
+            reserva = Reservation(
+                user_id=criador.id, classroom_id=room.id, teacher_id=docente.id,
+                unity_id=room.unity_id, title='Pendência de Teste',
+                date=date.today() + timedelta(days=1),
+                start_time=time(9, 0), end_time=time(10, 0), status='pending')
+            db.session.add(reserva)
+            db.session.commit()
+            return reserva.id
+
+    def test_analista_nao_aprova_pendencia_de_terceiro(self):
+        """A rota de aprovação reforça o mesmo escopo do detalhe: sem
+        reservation:read_all, o Analista só aprova com vínculo (criador ou
+        professor designado) — POST direto em pendência de terceiro recebe
+        403 e a reserva segue pendente."""
+        reserva_id = self._criar_pendencia('prof@escola.edu', 'prof@escola.edu')
+        self._entrar_como('coordinator')
+        response = self.client.post(f'/reservations/{reserva_id}/approve')
+        self.assertEqual(response.status_code, 403)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, reserva_id).status,
+                             'pending')
+
+    def test_gestor_aprova_pendencia_de_terceiro(self):
+        """Com reservation:read_all, o Gestor aprova qualquer pendência."""
+        reserva_id = self._criar_pendencia('prof@escola.edu', 'prof@escola.edu')
+        self._entrar_como('room_manager')
+        response = self.client.post(f'/reservations/{reserva_id}/approve',
+                                    follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, reserva_id).status,
+                             'approved')
+
+    def test_analista_aprova_pendencia_com_vinculo(self):
+        """O vínculo dá o acesso: pendência criada pelo próprio Analista —
+        ou em que ele é o docente designado — pode ser aprovada por ele."""
+        propria_id = self._criar_pendencia('analista@escola.edu',
+                                           'prof@escola.edu')
+        designada_id = self._criar_pendencia('prof@escola.edu',
+                                             'analista@escola.edu')
+        self._entrar_como('coordinator')
+        for reserva_id in (propria_id, designada_id):
+            response = self.client.post(f'/reservations/{reserva_id}/approve',
+                                        follow_redirects=True)
+            self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, propria_id).status,
+                             'approved')
+            self.assertEqual(db.session.get(Reservation, designada_id).status,
+                             'approved')
+
+    def test_aprovador_sem_read_own_nao_aprova_mesmo_vinculado(self):
+        """Vínculo não substitui a permissão: papel com reservation:approve
+        mas SEM reservation:read_own recebe 403 mesmo sendo o criador da
+        pendência — sem este caso, remover a exigência de read_own do escopo
+        deixaria os testes atuais passando."""
+        with self.app.app_context():
+            papel = Role(name='aprovador-sem-leitura', label='Aprovador sem Leitura',
+                         permissions=[Permission.query.filter_by(
+                             code='reservation:approve').first()])
+            db.session.add(papel)
+            db.session.flush()
+            usuario = User(email='aprovador@escola.edu',
+                           full_name='Aprovador Sem Leitura', role='room',
+                           profile_type='teacher', unities=[Unity.query.first()],
+                           role_id=papel.id, force_password_change=False,
+                           is_active_user=True)
+            usuario.set_password(SENHA)
+            db.session.add(usuario)
+            db.session.commit()
+        reserva_id = self._criar_pendencia('aprovador@escola.edu', 'prof@escola.edu')
+        self.client.get('/logout')
+        self.assertEqual(self.client.post('/login',
+                                          data={'email': 'aprovador@escola.edu',
+                                                'password': SENHA},
+                                          follow_redirects=True).status_code, 200)
+        response = self.client.post(f'/reservations/{reserva_id}/approve')
+        self.assertEqual(response.status_code, 403)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, reserva_id).status,
+                             'pending')
 
     # ---------- Aposentadoria de permissões pelo sync ----------
 
