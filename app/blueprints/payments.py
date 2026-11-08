@@ -21,6 +21,30 @@ from app.utils import redirect_back, redirect_preserving_args
 # lxml não os remove, e o arquivo sairia corrompido.
 _INVALIDOS_XML = re.compile('[\ud800-\udfff\ufffe\uffff]')
 
+# Limite de caracteres da célula do Excel.
+LIMITE_CELULA = 32767
+
+
+def _texto_para_celula(value):
+    """Sanitiza texto de operador para a célula: remove o que o openpyxl
+    recusa (IllegalCharacterError) e o que invalida o XML do arquivo, até
+    reunir o limite de caracteres válidos da célula — o processamento para
+    aí, então um valor gigante não paga substituição integral e o texto
+    válido que vem DEPOIS de uma sequência de controles é preservado."""
+    if not isinstance(value, str):
+        return value
+    pedacos = []
+    restantes = LIMITE_CELULA
+    for inicio in range(0, len(value), 65536):
+        if restantes <= 0:
+            break
+        fatia = value[inicio:inicio + 65536]
+        limpo = _INVALIDOS_XML.sub('', ILLEGAL_CHARACTERS_RE.sub('', fatia))
+        if limpo:
+            pedacos.append(limpo[:restantes])
+            restantes -= len(pedacos[-1])
+    return ''.join(pedacos)
+
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 
 PAYS_PER_PAGE = 25
@@ -1016,18 +1040,11 @@ def _planilha_overtime(overtimes, month_base):
         ]
 
         for col, value in cell_data:
-            # Texto livre do operador pode trazer caracteres que o openpyxl
-            # recusa (IllegalCharacterError) e os que tornam o XML do arquivo
-            # inválido mesmo aceitos no valor (surrogates, U+FFFE/U+FFFF — o
-            # writer sem lxml não os filtra). Remove tudo ANTES de escrever;
-            # o export quebrado derrubaria o download às vezes após o
-            # fechamento do mês, que já commitou. A cota antes do regex limita
-            # o processamento de valores gigantes — a célula do Excel comporta
-            # 32.767 caracteres.
-            if isinstance(value, str):
-                value = value[:40960]
-                value = _INVALIDOS_XML.sub('', ILLEGAL_CHARACTERS_RE.sub('', value))
-                value = value[:32767]
+            # Texto livre do operador é sanitizado (controles que o openpyxl
+            # recusa e XML-inválidos) até o limite da célula — o export
+            # quebrado derrubaria o download às vezes após o fechamento do
+            # mês, que já commitou.
+            value = _texto_para_celula(value)
             cell = ws.cell(row=baseline, column=col, value=value)
             # Texto livre do operador (tipo de curso, justificativa etc.) é
             # gravado como literal: o openpyxl trata string iniciada por '='
