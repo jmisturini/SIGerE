@@ -137,10 +137,10 @@
     {% if args_d.get('end') %}{{ chip_filtro('end', 'Até: ' ~ args_d.get('end')) }}{% endif %}
     {% if args_d.get('period') %}{{ chip_filtro('period', 'Período: ' ~ ({'morning': 'Manhã', 'afternoon': 'Tarde', 'night': 'Noite'}[args_d.get('period')])) }}{% endif %}
     {% if args_d.get('status') %}{{ chip_filtro('status', 'Status: ' ~ ({'approved': 'Aprovada', 'pending': 'Pendente', 'cancelled': 'Cancelada'}.get(args_d.get('status'), args_d.get('status')))) }}{% endif %}
-    {% if args_d.get('room_id') %}{% for c in classrooms %}{% if c.id|string == args_d.get('room_id') %}{{ chip_filtro('room_id', 'Sala: ' ~ c.code) }}{% endif %}{% endfor %}{% endif %}
-    {% if args_d.get('teacher_id') %}{% for p in teachers %}{% if p.id|string == args_d.get('teacher_id') %}{{ chip_filtro('teacher_id', 'Professor: ' ~ p.full_name) }}{% endif %}{% endfor %}{% endif %}
-    {% if args_d.get('course_id') %}{% for c in courses %}{% if c.id|string == args_d.get('course_id') %}{{ chip_filtro('course_id', 'Curso: ' ~ c.name) }}{% endif %}{% endfor %}{% endif %}
-    {% if args_d.get('subject_id') %}{% for s in subjects %}{% if s.id|string == args_d.get('subject_id') %}{{ chip_filtro('subject_id', 'Disciplina: ' ~ s.name) }}{% endif %}{% endfor %}{% endif %}
+    {% if args_d.get('room_id') %}{% set achado = namespace(nome=None) %}{% for c in classrooms %}{% if c.id|string == args_d.get('room_id') %}{% set achado.nome = c.code %}{% endif %}{% endfor %}{{ chip_filtro('room_id', 'Sala: ' ~ (achado.nome or ('#' ~ args_d.get('room_id') ~ ' (inativa)'))) }}{% endif %}
+    {% if args_d.get('teacher_id') %}{% set achado = namespace(nome=None) %}{% for p in teachers %}{% if p.id|string == args_d.get('teacher_id') %}{% set achado.nome = p.full_name %}{% endif %}{% endfor %}{{ chip_filtro('teacher_id', 'Professor: ' ~ (achado.nome or ('#' ~ args_d.get('teacher_id') ~ ' (inativo)'))) }}{% endif %}
+    {% if args_d.get('course_id') %}{% set achado = namespace(nome=None) %}{% for c in courses %}{% if c.id|string == args_d.get('course_id') %}{% set achado.nome = c.name %}{% endif %}{% endfor %}{{ chip_filtro('course_id', 'Curso: ' ~ (achado.nome or ('#' ~ args_d.get('course_id') ~ ' (inativo)'))) }}{% endif %}
+    {% if args_d.get('subject_id') %}{% set achado = namespace(nome=None) %}{% for s in subjects %}{% if s.id|string == args_d.get('subject_id') %}{% set achado.nome = s.name %}{% endif %}{% endfor %}{{ chip_filtro('subject_id', 'Disciplina: ' ~ (achado.nome or ('#' ~ args_d.get('subject_id') ~ ' (inativo)'))) }}{% endif %}
     {% if args_d.get('ordem') and args_d.get('ordem') != 'data_asc' %}{{ chip_filtro('ordem', 'Ordenação personalizada') }}{% endif %}
     <a class="fa-limpar" href="{{ url_for('reservations.all_reservations', periodo=periodo) }}">Limpar tudo</a>
 </div>

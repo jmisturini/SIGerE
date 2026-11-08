@@ -31,6 +31,26 @@ def upgrade():
 
 
 def downgrade():
+    # A volta ao catálogo só é segura com correspondência exata para todo
+    # lançamento: sem ela, o FK ficaria nulo e o drop da coluna course_type
+    # descartaria o texto original — perda permanente. Aborta ANTES de
+    # alterar o schema, listando os valores sem correspondência.
+    sem_correspondencia = op.get_bind().execute(sa.text("""
+        SELECT DISTINCT course_type FROM teacher_overtime_pay
+        WHERE course_type IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM course_types ct
+                          WHERE ct.name = teacher_overtime_pay.course_type)
+        ORDER BY course_type
+    """)).scalars().all()
+    if sem_correspondencia:
+        raise RuntimeError(
+            'Downgrade abortado antes de alterar o schema: há lançamentos de '
+            'Hora Extra com "Tipo de Curso" sem correspondência exata no '
+            'catálogo (course_types): '
+            + ', '.join(repr(v) for v in sem_correspondencia)
+            + '. Preserve-os antes de reexecutar (ex.: cadastre os tipos no '
+            'catálogo com o mesmo nome, ou ajuste os lançamentos).')
+
     # Best effort: re-liga os lançamentos ao catálogo pelo nome exato; sem
     # correspondência, o FK fica nulo (coluna sempre foi nullable).
     with op.batch_alter_table('teacher_overtime_pay', schema=None) as batch_op:

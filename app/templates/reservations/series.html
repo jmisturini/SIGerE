@@ -4,6 +4,13 @@
 
 {% block content %}
 {{ cabecalho_pagina('Salas e Reservas', 'Gerenciar Série de Repetição', None) }}
+{# Voltar fora dos portões de permissão: quem só consulta a série (ex.:
+   professor designado numa reserva futura) também precisa voltar à reserva. #}
+<div class="mb-3">
+    <a href="{{ url_for('reservations.detail', reservation_id=res.id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar à reserva
+    </a>
+</div>
 <div class="card">
     <div class="card-body p-4">
         <div class="form-card-head">

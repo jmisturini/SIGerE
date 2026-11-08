@@ -3,7 +3,7 @@
 {% block title %}Tipos de Curso{% endblock %}
 
 {% block content %}
-{% call cabecalho_pagina('Administração', 'Tipos de Curso', 'Catálogo usado no campo "Tipo de Curso" do lançamento de Hora Extra.') %}
+{% call cabecalho_pagina('Administração', 'Tipos de Curso', 'Catálogo administrativo de tipos de curso — o campo "Tipo de Curso" da Hora Extra é texto livre e não o utiliza.') %}
     {% if current_user.has_permission('course_type:create') %}
     <div class="d-flex flex-wrap gap-2">
         <a href="{{ url_for('admin.create_course_type') }}" class="btn btn-primary">

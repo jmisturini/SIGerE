@@ -6,6 +6,7 @@ nota de segurança) são-presentes em todas as renderizações — os testes
 guardam contra regressão de estrutura.
 """
 import os
+import re
 import tempfile
 import unittest
 
@@ -75,10 +76,21 @@ class FaixaMarcaLoginTestCase(unittest.TestCase):
         page = self.client.get('/dashboard').get_data(as_text=True)
         self.assertIn('painel-faixa-titulo', page)
         self.assertIn('Gestão de Salas e Reservas', page)
-        # Os quatro módulos do strip, com seus ícones
-        for modulo in ('Reservas', 'Salas', 'Relatórios', 'Financeiro'):
-            self.assertIn('painel-faixa-item', page)
-            self.assertIn(modulo, page)
+        # Os quatro módulos do strip, cada um com o seu ícone — verificados
+        # DENTRO da faixa: um item sem ícone (ou fora dela) falha o teste.
+        self.assertIn('<div class="painel-faixa-strip">', page)
+        strip = page.partition('<div class="painel-faixa-strip">')[2].partition('</div>')[0]
+        for modulo, icone in (
+            ('Reservas', 'bi-calendar-week'),
+            ('Salas', 'bi-door-open'),
+            ('Relatórios', 'bi-graph-up'),
+            ('Financeiro', 'bi-wallet2'),
+        ):
+            self.assertRegex(
+                strip,
+                rf'<span class="painel-faixa-item">\s*'
+                rf'<i class="bi {icone}"[^>]*></i>\s*{modulo}</span>',
+            )
         self.assertIn('Rotina acadêmica sem conflito de horário', page)
 
     # --- Login renovado ---
@@ -96,8 +108,22 @@ class FaixaMarcaLoginTestCase(unittest.TestCase):
         self.assertIn('Senac Santa Catarina', page)
 
     def test_login_continua_funcionando(self):
-        """Guarda de regressão: o acabamento não pode quebrar a autenticação."""
-        resposta = self.client.post('/login',
+        """Guarda de regressão: o acabamento não pode quebrar a autenticação —
+        o envio segue o formulário REALMENTE renderizado (nomes dos campos e
+        destino do POST), não um POST às cegas."""
+        pagina = self.client.get('/login').get_data(as_text=True)
+        form = re.search(r'<form\b[^>]*>.*?</form>', pagina, re.S)
+        self.assertIsNotNone(form, 'formulário de login ausente na página')
+        formulario = form.group(0)
+        self.assertIn('method="POST"', formulario.split('>')[0])
+        # Ação: atributo action quando presente; sem ele, o POST vai para a
+        # própria /login (página que rendeu o formulário).
+        acao = re.search(r'<form\b[^>]*\baction="([^"]+)"', formulario)
+        destino = acao.group(1) if acao else '/login'
+        self.assertIn('/login', destino)
+        self.assertRegex(formulario, r'<input\b[^>]*\bname="email"')
+        self.assertRegex(formulario, r'<input\b[^>]*\bname="password"')
+        resposta = self.client.post(destino,
                                     data={'email': EMAIL, 'password': PASSWORD},
                                     follow_redirects=True)
         self.assertEqual(resposta.status_code, 200)

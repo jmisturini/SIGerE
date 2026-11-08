@@ -117,9 +117,12 @@ def hub_salas_reservas():
 def hub_financeiro_rh():
     """Central Financeiro/RH: Hora Extra, Vale-Transporte, Vale Alimentação
     e Adicional Noturno — cards-portais que abrem os blocos de conteúdos.
-    Os caminhos respeitam a permissão de quem acessa; sem nenhum deles,
+    Os caminhos respeitam a permissão de quem acessa — inclusive quem só
+    cria/edita Hora Extra, sem leitura (o Analista). Sem nenhuma delas,
     volta ao Painel — a sidebar também esconde o item nesse caso."""
     tem_secao = (current_user.has_permission('payment:read')
+                 or current_user.has_permission('payment:create')
+                 or current_user.has_permission('payment:edit')
                  or current_user.has_permission('vt:read')
                  or current_user.has_permission('meal:read')
                  or current_user.has_permission('an:read'))

@@ -983,6 +983,11 @@ def _planilha_overtime(overtimes, month_base):
 
         for col, value in cell_data:
             cell = ws.cell(row=baseline, column=col, value=value)
+            # Texto livre do operador (tipo de curso, justificativa etc.) é
+            # gravado como literal: o openpyxl trata string iniciada por '='
+            # como fórmula, e a planilha a avaliaria na abertura.
+            if isinstance(value, str) and value.startswith('='):
+                cell.data_type = 's'
             cell.border = border
             cell.font = font
             cell.alignment = alignment
