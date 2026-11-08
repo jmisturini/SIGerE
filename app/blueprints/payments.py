@@ -17,6 +17,10 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from app.permissions import require_module, require_permission
 from app.utils import redirect_back, redirect_preserving_args
 
+# XML 1.0 proíbe surrogates e os não-caracteres U+FFFE/U+FFFF: o writer sem
+# lxml não os remove, e o arquivo sairia corrompido.
+_INVALIDOS_XML = re.compile('[\ud800-\udfff\ufffe\uffff]')
+
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 
 PAYS_PER_PAGE = 25
@@ -1012,13 +1016,18 @@ def _planilha_overtime(overtimes, month_base):
         ]
 
         for col, value in cell_data:
-            # Texto livre do operador pode trazer caracteres de controle
-            # (ex.: colagem de outro sistema): o openpyxl os recusa com
-            # IllegalCharacterError e o export inteiro falha — às vezes após
-            # o fechamento do mês, que já commitou. Remove-os antes de
-            # escrever e aplica a checagem de fórmula ao valor sanitizado.
+            # Texto livre do operador pode trazer caracteres que o openpyxl
+            # recusa (IllegalCharacterError) e os que tornam o XML do arquivo
+            # inválido mesmo aceitos no valor (surrogates, U+FFFE/U+FFFF — o
+            # writer sem lxml não os filtra). Remove tudo ANTES de escrever;
+            # o export quebrado derrubaria o download às vezes após o
+            # fechamento do mês, que já commitou. A cota antes do regex limita
+            # o processamento de valores gigantes — a célula do Excel comporta
+            # 32.767 caracteres.
             if isinstance(value, str):
-                value = ILLEGAL_CHARACTERS_RE.sub('', value)
+                value = value[:40960]
+                value = _INVALIDOS_XML.sub('', ILLEGAL_CHARACTERS_RE.sub('', value))
+                value = value[:32767]
             cell = ws.cell(row=baseline, column=col, value=value)
             # Texto livre do operador (tipo de curso, justificativa etc.) é
             # gravado como literal: o openpyxl trata string iniciada por '='
