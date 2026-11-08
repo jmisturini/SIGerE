@@ -81,6 +81,7 @@
                 <select name="teacher_id" class="form-select">
                     <option value="">Todos</option>
                     {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if filtro_teacher == t.id }}>{{ t.full_name }}</option>{% endfor %}
+                    {% if filtro_teacher and not teachers|selectattr('id', 'equalto', filtro_teacher)|list %}<option value="{{ filtro_teacher }}" selected>#{{ filtro_teacher }} (não listado)</option>{% endif %}
                 </select>
             </div>
             <div class="col-md-2">
@@ -88,6 +89,7 @@
                 <select name="course_id" class="form-select">
                     <option value="">Todos</option>
                     {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if filtro_course == c.id }}>{{ c.name }}</option>{% endfor %}
+                    {% if filtro_course and not courses|selectattr('id', 'equalto', filtro_course)|list %}<option value="{{ filtro_course }}" selected>#{{ filtro_course }} (não listado)</option>{% endif %}
                 </select>
             </div>
             <div class="col-md-2">
@@ -95,6 +97,7 @@
                 <select name="subject_id" class="form-select">
                     <option value="">Todas</option>
                     {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if filtro_subject == s.id }}>{{ s.name }}</option>{% endfor %}
+                    {% if filtro_subject and not subjects|selectattr('id', 'equalto', filtro_subject)|list %}<option value="{{ filtro_subject }}" selected>#{{ filtro_subject }} (não listada)</option>{% endif %}
                 </select>
             </div>
             <div class="col-md-3">
