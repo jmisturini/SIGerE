@@ -10,7 +10,9 @@
 {% call hero_hub('bi-wallet2', 'Central de Financeiro/RH', 'Escolha por onde começar — o conteúdo abre logo abaixo.') %}
 
     <div class="hub-cards hub-cards-portais">
-        {% if current_user.has_permission('payment:read') %}
+        {% if current_user.has_permission('payment:read')
+              or current_user.has_permission('payment:create')
+              or current_user.has_permission('payment:edit') %}
         <button type="button" class="hub-portal" data-hub-alvo="hub-hora-extra"
                 aria-expanded="false" aria-controls="hub-hora-extra">
             <span class="hub-card-icone"><i class="bi bi-cash-stack" aria-hidden="true"></i></span>
@@ -53,7 +55,9 @@
 
 {% endcall %}
 
-{% if current_user.has_permission('payment:read') %}
+{% if current_user.has_permission('payment:read')
+      or current_user.has_permission('payment:create')
+      or current_user.has_permission('payment:edit') %}
 <div class="hub-bloco d-none" id="hub-hora-extra">
     <div class="hub-bloco-head">
         <span class="hub-card-icone"><i class="bi bi-cash-stack" aria-hidden="true"></i></span>
@@ -66,7 +70,9 @@
         {% if current_user.has_permission('payment:create') %}
         {{ card_hub(url_for('payments.create_overtime'), 'bi-plus-circle', 'Nova Hora Extra', 'Registre um lançamento para um professor.') }}
         {% endif %}
+        {% if current_user.has_permission('payment:read') %}
         {{ card_hub(url_for('payments.list_overtime'), 'bi-list-ul', 'Consultar H. Extras', 'Filtre por mês e professor; feche o mês ao final.') }}
+        {% endif %}
     </div>
 </div>
 {% endif %}

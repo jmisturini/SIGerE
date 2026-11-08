@@ -134,8 +134,9 @@ class CourseTypesAdminTestCase(unittest.TestCase):
             role.permissions.append(leitura)
             db.session.commit()
         page = self.client.get('/payments/overtime/create').get_data(as_text=True)
-        self.assertIn('id="course_type"', page)
-        self.assertNotIn('<select id="course_type"', page)
+        # Elemento E id juntos: um SelectField renderizaria class antes do id,
+        # e as asserções separadas passariam com um dropdown na página.
+        self.assertRegex(page, r'<input\b(?=[^>]*\sid="course_type")(?=[^>]*\stype="text")[^>]*>')
 
     def test_sem_permissao_vira_403(self):
         with self.app.app_context():

@@ -123,7 +123,11 @@
                     </div>
 
                     <div class="form-card-rodape">
+                        {% if current_user.has_explicit_permission('reservation:create_pending') %}
                         <small>A reserva passa pela aprovação da coordenação antes de ser confirmada.</small>
+                        {% else %}
+                        <small>Sem conflito de professor ou excesso de reservas no dia, a reserva é confirmada na hora; havendo, segue para a aprovação da coordenação.</small>
+                        {% endif %}
                         <div class="form-acoes">
                             {% if request.args.get('classroom_id', type=int) %}
                             <a href="{{ url_for('classrooms.detail', classroom_id=request.args.get('classroom_id', type=int)) }}" class="btn btn-outline-secondary">
