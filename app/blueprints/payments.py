@@ -976,7 +976,13 @@ def export_meal_allowance():
     for cell in ws[1]:
         cell.font = Font(bold=True)
     for nome in sorted(totais):
-        ws.append([nome, totais[nome]])
+        # Mesma sanitização do export de Hora Extra: nome importado pode
+        # trazer caracteres que o openpyxl recusa (IllegalCharacterError) ou
+        # que invalidam o XML — e o "=" do "=" fica literal, não fórmula.
+        nome_seguro = _texto_para_celula(nome)
+        ws.append([nome_seguro, totais[nome]])
+        if isinstance(nome_seguro, str) and nome_seguro.startswith('='):
+            ws.cell(row=ws.max_row, column=1).data_type = 's'
     ws.column_dimensions['A'].width = 40
     ws.column_dimensions['B'].width = 18
 
