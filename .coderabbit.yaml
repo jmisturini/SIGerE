@@ -2,12 +2,12 @@
 # Referencia: https://docs.coderabbit.ai/reference/configuration
 #
 # Escopo definido para o SIGerE: revisar os PRs que CHEGAM a main (o fluxo
-# normal e dev → main). `base_branches` filtra o DESTINO do PR — nao a
-# origem — e `base_branches: []` mantem apenas a branch padrao (main) como
-# destino revisado; nenhum PR para dev, feature/* ou fix/* recebe review
-# automatico. A origem nao e filtravel por configuracao: um PR de qualquer
-# branch aberto direto para a main seria revisado (no fluxo do projeto isso
-# nao acontece — a main so recebe da dev).
+# normal e dev → main; hotfix/* → main tambem chega la e seria revisado).
+# `base_branches` filtra o DESTINO do PR — nao a origem — e
+# `base_branches: []` mantem apenas a branch padrao (main) como destino
+# revisado; nenhum PR para dev, feature/* ou fix/* recebe review automatico.
+# A origem nao e filtravel por configuracao. PRs em rascunho (drafts: false)
+# ficam sem revisao automatica enquanto rascunhos.
 
 reviews:
   auto_review:

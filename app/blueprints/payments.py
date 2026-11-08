@@ -363,6 +363,15 @@ def list_overtime():
                            periodo_fim=periodo[1].strftime('%d/%m/%Y') if periodo else None,
                            nomes_meses=MONTH_NAMES_PT)
 
+def _pos_salvamento_overtime():
+    """Destino após criar/editar um lançamento: quem tem leitura volta à
+    listagem; quem só cria/edita (ex.: Analista, sem `payment:read`) cairia
+    num 403 da listagem — volta para a central, que mostra o que o papel usa."""
+    if current_user.has_permission('payment:read'):
+        return redirect_preserving_args('payments.list_overtime')
+    return redirect(url_for('main.hub_financeiro_rh'))
+
+
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required
 @require_permission('payment:create')
@@ -448,7 +457,7 @@ def create_overtime():
         db.session.add(overtime)
         db.session.commit()
         flash('Lançamento de Hora Extra realizado!', 'success')
-        return redirect_preserving_args('payments.list_overtime')
+        return _pos_salvamento_overtime()
 
     # Dicas do Mês de Referência: a primeira opção é o mês da janela (o
     # intervalo dela inclui hoje); a segunda é o mês seguinte.
@@ -543,7 +552,7 @@ def edit_overtime(overtime_id):
 
         db.session.commit()
         flash('Alteração realizada!', 'success')
-        return redirect_preserving_args('payments.list_overtime')
+        return _pos_salvamento_overtime()
 
     # O Mês Base não muda na edição: é definido no lançamento (janela 20→20 ou
     # próximo mês selecionado) e apenas exibido. O campo Mês oferece o mês

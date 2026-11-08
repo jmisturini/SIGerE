@@ -33,9 +33,15 @@ def upgrade():
 def downgrade():
     # A volta ao catálogo só é segura com correspondência exata para todo
     # lançamento: sem ela, o FK ficaria nulo e o drop da coluna course_type
-    # descartaria o texto original — perda permanente. Aborta ANTES de
-    # alterar o schema, listando os valores sem correspondência.
-    sem_correspondencia = op.get_bind().execute(sa.text("""
+    # descartaria o texto original — perda permanente. No PostgreSQL, trava
+    # escritas concorrentes (a checagem e a re-conversão acontecem na mesma
+    # transação: um INSERT confirmado entre elas burlaria a verificação);
+    # no SQLite o gravador é único por natureza. Aborta ANTES de alterar o
+    # schema, listando os valores sem correspondência.
+    bind = op.get_bind()
+    if bind.dialect.name == 'postgresql':
+        op.execute('LOCK TABLE teacher_overtime_pay IN EXCLUSIVE MODE')
+    sem_correspondencia = bind.execute(sa.text("""
         SELECT DISTINCT course_type FROM teacher_overtime_pay
         WHERE course_type IS NOT NULL
           AND NOT EXISTS (SELECT 1 FROM course_types ct

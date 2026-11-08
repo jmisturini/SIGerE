@@ -230,6 +230,17 @@
         </div>
         {% endif %}
         {% if reservation.status != 'cancelled' %}
+        {% if reservation.status == 'pending' %}
+        {# Pendente após o horário: ainda não houve ocorrência — a reserva
+           aguarda avaliação de quem aprova. #}
+        <div class="lt-passo futuro">
+            <span class="lt-dot"><i class="bi bi-hourglass-split"></i></span>
+            <div>
+                <b class="titulo">Aguardando aprovação — prevista para {{ reservation.date.strftime('%d/%m/%Y') }} às {{ reservation.start_time.strftime('%H:%M') }}</b>
+                <small>{{ reservation.classroom.code }} — {{ reservation.classroom.name }}</small>
+            </div>
+        </div>
+        {% else %}
         <div class="lt-passo {{ 'feito' if ocorreu else 'futuro' }}">
             <span class="lt-dot"><i class="bi {{ 'bi-check2-all' if ocorreu else 'bi-clock' }}"></i></span>
             <div>
@@ -237,6 +248,7 @@
                 <small>{{ reservation.classroom.code }} — {{ reservation.classroom.name }}</small>
             </div>
         </div>
+        {% endif %}
         {% endif %}
     </div>
 </div>
