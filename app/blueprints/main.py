@@ -12,8 +12,9 @@ bp = Blueprint('main', __name__)
 
 
 def _sala_order_key(r):
-    # Ordem natural do código da sala ("LI9" antes de "LI10"): compara os
-    # trechos numéricos como inteiros e os textuais sem diferenciar maiúsculas.
+    """Chave de ordenação natural do código da sala ("LI9" antes de "LI10"):
+    os trechos numéricos comparam como inteiros e os textuais sem diferenciar
+    maiúsculas, desempatando por horário."""
     code = r.classroom.code or ''
     trechos = [(0, int(p)) if p.isdigit() else (1, p.lower())
                for p in re.split(r'(\d+)', code)]
@@ -23,6 +24,8 @@ def _sala_order_key(r):
 @bp.route('/dashboard')
 @login_required
 def index():
+    """Painel do dia: reservas aprovadas da unidade ativa no período corrente
+    (manhã/tarde/noite), agrupadas pelas categorias cadastradas das salas."""
     today = date.today()
     now = datetime.now()
 
@@ -154,6 +157,9 @@ def hub_cozinha():
 @bp.route('/unity/switch', methods=['POST'])
 @login_required
 def switch_unity():
+    """Alterna a unidade ativa de operação (multi-unidade), gravando-a na
+    sessão e recarregando o cache: só unidades do escopo do usuário (próprios
+    vínculos ou todas para o super-admin) são aceitas."""
     if not can_switch_unity():
         flash('Você não tem permissão para alternar de unidade.', 'danger')
         return redirect(url_for('main.index'))

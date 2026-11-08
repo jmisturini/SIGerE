@@ -10,6 +10,7 @@ from app.extensions import db
 from app.unity_context import current_unity_id
 from datetime import datetime
 from openpyxl import Workbook, load_workbook
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import Border, Side, Font, Alignment
 from io import BytesIO
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -260,6 +261,8 @@ def _month_options():
 
 
 def _get_overtime_scoped(overtime_id):
+    """Lançamento de Hora Extra pelo id, confinado à unidade ativa: id de
+    outra unidade vira 404 (nunca 403, para não revelar existência)."""
     overtime = db.get_or_404(TeacherOvertimePay, overtime_id)
     if overtime.unity_id != current_unity_id():
         abort(404)
@@ -303,6 +306,8 @@ def overtime():
 @require_permission('payment:read')
 @require_module('finance')
 def list_overtime():
+    """Listagem dos lançamentos de Hora Extra por mês (ou todos), com
+    fechamento de mês disponível; abre no mês atual do calendário."""
     # A consulta abre no mês atual do calendário: é ele que o botão "Fechar
     # Mês" tranca — os lançamentos do mês seguinte permanecem editáveis. A
     # caixa de seleção permite escolher outro mês ou "Todos os meses" (vazio).
@@ -582,6 +587,8 @@ def edit_overtime(overtime_id):
 @require_permission('payment:delete')
 @require_module('finance')
 def delete_overtime(overtime_id):
+    """Exclui um lançamento de Hora Extra — o mês fechado é o único
+    bloqueio, como na edição."""
     overtime = _get_overtime_scoped(overtime_id)
     # Mesma regra do edit: mês fechado é o único bloqueio.
     if _mes_fechado(overtime.unity_id, overtime.month_base):
@@ -688,6 +695,8 @@ def _meses_agendamentos(unity_id):
 
 
 def _get_meal_scoped(entry_id):
+    """Lançamento de Vale Alimentação pelo id, confinado à unidade ativa:
+    id de outra unidade vira 404."""
     entry = db.get_or_404(TeacherMealAllowance, entry_id)
     if entry.unity_id != current_unity_id():
         abort(404)
@@ -760,6 +769,8 @@ def list_meal_allowance():
 @require_permission('meal:create')
 @require_module('finance')
 def add_meal_allowance():
+    """Registra os dias trabalhados de Vale Alimentação de um professor no
+    mês base, validando o vínculo do professor com a unidade ativa."""
     form = FormValeAlimentacao()
     form.teacher.choices = _meal_choices()
     form.month_base.choices = _meses_opcoes(current_unity_id())
@@ -850,6 +861,8 @@ def import_meal_allowance():
 @require_permission('meal:edit')
 @require_module('finance')
 def edit_meal_allowance(entry_id):
+    """Edita um lançamento de Vale Alimentação (dias trabalhados, mês base,
+    professor), recarregando o vínculo professor/unidade do registro."""
     entry = _get_meal_scoped(entry_id)
     form = FormValeAlimentacao(obj=entry)
     form.teacher.choices = _meal_choices()
@@ -999,6 +1012,13 @@ def _planilha_overtime(overtimes, month_base):
         ]
 
         for col, value in cell_data:
+            # Texto livre do operador pode trazer caracteres de controle
+            # (ex.: colagem de outro sistema): o openpyxl os recusa com
+            # IllegalCharacterError e o export inteiro falha — às vezes após
+            # o fechamento do mês, que já commitou. Remove-os antes de
+            # escrever e aplica a checagem de fórmula ao valor sanitizado.
+            if isinstance(value, str):
+                value = ILLEGAL_CHARACTERS_RE.sub('', value)
             cell = ws.cell(row=baseline, column=col, value=value)
             # Texto livre do operador (tipo de curso, justificativa etc.) é
             # gravado como literal: o openpyxl trata string iniciada por '='
@@ -1022,6 +1042,8 @@ def _planilha_overtime(overtimes, month_base):
 @require_permission('payment:export')
 @require_module('finance')
 def export_excel_overtime():
+    """Exporta a planilha institucional de Hora Extra (modelo
+    base_pagamento_extra.xlsx) para o mês base e/ou professor escolhido."""
     month_base = request.args.get('month_base', '')
     teacher_id = request.args.get('teacher_filter', type=int)
 
