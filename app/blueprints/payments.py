@@ -948,9 +948,11 @@ def clear_meal_allowance():
 @require_permission('meal:read')
 @require_module('finance')
 def export_meal_allowance():
-    """Exportação simples do Vale Alimentação: uma linha por professor com o
-    total de dias trabalhados (soma dos lançamentos), respeitando os filtros
-    de professor e de mês quando ativos."""
+    """Exportação simples do Vale Alimentação: uma linha por professor —
+    ID, nome e o total de dias trabalhados (soma dos lançamentos), com os
+    filtros de professor e de mês quando ativos. O agrupamento é pelo ID:
+    nomes distintos só por caracteres ilegais (ou homônimos) não se fundem
+    nem se tornam indistinguíveis na planilha."""
     teacher_id = request.args.get('teacher_filter', type=int)
     month_base = _mes_valido(request.args.get('month_base'))
     query = TeacherMealAllowance.query.filter_by(unity_id=current_unity_id())
@@ -966,25 +968,27 @@ def export_meal_allowance():
 
     totais = {}
     for entry in entries:
-        nome = entry.teacher.full_name
-        totais[nome] = totais.get(nome, 0) + entry.days
+        chave = (entry.teacher.id, entry.teacher.full_name)
+        totais[chave] = totais.get(chave, 0) + entry.days
 
     wb = Workbook()
     ws = wb.active
     ws.title = 'Vale Alimentação'
-    ws.append(['Professor', 'Dias Trabalhados'])
+    ws.append(['ID', 'Professor', 'Dias Trabalhados'])
     for cell in ws[1]:
         cell.font = Font(bold=True)
-    for nome in sorted(totais):
+    for chave in sorted(totais, key=lambda c: (c[1].lower(), c[0])):
+        id_professor, nome = chave
         # Mesma sanitização do export de Hora Extra: nome importado pode
         # trazer caracteres que o openpyxl recusa (IllegalCharacterError) ou
         # que invalidam o XML — e o "=" do "=" fica literal, não fórmula.
         nome_seguro = _texto_para_celula(nome)
-        ws.append([nome_seguro, totais[nome]])
+        ws.append([id_professor, nome_seguro, totais[chave]])
         if isinstance(nome_seguro, str) and nome_seguro.startswith('='):
-            ws.cell(row=ws.max_row, column=1).data_type = 's'
-    ws.column_dimensions['A'].width = 40
-    ws.column_dimensions['B'].width = 18
+            ws.cell(row=ws.max_row, column=2).data_type = 's'
+    ws.column_dimensions['A'].width = 12
+    ws.column_dimensions['B'].width = 40
+    ws.column_dimensions['C'].width = 18
 
     output = BytesIO()
     wb.save(output)
