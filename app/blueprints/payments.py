@@ -493,6 +493,10 @@ def create_overtime():
 @require_permission('payment:edit')
 @require_module('finance')
 def edit_overtime(overtime_id):
+    """Edição de um lançamento de Hora Extra na unidade ativa.
+
+    O único bloqueio é o mês fechado; sem `payment:read`, os redirecionamentos
+    (mês fechado e pós-salvar) vão para a central em vez da listagem."""
     overtime = _get_overtime_scoped(overtime_id)
 
     # O mês fechado é o único tranca: sem fechamento, o lançamento permanece

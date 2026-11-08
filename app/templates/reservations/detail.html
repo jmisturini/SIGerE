@@ -229,10 +229,11 @@
             </div>
         </div>
         {% endif %}
-        {# Cancelada: o passo de ocorrência some — exceto quando a atividade
-           aconteceu e o cancelamento veio DEPOIS do fim (cancelamento
-           tardio no mesmo dia preserva o histórico de que ocorreu). #}
-        {% if reservation.status != 'cancelled' or ocorreu %}
+        {# Cancelada: o passo de ocorrência some. Distinguir cancelamento
+           tardio de adiantado exigiria um timestamp de cancelamento no
+           modelo (não existe) — exibir "Ocorreu em" de reserva cancelada
+           antes da atividade seria falso. #}
+        {% if reservation.status != 'cancelled' %}
         {% if reservation.status == 'pending' %}
         {# Pendente após o horário: ainda não houve ocorrência — a reserva
            aguarda avaliação de quem aprova. #}

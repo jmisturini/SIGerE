@@ -477,6 +477,10 @@ def all_reservations():
     return render_template('reservations/all.html',
                            pagination=pagination, reservas=pagination.items,
                            periodo=periodo, ordem=ordem, base_args=base_args,
+                           # IDs já convertidos pela rota (type=int): o template
+                           # reflete o filtro que a rota APLICOU — não a URL crua.
+                           filtro_room=room_id, filtro_teacher=teacher_id,
+                           filtro_course=course_id, filtro_subject=subject_id,
                            classrooms=Classroom.query.filter_by(unity_id=uid, is_active=True).order_by(Classroom.code).all(),
                            teachers=_teachers_for_current_unity(),
                            courses=Course.query.filter_by(unity_id=uid, is_active=True).order_by(Course.name).all(),

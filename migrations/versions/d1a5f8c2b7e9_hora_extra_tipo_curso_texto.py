@@ -18,6 +18,8 @@ depends_on = None
 
 
 def upgrade():
+    """Texto livre substitui o FK: cria course_type, copia o nome do catálogo
+    para preservar o histórico dos lançamentos existentes e remove o FK."""
     with op.batch_alter_table('teacher_overtime_pay', schema=None) as batch_op:
         batch_op.add_column(sa.Column('course_type', sa.String(60), nullable=True))
     # Preserva o histórico: o texto recebe o nome do antigo catálogo.
@@ -31,6 +33,12 @@ def upgrade():
 
 
 def downgrade():
+    """Recria o FK e re-liga os lançamentos pelo nome exato no catálogo.
+
+    Com correspondência faltando, aborta ANTES de alterar o schema — sem a
+    guarda, o drop da coluna course_type descartaria o texto original. No
+    PostgreSQL, trava lançamentos e catálogo para a verificação e a
+    re-conversão viverem sem escritas concorrentes."""
     # A volta ao catálogo só é segura com correspondência exata para todo
     # lançamento: sem ela, o FK ficaria nulo e o drop da coluna course_type
     # descartaria o texto original — perda permanente. No PostgreSQL, trava

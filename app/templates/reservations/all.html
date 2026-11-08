@@ -69,28 +69,32 @@
                 <label class="form-label small">Sala</label>
                 <select name="room_id" class="form-select">
                     <option value="">Todas</option>
-                    {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('room_id')|int == c.id }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
+                    {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if filtro_room == c.id }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
+                    {# Sala filtrada fora da listagem ativa (inativa/apagada):
+                       permanece como opção selecionada, para o filtro não
+                       cair ao reenviar o formulário. #}
+                    {% if filtro_room and not classrooms|selectattr('id', 'equalto', filtro_room)|list %}<option value="{{ filtro_room }}" selected>#{{ filtro_room }} (não listada)</option>{% endif %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label small">Professor</label>
                 <select name="teacher_id" class="form-select">
                     <option value="">Todos</option>
-                    {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('teacher_id')|int == t.id }}>{{ t.full_name }}</option>{% endfor %}
+                    {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if filtro_teacher == t.id }}>{{ t.full_name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label small">Curso</label>
                 <select name="course_id" class="form-select">
                     <option value="">Todos</option>
-                    {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('course_id')|int == c.id }}>{{ c.name }}</option>{% endfor %}
+                    {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if filtro_course == c.id }}>{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label small">Disciplina</label>
                 <select name="subject_id" class="form-select">
                     <option value="">Todas</option>
-                    {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if request.args.get('subject_id')|int == s.id }}>{{ s.name }}</option>{% endfor %}
+                    {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if filtro_subject == s.id }}>{{ s.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-3">
@@ -117,9 +121,11 @@
 {# Filtros ativos: um chip por parâmetro aplicado, com link para removê-lo —
    a remoção reenvia a consulta sem aquele campo (e sem paginação velha). #}
 {% set args_d = request.args.to_dict() %}
+{# Os IDs aqui são os CONVERTIDOS pela rota (type=int; lixo vira None): o que
+   se exibe é o filtro que a rota APLICOU, não a URL crua. #}
 {% set tem_filtros = (args_d.get('start') or args_d.get('end') or args_d.get('period')
-    or args_d.get('status') or args_d.get('room_id') or args_d.get('teacher_id')
-    or args_d.get('course_id') or args_d.get('subject_id')
+    or args_d.get('status') or filtro_room or filtro_teacher
+    or filtro_course or filtro_subject
     or (args_d.get('ordem') and args_d.get('ordem') != 'data_asc')) %}
 {% if tem_filtros %}
 {% macro chip_filtro(campo, rotulo) %}
@@ -137,14 +143,13 @@
     {% if args_d.get('end') %}{{ chip_filtro('end', 'Até: ' ~ args_d.get('end')) }}{% endif %}
     {% if args_d.get('period') %}{{ chip_filtro('period', 'Período: ' ~ ({'morning': 'Manhã', 'afternoon': 'Tarde', 'night': 'Noite'}[args_d.get('period')])) }}{% endif %}
     {% if args_d.get('status') %}{{ chip_filtro('status', 'Status: ' ~ ({'approved': 'Aprovada', 'pending': 'Pendente', 'cancelled': 'Cancelada'}.get(args_d.get('status'), args_d.get('status')))) }}{% endif %}
-    {# Comparação por ID convertido (a rota filtra pelo int): room_id=001 na
-       URL filtra a sala 1 e o chip a reconhece; o rótulo de fallback usa o
-       valor original. Para professor, rótulo neutro — deixar de listar não
-       afirma que a conta está inativa. #}
-    {% if args_d.get('room_id') %}{% set achado = namespace(nome=None) %}{% for c in classrooms %}{% if c.id == args_d.get('room_id')|int %}{% set achado.nome = c.code %}{% endif %}{% endfor %}{{ chip_filtro('room_id', 'Sala: ' ~ (achado.nome or ('#' ~ args_d.get('room_id') ~ ' (não listada)'))) }}{% endif %}
-    {% if args_d.get('teacher_id') %}{% set achado = namespace(nome=None) %}{% for p in teachers %}{% if p.id == args_d.get('teacher_id')|int %}{% set achado.nome = p.full_name %}{% endif %}{% endfor %}{{ chip_filtro('teacher_id', 'Professor: ' ~ (achado.nome or ('#' ~ args_d.get('teacher_id') ~ ' (não listado)'))) }}{% endif %}
-    {% if args_d.get('course_id') %}{% set achado = namespace(nome=None) %}{% for c in courses %}{% if c.id == args_d.get('course_id')|int %}{% set achado.nome = c.name %}{% endif %}{% endfor %}{{ chip_filtro('course_id', 'Curso: ' ~ (achado.nome or ('#' ~ args_d.get('course_id') ~ ' (não listado)'))) }}{% endif %}
-    {% if args_d.get('subject_id') %}{% set achado = namespace(nome=None) %}{% for s in subjects %}{% if s.id == args_d.get('subject_id')|int %}{% set achado.nome = s.name %}{% endif %}{% endfor %}{{ chip_filtro('subject_id', 'Disciplina: ' ~ (achado.nome or ('#' ~ args_d.get('subject_id') ~ ' (não listada)'))) }}{% endif %}
+    {# IDs convertidos pela rota: um valor não numérico não filtrou nada e
+       não vira chip. Fallback neutro — deixar de listar não afirma o estado
+       do registro. #}
+    {% if filtro_room %}{% set achado = namespace(nome=None) %}{% for c in classrooms %}{% if c.id == filtro_room %}{% set achado.nome = c.code %}{% endif %}{% endfor %}{{ chip_filtro('room_id', 'Sala: ' ~ (achado.nome or ('#' ~ filtro_room ~ ' (não listada)'))) }}{% endif %}
+    {% if filtro_teacher %}{% set achado = namespace(nome=None) %}{% for p in teachers %}{% if p.id == filtro_teacher %}{% set achado.nome = p.full_name %}{% endif %}{% endfor %}{{ chip_filtro('teacher_id', 'Professor: ' ~ (achado.nome or ('#' ~ filtro_teacher ~ ' (não listado)'))) }}{% endif %}
+    {% if filtro_course %}{% set achado = namespace(nome=None) %}{% for c in courses %}{% if c.id == filtro_course %}{% set achado.nome = c.name %}{% endif %}{% endfor %}{{ chip_filtro('course_id', 'Curso: ' ~ (achado.nome or ('#' ~ filtro_course ~ ' (não listado)'))) }}{% endif %}
+    {% if filtro_subject %}{% set achado = namespace(nome=None) %}{% for s in subjects %}{% if s.id == filtro_subject %}{% set achado.nome = s.name %}{% endif %}{% endfor %}{{ chip_filtro('subject_id', 'Disciplina: ' ~ (achado.nome or ('#' ~ filtro_subject ~ ' (não listada)'))) }}{% endif %}
     {% if args_d.get('ordem') and args_d.get('ordem') != 'data_asc' %}{{ chip_filtro('ordem', 'Ordenação personalizada') }}{% endif %}
     <a class="fa-limpar" href="{{ url_for('reservations.all_reservations', periodo=periodo) }}">Limpar tudo</a>
 </div>
