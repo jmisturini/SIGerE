@@ -69,28 +69,28 @@
                 <label class="form-label small">Sala</label>
                 <select name="room_id" class="form-select">
                     <option value="">Todas</option>
-                    {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('room_id') == c.id|string }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
+                    {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('room_id')|int == c.id }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label small">Professor</label>
                 <select name="teacher_id" class="form-select">
                     <option value="">Todos</option>
-                    {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('teacher_id') == t.id|string }}>{{ t.full_name }}</option>{% endfor %}
+                    {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('teacher_id')|int == t.id }}>{{ t.full_name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label small">Curso</label>
                 <select name="course_id" class="form-select">
                     <option value="">Todos</option>
-                    {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('course_id') == c.id|string }}>{{ c.name }}</option>{% endfor %}
+                    {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('course_id')|int == c.id }}>{{ c.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label small">Disciplina</label>
                 <select name="subject_id" class="form-select">
                     <option value="">Todas</option>
-                    {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if request.args.get('subject_id') == s.id|string }}>{{ s.name }}</option>{% endfor %}
+                    {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if request.args.get('subject_id')|int == s.id }}>{{ s.name }}</option>{% endfor %}
                 </select>
             </div>
             <div class="col-md-3">

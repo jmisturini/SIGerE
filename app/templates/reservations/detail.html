@@ -229,7 +229,10 @@
             </div>
         </div>
         {% endif %}
-        {% if reservation.status != 'cancelled' %}
+        {# Cancelada: o passo de ocorrência some — exceto quando a atividade
+           aconteceu e o cancelamento veio DEPOIS do fim (cancelamento
+           tardio no mesmo dia preserva o histórico de que ocorreu). #}
+        {% if reservation.status != 'cancelled' or ocorreu %}
         {% if reservation.status == 'pending' %}
         {# Pendente após o horário: ainda não houve ocorrência — a reserva
            aguarda avaliação de quem aprova. #}

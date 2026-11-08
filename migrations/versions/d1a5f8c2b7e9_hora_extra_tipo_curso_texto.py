@@ -34,13 +34,16 @@ def downgrade():
     # A volta ao catálogo só é segura com correspondência exata para todo
     # lançamento: sem ela, o FK ficaria nulo e o drop da coluna course_type
     # descartaria o texto original — perda permanente. No PostgreSQL, trava
-    # escritas concorrentes (a checagem e a re-conversão acontecem na mesma
-    # transação: um INSERT confirmado entre elas burlaria a verificação);
-    # no SQLite o gravador é único por natureza. Aborta ANTES de alterar o
-    # schema, listando os valores sem correspondência.
+    # as duas tabelas: escritas nos lançamentos (um INSERT confirmado entre a
+    # checagem e a re-conversão burlaria a verificação) e renames/apagões no
+    # catálogo (um UPDATE em course_types entre a checagem e a re-conversão
+    # quebraria o casamento pelo nome); no SQLite o gravador é único por
+    # natureza. Aborta ANTES de alterar o schema, listando os valores sem
+    # correspondência.
     bind = op.get_bind()
     if bind.dialect.name == 'postgresql':
         op.execute('LOCK TABLE teacher_overtime_pay IN EXCLUSIVE MODE')
+        op.execute('LOCK TABLE course_types IN SHARE MODE')
     sem_correspondencia = bind.execute(sa.text("""
         SELECT DISTINCT course_type FROM teacher_overtime_pay
         WHERE course_type IS NOT NULL

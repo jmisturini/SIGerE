@@ -499,7 +499,11 @@ def edit_overtime(overtime_id):
     # editável (os antigos bloqueios de 30 dias e de mês anterior saíram).
     if _mes_fechado(overtime.unity_id, overtime.month_base):
         flash('Erro: O mês deste lançamento já foi fechado; o registro não pode mais ser alterado.', 'danger')
-        return redirect_back('payments.list_overtime')
+        # Quem tem leitura volta de onde veio (listagem como fallback); sem
+        # leitura, o fallback daria 403 — vai para a central.
+        if current_user.has_permission('payment:read'):
+            return redirect_back('payments.list_overtime')
+        return redirect(url_for('main.hub_financeiro_rh'))
 
     form = FormTeacherOvertimePay(obj=overtime)
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
