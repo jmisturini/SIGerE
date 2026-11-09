@@ -3,6 +3,11 @@
 
 {% block content %}
 {% set is_past = reservation.date < now.date() %}
+{# Ocorrência considera o FIM da reserva (terminou hoje de manhã já é passado);
+   is_past fica só para as regras de edição histórica. #}
+{% set ocorreu = reservation.date < now.date()
+    or (reservation.date == now.date()
+        and reservation.end_time and reservation.end_time <= now.time()) %}
 <section class="hub-hero mb-4">
     <div class="hub-hero-linha">
         <div class="hub-hero-head mb-0">
@@ -224,13 +229,31 @@
             </div>
         </div>
         {% endif %}
-        <div class="lt-passo {{ 'feito' if is_past else 'futuro' }}">
-            <span class="lt-dot"><i class="bi {{ 'bi-check2-all' if is_past else 'bi-clock' }}"></i></span>
+        {# Cancelada: o passo de ocorrência some. Distinguir cancelamento
+           tardio de adiantado exigiria um timestamp de cancelamento no
+           modelo (não existe) — exibir "Ocorreu em" de reserva cancelada
+           antes da atividade seria falso. #}
+        {% if reservation.status != 'cancelled' %}
+        {% if reservation.status == 'pending' %}
+        {# Pendente após o horário: ainda não houve ocorrência — a reserva
+           aguarda avaliação de quem aprova. #}
+        <div class="lt-passo futuro">
+            <span class="lt-dot"><i class="bi bi-hourglass-split"></i></span>
             <div>
-                <b class="titulo">{{ 'Ocorreu em' if is_past else 'Ocorre em' }} {{ reservation.date.strftime('%d/%m/%Y') }} às {{ reservation.start_time.strftime('%H:%M') }}</b>
+                <b class="titulo">Aguardando aprovação — prevista para {{ reservation.date.strftime('%d/%m/%Y') }} às {{ reservation.start_time.strftime('%H:%M') }}</b>
                 <small>{{ reservation.classroom.code }} — {{ reservation.classroom.name }}</small>
             </div>
         </div>
+        {% else %}
+        <div class="lt-passo {{ 'feito' if ocorreu else 'futuro' }}">
+            <span class="lt-dot"><i class="bi {{ 'bi-check2-all' if ocorreu else 'bi-clock' }}"></i></span>
+            <div>
+                <b class="titulo">{{ 'Ocorreu em' if ocorreu else 'Ocorre em' }} {{ reservation.date.strftime('%d/%m/%Y') }} às {{ reservation.start_time.strftime('%H:%M') }}</b>
+                <small>{{ reservation.classroom.code }} — {{ reservation.classroom.name }}</small>
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
     </div>
 </div>
 

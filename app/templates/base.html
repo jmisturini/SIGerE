@@ -98,7 +98,7 @@
                    e Adicional Noturno numa única central. O módulo Financeiro
                    pode ser desligado por unidade (edição da unidade) — o
                    toggle governa os dois lados. #}
-                {% if unity_module_enabled('finance') and (current_user.has_permission('payment:read') or current_user.has_permission('vt:read') or current_user.has_permission('meal:read') or current_user.has_permission('an:read')) %}
+                {% if unity_module_enabled('finance') and (current_user.has_permission('payment:read') or current_user.has_permission('payment:create') or current_user.has_permission('payment:edit') or current_user.has_permission('vt:read') or current_user.has_permission('meal:read') or current_user.has_permission('an:read')) %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if (ep == 'main.hub_financeiro_rh' or in_overtime or in_vt or in_meal or in_an) else '' }}" title="Financeiro/RH" href="{{ url_for('main.hub_financeiro_rh') }}">
                         <i class="bi bi-wallet2"></i> <span>Financeiro/RH</span>

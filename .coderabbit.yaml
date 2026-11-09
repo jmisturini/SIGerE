@@ -1,11 +1,13 @@
 # CodeRabbit — revisao automatica de codigo em PRs.
 # Referencia: https://docs.coderabbit.ai/reference/configuration
 #
-# Escopo definido para o SIGerE: revisar SOMENTE os PRs que sobem da dev
-# para a main. A branch padrao (main) sempre e revisada pelo app; deixar
-# `base_branches` vazio garante que nenhum outro destino (dev, feature/*,
-# fix/*...) receba review automatico — `base_branches` so ADICIONA destinos,
-# nunca restringe.
+# Escopo definido para o SIGerE: revisar os PRs que CHEGAM a main (o fluxo
+# normal e dev → main; hotfix/* → main tambem chega la e seria revisado).
+# `base_branches` filtra o DESTINO do PR — nao a origem — e
+# `base_branches: []` mantem apenas a branch padrao (main) como destino
+# revisado; nenhum PR para dev, feature/* ou fix/* recebe review automatico.
+# A origem nao e filtravel por configuracao. PRs em rascunho (drafts: false)
+# ficam sem revisao automatica enquanto rascunhos.
 
 reviews:
   auto_review:

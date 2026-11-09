@@ -10,11 +10,40 @@ from app.extensions import db
 from app.unity_context import current_unity_id
 from datetime import datetime
 from openpyxl import Workbook, load_workbook
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import Border, Side, Font, Alignment
 from io import BytesIO
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from app.permissions import require_module, require_permission
 from app.utils import redirect_back, redirect_preserving_args
+
+# XML 1.0 proíbe surrogates e os não-caracteres U+FFFE/U+FFFF: o writer sem
+# lxml não os remove, e o arquivo sairia corrompido.
+_INVALIDOS_XML = re.compile('[\ud800-\udfff\ufffe\uffff]')
+
+# Limite de caracteres da célula do Excel.
+LIMITE_CELULA = 32767
+
+
+def _texto_para_celula(value):
+    """Sanitiza texto de operador para a célula: remove o que o openpyxl
+    recusa (IllegalCharacterError) e o que invalida o XML do arquivo, até
+    reunir o limite de caracteres válidos da célula — o processamento para
+    aí, então um valor gigante não paga substituição integral e o texto
+    válido que vem DEPOIS de uma sequência de controles é preservado."""
+    if not isinstance(value, str):
+        return value
+    pedacos = []
+    restantes = LIMITE_CELULA
+    for inicio in range(0, len(value), 65536):
+        if restantes <= 0:
+            break
+        fatia = value[inicio:inicio + 65536]
+        limpo = _INVALIDOS_XML.sub('', ILLEGAL_CHARACTERS_RE.sub('', fatia))
+        if limpo:
+            pedacos.append(limpo[:restantes])
+            restantes -= len(pedacos[-1])
+    return ''.join(pedacos)
 
 bp = Blueprint('payments', __name__, url_prefix='/payments')
 
@@ -145,8 +174,10 @@ def _meses_fechados(unity_id):
 
 
 def _mes_valido(valor):
-    """Valor em formato de mês (YYYY-MM) ou None."""
-    if valor and re.match(r'^\d{4}-\d{2}$', valor):
+    """Mês no formato YYYY-MM com mês de 01 a 12, ou None — um valor como
+    '2026-13' não vira referência: as dicas e os rótulos derivam datas do
+    texto e um mês inválido renderizaria intervalos inexistentes."""
+    if valor and re.match(r'^\d{4}-(0[1-9]|1[0-2])$', valor):
         return valor
     return None
 
@@ -258,6 +289,8 @@ def _month_options():
 
 
 def _get_overtime_scoped(overtime_id):
+    """Lançamento de Hora Extra pelo id, confinado à unidade ativa: id de
+    outra unidade vira 404 (nunca 403, para não revelar existência)."""
     overtime = db.get_or_404(TeacherOvertimePay, overtime_id)
     if overtime.unity_id != current_unity_id():
         abort(404)
@@ -301,6 +334,8 @@ def overtime():
 @require_permission('payment:read')
 @require_module('finance')
 def list_overtime():
+    """Listagem dos lançamentos de Hora Extra por mês (ou todos), com
+    fechamento de mês disponível; abre no mês atual do calendário."""
     # A consulta abre no mês atual do calendário: é ele que o botão "Fechar
     # Mês" tranca — os lançamentos do mês seguinte permanecem editáveis. A
     # caixa de seleção permite escolher outro mês ou "Todos os meses" (vazio).
@@ -361,11 +396,26 @@ def list_overtime():
                            periodo_fim=periodo[1].strftime('%d/%m/%Y') if periodo else None,
                            nomes_meses=MONTH_NAMES_PT)
 
+def _pos_salvamento_overtime():
+    """Destino após criar/editar um lançamento: quem tem leitura volta à
+    listagem; quem só cria/edita (ex.: Analista, sem `payment:read`) cairia
+    num 403 da listagem — volta para a central, que mostra o que o papel usa."""
+    if current_user.has_permission('payment:read'):
+        return redirect_preserving_args('payments.list_overtime')
+    return redirect(url_for('main.hub_financeiro_rh'))
+
+
 @bp.route('/overtime/create', methods=['GET', 'POST'])
 @login_required
 @require_permission('payment:create')
 @require_module('finance')
 def create_overtime():
+    """Lançamento de Hora Extra na unidade ativa.
+
+    O Mês de Referência segue a janela 20→20 (o mês da janela ou o seguinte,
+    que antecipa o lançamento); uma referência postada fora desse par é
+    recusada com pedido de correção. O mês das datas acompanha a referência
+    escolhida e é gravado para a edição restaurar o calendário."""
     form = FormTeacherOvertimePay()
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
 
@@ -375,7 +425,13 @@ def create_overtime():
     # [próximo, seguinte]. Selecionar o segundo antecipa o lançamento.
     base_janela = _month_base_janela()
     seguinte_janela = _mes_posterior_de(base_janela)
-    month_base = (seguinte_janela if request.form.get('reference_month') == seguinte_janela
+    # Referência posta pelo formulário: só o par da janela grava. Um valor
+    # fora dele (formulário antigo, com o dia virado) não cai mais em
+    # silêncio no mês da janela — o lançamento é recusado, pedindo a correção
+    # da referência; antes, o mês base saía da janela e o mês das datas do
+    # valor postado, misturando duas referências no mesmo lançamento.
+    referencia_postada = _mes_valido(request.form.get('reference_month'))
+    month_base = (seguinte_janela if referencia_postada == seguinte_janela
                   else base_janela)
 
     # O campo Mês segue o mês de referência escolhido: oferece o mês anterior
@@ -389,6 +445,15 @@ def create_overtime():
         mes_datas_selecionada = referencia_selecionada
 
     if form.validate_on_submit():
+        # Referência fora da janela: um valor válido, mas fora do par atual,
+        # não grava — o operador corrige a seleção (o mês não é alterável na
+        # edição, então entrar errado seria irreversível pelo painel).
+        if referencia_postada and referencia_postada not in (base_janela, seguinte_janela):
+            flash('Erro: O Mês de Referência escolhido saiu da janela de lançamento '
+                  '(o dia virou ou o mês já passou). Selecione um dos meses oferecidos '
+                  'e revise as datas antes de salvar.', 'danger')
+            return redirect(url_for('payments.create_overtime'))
+
         # Fechamento antecipado: se a unidade já fechou o mês de referência
         # deste lançamento (janela ou próximo mês selecionado), ele não entra.
         if _mes_fechado(current_unity_id(), month_base):
@@ -425,7 +490,7 @@ def create_overtime():
         db.session.add(overtime)
         db.session.commit()
         flash('Lançamento de Hora Extra realizado!', 'success')
-        return redirect_preserving_args('payments.list_overtime')
+        return _pos_salvamento_overtime()
 
     # Dicas do Mês de Referência: a primeira opção é o mês da janela (o
     # intervalo dela inclui hoje); a segunda é o mês seguinte.
@@ -461,13 +526,21 @@ def create_overtime():
 @require_permission('payment:edit')
 @require_module('finance')
 def edit_overtime(overtime_id):
+    """Edição de um lançamento de Hora Extra na unidade ativa.
+
+    O único bloqueio é o mês fechado; sem `payment:read`, os redirecionamentos
+    (mês fechado e pós-salvar) vão para a central em vez da listagem."""
     overtime = _get_overtime_scoped(overtime_id)
 
     # O mês fechado é o único tranca: sem fechamento, o lançamento permanece
     # editável (os antigos bloqueios de 30 dias e de mês anterior saíram).
     if _mes_fechado(overtime.unity_id, overtime.month_base):
         flash('Erro: O mês deste lançamento já foi fechado; o registro não pode mais ser alterado.', 'danger')
-        return redirect_back('payments.list_overtime')
+        # Quem tem leitura volta de onde veio (listagem como fallback); sem
+        # leitura, o fallback daria 403 — vai para a central.
+        if current_user.has_permission('payment:read'):
+            return redirect_back('payments.list_overtime')
+        return redirect(url_for('main.hub_financeiro_rh'))
 
     form = FormTeacherOvertimePay(obj=overtime)
     form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
@@ -520,7 +593,7 @@ def edit_overtime(overtime_id):
 
         db.session.commit()
         flash('Alteração realizada!', 'success')
-        return redirect_preserving_args('payments.list_overtime')
+        return _pos_salvamento_overtime()
 
     # O Mês Base não muda na edição: é definido no lançamento (janela 20→20 ou
     # próximo mês selecionado) e apenas exibido. O campo Mês oferece o mês
@@ -542,6 +615,8 @@ def edit_overtime(overtime_id):
 @require_permission('payment:delete')
 @require_module('finance')
 def delete_overtime(overtime_id):
+    """Exclui um lançamento de Hora Extra — o mês fechado é o único
+    bloqueio, como na edição."""
     overtime = _get_overtime_scoped(overtime_id)
     # Mesma regra do edit: mês fechado é o único bloqueio.
     if _mes_fechado(overtime.unity_id, overtime.month_base):
@@ -648,6 +723,8 @@ def _meses_agendamentos(unity_id):
 
 
 def _get_meal_scoped(entry_id):
+    """Lançamento de Vale Alimentação pelo id, confinado à unidade ativa:
+    id de outra unidade vira 404."""
     entry = db.get_or_404(TeacherMealAllowance, entry_id)
     if entry.unity_id != current_unity_id():
         abort(404)
@@ -720,6 +797,8 @@ def list_meal_allowance():
 @require_permission('meal:create')
 @require_module('finance')
 def add_meal_allowance():
+    """Registra os dias trabalhados de Vale Alimentação de um professor no
+    mês base, validando o vínculo do professor com a unidade ativa."""
     form = FormValeAlimentacao()
     form.teacher.choices = _meal_choices()
     form.month_base.choices = _meses_opcoes(current_unity_id())
@@ -810,6 +889,8 @@ def import_meal_allowance():
 @require_permission('meal:edit')
 @require_module('finance')
 def edit_meal_allowance(entry_id):
+    """Edita um lançamento de Vale Alimentação (dias trabalhados, mês base,
+    professor), recarregando o vínculo professor/unidade do registro."""
     entry = _get_meal_scoped(entry_id)
     form = FormValeAlimentacao(obj=entry)
     form.teacher.choices = _meal_choices()
@@ -867,9 +948,11 @@ def clear_meal_allowance():
 @require_permission('meal:read')
 @require_module('finance')
 def export_meal_allowance():
-    """Exportação simples do Vale Alimentação: uma linha por professor com o
-    total de dias trabalhados (soma dos lançamentos), respeitando os filtros
-    de professor e de mês quando ativos."""
+    """Exportação simples do Vale Alimentação: uma linha por professor —
+    ID, nome e o total de dias trabalhados (soma dos lançamentos), com os
+    filtros de professor e de mês quando ativos. O agrupamento é pelo ID:
+    nomes distintos só por caracteres ilegais (ou homônimos) não se fundem
+    nem se tornam indistinguíveis na planilha."""
     teacher_id = request.args.get('teacher_filter', type=int)
     month_base = _mes_valido(request.args.get('month_base'))
     query = TeacherMealAllowance.query.filter_by(unity_id=current_unity_id())
@@ -885,19 +968,32 @@ def export_meal_allowance():
 
     totais = {}
     for entry in entries:
-        nome = entry.teacher.full_name
-        totais[nome] = totais.get(nome, 0) + entry.days
+        chave = (entry.teacher.id, entry.teacher.full_name)
+        totais[chave] = totais.get(chave, 0) + entry.days
 
     wb = Workbook()
     ws = wb.active
     ws.title = 'Vale Alimentação'
-    ws.append(['Professor', 'Dias Trabalhados'])
+    ws.append(['ID', 'Professor', 'Dias Trabalhados'])
     for cell in ws[1]:
         cell.font = Font(bold=True)
-    for nome in sorted(totais):
-        ws.append([nome, totais[nome]])
-    ws.column_dimensions['A'].width = 40
-    ws.column_dimensions['B'].width = 18
+    # A ordem segue o texto SANITIZADO que a planilha exibe (um nome que
+    # começa por controle ordenaria diferente do que se lê), com o ID de
+    # desempate. Mesma sanitização do export de Hora Extra: nome importado
+    # pode trazer caracteres que o openpyxl recusa (IllegalCharacterError)
+    # ou que invalidam o XML — e o "=" inicial fica literal, não fórmula.
+    linhas = []
+    for (id_professor, nome), dias in totais.items():
+        nome_seguro = _texto_para_celula(nome)
+        linhas.append((nome_seguro.lower(), id_professor, nome_seguro, dias))
+    linhas.sort()
+    for _, id_professor, nome_seguro, dias in linhas:
+        ws.append([id_professor, nome_seguro, dias])
+        if isinstance(nome_seguro, str) and nome_seguro.startswith('='):
+            ws.cell(row=ws.max_row, column=2).data_type = 's'
+    ws.column_dimensions['A'].width = 12
+    ws.column_dimensions['B'].width = 40
+    ws.column_dimensions['C'].width = 18
 
     output = BytesIO()
     wb.save(output)
@@ -959,7 +1055,17 @@ def _planilha_overtime(overtimes, month_base):
         ]
 
         for col, value in cell_data:
+            # Texto livre do operador é sanitizado (controles que o openpyxl
+            # recusa e XML-inválidos) até o limite da célula — o export
+            # quebrado derrubaria o download às vezes após o fechamento do
+            # mês, que já commitou.
+            value = _texto_para_celula(value)
             cell = ws.cell(row=baseline, column=col, value=value)
+            # Texto livre do operador (tipo de curso, justificativa etc.) é
+            # gravado como literal: o openpyxl trata string iniciada por '='
+            # como fórmula, e a planilha a avaliaria na abertura.
+            if isinstance(value, str) and value.startswith('='):
+                cell.data_type = 's'
             cell.border = border
             cell.font = font
             cell.alignment = alignment
@@ -977,6 +1083,8 @@ def _planilha_overtime(overtimes, month_base):
 @require_permission('payment:export')
 @require_module('finance')
 def export_excel_overtime():
+    """Exporta a planilha institucional de Hora Extra (modelo
+    base_pagamento_extra.xlsx) para o mês base e/ou professor escolhido."""
     month_base = request.args.get('month_base', '')
     teacher_id = request.args.get('teacher_filter', type=int)
 

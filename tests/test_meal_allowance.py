@@ -308,11 +308,11 @@ class MealAllowanceTestCase(unittest.TestCase):
                       response.headers['Content-Disposition'])
 
         rows = self._linhas_planilha(response)
-        self.assertEqual(rows[0], ('Professor', 'Dias Trabalhados'))
-        dados = {nome: dias for nome, dias in rows[1:]}
+        self.assertEqual(rows[0], ('ID', 'Professor', 'Dias Trabalhados'))
+        dados = {(ident, nome): dias for ident, nome, dias in rows[1:]}
         # Lançamentos do mesmo professor são somados numa linha só.
-        self.assertEqual(dados['Professor Silva'], 15)
-        self.assertEqual(dados['Professora Souza'], 5)
+        self.assertEqual(dados[(self.professor_id, 'Professor Silva')], 15)
+        self.assertEqual(dados[(self.professor2_id, 'Professora Souza')], 5)
         self.assertEqual(len(rows), 3)
 
     def test_exportar_respeita_filtro_por_professor(self):
@@ -321,7 +321,7 @@ class MealAllowanceTestCase(unittest.TestCase):
 
         response = self._exportar(f'?teacher_filter={self.professor2_id}')
         rows = self._linhas_planilha(response)
-        self.assertEqual(rows[1], ('Professora Souza', 5))
+        self.assertEqual(rows[1], (self.professor2_id, 'Professora Souza', 5))
         self.assertEqual(len(rows), 2)
 
     def test_exportar_escopo_unidade(self):
@@ -335,8 +335,35 @@ class MealAllowanceTestCase(unittest.TestCase):
             db.session.commit()
 
         rows = self._linhas_planilha(self._exportar())
-        self.assertEqual(rows[1], ('Professor Silva', 12))
+        self.assertEqual(rows[1], (self.professor_id, 'Professor Silva', 12))
         self.assertEqual(len(rows), 2)
+
+    def test_exportar_nomes_que_colidem_apos_sanitizacao(self):
+        """Dois professores cujos nomes viram o mesmo rótulo ao remover
+        caracteres ilegais seguem com linhas separadas — o ID distingue."""
+        with self.app.app_context():
+            variante = User(
+                email='professor.variante@escola.edu',
+                full_name='Professor Silva',
+                role='room', profile_type='teacher', unities=[self.unity],
+                force_password_change=False, is_active_user=True,
+            )
+            variante.set_password(PASSWORD)
+            db.session.add(variante)
+            db.session.commit()
+            variante_id = variante.id
+        self._adicionar(teacher=self.professor_id, days='12')
+        # 'Professor Silva' sanitiza para 'Professor  Silva' — sem a
+        # coluna de ID, as duas linhas ficariam indistinguíveis.
+        self._adicionar(teacher=variante_id, days='7')
+
+        rows = self._linhas_planilha(self._exportar())
+        dados = {(ident, nome): dias for ident, nome, dias in rows[1:]}
+        # Na planilha o nome vem sanitizado (idêntico ao homônimo) — o ID é
+        # o que distingue as duas linhas.
+        self.assertEqual(dados[(self.professor_id, 'Professor Silva')], 12)
+        self.assertEqual(dados[(variante_id, 'Professor Silva')], 7)
+        self.assertEqual(len(rows), 3)
 
     def test_exportar_sem_lancamentos_redireciona(self):
         response = self._exportar()
@@ -601,7 +628,7 @@ class MealAllowanceTestCase(unittest.TestCase):
         self._adicionar(teacher=self.professor_id, days='5', mes='2026-09')
 
         rows = self._linhas_planilha(self._exportar('?month_base=2026-09'))
-        self.assertEqual(rows[1], ('Professor Silva', 5))
+        self.assertEqual(rows[1], (self.professor_id, 'Professor Silva', 5))
         self.assertEqual(len(rows), 2)
 
 

@@ -75,6 +75,28 @@ class SyncPermissionsTestCase(unittest.TestCase):
             for code, _, _, _ in PERMISSION_DATA:
                 self.assertIn(code, codes)
 
+    def test_dump_permissions_um_vinculo_por_linha_com_nome_escapado(self):
+        """Inventário do dump-permissions: um nome de papel com quebra de
+        linha não forja um vínculo falso — sai escapado, uma linha por par."""
+        with self.app.app_context():
+            db.create_all()
+            leitura = Permission(code='payment:read', module='payment', action='read')
+            db.session.add(leitura)
+            db.session.flush()
+            db.session.add(Role(name='forjado\nadmin :: system:admin',
+                                label='Forjado', permissions=[leitura]))
+            db.session.add(Role(name='comum', label='Comum', permissions=[leitura]))
+            db.session.commit()
+
+        resultado = self.app.test_cli_runner().invoke(args=['dump-permissions'])
+        self.assertEqual(resultado.exit_code, 0, resultado.output)
+        linhas = resultado.output.splitlines()
+        self.assertEqual(linhas, [
+            'comum :: payment:read',
+            'forjado\\nadmin :: system:admin :: payment:read',
+        ])
+        self.assertNotIn('admin :: system:admin', linhas)
+
 
 if __name__ == '__main__':
     unittest.main()
