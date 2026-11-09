@@ -452,6 +452,27 @@ class MealAllowanceTestCase(unittest.TestCase):
         for i, ident in enumerate(novos_ids):
             self.assertEqual(dados[(ident, f'Docente {i}')], i + 11)
 
+    def test_exportar_lancamento_com_professor_ausente_do_banco(self):
+        """Lançamento órfão — o professor sumiu do banco numa exclusão feita
+        fora do app (o SQLite não impõe a chave estrangeira): o export não
+        cai com 500. A linha sai com o ID gravado, os dias somados e um nome
+        provisório, e os demais professores seguem intactos."""
+        self._adicionar(teacher=self.professor_id, days='12')
+        with self.app.app_context():
+            db.session.add_all([
+                TeacherMealAllowance(teacher_id=9999, days=4, unity_id=self.unity_id),
+                TeacherMealAllowance(teacher_id=9999, days=3, unity_id=self.unity_id),
+            ])
+            db.session.commit()
+
+        response = self._exportar()
+        self.assertEqual(response.status_code, 200)
+        rows = self._linhas_planilha(response)
+        dados = {(ident, nome): dias for ident, nome, dias in rows[1:]}
+        self.assertEqual(dados[(9999, '(professor não encontrado)')], 7)
+        self.assertEqual(dados[(self.professor_id, 'Professor Silva')], 12)
+        self.assertEqual(len(rows), 3)
+
     def test_exportar_sem_lancamentos_redireciona(self):
         response = self._exportar()
         self.assertEqual(response.status_code, 302)
