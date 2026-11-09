@@ -977,13 +977,18 @@ def export_meal_allowance():
     ws.append(['ID', 'Professor', 'Dias Trabalhados'])
     for cell in ws[1]:
         cell.font = Font(bold=True)
-    for chave in sorted(totais, key=lambda c: (c[1].lower(), c[0])):
-        id_professor, nome = chave
-        # Mesma sanitização do export de Hora Extra: nome importado pode
-        # trazer caracteres que o openpyxl recusa (IllegalCharacterError) ou
-        # que invalidam o XML — e o "=" do "=" fica literal, não fórmula.
+    # A ordem segue o texto SANITIZADO que a planilha exibe (um nome que
+    # começa por controle ordenaria diferente do que se lê), com o ID de
+    # desempate. Mesma sanitização do export de Hora Extra: nome importado
+    # pode trazer caracteres que o openpyxl recusa (IllegalCharacterError)
+    # ou que invalidam o XML — e o "=" inicial fica literal, não fórmula.
+    linhas = []
+    for (id_professor, nome), dias in totais.items():
         nome_seguro = _texto_para_celula(nome)
-        ws.append([id_professor, nome_seguro, totais[chave]])
+        linhas.append((nome_seguro.lower(), id_professor, nome_seguro, dias))
+    linhas.sort()
+    for _, id_professor, nome_seguro, dias in linhas:
+        ws.append([id_professor, nome_seguro, dias])
         if isinstance(nome_seguro, str) and nome_seguro.startswith('='):
             ws.cell(row=ws.max_row, column=2).data_type = 's'
     ws.column_dimensions['A'].width = 12
