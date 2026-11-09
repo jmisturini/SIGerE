@@ -975,7 +975,13 @@ def export_meal_allowance():
 
     totais = {}
     for entry in entries:
-        chave = (entry.teacher.id, entry.teacher.full_name)
+        # Lançamento órfão — o professor sumiu do banco por uma exclusão feita
+        # fora do app (o SQLite não impõe a chave estrangeira): entra com o ID
+        # gravado e um nome provisório, em vez de derrubar o export inteiro.
+        if entry.teacher is None:
+            chave = (entry.teacher_id, '(professor não encontrado)')
+        else:
+            chave = (entry.teacher.id, entry.teacher.full_name)
         totais[chave] = totais.get(chave, 0) + entry.days
 
     wb = Workbook()
