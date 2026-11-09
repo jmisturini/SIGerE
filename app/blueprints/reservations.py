@@ -164,10 +164,22 @@ def _get_reservation_scoped(reservation_id):
 # app/services/scheduling.py — ponto único de validação e gravação atômica
 # (proteção contra condição de corrida) e re-exportados acima.
 
+@bp.route('/')
+@login_required
+def index():
+    """Compatibilidade: a raiz de /reservations levava à central do módulo;
+    com as seções virando hubs (modelo do Observatório), o caminho da
+    Central de reservas agora é /salas-e-reservas — os cards de Reservas
+    moram lá."""
+    return redirect(url_for('main.hub_salas_reservas'))
+
+
 # AJAX endpoint to check for holiday/sunday warnings before form submission
 @bp.route('/check_holiday', methods=['GET'])
 @login_required
 def check_holiday():
+    """Endpoint JSON do formulário: avisa se a data escolhida cai em
+    feriado ativo da unidade (o dia útil seguinte é sugerido)."""
     date_str = request.args.get('date')
     if not date_str:
         return jsonify({'has_warning': False})
@@ -197,6 +209,9 @@ def check_holiday():
 @login_required
 @require_permission('reservation:create')
 def create():
+    """Criação de reserva na unidade ativa: nasce Aprovada, Pendente (conflito
+    de professor, excesso diário ou criador do fluxo de aprovação) e agenda as
+    notificações por reserva escolhidas no formulário."""
     form = ReservationForm()
 
     classrooms = _classrooms_for_current_unity()
@@ -467,6 +482,10 @@ def all_reservations():
     return render_template('reservations/all.html',
                            pagination=pagination, reservas=pagination.items,
                            periodo=periodo, ordem=ordem, base_args=base_args,
+                           # IDs já convertidos pela rota (type=int): o template
+                           # reflete o filtro que a rota APLICOU — não a URL crua.
+                           filtro_room=room_id, filtro_teacher=teacher_id,
+                           filtro_course=course_id, filtro_subject=subject_id,
                            classrooms=Classroom.query.filter_by(unity_id=uid, is_active=True).order_by(Classroom.code).all(),
                            teachers=_teachers_for_current_unity(),
                            courses=Course.query.filter_by(unity_id=uid, is_active=True).order_by(Course.name).all(),
@@ -476,6 +495,9 @@ def all_reservations():
 @bp.route('/<int:reservation_id>')
 @login_required
 def detail(reservation_id):
+    """Detalhe da reserva: leitura global, ou do próprio/dono via
+    reservation:read_own — professor designado também lê (ações seguem as
+    regras de cada rota)."""
     reservation = _get_reservation_scoped(reservation_id)
     # Permite ver se tem permissão global, OU se tem permissão de ler as
     # próprias e é o dono OU o professor designado da reserva (vínculo dá
@@ -503,6 +525,8 @@ def detail(reservation_id):
 @login_required
 @require_permission_or_owner('reservation:edit_all')
 def edit(reservation_id):
+    """Edição de reserva futura (passadas são registro histórico): revalida
+    conflitos e mantém o status quando não há motivo de pendência."""
     reservation = _get_reservation_scoped(reservation_id)
     if reservation.date < date.today():
         flash('Reservas passadas não podem ser editadas.', 'warning')
@@ -649,6 +673,8 @@ def edit(reservation_id):
 @login_required
 @require_permission_or_owner('reservation:cancel_all')
 def cancel(reservation_id):
+    """Cancelamento (próprio ou de todas, conforme a permissão): reserva
+    passada é histórica e não se cancela; o criador é avisado."""
     reservation = _get_reservation_scoped(reservation_id)
     if reservation.status == 'cancelled':
         flash('Esta reserva já está cancelada.', 'warning')
@@ -673,6 +699,8 @@ def cancel(reservation_id):
 @login_required
 @require_permission('reservation:delete_all')
 def delete(reservation_id):
+    """Exclusão permanente (admin): reservas passadas aprovadas ficam como
+    registro do sistema; o criador é avisado da exclusão."""
     reservation = _get_reservation_scoped(reservation_id)
     if reservation.status == 'approved' and reservation.date < date.today():
         # Reserva passada é registro do sistema: fica fora da exclusão.
@@ -736,6 +764,8 @@ def approve(reservation_id):
 @bp.route('/<int:reservation_id>/pending-teacher-conflict')
 @login_required
 def teacher_conflict_warning(reservation_id):
+    """Página do aviso de Pendência por conflito de professor, acessível ao
+    criador e a quem lê todas as reservas."""
     reservation = _get_reservation_scoped(reservation_id)
     if reservation.user_id != current_user.id and not current_user.has_permission('reservation:read_all'):
         abort(403)
@@ -747,6 +777,8 @@ def teacher_conflict_warning(reservation_id):
 @login_required
 @require_permission('reservation:create')
 def repeat_view(reservation_id):
+    """Formulário de repetição semanal da reserva (dono ou edição global):
+    a série começa, no mínimo, no dia seguinte ao de hoje."""
     res = _get_reservation_scoped(reservation_id)
     if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
         abort(403)
@@ -825,6 +857,8 @@ def repeat_view(reservation_id):
 @login_required
 @require_permission('reservation:create')
 def repeat_schedule(reservation_id):
+    """Gera as repetições semanais a partir da data inicial informada, com
+    opções de manter o mesmo dia da semana e pular fins de semana."""
     res = _get_reservation_scoped(reservation_id)
     if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
         abort(403)
@@ -899,6 +933,8 @@ def repeat_schedule(reservation_id):
 @login_required
 @require_permission('reservation:create')
 def repeat_schedule_all(reservation_id):
+    """Variante que preenche o intervalo inteiro entre data inicial e final
+    (mesmas opções de dia fixo e fins de semana)."""
     res = _get_reservation_scoped(reservation_id)
     if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
         abort(403)
@@ -1028,6 +1064,7 @@ def _series_members(res):
 
 
 def _series_count(res):
+    """Quantas reservas pertencem à série da reserva (grupo próprio ou dela)."""
     group_id = res.repeat_group_id or res.id
     return db.session.query(Reservation.id).filter(
         Reservation.repeat_group_id == group_id).count()
@@ -1048,6 +1085,8 @@ def _check_series_view_access(res):
 @bp.route('/<int:reservation_id>/series')
 @login_required
 def series_manage(reservation_id):
+    """Página da série: próximas (editáveis em lote conforme a permissão) e
+    passadas/canceladas — exige menos de duas reservas para nem abrir."""
     res = _get_reservation_scoped(reservation_id)
     _check_series_view_access(res)
 
@@ -1074,6 +1113,8 @@ def series_manage(reservation_id):
 @bp.route('/<int:reservation_id>/series/edit', methods=['POST'])
 @login_required
 def series_edit(reservation_id):
+    """Edita em lote as reservas futuras selecionadas da série (dono ou
+    edição global), revalidando conflitos para cada data."""
     res = _get_reservation_scoped(reservation_id)
     _check_series_view_access(res)
     if res.user_id != current_user.id and not current_user.has_permission('reservation:edit_all'):
@@ -1201,6 +1242,8 @@ def series_edit(reservation_id):
 @bp.route('/<int:reservation_id>/series/delete', methods=['POST'])
 @login_required
 def series_delete(reservation_id):
+    """Cancela ou exclui em lote as reservas selecionadas da série (modo
+    pelo campo mode), respeitando a permissão de cada ação."""
     res = _get_reservation_scoped(reservation_id)
     _check_series_view_access(res)
 

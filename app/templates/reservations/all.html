@@ -1,19 +1,16 @@
 {% extends 'base.html' %}
 {% from '_pagination.html' import render_pagination %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Todas as Reservas (Admin){% endblock %}
 
 {% block content %}
-<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-    <div>
-        <h3 class="fw-bold mb-1">Todas as Reservas</h3>
-        <p class="text-muted mb-0">Gerencie e acompanhe todas as solicitações de salas do sistema.</p>
-    </div>
+{% call cabecalho_pagina('Reservas', 'Todas as Reservas', 'Gerencie e acompanhe todas as solicitações de salas do sistema.') %}
     <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-outline-primary" href="{{ url_for('relatorios.geral', **request.args) }}" title="Relatório Geral de Salas e Reservas">
             <i class="bi bi-clipboard-data me-1"></i> Relatório
         </a>
     </div>
-</div>
+{% endcall %}
 
 <!-- Abas de período: atuais/futuras e passadas -->
 <ul class="nav nav-tabs mb-4">
@@ -34,10 +31,12 @@
 <!-- Filtros: os mesmos do calendário + status e ordenação -->
 <div class="card mb-4">
     <div class="card-body">
-        <h5 class="filter-title">
-            <span class="section-icon section-icon-default"><i class="bi bi-funnel"></i></span>
-            Filtros
-        </h5>
+        <div class="form-card-head">
+            <span class="hub-card-icone"><i class="bi bi-funnel" aria-hidden="true"></i></span>
+            <div>
+                <h3>Filtros</h3>
+            </div>
+        </div>
         <form method="GET" class="row g-3 align-items-end">
             <input type="hidden" name="periodo" value="{{ periodo }}">
             <div class="col-md-3">
@@ -70,28 +69,35 @@
                 <label class="form-label small">Sala</label>
                 <select name="room_id" class="form-select">
                     <option value="">Todas</option>
-                    {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('room_id') == c.id|string }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
+                    {% for c in classrooms %}<option value="{{ c.id }}" {{ 'selected' if filtro_room == c.id }}>{{ c.code }} — {{ c.name }}</option>{% endfor %}
+                    {# Sala filtrada fora da listagem ativa (inativa/apagada):
+                       permanece como opção selecionada, para o filtro não
+                       cair ao reenviar o formulário. #}
+                    {% if filtro_room and not classrooms|selectattr('id', 'equalto', filtro_room)|list %}<option value="{{ filtro_room }}" selected>#{{ filtro_room }} (não listada)</option>{% endif %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label small">Professor</label>
                 <select name="teacher_id" class="form-select">
                     <option value="">Todos</option>
-                    {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if request.args.get('teacher_id') == t.id|string }}>{{ t.full_name }}</option>{% endfor %}
+                    {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if filtro_teacher == t.id }}>{{ t.full_name }}</option>{% endfor %}
+                    {% if filtro_teacher and not teachers|selectattr('id', 'equalto', filtro_teacher)|list %}<option value="{{ filtro_teacher }}" selected>#{{ filtro_teacher }} (não listado)</option>{% endif %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label small">Curso</label>
                 <select name="course_id" class="form-select">
                     <option value="">Todos</option>
-                    {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('course_id') == c.id|string }}>{{ c.name }}</option>{% endfor %}
+                    {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if filtro_course == c.id }}>{{ c.name }}</option>{% endfor %}
+                    {% if filtro_course and not courses|selectattr('id', 'equalto', filtro_course)|list %}<option value="{{ filtro_course }}" selected>#{{ filtro_course }} (não listado)</option>{% endif %}
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label small">Disciplina</label>
                 <select name="subject_id" class="form-select">
                     <option value="">Todas</option>
-                    {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if request.args.get('subject_id') == s.id|string }}>{{ s.name }}</option>{% endfor %}
+                    {% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if filtro_subject == s.id }}>{{ s.name }}</option>{% endfor %}
+                    {% if filtro_subject and not subjects|selectattr('id', 'equalto', filtro_subject)|list %}<option value="{{ filtro_subject }}" selected>#{{ filtro_subject }} (não listada)</option>{% endif %}
                 </select>
             </div>
             <div class="col-md-3">
@@ -103,27 +109,72 @@
                     <option value="professor" {{ 'selected' if ordem == 'professor' }}>Professor (nome)</option>
                 </select>
             </div>
-            <div class="col-12 mt-3 d-flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Aplicar Filtros</button>
-                <a class="btn btn-outline-secondary" href="{{ url_for('reservations.all_reservations', periodo=periodo) }}">
-                    <i class="bi bi-eraser me-1"></i> Limpar
-                </a>
+            <div class="form-card-rodape col-12">
+                <div class="form-acoes">
+                    <a class="btn btn-outline-secondary" href="{{ url_for('reservations.all_reservations', periodo=periodo) }}">
+                        <i class="bi bi-eraser me-1"></i> Limpar
+                    </a>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Aplicar Filtros</button>
+                </div>
             </div>
         </form>
     </div>
 </div>
 
+{# Filtros ativos: um chip por parâmetro aplicado, com link para removê-lo —
+   a remoção reenvia a consulta sem aquele campo (e sem paginação velha). #}
+{% set args_d = request.args.to_dict() %}
+{# Os IDs aqui são os CONVERTIDOS pela rota (type=int; lixo vira None): o que
+   se exibe é o filtro que a rota APLICOU, não a URL crua. #}
+{% set tem_filtros = (args_d.get('start') or args_d.get('end') or args_d.get('period')
+    or args_d.get('status') or filtro_room or filtro_teacher
+    or filtro_course or filtro_subject
+    or (args_d.get('ordem') and args_d.get('ordem') != 'data_asc')) %}
+{% if tem_filtros %}
+{% macro chip_filtro(campo, rotulo) %}
+{% set a = request.args.to_dict() %}
+{% set _ = a.pop(campo, None) %}
+{% set _ = a.pop('periodo', None) %}
+{% set _ = a.pop('page', None) %}
+<span class="chip-filtro">{{ rotulo }}
+    <a href="{{ url_for('reservations.all_reservations', periodo=periodo, **a) }}" title="Remover este filtro">×</a>
+</span>
+{% endmacro %}
+<div class="filtros-ativos">
+    <span class="fa-rotulo">Filtros ativos</span>
+    {% if args_d.get('start') %}{{ chip_filtro('start', 'De: ' ~ args_d.get('start')) }}{% endif %}
+    {% if args_d.get('end') %}{{ chip_filtro('end', 'Até: ' ~ args_d.get('end')) }}{% endif %}
+    {% if args_d.get('period') %}{{ chip_filtro('period', 'Período: ' ~ ({'morning': 'Manhã', 'afternoon': 'Tarde', 'night': 'Noite'}[args_d.get('period')])) }}{% endif %}
+    {% if args_d.get('status') %}{{ chip_filtro('status', 'Status: ' ~ ({'approved': 'Aprovada', 'pending': 'Pendente', 'cancelled': 'Cancelada'}.get(args_d.get('status'), args_d.get('status')))) }}{% endif %}
+    {# IDs convertidos pela rota: um valor não numérico não filtrou nada e
+       não vira chip. Fallback neutro — deixar de listar não afirma o estado
+       do registro. #}
+    {% if filtro_room %}{% set achado = namespace(nome=None) %}{% for c in classrooms %}{% if c.id == filtro_room %}{% set achado.nome = c.code %}{% endif %}{% endfor %}{{ chip_filtro('room_id', 'Sala: ' ~ (achado.nome or ('#' ~ filtro_room ~ ' (não listada)'))) }}{% endif %}
+    {% if filtro_teacher %}{% set achado = namespace(nome=None) %}{% for p in teachers %}{% if p.id == filtro_teacher %}{% set achado.nome = p.full_name %}{% endif %}{% endfor %}{{ chip_filtro('teacher_id', 'Professor: ' ~ (achado.nome or ('#' ~ filtro_teacher ~ ' (não listado)'))) }}{% endif %}
+    {% if filtro_course %}{% set achado = namespace(nome=None) %}{% for c in courses %}{% if c.id == filtro_course %}{% set achado.nome = c.name %}{% endif %}{% endfor %}{{ chip_filtro('course_id', 'Curso: ' ~ (achado.nome or ('#' ~ filtro_course ~ ' (não listado)'))) }}{% endif %}
+    {% if filtro_subject %}{% set achado = namespace(nome=None) %}{% for s in subjects %}{% if s.id == filtro_subject %}{% set achado.nome = s.name %}{% endif %}{% endfor %}{{ chip_filtro('subject_id', 'Disciplina: ' ~ (achado.nome or ('#' ~ filtro_subject ~ ' (não listada)'))) }}{% endif %}
+    {% if args_d.get('ordem') and args_d.get('ordem') != 'data_asc' %}{{ chip_filtro('ordem', 'Ordenação personalizada') }}{% endif %}
+    <a class="fa-limpar" href="{{ url_for('reservations.all_reservations', periodo=periodo) }}">Limpar tudo</a>
+</div>
+{% endif %}
+
 <!-- Listagem do período selecionado -->
 <div class="card">
-    <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-        {% if periodo == 'passadas' %}
-            <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-clock-history"></i></span> Reservas Passadas (Somente Leitura)</h5>
-        {% else %}
-            <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-calendar-event"></i></span> Reservas Atuais e Futuras</h5>
-        {% endif %}
-        <span class="badge text-bg-light border">{{ pagination.total }} reserva(s)</span>
-    </div>
     <div class="card-body p-0">
+        <div class="form-card-head px-3 pt-3">
+            {% if periodo == 'passadas' %}
+                <span class="hub-card-icone"><i class="bi bi-clock-history" aria-hidden="true"></i></span>
+                <div>
+                    <h3>Reservas Passadas (Somente Leitura)</h3>
+                </div>
+            {% else %}
+                <span class="hub-card-icone"><i class="bi bi-calendar-event" aria-hidden="true"></i></span>
+                <div>
+                    <h3>Reservas Atuais e Futuras</h3>
+                </div>
+            {% endif %}
+            <span class="badge text-bg-light border">{{ pagination.total }} reserva(s)</span>
+        </div>
     {% if reservas %}
         <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
@@ -143,13 +194,13 @@
                     <td>{{ r.user.full_name }}</td>
                     <td>
                         {% if r.status == 'approved' %}
-                            <span class="badge text-bg-success-subtle text-success border border-success-subtle">Aprovada</span>
+                            <span class="badge bg-success-subtle text-success-emphasis badge-estado">Aprovada</span>
                         {% elif r.status == 'pending' %}
-                            <span class="badge text-bg-warning-subtle text-warning border border-warning-subtle">Pendente</span>
+                            <span class="badge bg-warning-subtle text-warning-emphasis badge-estado">Pendente</span>
                         {% elif r.status == 'cancelled' %}
-                            <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle">Cancelada</span>
+                            <span class="badge bg-danger-subtle text-danger-emphasis badge-estado">Cancelada</span>
                         {% else %}
-                            <span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">{{ r.status }}</span>
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis badge-estado">{{ r.status }}</span>
                         {% endif %}
                     </td>
                     <td class="text-end pe-4">
@@ -168,15 +219,15 @@
             </table>
         </div>
     {% else %}
-        <div class="empty-state">
+        <div class="estado-vazio incard">
             {% if periodo == 'passadas' %}
-                <i class="bi bi-archive"></i>
-                <h5 class="mb-1">Nenhum histórico</h5>
-                <p class="small mb-0">Não há reservas passadas com esses filtros.</p>
+                <span class="ev-icone"><i class="bi bi-archive"></i></span>
+                <h3>Nenhum histórico</h3>
+                <p>Não há reservas passadas com esses filtros.</p>
             {% else %}
-                <i class="bi bi-calendar-check"></i>
-                <h5 class="mb-1">Nenhuma reserva futura</h5>
-                <p class="small mb-0">Não há reservas atuais ou futuras com esses filtros.</p>
+                <span class="ev-icone"><i class="bi bi-calendar-check"></i></span>
+                <h3>Nenhuma reserva futura</h3>
+                <p>Não há reservas atuais ou futuras com esses filtros.</p>
             {% endif %}
         </div>
     {% endif %}

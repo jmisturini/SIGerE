@@ -25,6 +25,15 @@
        que o base) — cada tema de cor sobrescreve estes tokens. */
     --primary-hover: #003d70;
     --primary-active: #003361;
+    /* Laranja Senac (#F7941D, mesmo tom já usado nos PDFs gerados): acento
+       fixo de destaque (eyebrow, setas, badge do sino), INDEPENDENTE dos 8
+       temas de cor — nenhum [data-accent] sobrescreve estes tokens.
+       `...-text` é o tom legível como texto sobre fundo claro (o #F7941D
+       puro não passa de ~2,1:1 sobre branco); `...-tint` cobre fundos
+       suaves de destaque. */
+    --accent-orange: #f7941d;
+    --accent-orange-text: #b45309;
+    --accent-orange-tint: rgba(247, 148, 29, 0.12);
     /* Tokens do Bootstrap alinhados à paleta institucional: sem isso, badges,
        links, abas, paginação, checkboxes e foco de campos usam o azul padrão
        do Bootstrap (#0d6efd), dessintonizado do azul Senac dos botões. */
@@ -42,7 +51,14 @@
     --bs-focus-ring-color: rgba(0, 74, 141, 0.25);
 }
 
-[data-theme="dark"] {
+/* O segundo seletor é necessário porque os blocos [data-accent] vêm depois
+   deste no arquivo com a mesma especificidade: sem ele, os valores CLAROS
+   de link (ex.: --bs-link-color: #b45309 no laranja) venciam também no
+   tema escuro, onde os blocos [data-theme="dark"][data-accent=...] só
+   redefinem os tons derivados (--primary-light*) que as var() abaixo
+   consomem. */
+[data-theme="dark"],
+[data-theme="dark"][data-accent] {
     color-scheme: dark;
     --sidebar-bg: #0a1624;
     --topbar-bg: #161b22;
@@ -63,6 +79,11 @@
     --primary-light: #9db9fe;
     --primary-light-rgb: 157, 185, 254;
     --primary-light-hover: #c3d2ff;
+    /* Laranja no escuro: o tom base segue decorativo (setas, pontinhos,
+       badge); o tom de texto clareia para manter o contraste sobre
+       superfícies escuras e a tinta ganha um pouco mais de opacidade. */
+    --accent-orange-text: #f7a83c;
+    --accent-orange-tint: rgba(247, 148, 29, 0.16);
     --text-color: #c9d1d9;
     --text-muted: #8b949e;
     --border-color: rgba(255, 255, 255, 0.1);
@@ -180,6 +201,12 @@ body {
     scrollbar-color: rgba(255,255,255,0.25) transparent;
 }
 
+/* A lista estica até o rodapé da sidebar: o item Painel Admin (mt-auto)
+   assenta na base, separado dos módulos por um fio. */
+.sidebar-menu > .nav {
+    min-height: 100%;
+}
+
 .sidebar-menu::-webkit-scrollbar {
     width: 6px;
 }
@@ -224,16 +251,23 @@ body {
     gap: 0.7rem;
     font-weight: 500;
     transition: background-color 0.15s, color 0.15s;
-    border-radius: 8px;
+    border-radius: 12px;
     font-size: 0.925rem;
     white-space: nowrap;
 }
 
-.sidebar-menu .nav-link > i {
-    font-size: 1.05rem;
-    width: 1.25rem;
-    flex-shrink: 0;
-    text-align: center;
+/* Ícone em chip quadrado translúcido (padrão Observatório). A seta do item
+   ativo também é um <i> filho direto, por isso fica de fora do chip. */
+.sidebar-menu .nav-link > i:not(.nav-seta) {
+    font-size: 0.95rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex: 0 0 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    background: var(--sidebar-active-bg);
 }
 
 .sidebar-menu .nav-link:hover {
@@ -241,9 +275,10 @@ body {
     color: var(--sidebar-active-color);
 }
 
-/* Item ativo: pílula clara que se destaca do fundo escuro. O rótulo usa o
-   próprio fundo da sidebar, então a inversão funciona em qualquer tema
-   de cor (azul, verde, roxo...) e no tema escuro. */
+/* Item ativo: card branco que se destaca do fundo escuro, com o ícone em
+   chip tintado do accent e seta laranja à direita (padrão Observatório).
+   O rótulo usa o próprio fundo da sidebar, então a inversão funciona em
+   qualquer tema de cor (azul, verde, roxo...) e no tema escuro. */
 .sidebar-menu .nav-link.active,
 .sidebar-menu .nav-link.active:hover {
     background-color: #fff;
@@ -251,42 +286,20 @@ body {
     font-weight: 600;
 }
 
-/* Grupos expansíveis da sidebar (menus dropdown) */
-.sidebar-menu .nav-link .nav-chevron {
-    font-size: 0.7rem;
-    transition: transform 0.2s ease;
+.sidebar-menu .nav-link.active > i:not(.nav-seta) {
+    background: rgba(var(--primary-color-rgb), 0.12);
 }
 
-.sidebar-menu .nav-link[aria-expanded="true"] .nav-chevron {
-    transform: rotate(180deg);
+/* Seta laranja (acento fixo): só aparece no item ativo. */
+.sidebar-menu .nav-link .nav-seta {
+    display: none;
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: var(--accent-orange);
 }
 
-/* Submenu: linha-guia liga visualmente os itens ao ícone do grupo pai */
-.sidebar-menu .nav-submenu {
-    position: relative;
-    padding-bottom: 0.35rem;
-}
-
-.sidebar-menu .nav-submenu::before {
-    content: '';
-    position: absolute;
-    left: 2.1rem;
-    top: 0;
-    bottom: 0.45rem;
-    width: 1px;
-    background: rgba(255,255,255,0.18);
-}
-
-.sidebar-menu .nav-submenu .nav-link {
-    padding: 0.45rem 0.7rem 0.45rem 1.55rem;
-    font-size: 0.85rem;
-    font-weight: 400;
-    gap: 0.65rem;
-}
-
-.sidebar-menu .nav-submenu .nav-link > i {
-    font-size: 0.9rem;
-    width: 1rem;
+.sidebar-menu .nav-link.active .nav-seta {
+    display: inline-flex;
 }
 
 /* Main Content */
@@ -340,10 +353,9 @@ body {
     html.sidebar-collapsed .sidebar-collapse-btn i { transform: rotate(180deg); }
     html.sidebar-collapsed .sidebar-menu .nav-section { display: none; }
     html.sidebar-collapsed .sidebar-menu .nav-link { justify-content: center; padding: 0.6rem 0; gap: 0; }
-    html.sidebar-collapsed .sidebar-menu .nav-link > span:not(.nav-chevron) { display: none; }
-    html.sidebar-collapsed .sidebar-menu .nav-link .nav-chevron { display: none; }
-    /* Submenus ficam para o modo expandido: clicar no grupo reexpande o menu */
-    html.sidebar-collapsed .sidebar-menu .nav-submenu { display: none !important; }
+    /* No modo só-ícones o chip continua visível; o rótulo e a seta saem. */
+    html.sidebar-collapsed .sidebar-menu .nav-link > span { display: none; }
+    html.sidebar-collapsed .sidebar-menu .nav-link .nav-seta { display: none; }
 }
 
 /* Topbar */
@@ -359,36 +371,91 @@ body {
     z-index: 100;
 }
 
+/* Identidade da topbar: unidade ativa em cima e, abaixo, o breadcrumb em
+   linha única (Início › Seção › Página com a página em negrito). Some em
+   telas estreitas para não disputar espaço com as ações. */
+.topbar-identidade {
+    margin-left: 0.9rem;
+    min-width: 0;
+    max-width: 46vw;
+}
+
+.topbar-unidade .unity-name {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 30vw;
+}
+
+/* Celular (<768px): a identidade completa entra na topbar — sem ela não
+   havia forma de trocar de unidade no mobile (o Perfil não oferece o
+   seletor). Ocupa o espaço entre o hamburger e as ações; nome da unidade
+   e trilha truncam com reticências, e o menu de unidades nunca passa da
+   largura da tela. */
+@media (max-width: 767.98px) {
+    .topbar-identidade {
+        flex: 1;
+        margin-left: 0.5rem;
+        max-width: none;
+    }
+    .topbar-unidade .unity-name {
+        font-size: 0.8rem;
+        max-width: 38vw;
+    }
+    .topbar-unidade .dropdown-menu {
+        max-width: calc(100vw - 2rem);
+    }
+    .crumb-linha {
+        font-size: 0.68rem;
+    }
+}
+
+.crumb-linha {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.crumb-linha a {
+    color: var(--text-muted);
+    text-decoration: none;
+}
+
+.crumb-linha a:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.crumb-linha .bi-house-door {
+    font-size: 0.8rem;
+}
+
+.crumb-sep {
+    font-size: 0.6rem;
+    opacity: 0.7;
+}
+
+.crumb-atual {
+    font-weight: 700;
+    color: var(--primary-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .crumb-atual,
+[data-theme="dark"] .crumb-linha a:hover {
+    color: var(--primary-light);
+}
+
 [data-theme="dark"] .topbar {
     border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-/* Link do Painel Admin na topbar (hub das áreas administrativas) */
-.topbar-painel {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.4rem 0.75rem;
-    margin-right: 0.35rem;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-color);
-    text-decoration: none;
-    white-space: nowrap;
-    transition: background 0.2s, color 0.2s;
-}
-
-.topbar-painel:hover,
-.topbar-painel:focus-visible {
-    color: var(--primary-color);
-    background: rgba(var(--primary-color-rgb), 0.08);
-}
-
-.topbar-painel.active {
-    color: var(--primary-color);
-    background: rgba(var(--primary-color-rgb), 0.12);
-    font-weight: 600;
 }
 
 .btn-icon {
@@ -441,6 +508,807 @@ body {
     justify-content: center;
     min-width: 3em;
     font-variant-numeric: tabular-nums;
+}
+
+/* ── Laranja institucional: padrões de destaque do Observatório ────────
+   "Eyebrow" acima do título da página, seta laranja em links de
+   navegação e badge do sino. O laranja é decorativo (seta/ponto) ou vem
+   do tom -text quando é texto — decorativo em --accent-orange, texto em
+   --accent-orange-text, fundo suave em --accent-orange-tint. */
+
+.page-eyebrow {
+    margin: 0 0 0.15rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-orange-text);
+}
+
+/* A seta fica em laranja puro (decorativa) e desliza no hover,
+   sinalizando navegação como nos cards do Observatório. */
+.link-seta .bi-arrow-right {
+    color: var(--accent-orange);
+    transition: transform 0.15s ease;
+}
+
+.link-seta:hover .bi-arrow-right {
+    transform: translateX(2px);
+}
+
+/* Badge do sino de notificações: laranja com texto escuro — o branco
+   padrão do Bootstrap ficava abaixo de 3:1 sobre o laranja. */
+.badge-acento {
+    background-color: var(--accent-orange);
+    color: #26160a;
+}
+
+/* Sino de notificações (topbar): botão quadrado branco com borda suave e
+   sino azul — substitui o antigo link fantasma sem contorno. */
+.btn-sino {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    font-size: 1.15rem;
+    color: var(--primary-color);
+    background: var(--topbar-bg);
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+    transition: background-color 0.15s ease, border-color 0.15s ease,
+                box-shadow 0.2s ease, color 0.15s ease;
+}
+
+.btn-sino:hover,
+.btn-sino:focus {
+    color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb), 0.06);
+    border-color: rgba(var(--primary-color-rgb), 0.25);
+}
+
+[data-theme="dark"] .btn-sino {
+    color: var(--primary-light);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+}
+
+[data-theme="dark"] .btn-sino:hover,
+[data-theme="dark"] .btn-sino:focus {
+    color: var(--primary-light);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+/* Caixa de notificações: card branco arredondado com sombra — título em
+   caixa alta foi trocado por rótulo forte na cor do texto; corpo centrado. */
+.notif-dropdown {
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-raised);
+    overflow: hidden;
+}
+
+.notif-cabecalho {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.notif-titulo {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-color);
+}
+
+.notif-rodape {
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Badges de estado (Aprovada, Pendente, Cancelada, Ativo, Inativo,
+   Disponível…): pontinho na cor do próprio texto, sem borda e gap
+   uniforme, como nos cards do Observatório. Usar JUNTO das utilidades
+   do Bootstrap que dão fundo e cor (text-bg-success-subtle
+   text-success…) — e sem as classes border border-*-subtle. Chips de
+   metadados (código de sala, categoria, papel, contagens) não usam:
+   .badge-estado é só para estados. */
+.badge-estado {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: 0;
+}
+
+.badge-estado::before {
+    content: '';
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* ── Páginas-hub de módulo (modelo do Observatório) ───────────────────
+   Faixa azul "Central de informações" com os caminhos do módulo dentro
+   dela. O gradiente deriva do accent vigente, como no painel do login. */
+.hub-hero {
+    border-radius: var(--radius-lg);
+    background: var(--primary-color);
+    background: linear-gradient(165deg,
+        var(--primary-color) 0%,
+        color-mix(in srgb, var(--primary-color), #000 45%) 100%);
+    color: #fff;
+    padding: 1.6rem 1.7rem;
+    box-shadow: var(--shadow-raised);
+    margin-bottom: 1.5rem;
+}
+
+.hub-hero-head {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.hub-hero-icone {
+    width: 3.1rem;
+    height: 3.1rem;
+    flex: 0 0 3.1rem;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.14);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+}
+
+/* Eyebrow do hero usa o laranja puro (decorativo sobre o gradiente). */
+.hub-hero-eyebrow {
+    margin: 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-orange);
+}
+
+.hub-hero h2 {
+    color: #fff;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0.15rem 0 0.2rem;
+}
+
+.hub-hero-sub {
+    color: rgba(255, 255, 255, 0.78);
+    margin: 0;
+    font-size: 0.925rem;
+}
+
+.hub-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 0.9rem;
+}
+
+/* ── Faixa de marca do Painel (modelo do Observatório) ────────────────
+   Título grande + strip de módulos em círculos do accent com separadores
+   e tagline espaçada — espelha a faixa central da home do Observatório.
+   Os círculos usam o accent vigente (a cor da interface), como os chips
+   dos cards-portais; superfícies e textos saem dos tokens de tema. */
+.painel-faixa {
+    background: var(--topbar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    padding: 2.25rem 2rem 1.9rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.painel-faixa-titulo {
+    margin: 0;
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.painel-faixa-titulo small {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-top: 0.15rem;
+}
+
+.painel-faixa-strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.6rem 1.4rem;
+    margin-top: 1.4rem;
+}
+
+.painel-faixa-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-color);
+}
+
+.painel-faixa-item i {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: #fff;
+    font-size: 0.95rem;
+}
+
+.painel-faixa-sep {
+    color: var(--border-color);
+    font-size: 1.1rem;
+    user-select: none;
+}
+
+.painel-faixa-tagline {
+    margin: 1.3rem 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+@media (max-width: 575.98px) {
+    .painel-faixa { padding: 1.75rem 1.25rem 1.5rem; }
+    .painel-faixa-titulo { font-size: 1.7rem; }
+    .painel-faixa-titulo small { font-size: 1.15rem; }
+    .painel-faixa-strip { gap: 0.7rem 0.9rem; margin-top: 1.2rem; }
+    .painel-faixa-sep { display: none; }
+    .painel-faixa-tagline { letter-spacing: 0.18em; }
+}
+
+/* Cards-portais do hero sempre numa única linha (repartem a largura em
+   partes iguais); só recuam para 2 colunas / 1 coluna em telas estreitas. */
+.hub-cards-portais {
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+    .hub-cards-portais {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 560px) {
+    .hub-cards-portais {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Rótulo de grupo dentro do hero (ex.: "Reservas", "Relatórios"): separa
+   os cards por módulo quando a central absorve mais de um menu. */
+.hub-grupo {
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.hub-grupo:not(:first-child) {
+    margin-top: 1.1rem;
+}
+
+/* Cards-portais do hero: verticais, como no Observatório — o clique abre
+   logo abaixo o bloco de conteúdos daquele caminho (um por vez). */
+.hub-portal {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+    padding: 1rem 1.1rem;
+    border: 2px solid transparent;
+    border-radius: var(--radius-md);
+    background: var(--topbar-bg);
+    color: var(--text-color);
+    font: inherit;
+    text-align: left;
+    box-shadow: var(--shadow-soft);
+    transition: transform 0.15s ease, box-shadow 0.2s ease,
+                border-color 0.15s ease;
+}
+
+.hub-portal:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+}
+
+/* Caminho aberto: contorno laranja (acento fixo) marca o card ativo. */
+.hub-portal[aria-expanded="true"] {
+    border-color: var(--accent-orange);
+}
+
+.hub-portal > b {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.hub-portal > small {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+/* Rodapé "Acessar →" no molde do Observatório: texto no accent, seta no
+   laranja fixo. */
+.hub-portal-acessar {
+    margin-top: auto;
+    padding-top: 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--primary-color);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.hub-portal-acessar .bi {
+    color: var(--accent-orange);
+}
+
+/* Bloco de conteúdos do caminho escolhido: card claro FORA da faixa azul,
+   no molde "Conteúdos disponíveis" do Observatório. */
+.hub-bloco {
+    background: var(--topbar-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    padding: 1.4rem 1.5rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.hub-bloco-head {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1.1rem;
+}
+
+.hub-bloco-head h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.hub-bloco-head p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* ── Cartão de formulário (padrão Observatório) ───────────────────────
+   Cabeçalho com ícone em chip + título funcional daquele bloco, e rodapé
+   separado por fio: ajuda à esquerda, ações à direita. O cartão continua
+   sendo um .card do Bootstrap — este padrão só organiza o interior. */
+.form-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1.25rem;
+}
+
+.form-card-head h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.form-card-head p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.form-card-rodape {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border-color);
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+}
+
+.form-card-rodape > small {
+    color: var(--text-muted);
+}
+
+.form-card-rodape .form-acoes {
+    margin-left: auto;
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+/* ── Estado vazio com ação (padrão Observatório) ────────────────────── */
+.estado-vazio {
+    background: var(--topbar-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--card-shadow);
+    padding: 2.8rem 1.5rem 2.4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.25rem;
+}
+
+/* Variante para viver DENTRO de um card de resultados (sem caixa própria). */
+.estado-vazio.incard {
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 1.8rem 1rem 1.6rem;
+}
+
+.estado-vazio .ev-icone {
+    width: 60px;
+    height: 60px;
+    border-radius: 18px;
+    background: rgba(var(--primary-color-rgb), 0.08);
+    color: var(--primary-color);
+    display: grid;
+    place-items: center;
+    font-size: 1.7rem;
+    margin-bottom: 0.55rem;
+}
+
+[data-theme="dark"] .estado-vazio .ev-icone {
+    background: rgba(var(--primary-color-rgb), 0.16);
+    color: var(--primary-light);
+}
+
+.estado-vazio h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.estado-vazio p {
+    margin: 0 0 1rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    max-width: 26rem;
+}
+
+.estado-vazio .ev-acoes {
+    display: flex;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* ── Filtros ativos como chips removíveis ───────────────────────────── */
+.filtros-ativos {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    background: var(--topbar-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    padding: 0.7rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.filtros-ativos .fa-rotulo {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.chip-filtro {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: rgba(var(--primary-color-rgb), 0.08);
+    color: var(--primary-color);
+    border-radius: 999px;
+    padding: 0.3rem 0.4rem 0.3rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.chip-filtro small {
+    font-weight: 500;
+    opacity: 0.85;
+}
+
+.chip-filtro a,
+.chip-filtro button {
+    display: grid;
+    place-items: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border: 0;
+    border-radius: 50%;
+    padding: 0;
+    line-height: 1;
+    background: rgba(var(--primary-color-rgb), 0.14);
+    color: var(--primary-color);
+    font-size: 0.7rem;
+    text-decoration: none;
+}
+
+.chip-filtro a:hover,
+.chip-filtro button:hover {
+    background: rgba(var(--primary-color-rgb), 0.3);
+    color: #fff;
+}
+
+[data-theme="dark"] .chip-filtro a,
+[data-theme="dark"] .chip-filtro button {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--primary-light);
+}
+
+[data-theme="dark"] .chip-filtro a:hover,
+[data-theme="dark"] .chip-filtro button:hover {
+    background: rgba(255, 255, 255, 0.24);
+}
+
+.filtros-ativos .fa-limpar {
+    border: 0;
+    background: transparent;
+    padding: 0.25rem 0.4rem;
+    color: var(--accent-orange-text);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.filtros-ativos .fa-limpar:hover {
+    text-decoration: underline;
+}
+
+/* ── Flash padronizado (ok / aviso / erro / info) ───────────────────── */
+.flash-card {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    background: var(--topbar-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    border-left: 4px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.9rem;
+}
+
+.flash-card .fc-icone {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 0.95rem;
+}
+
+.flash-card .fc-msg {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.flash-card.ok { border-left-color: var(--bs-success-text-emphasis); }
+.flash-card.ok .fc-icone { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); }
+
+.flash-card.aviso { border-left-color: var(--bs-warning-text-emphasis); }
+.flash-card.aviso .fc-icone { background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }
+
+.flash-card.erro { border-left-color: var(--bs-danger-text-emphasis); }
+.flash-card.erro .fc-icone { background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
+
+.flash-card.info { border-left-color: var(--bs-primary); }
+.flash-card.info .fc-icone { background: rgba(var(--primary-color-rgb), 0.08); color: var(--primary-color); }
+
+/* ── Ficha da reserva (detalhe): grid de infos + linha do tempo ─────── */
+.ficha-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0 1.2rem;
+    padding: 0.4rem 0 0.2rem;
+}
+
+.ficha-item {
+    display: flex;
+    gap: 0.7rem;
+    align-items: flex-start;
+    padding: 0.55rem 0;
+    min-width: 0;
+}
+
+.ficha-item .fi-icone {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 0.95rem;
+    background: rgba(var(--primary-color-rgb), 0.08);
+    color: var(--primary-color);
+}
+
+.ficha-item small {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+.ficha-item b {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.linha-tempo {
+    padding: 0.6rem 1.4rem 1.4rem;
+}
+
+.lt-passo {
+    display: flex;
+    gap: 0.8rem;
+    position: relative;
+    padding-bottom: 1.15rem;
+}
+
+.lt-passo:last-child {
+    padding-bottom: 0;
+}
+
+.lt-passo::before {
+    content: '';
+    position: absolute;
+    left: 0.72rem;
+    top: 1.75rem;
+    bottom: 0.15rem;
+    width: 2px;
+    background: var(--border-color);
+}
+
+.lt-passo:last-child::before {
+    display: none;
+}
+
+.lt-dot {
+    width: 1.6rem;
+    height: 1.6rem;
+    flex: 0 0 1.6rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.8rem;
+    z-index: 1;
+}
+
+.lt-passo.feito .lt-dot {
+    background: var(--bs-success-bg-subtle);
+    color: var(--bs-success-text-emphasis);
+}
+
+.lt-passo.atual .lt-dot {
+    background: rgba(var(--primary-color-rgb), 0.1);
+    color: var(--primary-color);
+}
+
+.lt-passo.futuro .lt-dot {
+    border: 2px dashed var(--input-borda);
+    color: var(--text-muted);
+    background: var(--topbar-bg);
+}
+
+.lt-passo.cancelado .lt-dot {
+    background: var(--bs-danger-bg-subtle);
+    color: var(--bs-danger-text-emphasis);
+}
+
+.lt-passo b.titulo {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.lt-passo small {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.hub-card {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.95rem 1rem;
+    border-radius: var(--radius-md);
+    background: var(--topbar-bg);
+    color: var(--text-color);
+    text-decoration: none;
+    box-shadow: var(--shadow-soft);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.hub-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+    color: var(--text-color);
+}
+
+.hub-card-icone {
+    width: 2.4rem;
+    height: 2.4rem;
+    flex: 0 0 2.4rem;
+    border-radius: var(--radius-sm);
+    background: rgba(var(--primary-color-rgb), 0.1);
+    color: var(--primary-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+}
+
+.hub-card-corpo {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.hub-card-corpo b {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.hub-card-corpo small {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.hub-card-seta {
+    margin-left: auto;
+    color: var(--accent-orange);
+    transition: transform 0.15s ease;
+}
+
+.hub-card:hover .hub-card-seta {
+    transform: translateX(2px);
+}
+
+/* No escuro o accent claro (#4f7afb) misturado com 45% de preto ainda
+   fica claro demais para o laranja do eyebrow — o gradiente afunda mais
+   em direção ao preto (mesmo ajuste vale para o painel do login). */
+[data-theme="dark"] .hub-hero,
+[data-theme="dark"] .login-brand {
+    background: linear-gradient(165deg,
+        color-mix(in srgb, var(--primary-color), #000 25%) 0%,
+        color-mix(in srgb, var(--primary-color), #000 65%) 100%);
 }
 
 /* Senac Style overrides */
@@ -539,6 +1407,9 @@ body {
 [data-theme="dark"] .dropdown-menu {
     background-color: #161b22;
     border: 1px solid rgba(255,255,255,0.1);
+    /* Accent claro no escuro: item ativo com texto escuro mantém o
+       contraste (var(--bs-primary) clareia no tema escuro). */
+    --bs-dropdown-link-active-color: #000;
 }
 
 [data-theme="dark"] .dropdown-item {
@@ -547,6 +1418,14 @@ body {
 
 [data-theme="dark"] .dropdown-item:hover {
     background-color: rgba(255,255,255,0.1);
+}
+
+/* O item ativo precisa vencer a regra genérica de cor acima (mesma
+   especificidade, mas ela vem depois do Bootstrap): sem isso o texto do
+   item ativo ficava cinza-claro sobre o accent claro do escuro. */
+[data-theme="dark"] .dropdown-item.active,
+[data-theme="dark"] .dropdown-item:active {
+    color: var(--bs-dropdown-link-active-color);
 }
 
 /* Seletor de unidade da topbar: inline no base.html não dá para sobrescrever,
@@ -587,6 +1466,27 @@ body {
 
 .pagination {
     flex-wrap: wrap;
+}
+
+/* Backdrop do menu lateral no celular: escurece o conteúdo atrás da
+   sidebar e fecha o menu ao tocar (JS no base.html). Fica sob a sidebar
+   (z-index 1000) e sobre todo o resto (a topbar é z-index 100) — e só
+   existe abaixo de 992px, onde a sidebar é off-canvas. */
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+@media (max-width: 991.98px) {
+    .app-container.sidebar-open .sidebar-backdrop {
+        display: block;
+        opacity: 1;
+    }
 }
 
 /* Sidebar toggle for mobile */
@@ -695,6 +1595,12 @@ body {
     scroll-margin-top: 7.5rem;
 }
 
+/* Âncora do formulário de upload das fichas técnicas (atalho do hub da
+   Cozinha): mesmo recuo das âncoras de período. */
+#upload-fichas {
+    scroll-margin-top: 7.5rem;
+}
+
 /* Styles to match screenshots */
 h1, h2, h3, h4, h5, h6 {
     color: var(--text-color);
@@ -720,6 +1626,52 @@ h1, h2, h3, h4, h5, h6 {
 }
 .modal[data-bs-theme="dark"] .modal-header .modal-title {
     color: #fff;
+}
+
+/* Modal de confirmação de saída: cartão centrado sem barra de título —
+   ícone em círculo azul, pergunta forte e par de ações claro/escuro. */
+.modal-sair {
+    border-radius: var(--radius-lg);
+}
+
+.modal-sair .modal-body {
+    padding-bottom: 2.5rem;
+}
+
+.modal-sair-icone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 84px;
+    height: 84px;
+    margin: 0 auto;
+    font-size: 2.75rem;
+    color: var(--primary-color);
+    border: 3px solid var(--primary-color);
+    border-radius: 50%;
+}
+
+.modal-sair-titulo {
+    margin-top: 1.1rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.modal-sair-texto {
+    max-width: 34ch;
+    margin: 0.35rem auto 0;
+    color: var(--text-muted);
+}
+
+[data-theme="dark"] .modal[data-bs-theme="dark"] .modal-sair-icone {
+    color: var(--primary-light);
+    border-color: var(--primary-light);
+}
+
+/* Especificidade acima de [data-theme="dark"] h5 (0,1,1), que pinta os
+   headings de branco e venceria o azul do título. */
+[data-theme="dark"] .modal-sair-titulo {
+    color: var(--primary-light);
 }
 
 .list-group-item {
@@ -827,6 +1779,11 @@ h1, h2, h3, h4, h5, h6 {
 .ts-dropdown {
     /* Acima de modais (1055) e da topbar */
     z-index: 1060;
+    /* Mesmo tratamento dos .dropdown-menu (o tema bootstrap5 do Tom Select
+       traz raio 6px, borda e sombra próprias que destoavam dos cards) */
+    border-radius: var(--radius-md);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-raised);
 }
 
 /* Ao digitar na busca de um select simples (dropdown aberto), o item
@@ -1155,6 +2112,18 @@ h1, h2, h3, h4, h5, h6 {
     --bs-focus-ring-color: rgba(23, 184, 166, 0.35);
 }
 
+/* Hover dos links segue o tema: o `a:hover` do Bootstrap 5.3 pinta com
+   `--bs-link-hover-color-rgb`, triplo que nunca redefinimos (nem aqui nem
+   nos [data-accent]) — sem isso o hover de TODO link caía no azul padrão
+   do Bootstrap (#0a58ca), trocando de tema de cor para azul no passar do
+   mouse. Esta regra, carregada depois do bootstrap.min.css, usa a cor
+   simples que os tokens já definem (incl. --primary-light-hover no
+   escuro); seletores mais específicos (.dropdown-item:hover, hovers de
+   chip/sidebar) continuam valendo. */
+a:hover {
+    color: var(--bs-link-hover-color);
+}
+
 /* Seletor de tema de cor da topbar: amostras redondas; a escolhida recebe
    um contorno e o "check". */
 .accent-swatch {
@@ -1234,6 +2203,43 @@ h1, h2, h3, h4, h5, h6 {
 .form-control,
 .form-select {
     border-radius: var(--radius-sm);
+}
+
+/* Dropdowns no padrão visual do app: sem isso eles usam o estilo cru do
+   Bootstrap (raio 6px, borda cinza fina, sem sombra), que destoava dos
+   cards — o sino de notificações já usava o mesmo tratamento via
+   .notif-dropdown (raio/sombra próprios). Os tokens de item ativo têm que
+   ser redefinidos AQUI dentro: o Bootstrap 5.3 os declara em escopo de
+   elemento (.dropdown-menu), que vence o :root — os overrides globais
+   nunca chegavam e o item ativo ficava no azul padrão (#0d6efd) em
+   qualquer accent. */
+.dropdown-menu {
+    border-radius: var(--radius-md);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-raised);
+    --bs-dropdown-link-active-bg: var(--bs-primary);
+    --bs-dropdown-link-active-color: #fff;
+}
+
+/* Paginação: mesmo caso dos dropdowns — o Bootstrap 5.3 define os tokens
+   --bs-pagination-* no próprio .pagination (escopo de elemento), então os
+   overrides de :root e do bloco escuro não chegavam e a página ativa
+   ficava no azul padrão (#0d6efd) em qualquer accent/tema. */
+.pagination {
+    --bs-pagination-active-bg: var(--bs-primary);
+    --bs-pagination-active-border-color: var(--bs-primary);
+}
+
+[data-theme="dark"] .pagination {
+    --bs-pagination-bg: transparent;
+    --bs-pagination-color: #c9d1d9;
+    --bs-pagination-border-color: #30363d;
+    --bs-pagination-hover-bg: rgba(255, 255, 255, 0.06);
+    --bs-pagination-hover-color: #fff;
+    --bs-pagination-hover-border-color: #30363d;
+    --bs-pagination-active-color: #000;
+    --bs-pagination-active-bg: var(--bs-primary);
+    --bs-pagination-active-border-color: var(--bs-primary);
 }
 
 .btn {
@@ -1408,10 +2414,14 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .login-brand::after {
-    width: 260px;
-    height: 260px;
-    bottom: -110px;
-    left: -90px;
+    width: 300px;
+    height: 300px;
+    bottom: -130px;
+    left: -110px;
+    /* Arco laranja (acento fixo): remete às formas do login do
+       Observatório e marca o canto do painel em qualquer accent. */
+    background: transparent;
+    border: 42px solid var(--accent-orange-tint);
 }
 
 .login-brand-body,
@@ -1425,17 +2435,44 @@ h1, h2, h3, h4, h5, h6 {
     display: block;
 }
 
+/* Eyebrow no painel azul: o laranja puro (#F7941D) tem bom contraste
+   sobre o gradiente — o tom -text (marrom) seria ilegível aqui. */
+.login-brand .page-eyebrow {
+    color: var(--accent-orange);
+    margin: 1.25rem 0 0;
+}
+
 .login-brand h2 {
     color: #fff;
     font-size: 1.9rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-    margin: 1.25rem 0 0.25rem;
+    margin: 0.25rem 0 0.25rem;
 }
 
+/* Tagline com barra laranja à esquerda (acento fixo), como na frase de
+   abertura do login do Observatório — em duas linhas: gancho forte e
+   explicação curta. */
 .login-brand-tagline {
-    color: rgba(255, 255, 255, 0.78);
+    color: rgba(255, 255, 255, 0.85);
+    border-left: 4px solid var(--accent-orange);
+    padding-left: 1rem;
     margin-bottom: 2.25rem;
+}
+
+.login-brand-tagline strong {
+    display: block;
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.login-brand-tagline span {
+    display: block;
+    font-size: 0.8rem;
+    opacity: 0.8;
+    margin-top: 0.15rem;
 }
 
 .login-benefits {
@@ -1516,6 +2553,82 @@ h1, h2, h3, h4, h5, h6 {
     padding: 0.7rem 1rem;
 }
 
+/* Ícones embutidos nos campos (modelo do Observatório): a CAIXA é o
+   grupo inteiro (ícone + campo + botão olho) — os filhos ficam sem borda
+   e sem raio próprios, para a linha não se desfazer entre eles. O foco do
+   campo acende a caixa via :focus-within (o anel nativo do input fica
+   desligado para não duplicar). */
+.login-campo {
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.login-campo .input-group-text,
+.login-campo .form-control,
+.login-campo .btn-outline-secondary {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    margin-left: 0;
+}
+
+.login-campo .input-group-text {
+    color: var(--text-muted);
+    padding-left: 0.9rem;
+    padding-right: 0.35rem;
+}
+
+.login-campo .form-control {
+    padding-left: 0.5rem;
+}
+
+.login-campo .form-control:focus {
+    box-shadow: none;
+}
+
+.login-campo .btn-outline-secondary {
+    color: var(--text-muted);
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+.login-campo .btn-outline-secondary:hover,
+.login-campo .btn-outline-secondary:focus {
+    color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb), 0.06);
+}
+
+.login-campo .form-control:focus + .btn-outline-secondary,
+.login-campo:focus-within .input-group-text {
+    color: var(--primary-color);
+}
+
+.login-campo:focus-within {
+    border-color: rgba(var(--primary-color-rgb), 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.15);
+}
+
+[data-theme="dark"] .login-campo {
+    border-color: #30363d;
+}
+
+/* Nota de segurança sob o botão: caixinha suave com escudo, como no
+   login do Observatório. */
+.login-nota {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    background: rgba(var(--primary-color-rgb), 0.06);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin: 1.25rem 0 0;
+}
+
 @media (max-width: 991.98px) {
     .login-wrap {
         min-height: auto;
@@ -1524,42 +2637,78 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* — Painel (dashboard) — */
-.dash-hero {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.dash-hero h1 {
-    font-size: 1.6rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    margin: 0;
-}
-
-.dash-hero-date {
+/* Ações dentro do hero (painel): fantasmas em branco translúcido e ação
+   primária em branco sólido, como nos cards do Observatório. */
+.hub-hero-linha {
     display: flex;
     align-items: center;
+    gap: 1rem;
     flex-wrap: wrap;
-    gap: 0.6rem;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    margin-top: 0.4rem;
 }
 
-.dash-hero-period {
+.hub-hero-acoes {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.btn-hero-ghost {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.25rem 0.7rem;
+    gap: 0.45rem;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--radius-sm);
+    padding: 0.45rem 0.9rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.15s ease;
+}
+
+.btn-hero-ghost:hover,
+.btn-hero-ghost:focus-visible {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+/* Ação primária branca sobre o hero (ficha da reserva). O raio segue o
+   dos botões ghost da mesma fileira (--radius-sm): antes usava
+   var(--radius-ctl), token que nunca existiu — o raio caía em 0 e o botão
+   ficava de cantos retos ao lado dos vizinhos arredondados. */
+.btn-hero-branco {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: #fff;
+    color: var(--primary-color);
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 0.45rem 0.9rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.btn-hero-branco:hover,
+.btn-hero-branco:focus-visible {
+    color: var(--primary-hover);
+}
+
+.chip-claro {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    padding: 0.15rem 0.65rem;
     border-radius: 999px;
     font-size: 0.78rem;
     font-weight: 600;
-    background: rgba(var(--primary-color-rgb), 0.1);
-    color: var(--primary-color);
 }
 
 .dash-stats {
@@ -1602,6 +2751,63 @@ h1, h2, h3, h4, h5, h6 {
 .stat-label {
     color: var(--text-muted);
     font-size: 0.82rem;
+}
+
+/* Atalho de aprovação (Painel): linha-card com o chip no laranja de
+   acento — o idioma "ao vivo" do sistema (selo Agora, sino) — e a seta
+   laranja dos cards do Observatório. Só aparece para quem aprova reservas
+   e há pendências na unidade; o hover levanta o card, como nos hubs. */
+.painel-pendentes {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.95rem 1.15rem;
+    margin-bottom: 1.5rem;
+    background: var(--topbar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.painel-pendentes:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+}
+
+.painel-pendentes .pp-icone {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    background: var(--accent-orange-tint);
+    color: var(--accent-orange-text);
+}
+
+.painel-pendentes .pp-corpo b {
+    display: block;
+    font-size: 0.95rem;
+    color: var(--text-color);
+}
+
+.painel-pendentes .pp-corpo small {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.painel-pendentes .pp-seta {
+    margin-left: auto;
+    color: var(--accent-orange);
+    transition: transform 0.15s ease;
+}
+
+.painel-pendentes:hover .pp-seta {
+    transform: translateX(3px);
 }
 
 /* Cabeçalho de seção genérico (painel por categoria, dia da agenda):
@@ -1662,7 +2868,6 @@ h1, h2, h3, h4, h5, h6 {
    em ~3,8:1 — abaixo do 4,5:1 do WCAG AA para texto pequeno. O token
    --primary-light é o tom criado para texto sobre superfícies escuras
    (mesma regra das abas ativas). */
-[data-theme="dark"] .dash-hero-period,
 [data-theme="dark"] .dash-count {
     color: var(--primary-light);
 }

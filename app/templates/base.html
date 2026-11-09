@@ -35,6 +35,10 @@
 <body>
 <div class="app-container {{ 'sem-sidebar' if ocultar_sidebar else '' }}">
     {% if not ocultar_sidebar %}
+    <!-- Backdrop do menu no celular: a sidebar aberta (z-index 1000) cobre o
+         botão hamburger (na topbar, z-index 100), então sem esta camada não
+         havia como fechar o menu — tocar fora agora fecha. -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
     <!-- Sidebar -->
     <nav class="sidebar">
         <div class="sidebar-header">
@@ -57,181 +61,79 @@
                 {% if current_user.is_authenticated %}
                 {# Endpoint atual abreviado para as regras de destaque do menu #}
                 {% set ep = request.endpoint or '' %}
-                <li class="nav-section">Geral</li>
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if ep == 'main.index' }}" title="Painel" href="{{ url_for('main.index') }}">
-                        <i class="bi bi-speedometer2"></i> <span>Painel</span>
+                    <a class="nav-link {{ 'active' if ep == 'main.index' }}" title="Início" href="{{ url_for('main.index') }}">
+                        <i class="bi bi-house-door"></i> <span>Início</span>
+                        <i class="bi bi-chevron-right nav-seta" aria-hidden="true"></i>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if ep.startswith('schedule.') }}" title="Agenda" href="{{ url_for('schedule.view') }}">
                         <i class="bi bi-calendar3"></i> <span>Agenda</span>
+                        <i class="bi bi-chevron-right nav-seta" aria-hidden="true"></i>
                     </a>
                 </li>
 
-                {# Relatórios: seção própria (fora de Salas e Reservas), com o relatório
-                   geral e o personalizado — acesso ligado à leitura gerencial #}
-                {% if current_user.has_permission('reservation:read_all') %}
-                {% set in_relatorios = ep.startswith('relatorios.') %}
+                {# Sidebar achatada no modelo do Observatório: Início e Agenda
+                   diretos; as demais seções viraram itens-hub — os antigos
+                   menus (e submenus) de cada seção vivem como cards na
+                   central correspondente. #}
+                {% set in_salas_reservas = (ep == 'main.hub_salas_reservas'
+                    or ep.startswith('classrooms') or ep.startswith('admin.rooms')
+                    or ep.startswith('admin.categories') or ep.startswith('reservations.')
+                    or ep.startswith('relatorios.')) %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_relatorios else '' }}" title="Relatórios" data-bs-toggle="collapse" href="#menu-relatorios" role="button" aria-expanded="{{ 'true' if in_relatorios else 'false' }}" aria-controls="menu-relatorios">
-                        <i class="bi bi-clipboard-data"></i> <span>Relatórios</span>
-                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
-                    </a>
-                    <div class="collapse {{ 'show' if in_relatorios else '' }}" id="menu-relatorios">
-                        <ul class="nav flex-column nav-submenu">
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep == 'relatorios.geral' }}" title="Relatório Geral" href="{{ url_for('relatorios.geral') }}">
-                                    <i class="bi bi-graph-up"></i> <span>Relatório Geral</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep == 'relatorios.personalizado' }}" title="Relatório Personalizado" href="{{ url_for('relatorios.personalizado') }}">
-                                    <i class="bi bi-sliders"></i> <span>Relatório Personalizado</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                </li>
-                {% endif %}
-
-                <li class="nav-section">Salas e Reservas</li>
-                {# Salas inclui a gestão administrativa (admin/rooms, categorias) e as telas públicas #}
-                {% set in_salas = ep.startswith('classrooms') or ep.startswith('admin.rooms') or ep.startswith('admin.categories') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_salas }}" title="Salas" href="{{ url_for('classrooms.list_classrooms') }}">
-                        <i class="bi bi-door-open"></i> <span>Salas</span>
+                    <a class="nav-link {{ 'active' if in_salas_reservas }}" title="Salas e Reservas" href="{{ url_for('main.hub_salas_reservas') }}">
+                        <i class="bi bi-building"></i> <span>Salas e Reservas</span>
+                        <i class="bi bi-chevron-right nav-seta" aria-hidden="true"></i>
                     </a>
                 </li>
-                {% set in_reservations = ep.startswith('reservations.') %}
-                {% if current_user.has_permission('reservation:create') or current_user.has_permission('reservation:read_all') or current_user.has_permission('reservation:read_own') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_reservations else '' }}" title="Reservas" data-bs-toggle="collapse" href="#menu-reservas" role="button" aria-expanded="{{ 'true' if in_reservations else 'false' }}" aria-controls="menu-reservas">
-                        <i class="bi bi-calendar-week"></i> <span>Reservas</span>
-                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
-                    </a>
-                    <div class="collapse {{ 'show' if in_reservations else '' }}" id="menu-reservas">
-                        <ul class="nav flex-column nav-submenu">
-                            {% if current_user.has_permission('reservation:create') %}
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.create') }}" title="Nova Reserva" href="{{ url_for('reservations.create') }}">
-                                    <i class="bi bi-plus-circle"></i> <span>Nova Reserva</span>
-                                </a>
-                            </li>
-                            {% endif %}
-                            {% if current_user.has_permission('reservation:read_own') %}
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.my') }}" title="Minhas Reservas" href="{{ url_for('reservations.my_reservations') }}">
-                                    <i class="bi bi-calendar-check"></i> <span>Minhas Reservas</span>
-                                </a>
-                            </li>
-                            {% endif %}
-                            {% if current_user.has_permission('reservation:read_all') %}
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('reservations.all') }}" title="Todas as Reservas" href="{{ url_for('reservations.all_reservations') }}">
-                                    <i class="bi bi-people"></i> <span>Todas as Reservas</span>
-                                </a>
-                            </li>
-                            {% endif %}
-                        </ul>
-                    </div>
-                </li>
-                {% endif %}
 
                 {# Endpoints do Vale Alimentação: payments.{list,add,edit,delete}_meal_allowance #}
                 {% set in_meal = request.endpoint and 'meal_allowance' in request.endpoint %}
                 {% set in_overtime = request.endpoint and request.endpoint.startswith('payments.') and not in_meal %}
                 {% set in_vt = request.endpoint and request.endpoint.startswith('vt.') %}
                 {% set in_an = request.endpoint and request.endpoint.startswith('an.') %}
-                {# O Financeiro concentra o Pagamento Extra (payment:*). #}
-                {# O módulo Financeiro pode ser desligado por unidade (edição da unidade) — o toggle governa também o Vale-Transporte, no RH. #}
-                {% if unity_module_enabled('finance') and current_user.has_permission('payment:read') %}
-                <li class="nav-section">Financeiro</li>
+                {# Financeiro/RH: Hora Extra, Vale-Transporte, Vale Alimentação
+                   e Adicional Noturno numa única central. O módulo Financeiro
+                   pode ser desligado por unidade (edição da unidade) — o
+                   toggle governa os dois lados. #}
+                {% if unity_module_enabled('finance') and (current_user.has_permission('payment:read') or current_user.has_permission('payment:create') or current_user.has_permission('payment:edit') or current_user.has_permission('vt:read') or current_user.has_permission('meal:read') or current_user.has_permission('an:read')) %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_overtime else '' }}" title="Hora Extra" data-bs-toggle="collapse" href="#menu-hora-extra" role="button" aria-expanded="{{ 'true' if in_overtime else 'false' }}" aria-controls="menu-hora-extra">
-                        <i class="bi bi-cash-stack"></i> <span>Hora Extra</span>
-                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
-                    </a>
-                    <div class="collapse {{ 'show' if in_overtime else '' }}" id="menu-hora-extra">
-                        <ul class="nav flex-column nav-submenu">
-                            {% if current_user.has_permission('payment:create') %}
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('payments.create_overtime') or ep.startswith('payments.edit_overtime') }}" title="Nova Hora Extra" href="{{ url_for('payments.create_overtime') }}">
-                                    <i class="bi bi-plus-circle"></i> <span>Nova Hora Extra</span>
-                                </a>
-                            </li>
-                            {% endif %}
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('payments.list_overtime') }}" title="Consultar H. Extras" href="{{ url_for('payments.list_overtime') }}">
-                                    <i class="bi bi-list-ul"></i> <span>Consultar H. Extras</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                </li>
-                {% endif %}
-
-                {# RH: Vale-Transporte (vt:*), Vale Alimentação (meal:*) e Adicional Noturno (an:*) — seguem sob o módulo Financeiro da unidade #}
-                {% if unity_module_enabled('finance') and (current_user.has_permission('vt:read') or current_user.has_permission('meal:read') or current_user.has_permission('an:read')) %}
-                <li class="nav-section">RH</li>
-                {% endif %}
-                {% if unity_module_enabled('finance') and current_user.has_permission('vt:read') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_vt else '' }}" title="Vale Transporte" data-bs-toggle="collapse" href="#menu-vt" role="button" aria-expanded="{{ 'true' if in_vt else 'false' }}" aria-controls="menu-vt">
-                        <i class="bi bi-bus-front"></i> <span>Vale Transporte</span>
-                        <i class="bi bi-chevron-down nav-chevron ms-auto"></i>
-                    </a>
-                    <div class="collapse {{ 'show' if in_vt else '' }}" id="menu-vt">
-                        <ul class="nav flex-column nav-submenu">
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep.startswith('vt.requests') }}" title="Pedidos VT" href="{{ url_for('vt.requests') }}">
-                                    <i class="bi bi-inbox"></i> <span>Pedidos VT</span>
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link {{ 'active' if ep == 'vt.relatorio' }}" title="Relatório VT" href="{{ url_for('vt.relatorio') }}">
-                                    <i class="bi bi-graph-up"></i> <span>Relatório</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                </li>
-                {% endif %}
-                {% if unity_module_enabled('finance') and current_user.has_permission('meal:read') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_meal else '' }}" title="Vale Alimentação - Professores" href="{{ url_for('payments.list_meal_allowance') }}">
-                        <i class="bi bi-basket2"></i> <span>Vale Alimentação</span>
-                    </a>
-                </li>
-                {% endif %}
-                {% if unity_module_enabled('finance') and current_user.has_permission('an:read') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if in_an else '' }}" title="Adicional Noturno - Professores" href="{{ url_for('an.registros') }}">
-                        <i class="bi bi-moon-stars"></i> <span>Adicional Noturno</span>
+                    <a class="nav-link {{ 'active' if (ep == 'main.hub_financeiro_rh' or in_overtime or in_vt or in_meal or in_an) else '' }}" title="Financeiro/RH" href="{{ url_for('main.hub_financeiro_rh') }}">
+                        <i class="bi bi-wallet2"></i> <span>Financeiro/RH</span>
+                        <i class="bi bi-chevron-right nav-seta" aria-hidden="true"></i>
                     </a>
                 </li>
                 {% endif %}
 
                 {# O módulo Cozinha pode ser desligado por unidade (edição da unidade) #}
                 {% if current_user.has_permission('kitchen:read') and unity_module_enabled('kitchen') %}
-                <li class="nav-section">Cozinha</li>
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if ep.startswith('kitchen.sheet') }}" title="Ficha Técnica" href="{{ url_for('kitchen.sheets') }}">
-                        <i class="bi bi-file-earmark-word"></i> <span>Ficha Técnica</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if ep.startswith('kitchen.preparation') }}" title="Preparações" href="{{ url_for('kitchen.preparations') }}">
-                        <i class="bi bi-journal-text"></i> <span>Preparações</span>
-                    </a>
-                </li>
-                {% if current_user.has_permission('kitchen:shopping_export') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if ep.startswith('kitchen.shopping') }}" title="Compras" href="{{ url_for('kitchen.shopping') }}">
-                        <i class="bi bi-cart-check"></i> <span>Compras</span>
+                    <a class="nav-link {{ 'active' if (ep == 'main.hub_cozinha' or ep.startswith('kitchen.')) }}" title="Cozinha" href="{{ url_for('main.hub_cozinha') }}">
+                        <i class="bi bi-egg-fried"></i> <span>Cozinha</span>
+                        <i class="bi bi-chevron-right nav-seta" aria-hidden="true"></i>
                     </a>
                 </li>
                 {% endif %}
+
+                {# Painel Admin na base da sidebar: áreas administrativas
+                   (usuários, papéis, tokens, configurações) — salas/categorias
+                   continuam marcando "Salas e Reservas". #}
+                {% set painel_visivel_sb = current_user.has_permission('system:dashboard')
+                    or current_user.has_permission('unity:read')
+                    or current_user.has_permission('api:manage')
+                    or current_user.has_permission('vt:empresas')
+                    or current_user.has_permission('vt:config') %}
+                {% if painel_visivel_sb %}
+                {% set in_painel_admin_sb = ep.startswith('admin.')
+                    and not (ep.startswith('admin.rooms') or ep.startswith('admin.categories')) %}
+                <li class="nav-item mt-auto pt-2" style="border-top: 1px solid rgba(255,255,255,0.08);">
+                    <a class="nav-link {{ 'active' if in_painel_admin_sb }}" title="Painel Admin" href="{{ url_for('admin.dashboard') }}">
+                        <i class="bi bi-gear"></i> <span>Painel Admin</span>
+                        <i class="bi bi-chevron-right nav-seta" aria-hidden="true"></i>
+                    </a>
+                </li>
                 {% endif %}
 
                 {% else %}
@@ -239,16 +141,19 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('public.home') }}">
                         <i class="bi bi-house"></i> <span>Início</span>
+                        <i class="bi bi-chevron-right nav-seta" aria-hidden="true"></i>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('public.class_search') }}">
                         <i class="bi bi-search"></i> <span>Buscar Aula</span>
+                        <i class="bi bi-chevron-right nav-seta" aria-hidden="true"></i>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('public.daily_schedule') }}">
                         <i class="bi bi-calendar-day"></i> <span>Cronograma</span>
+                        <i class="bi bi-chevron-right nav-seta" aria-hidden="true"></i>
                     </a>
                 </li>
                 {% endif %}
@@ -268,31 +173,64 @@
             {% endif %}
 
             {% if current_user.is_authenticated and current_unity %}
-            {# Unidade ativa à esquerda do topbar, ao lado da barra lateral #}
-            <div class="unity-area d-none d-md-flex align-items-center gap-2" title="{{ current_unity.name }} — unidade ativa de operação">
-                <i class="bi bi-geo-alt text-muted"></i>
-                <span class="fw-semibold unity-name">{{ current_unity.name }}</span>
-                {% if can_switch_unity and switchable_unities|length > 1 %}
-                <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
-                            aria-expanded="false" title="Trocar unidade ativa">
-                        Trocar
-                    </button>
-                    <ul class="dropdown-menu">
-                        {% for u in switchable_unities %}
-                        <li>
-                            <form method="POST" action="{{ url_for('main.switch_unity') }}" class="m-0">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <input type="hidden" name="unity_id" value="{{ u.id }}">
-                                <button type="submit" class="dropdown-item" {{ 'disabled' if current_unity.id == u.id }}>
-                                    {{ u.name }}{% if current_unity.id == u.id %} <i class="bi bi-check2"></i>{% endif %}
-                                </button>
-                            </form>
-                        </li>
-                        {% endfor %}
-                    </ul>
+            {# Identidade da topbar: unidade ativa em cima e, logo abaixo, o
+               breadcrumb no molde do Observatório — a seção reusa as mesmas
+               regras de destaque da sidebar, então o mapa nunca diverge do
+               menu. Painel Admin saiu daqui para a base da sidebar. #}
+            {% set ep_bc = request.endpoint or '' %}
+            {% set bc_salas = (ep_bc == 'main.hub_salas_reservas'
+                or ep_bc.startswith('classrooms') or ep_bc.startswith('admin.rooms')
+                or ep_bc.startswith('admin.categories') or ep_bc.startswith('reservations.')
+                or ep_bc.startswith('relatorios.')) %}
+            {% set bc_financeiro = (ep_bc == 'main.hub_financeiro_rh'
+                or ep_bc.startswith('payments.') or ep_bc.startswith('vt.')
+                or ep_bc.startswith('an.')) %}
+            {% set bc_cozinha = (ep_bc == 'main.hub_cozinha' or ep_bc.startswith('kitchen')) %}
+            {% set bc_admin = (ep_bc.startswith('admin.') and not bc_salas) %}
+            {% set bc_secao_nome = 'Salas e Reservas' if bc_salas else ('Financeiro/RH' if bc_financeiro else ('Cozinha' if bc_cozinha else ('Painel Admin' if bc_admin else None))) %}
+            {% set bc_secao_url = url_for('main.hub_salas_reservas') if bc_salas else (url_for('main.hub_financeiro_rh') if bc_financeiro else (url_for('main.hub_cozinha') if bc_cozinha else (url_for('admin.dashboard') if bc_admin else None))) %}
+            {# Unidade + trilha também no celular: sem este bloco não havia
+               forma de trocar de unidade no mobile (o Perfil não oferece o
+               seletor). Abaixo de 768px ele compacta via CSS — nome e
+               trilha truncam e o botão "Trocar" vira só o chevron. #}
+            <div class="topbar-identidade d-flex flex-column justify-content-center gap-1 me-3">
+                <div class="topbar-unidade unity-area d-flex align-items-center gap-2" title="{{ current_unity.name }} — unidade ativa de operação">
+                    <i class="bi bi-geo-alt text-muted"></i>
+                    <span class="fw-semibold unity-name">{{ current_unity.name }}</span>
+                    {% if can_switch_unity and switchable_unities|length > 1 %}
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-0" data-bs-toggle="dropdown"
+                                aria-expanded="false" title="Trocar unidade ativa">
+                            {# No celular o texto some e fica só o caret do
+                               .dropdown-toggle (um ícone próprio duplicaria). #}
+                            <span class="d-none d-md-inline">Trocar</span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            {% for u in switchable_unities %}
+                            <li>
+                                <form method="POST" action="{{ url_for('main.switch_unity') }}" class="m-0">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="unity_id" value="{{ u.id }}">
+                                    <button type="submit" class="dropdown-item" {{ 'disabled' if current_unity.id == u.id }}>
+                                        {{ u.name }}{% if current_unity.id == u.id %} <i class="bi bi-check2"></i>{% endif %}
+                                    </button>
+                                </form>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
+                <nav class="crumb-linha" aria-label="Trilha de navegação">
+                    <i class="bi bi-house-door" aria-hidden="true"></i>
+                    <a href="{{ url_for('main.index') }}">Início</a>
+                    {% if bc_secao_nome %}
+                    <i class="bi bi-chevron-right crumb-sep" aria-hidden="true"></i>
+                    <a href="{{ bc_secao_url }}">{{ bc_secao_nome }}</a>
+                    {% endif %}
+                    <i class="bi bi-chevron-right crumb-sep" aria-hidden="true"></i>
+                    <b class="crumb-atual">{{ self.title() }}</b>
+                </nav>
             </div>
             {% endif %}
 
@@ -303,24 +241,27 @@
                    visível para quem tem qualquer uma dessas permissões e fica
                    ativo em todas as páginas /admin/*. #}
                 {% if current_user.is_authenticated %}
-                {# Sino de notificações: dropdown com preview das últimas (buscado ao abrir) e badge com não lidas (atualizado por poll leve) #}
+                {# Sino de notificações: botão quadrado com borda (estilo card)
+                   e dropdown com preview das últimas (buscado ao abrir) + badge
+                   com não lidas (atualizado por poll leve) #}
                 <div class="dropdown">
-                    <a class="btn btn-link position-relative text-decoration-none text-muted"
+                    <a class="btn-sino position-relative text-decoration-none"
                        title="Notificações" href="{{ url_for('notifications.lista') }}" id="notif-bell"
-                       data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
-                        <i class="bi bi-bell fs-5"></i>
+                       data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false"
+                       aria-label="Notificações">
+                        <i class="bi bi-bell"></i>
                         <span id="notif-badge"
-                              class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger {{ 'd-none' if not notificacoes_nao_lidas }}">
+                              class="position-absolute top-0 start-100 translate-middle badge rounded-pill badge-acento {{ 'd-none' if not notificacoes_nao_lidas }}">
                             {{ notificacoes_nao_lidas }}
                         </span>
                     </a>
                     <div class="dropdown-menu dropdown-menu-end notif-dropdown p-0" id="notif-dropdown" style="min-width: 320px; max-width: 92vw;">
-                        <div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
-                            <span class="small fw-bold text-uppercase text-muted">Notificações</span>
-                            <a href="{{ url_for('notifications.lista') }}" class="small text-decoration-none">Ver todas</a>
+                        <div class="notif-cabecalho">
+                            <span class="notif-titulo">Notificações</span>
                         </div>
-                        <div id="notif-dropdown-corpo" class="text-muted small px-3 py-3">Carregando…</div>
-                        <div class="px-3 py-2 border-top">
+                        <div id="notif-dropdown-corpo" class="text-muted small px-3 py-4 text-center">Carregando…</div>
+                        <div class="notif-rodape d-flex justify-content-between align-items-center">
+                            <a href="{{ url_for('notifications.lista') }}" class="small text-decoration-none link-seta">Ver todas <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                             <button type="button" id="notif-marcar-todas"
                                     class="btn btn-link btn-sm text-decoration-none text-muted p-0">
                                 <i class="bi bi-check2-all me-1"></i>Marcar todas como lidas
@@ -330,76 +271,58 @@
                 </div>
                 {% endif %}
 
-                {% if current_user.is_authenticated %}
-                {% set ep_top = request.endpoint or '' %}
-                {% set painel_visivel = current_user.has_permission('system:dashboard')
-                    or current_user.has_permission('unity:read')
-                    or current_user.has_permission('api:manage')
-                    or current_user.has_permission('vt:empresas')
-                    or current_user.has_permission('vt:config') %}
-                {% set in_painel_admin = ep_top.startswith('admin.') and not ('room' in ep_top or 'categor' in ep_top) %}
-                {% if painel_visivel %}
-                <a class="topbar-painel {{ 'active' if in_painel_admin }}" title="Painel Admin"
-                   href="{{ url_for('admin.dashboard') }}">
-                    <i class="bi bi-gear"></i> <span class="d-none d-md-inline">Painel Admin</span>
-                </a>
-                {% endif %}
-                {% endif %}
-
-                {# Aparência: um único seletor reúne o tema claro/escuro e a
-                   cor da interface — um ícone a menos na topbar e os dois
-                   ajustes sempre no mesmo lugar. #}
-                <div class="dropdown">
-                    <button id="appearance-toggle" class="btn btn-sm btn-icon" title="Aparência: tema claro/escuro e cor da interface"
-                            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                        <i class="bi bi-palette"></i>
-                    </button>
-                    <div class="dropdown-menu dropdown-menu-end p-3" aria-labelledby="appearance-toggle">
-                        <div class="small text-muted text-uppercase fw-bold mb-2">Tema</div>
-                        <div class="d-flex gap-2">
-                            <button type="button" class="theme-option" data-theme-opcao="light" title="Tema claro">
-                                <i class="bi bi-sun-fill"></i>
-                            </button>
-                            <button type="button" class="theme-option" data-theme-opcao="dark" title="Tema escuro">
-                                <i class="bi bi-moon-stars-fill"></i>
-                            </button>
-                        </div>
-                        <hr class="dropdown-divider my-2">
-                        <div class="small text-muted text-uppercase fw-bold mb-2">Cor da interface</div>
-                        <div class="d-flex gap-2 flex-wrap">
-                            <button type="button" class="accent-swatch" data-accent-opcao="" title="Azul Senac (padrão)"
-                                    style="--sw: #004a8d"><i class="bi bi-check-lg"></i></button>
-                            <button type="button" class="accent-swatch" data-accent-opcao="verde" title="Verde"
-                                    style="--sw: #157347"><i class="bi bi-check-lg"></i></button>
-                            <button type="button" class="accent-swatch" data-accent-opcao="turquesa" title="Turquesa"
-                                    style="--sw: #0f766e"><i class="bi bi-check-lg"></i></button>
-                            <button type="button" class="accent-swatch" data-accent-opcao="roxo" title="Roxo"
-                                    style="--sw: #6f42c1"><i class="bi bi-check-lg"></i></button>
-                            <button type="button" class="accent-swatch" data-accent-opcao="rosa" title="Rosa"
-                                    style="--sw: #c2255c"><i class="bi bi-check-lg"></i></button>
-                            <button type="button" class="accent-swatch" data-accent-opcao="vermelho" title="Vermelho"
-                                    style="--sw: #b02a37"><i class="bi bi-check-lg"></i></button>
-                            <button type="button" class="accent-swatch" data-accent-opcao="laranja" title="Laranja"
-                                    style="--sw: #b45309"><i class="bi bi-check-lg"></i></button>
-                            <button type="button" class="accent-swatch" data-accent-opcao="grafite" title="Grafite"
-                                    style="--sw: #37474f"><i class="bi bi-check-lg"></i></button>
-                        </div>
-                    </div>
-                </div>
-
+                {# Painel Admin foi para a base da sidebar e a aparência para o
+                   menu do perfil — a topbar fica só com sino e perfil. #}
                 {% if current_user.is_authenticated %}
                 <div class="dropdown">
-                    <a class="btn btn-link dropdown-toggle text-decoration-none text-muted d-flex align-items-center" data-bs-toggle="dropdown" href="#">
+                    <a class="btn btn-link dropdown-toggle text-decoration-none text-muted d-flex align-items-center" data-bs-toggle="dropdown" data-bs-auto-close="outside" href="#">
                         <i class="bi bi-person-circle fs-5 me-2"></i>
                         <div class="text-start d-none d-md-block">
                             <div class="fw-bold" style="font-size: 0.9rem; line-height: 1;">{{ current_user.full_name }}</div>
                             <div class="small text-capitalize">{{ current_user.role_obj.label if current_user.role_obj else current_user.role }}</div>
                         </div>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end">
+                    <ul class="dropdown-menu dropdown-menu-end" id="menu-usuario">
+                        {# Aparência: tema claro/escuro + cor da interface vivem
+                           no menu do perfil; data-bs-auto-close="outside"
+                           mantém o menu aberto enquanto a pessoa experimenta
+                           cores. #}
+                        <li>
+                            <div class="px-3 pt-2 pb-1">
+                                <div class="small text-muted text-uppercase fw-bold mb-2">Tema</div>
+                                <div class="d-flex gap-2 mb-2">
+                                    <button type="button" class="theme-option" data-theme-opcao="light" title="Tema claro">
+                                        <i class="bi bi-sun-fill"></i>
+                                    </button>
+                                    <button type="button" class="theme-option" data-theme-opcao="dark" title="Tema escuro">
+                                        <i class="bi bi-moon-stars-fill"></i>
+                                    </button>
+                                </div>
+                                <div class="small text-muted text-uppercase fw-bold mb-2">Cor da interface</div>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button type="button" class="accent-swatch" data-accent-opcao="" title="Azul Senac (padrão)"
+                                            style="--sw: #004a8d"><i class="bi bi-check-lg"></i></button>
+                                    <button type="button" class="accent-swatch" data-accent-opcao="verde" title="Verde"
+                                            style="--sw: #157347"><i class="bi bi-check-lg"></i></button>
+                                    <button type="button" class="accent-swatch" data-accent-opcao="turquesa" title="Turquesa"
+                                            style="--sw: #0f766e"><i class="bi bi-check-lg"></i></button>
+                                    <button type="button" class="accent-swatch" data-accent-opcao="roxo" title="Roxo"
+                                            style="--sw: #6f42c1"><i class="bi bi-check-lg"></i></button>
+                                    <button type="button" class="accent-swatch" data-accent-opcao="rosa" title="Rosa"
+                                            style="--sw: #c2255c"><i class="bi bi-check-lg"></i></button>
+                                    <button type="button" class="accent-swatch" data-accent-opcao="vermelho" title="Vermelho"
+                                            style="--sw: #b02a37"><i class="bi bi-check-lg"></i></button>
+                                    <button type="button" class="accent-swatch" data-accent-opcao="laranja" title="Laranja"
+                                            style="--sw: #b45309"><i class="bi bi-check-lg"></i></button>
+                                    <button type="button" class="accent-swatch" data-accent-opcao="grafite" title="Grafite"
+                                            style="--sw: #37474f"><i class="bi bi-check-lg"></i></button>
+                                </div>
+                            </div>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{{ url_for('auth.perfil') }}"><i class="bi bi-person me-2"></i> Meu Perfil</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
+                        <li><a class="dropdown-item js-pedir-saida" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
                     </ul>
                 </div>
                 {% else %}
@@ -425,9 +348,13 @@
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                    <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    {% set cat = category if category != 'message' else 'info' %}
+                    {% set classe = 'ok' if cat == 'success' else ('aviso' if cat == 'warning' else ('erro' if cat in ('danger', 'error') else 'info')) %}
+                    {% set icone = 'bi-check-lg' if classe == 'ok' else ('bi-exclamation-lg' if classe == 'aviso' else ('bi-x-lg' if classe == 'erro' else 'bi-info-circle')) %}
+                    <div class="flash-card {{ classe }} alert-dismissible fade show" role="alert">
+                        <span class="fc-icone"><i class="bi {{ icone }}"></i></span>
+                        <div class="fc-corpo"><p class="fc-msg">{{ message }}</p></div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
                     </div>
                     {% endfor %}
                 {% endif %}
@@ -443,9 +370,84 @@
     </div>
 </div>
 
+{% if current_user.is_authenticated %}
+{# Confirmação antes de encerrar a sessão: o link "Sair" do menu abre este
+   modal (via .js-pedir-saida) em vez de sair direto. Layout centrado sem
+   barra de título — ícone circular, pergunta e par de ações. #}
+<div class="modal fade" id="modal-sair" tabindex="-1" aria-labelledby="modal-sair-titulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-sair">
+            <div class="modal-body text-center px-4 py-5">
+                <span class="modal-sair-icone" aria-hidden="true"><i class="bi bi-question-lg"></i></span>
+                <h5 class="modal-sair-titulo" id="modal-sair-titulo">Sair do sistema?</h5>
+                <p class="modal-sair-texto">Você precisará informar suas credenciais para acessar novamente.</p>
+                <div class="d-flex justify-content-center gap-2 mt-4">
+                    <button type="button" class="btn btn-outline-primary px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <a href="{{ url_for('auth.logout') }}" class="btn btn-primary px-4">Sair</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.popular.min.js"></script>
 <script>
+        // Centrais de seção (hubs): um bloco de conteúdos aberto por vez —
+        // clicar num card-portal abre o dele e fecha os outros; clicar de
+        // novo fecha. Só age nas páginas que têm portais.
+        (function () {
+            var portais = document.querySelectorAll('[data-hub-alvo]');
+            if (!portais.length) return;
+            portais.forEach(function (botao) {
+                botao.addEventListener('click', function () {
+                    var alvo = document.getElementById(botao.dataset.hubAlvo);
+                    if (!alvo) return;
+                    var estavaAberto = !alvo.classList.contains('d-none');
+                    document.querySelectorAll('.hub-bloco').forEach(function (b) {
+                        b.classList.add('d-none');
+                    });
+                    portais.forEach(function (b) {
+                        b.setAttribute('aria-expanded', 'false');
+                    });
+                    if (!estavaAberto) {
+                        alvo.classList.remove('d-none');
+                        botao.setAttribute('aria-expanded', 'true');
+                        alvo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                });
+            });
+        })();
+
+        // Confirmação antes de sair: o link do menu abre o modal em vez de
+        // encerrar a sessão direto (clique acidental não derruba o usuário).
+        document.querySelectorAll('.js-pedir-saida').forEach(function (link) {
+            link.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                const dropdownEl = link.closest('.dropdown');
+                if (dropdownEl) {
+                    const toggleEl = dropdownEl.querySelector('[data-bs-toggle="dropdown"]');
+                    const instancia = toggleEl && bootstrap.Dropdown.getInstance(toggleEl);
+                    if (instancia) instancia.hide();
+                }
+                const modalEl = document.getElementById('modal-sair');
+                if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            });
+        });
+
+        // O modal do Sair acompanha o tema escuro.
+        const modalSair = document.getElementById('modal-sair');
+        if (modalSair) {
+            modalSair.addEventListener('show.bs.modal', function () {
+                if (document.documentElement.dataset.theme === 'dark') {
+                    modalSair.setAttribute('data-bs-theme', 'dark');
+                } else {
+                    modalSair.removeAttribute('data-bs-theme');
+                }
+            });
+        }
+
         // Selects com muitas opções viram caixas com busca (Tom Select). Selects
         // pequenos, desabilitados e já convertidos seguem nativos — sem mudar a
         // UX onde a busca não traz ganho.
@@ -528,9 +530,10 @@
 
     // Tema de cor (accent): a paleta vive no CSS ([data-accent=...]) e a
     // escolha no localStorage. Ao trocar, recarrega a página para tudo
-    // (gráficos inclusive) nascer na nova cor.
-    const appearanceToggle = document.getElementById('appearance-toggle');
-    if (appearanceToggle) {
+    // (gráficos inclusive) nascer na nova cor. Os controles moram no menu
+    // do perfil — ao abrir o menu, as marcas selecionadas são atualizadas.
+    const menuUsuario = document.getElementById('menu-usuario');
+    if (menuUsuario) {
         document.querySelectorAll('.accent-swatch').forEach(botao => {
             botao.addEventListener('click', () => {
                 const accent = botao.dataset.accentOpcao || '';
@@ -540,7 +543,7 @@
                 location.reload();
             });
         });
-        appearanceToggle.closest('.dropdown').addEventListener('show.bs.dropdown', () => {
+        menuUsuario.closest('.dropdown').addEventListener('show.bs.dropdown', () => {
             marcarTema();
             const atual = document.documentElement.getAttribute('data-accent') || '';
             document.querySelectorAll('.accent-swatch').forEach(b => {
@@ -557,6 +560,21 @@
             appContainer.classList.toggle('sidebar-open');
         });
     }
+
+    // Fechar o menu lateral do celular: a sidebar aberta cobre o próprio
+    // botão hamburger, então o fechamento acontece pelo backdrop (tocar
+    // fora) ou pela tecla ESC. No desktop a classe nunca é aplicada,
+    // então ambos os handlers ficam inertes.
+    const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+    if (sidebarBackdrop) {
+        sidebarBackdrop.addEventListener('click', () =>
+            appContainer.classList.remove('sidebar-open'));
+    }
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' && appContainer.classList.contains('sidebar-open')) {
+            appContainer.classList.remove('sidebar-open');
+        }
+    });
 
     // Contrair/expandir a sidebar no desktop (preferência salva no navegador)
     const collapseBtn = document.getElementById('sidebar-collapse');
@@ -832,7 +850,12 @@
                 const form = campo.closest('form');
                 if (form && !formsMarcados.has(form)) {
                     formsMarcados.add(form);
-                    if (!form.querySelector('.legenda-obrigatorios')) {
+                    // No padrão form-card a legenda já pode viver no cabeçalho
+                    // do cartão — nesse caso o JS não injeta outra.
+                    const cartao = form.closest('.card');
+                    const jaTemLegenda = form.querySelector('.legenda-obrigatorios')
+                        || (cartao && cartao.querySelector('.form-card-head .legenda-obrigatorios'));
+                    if (!jaTemLegenda) {
                         const nota = document.createElement('div');
                         nota.className = 'legenda-obrigatorios form-text text-muted mt-1 mb-2';
                         nota.innerHTML = 'Campos com <span class="text-danger fw-bold">*</span> são obrigatórios.';

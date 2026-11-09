@@ -4,6 +4,7 @@
 {% block content %}
 <div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
+        <p class="page-eyebrow">Salas</p>
         <h3 class="fw-bold mb-1 text-break">{{ classroom.name }}</h3>
         <p class="text-muted mb-0">
             <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle me-1">{{ classroom.code }}</span>
@@ -59,13 +60,13 @@
     
     <div class="col-md-8">
         <div class="card">
-            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold"><span class="section-icon section-icon-default"><i class="bi bi-clock-history"></i></span> Próximas Reservas</h5>
-                <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id) }}" class="btn btn-sm btn-outline-secondary">
-                    Ver Mês Completo
-                </a>
-            </div>
             <div class="card-body p-0">
+                <div class="form-card-head px-3 pt-3">
+                    <span class="hub-card-icone"><i class="bi bi-clock-history" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>Próximas Reservas</h3>
+                    </div>
+                </div>
                 {% if upcoming %}
                 <div class="table-responsive">
                     <table class="table table-hover mb-0 align-middle">
@@ -88,15 +89,15 @@
                             {# O título é público na agenda da sala; professor e status interno (ex.: Pendente de terceiros) só saem do servidor para quem pode ler a reserva (ids_legiveis, mesma regra de reservations.detail). #}
                             <td>{{ r.title }}</td>
                             <td>{{ r.teacher.full_name if r.teacher and pode_ler else '—' }}</td>
-                            <td>{% if pode_ler %}<span class="badge {% if r.status == 'approved' %}text-bg-success-subtle text-success border border-success-subtle
-                                                            {% elif r.status == 'pending' %}text-bg-warning-subtle text-warning border border-warning-subtle
-                                                            {% elif r.status == 'cancelled' %}text-bg-danger-subtle text-danger border border-danger-subtle
-                                                            {% else %}text-bg-secondary-subtle text-secondary border border-secondary-subtle{% endif %}">
+                            <td>{% if pode_ler %}<span class="badge badge-estado {% if r.status == 'approved' %}bg-success-subtle text-success-emphasis
+                                                            {% elif r.status == 'pending' %}bg-warning-subtle text-warning-emphasis
+                                                            {% elif r.status == 'cancelled' %}bg-danger-subtle text-danger-emphasis
+                                                            {% else %}bg-secondary-subtle text-secondary-emphasis{% endif %}">
                                 {% if r.status == 'approved' %}Aprovada
                                 {% elif r.status == 'pending' %}Pendente
                                 {% elif r.status == 'cancelled' %}Cancelada
                                 {% else %}{{ r.status }}{% endif %}</span>
-                            {% else %}<span class="badge text-bg-secondary-subtle text-secondary border border-secondary-subtle">Ocupada</span>{% endif %}</td>
+                            {% else %}<span class="badge bg-secondary-subtle text-secondary-emphasis badge-estado">Ocupada</span>{% endif %}</td>
                             <td class="pe-4 text-end">
                                 {% if pode_ler %}
                                 <a href="{{ url_for('reservations.detail', reservation_id=r.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver Detalhes">
@@ -118,6 +119,14 @@
                     <p class="small mb-0">Esta sala está completamente livre para o período agendado.</p>
                 </div>
                 {% endif %}
+
+                <div class="form-card-rodape px-3 pb-3">
+                    <div class="form-acoes">
+                        <a href="{{ url_for('classrooms.availability', classroom_id=classroom.id) }}" class="btn btn-sm btn-outline-secondary">
+                            Ver Mês Completo
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

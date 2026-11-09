@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina, hero_hub, card_hub %}
+{% block title %}Cozinha{% endblock %}
+
+{% block content %}
+{{ cabecalho_pagina('Cozinha', 'Cozinha', 'Fichas técnicas, preparações e lista de compras da unidade.') }}
+
+{# Modelo do Observatório (mesmo do hub de Salas e Reservas): o card-portal
+   da Ficha Técnica abre logo abaixo o bloco com os caminhos de criação —
+   upload de .docx e formulário manual. Quem só consulta (sem
+   kitchen:sheet_create) recebe o card direto para a listagem. #}
+{% call hero_hub('bi-egg-fried', 'Central da Cozinha', 'Da ficha técnica à lista de compras — os caminhos da seção.') %}
+    <div class="hub-cards">
+        {% if current_user.has_permission('kitchen:sheet_create') %}
+        <button type="button" class="hub-portal" data-hub-alvo="hub-fichas"
+                aria-expanded="false" aria-controls="hub-fichas">
+            <span class="hub-card-icone"><i class="bi bi-file-earmark-word" aria-hidden="true"></i></span>
+            <b>Ficha Técnica</b>
+            <small>Monte e acompanhe as fichas das preparações.</small>
+            <span class="hub-portal-acessar">Acessar <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+        </button>
+        {% else %}
+        {{ card_hub(url_for('kitchen.sheets'), 'bi-file-earmark-word', 'Ficha Técnica', 'Monte e acompanhe as fichas das preparações.') }}
+        {% endif %}
+        {{ card_hub(url_for('kitchen.preparations'), 'bi-journal-text', 'Preparações', 'Receitas geradas a partir das fichas técnicas.') }}
+        {% if current_user.has_permission('kitchen:shopping_export') %}
+        {{ card_hub(url_for('kitchen.shopping'), 'bi-cart-check', 'Compras', 'Consolide os ingredientes e exporte a lista.') }}
+        {% endif %}
+    </div>
+{% endcall %}
+
+{% if current_user.has_permission('kitchen:sheet_create') %}
+<div class="hub-bloco d-none" id="hub-fichas">
+    <div class="hub-bloco-head">
+        <span class="hub-card-icone"><i class="bi bi-file-earmark-word" aria-hidden="true"></i></span>
+        <div>
+            <h3>Ficha Técnica</h3>
+            <p>Crie do zero ou envie os arquivos .docx para leitura automática.</p>
+        </div>
+    </div>
+    <div class="hub-cards">
+        {# O upload vive no formulário da própria listagem — o card leva
+           direto a ele (âncora #upload-fichas). #}
+        {{ card_hub(url_for('kitchen.sheets') + '#upload-fichas', 'bi-cloud-arrow-up', 'Enviar Ficha Técnica', 'Faça o upload dos arquivos .docx para leitura automática.') }}
+        {{ card_hub(url_for('kitchen.create_sheet'), 'bi-plus-circle', 'Criar Ficha Técnica', 'Monte a ficha direto no formulário do sistema.') }}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

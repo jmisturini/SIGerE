@@ -12,9 +12,15 @@
                    contraste, como na faixa de marca dos relatórios PDF. #}
                 <img src="{{ url_for('static', filename='img/logo-sigere-branco.png') }}" alt="">
             </div>
+            <p class="page-eyebrow">Plataforma de reservas</p>
             <h2>SIGerE</h2>
-            <p class="login-brand-tagline mb-0">Sistema Integrado de Gerenciamento Educacional</p>
-            <ul class="login-benefits mt-4 mt-lg-5">
+            {# Frase de abertura em duas linhas, com a barra laranja do
+               Observatório — o gancho e a explicação curta. #}
+            <div class="login-brand-tagline mt-4 mt-lg-5">
+                <strong>Reservas e agendas em um só lugar.</strong>
+                <span>Salas, professores e unidades sem conflito de horário.</span>
+            </div>
+            <ul class="login-benefits">
                 <li>
                     <i class="bi bi-calendar2-check"></i>
                     Reserva de salas com detecção automática de conflitos
@@ -29,7 +35,7 @@
                 </li>
             </ul>
         </div>
-        <div class="login-brand-footer">v{{ app_version }}</div>
+        <div class="login-brand-footer">Senac Santa Catarina · v{{ app_version }}</div>
     </div>
 
     <div class="login-area">
@@ -40,28 +46,14 @@
                     <span>SIGerE</span>
                 </div>
 
-                <h1 class="login-title">Bem-vindo de volta</h1>
-                <p class="text-muted">Entre com o seu e-mail para acessar o painel.</p>
+                <p class="page-eyebrow">Bem-vindo ao SIGerE</p>
+                <h1 class="login-title">Acesse sua conta</h1>
+                <p class="text-muted">Use suas credenciais institucionais para continuar.</p>
 
+                {# Campos, botão e nota vivem no partial compartilhado com o
+                   card de login da landing (mesmos rótulos e acabamento). #}
                 <form method="POST" novalidate class="mt-4">
-                    {{ form.hidden_tag() }}
-                    <div class="mb-3">
-                        {{ form.email.label(class="form-label fw-semibold") }}
-                        {{ form.email(class="form-control", placeholder="nome@instituicao.edu.br") }}
-                    </div>
-                    <div class="mb-4">
-                        {{ form.password.label(class="form-label fw-semibold") }}
-                        <div class="input-group">
-                            {{ form.password(class="form-control", id="login-password", placeholder="Digite sua senha") }}
-                            <button class="btn btn-outline-secondary" type="button" data-password-toggle="login-password"
-                                    title="Mostrar/ocultar senha" tabindex="-1">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="d-grid">
-                        {{ form.submit(class="btn btn-primary fw-semibold") }}
-                    </div>
+                    {% include '_form_login.html' %}
                 </form>
             </div>
             <div class="card-footer bg-transparent text-center py-3">

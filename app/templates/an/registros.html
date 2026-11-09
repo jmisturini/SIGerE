@@ -1,14 +1,11 @@
 {% extends 'base.html' %}
 {% from '_pagination.html' import render_pagination %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Adicional Noturno - Professores{% endblock %}
 
 {% block content %}
 
-<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-    <div>
-        <h3 class="fw-bold mb-1">Adicional Noturno — Professores</h3>
-        <p class="text-muted mb-0">Lançamento da planilha "Adicional Noturno Professores" e exportação da planilha de pagamento.</p>
-    </div>
+{% call cabecalho_pagina('RH · Adicional Noturno', 'Adicional Noturno — Professores', 'Lançamento da planilha "Adicional Noturno Professores" e exportação da planilha de pagamento.') %}
     <div class="d-flex gap-2">
         <a href="{{ url_for('an.exportar', **request.args.to_dict()) }}"
            class="btn btn-success" title="Baixar a planilha de pagamento com quem tem adicional Sim e minutos maiores que 0">
@@ -24,7 +21,7 @@
         </form>
         {% endif %}
     </div>
-</div>
+{% endcall %}
 
 {% if current_user.has_permission('an:create') %}
 <div class="card mb-4">
@@ -229,9 +226,9 @@
                         <td class="fw-bold">{{ e.full_name }}</td>
                         <td>
                             {% if e.entitled %}
-                            <span class="badge text-bg-success">Sim</span>
+                            <span class="badge bg-success-subtle text-success-emphasis badge-estado">Sim</span>
                             {% else %}
-                            <span class="badge text-bg-secondary">Não</span>
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis badge-estado">Não</span>
                             {% endif %}
                         </td>
                         <td>{{ '%g' | format(e.class_hours) if e.class_hours is not none else '—' }}</td>

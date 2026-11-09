@@ -633,11 +633,28 @@ class TestPedidosVT(unittest.TestCase):
 
     # ---------- Redirecionamentos da importação removida ----------
 
-    def test_importacao_e_colaboradores_redirecionam(self):
-        for url in ('/vt/', '/vt/colaboradores'):
-            response = self.client.get(url)
-            self.assertEqual(response.status_code, 302)
-            self.assertTrue(response.location.endswith('/vt/pedidos'))
+    def test_importacao_redireciona_e_raiz_e_hub(self):
+        """/vt/colaboradores (endereço antigo da importação) segue
+        redirecionando para os pedidos; a raiz /vt/ cai na Central de
+        Financeiro/RH (modelo do Observatório) — sem login manda para o
+        login; com gestor autenticado, o card do VT está lá."""
+        response = self.client.get('/vt/colaboradores')
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.endswith('/vt/pedidos'))
+
+        raiz_anonima = self.client.get('/vt/')
+        self.assertEqual(raiz_anonima.status_code, 302)
+        self.assertIn('/login', raiz_anonima.location)
+
+        self._login(self.EMAIL_GESTOR)
+        raiz = self.client.get('/vt/', follow_redirects=False)
+        self.assertEqual(raiz.status_code, 302)
+        self.assertTrue(raiz.location.endswith('/financeiro-rh'))
+        hub = self.client.get('/financeiro-rh')
+        self.assertEqual(hub.status_code, 200)
+        html = hub.get_data(as_text=True)
+        self.assertIn('Central de Financeiro/RH', html)
+        self.assertIn('/vt/pedidos', html)
 
     # ---------- Listagem no layout de Colaboradores ----------
 

@@ -1,20 +1,20 @@
 {% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Nova Reserva{% endblock %}
 
 {% block content %}
+{{ cabecalho_pagina('Salas e Reservas', 'Nova Reserva', None) }}
 <div class="row justify-content-center">
     <div class="col-lg-8 col-md-10">
         <div class="card">
-            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <h5 class="d-flex align-items-center gap-2 mb-0 fw-bold">
-                    <span class="section-icon section-icon-default"><i class="bi bi-calendar-plus"></i></span>
-                    Nova Reserva
-                </h5>
-                <a href="{{ url_for('classrooms.detail', classroom_id=request.args.get('classroom_id', type=int)) if request.args.get('classroom_id') else url_for('main.index') }}" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-arrow-left"></i> Voltar
-                </a>
-            </div>
             <div class="card-body p-4">
+                <div class="form-card-head">
+                    <span class="hub-card-icone"><i class="bi bi-calendar-plus" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>Nova Reserva</h3>
+                        <p class="legenda-obrigatorios">Campos com <span class="text-danger fw-bold">*</span> são obrigatórios.</p>
+                    </div>
+                </div>
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
                     
@@ -122,9 +122,21 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">Cancelar</a>
-                        {{ form.submit(class="btn btn-primary px-4") }}
+                    <div class="form-card-rodape">
+                        {% if current_user.has_explicit_permission('reservation:create_pending') %}
+                        <small>A reserva passa pela aprovação da coordenação antes de ser confirmada.</small>
+                        {% else %}
+                        <small>Sem conflito de professor ou excesso de reservas no dia, a reserva é confirmada na hora; havendo, segue para a aprovação da coordenação.</small>
+                        {% endif %}
+                        <div class="form-acoes">
+                            {% if request.args.get('classroom_id', type=int) %}
+                            <a href="{{ url_for('classrooms.detail', classroom_id=request.args.get('classroom_id', type=int)) }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Voltar
+                            </a>
+                            {% endif %}
+                            <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                            {{ form.submit(class="btn btn-primary px-4") }}
+                        </div>
                     </div>
                 </form>
             </div>

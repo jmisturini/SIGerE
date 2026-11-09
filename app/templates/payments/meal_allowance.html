@@ -1,14 +1,11 @@
 {% extends 'base.html' %}
 {% from '_pagination.html' import render_pagination %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
 {% block title %}Vale Alimentação - Professores{% endblock %}
 
 {% block content %}
 
-<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-    <div>
-        <h3 class="fw-bold mb-1">Vale Alimentação — Professores</h3>
-        <p class="text-muted mb-0">Lançamento de dias trabalhados por professor.</p>
-    </div>
+{% call cabecalho_pagina('RH · Vale Alimentação', 'Vale Alimentação — Professores', 'Lançamento de dias trabalhados por professor.') %}
     <div class="d-flex gap-2">
         <a href="{{ url_for('payments.export_meal_allowance', **request.args.to_dict()) }}"
            class="btn btn-success" title="Baixar planilha com o total de dias trabalhados por professor">
@@ -24,7 +21,7 @@
         </form>
         {% endif %}
     </div>
-</div>
+{% endcall %}
 
 {% if current_user.has_permission('meal:create') %}
 <div class="card mb-4">

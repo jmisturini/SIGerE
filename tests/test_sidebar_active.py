@@ -130,21 +130,19 @@ class SidebarActiveTestCase(unittest.TestCase):
             user.role_obj.permissions = perms
             db.session.commit()
 
-    def test_vale_alimentacao_nao_marca_hora_extra(self):
-        """A página do Vale Alimentação destaca o item dela — os endpoints
-        payments.*_meal_allowance não podem marcar o grupo nem a consulta
-        de Hora Extra."""
+    def test_vale_alimentacao_destaca_financeiro_rh(self):
+        """A página do Vale Alimentação destaca o item unificado
+        Financeiro/RH (onde o módulo virou card). Os links internos
+        (Consultar H. Extras) não moram mais na sidebar."""
         self._conceder(self.FINANCEIRO)
         page = self.client.get('/payments/meal-allowance').get_data(as_text=True)
-        self.assertEqual(self._navlink(page, 'Vale Alimentação - Professores'),
-                         'active')
-        self.assertEqual(self._navlink(page, 'Hora Extra'), '')
-        self.assertEqual(self._navlink(page, 'Consultar H. Extras'), '')
+        self.assertEqual(self._navlink(page, 'Financeiro/RH'), 'active')
+        self.assertIsNone(self._navlink(page, 'Hora Extra'))
+        self.assertIsNone(self._navlink(page, 'Consultar H. Extras'))
 
-    def test_editar_vale_alimentacao_nao_marca_nova_hora_extra(self):
-        """Editar um lançamento do Vale Alimentação não pode destacar o
-        item Nova Hora Extra (payments.edit_meal_allowance começa com
-        payments.edit)."""
+    def test_editar_vale_alimentacao_tambem_destaca(self):
+        """Editar um lançamento do Vale Alimentação (payments.edit_meal_
+        allowance começa com payments.edit) continua na seção."""
         self._conceder(self.FINANCEIRO)
         with self.app.app_context():
             professor = User(email='professor@escola.edu',
@@ -163,17 +161,64 @@ class SidebarActiveTestCase(unittest.TestCase):
 
         page = self.client.get(f'/payments/meal-allowance/{entry_id}/edit') \
             .get_data(as_text=True)
-        self.assertEqual(self._navlink(page, 'Nova Hora Extra'), '')
-        self.assertEqual(self._navlink(page, 'Vale Alimentação - Professores'),
-                         'active')
+        self.assertEqual(self._navlink(page, 'Financeiro/RH'), 'active')
 
     def test_hora_extra_continua_sendo_destacada(self):
         """Guarda contra correção exagerada: na consulta de Hora Extra o
-        destaque continua no lugar certo."""
+        destaque continua no item Financeiro/RH (seção do módulo)."""
         self._conceder(self.FINANCEIRO)
         page = self.client.get('/payments/overtime/list').get_data(as_text=True)
-        self.assertEqual(self._navlink(page, 'Consultar H. Extras'), 'active')
-        self.assertEqual(self._navlink(page, 'Hora Extra'), 'active')
+        self.assertEqual(self._navlink(page, 'Financeiro/RH'), 'active')
+
+    # --- Centrais de seção (hubs; modelo do Observatório) ---
+
+    def test_hub_salas_reservas_renderiza(self):
+        """A central da seção abre com três cards-portais (Salas, Reservas,
+        Relatórios) e os blocos de conteúdos respectivos, revelados no
+        cliente — os destinos respeitam a permissão."""
+        self._conceder(('reservation:read_all',))
+        page = self.client.get('/salas-e-reservas')
+        self.assertEqual(page.status_code, 200)
+        html = page.get_data(as_text=True)
+        self.assertIn('Central de Salas e Reservas', html)
+        # Cards-portais (3) com alvos data-hub-alvo e blocos correspondentes
+        self.assertEqual(html.count('data-hub-alvo='), 3)
+        self.assertIn('id="hub-reservas"', html)
+        self.assertIn('id="hub-relatorios"', html)
+        self.assertIn('/reservations/all', html)
+        self.assertNotIn('/reservations/create', html)  # sem reservation:create
+        self.assertIn('/relatorios/geral', html)
+
+    def test_hub_financeiro_rh_renderiza_com_portais(self):
+        """/financeiro-rh abre a central unificada: com payment:* e meal:read
+        aparecem os portais de Hora Extra e Vale Alimentação (não os de VT,
+        sem vt:read). Os shims antigos mandam para cá."""
+        self._conceder(self.FINANCEIRO)
+        for shim_url in ('/financeiro', '/rh', '/payments/overtime'):
+            shim = self.client.get(shim_url, follow_redirects=False)
+            self.assertEqual(shim.status_code, 302, shim_url)
+            self.assertTrue(shim.location.endswith('/financeiro-rh'), shim_url)
+        page = self.client.get('/financeiro-rh')
+        self.assertEqual(page.status_code, 200)
+        html = page.get_data(as_text=True)
+        self.assertIn('Central de Financeiro/RH', html)
+        self.assertEqual(html.count('data-hub-alvo='), 2)  # Hora Extra + VA
+        self.assertIn('id="hub-hora-extra"', html)
+        self.assertIn('/payments/overtime/create', html)
+        self.assertIn('/payments/overtime/list', html)
+        self.assertIn('/payments/meal-allowance', html)
+        self.assertNotIn('/vt/pedidos', html)  # sem vt:read
+
+    def test_hub_reservas_shim_redireciona_para_a_secao(self):
+        """/reservations/ é compatibilidade: manda para a central da seção
+        (Salas e Reservas), onde os cards do módulo vivem."""
+        self._conceder(('reservation:read_all',))
+        shim = self.client.get('/reservations/', follow_redirects=False)
+        self.assertEqual(shim.status_code, 302)
+        self.assertTrue(shim.location.endswith('/salas-e-reservas'))
+        page = self.client.get('/salas-e-reservas')
+        self.assertIn('Central de Salas e Reservas',
+                      page.get_data(as_text=True))
 
 
 if __name__ == '__main__':

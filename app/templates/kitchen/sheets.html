@@ -2,37 +2,32 @@
 {% block title %}Cozinha — Ficha Técnica{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-    <div>
-        <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-word text-primary me-2"></i>Ficha Técnica</h3>
-        <p class="text-muted mb-0">Envie os arquivos .docx das fichas técnicas operacionais — o sistema lê o conteúdo
-            e, após salvar, a preparação fica disponível no menu <strong>Preparações</strong>.</p>
-    </div>
-    {% if can_manage %}
-    <a href="{{ url_for('kitchen.create_sheet') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> Criar Ficha Técnica
-    </a>
-    {% endif %}
+{# A criação e o upload de fichas têm atalhos no hub da Cozinha; esta
+   página concentra a listagem e o formulário de upload (#upload-fichas). #}
+<div class="page-header mb-4">
+    <p class="page-eyebrow">Cozinha</p>
+    <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-word text-primary me-2"></i>Ficha Técnica</h3>
+    <p class="text-muted mb-0">Envie os arquivos .docx das fichas técnicas operacionais — o sistema lê o conteúdo
+        e, após salvar, a preparação fica disponível no menu <strong>Preparações</strong>.</p>
 </div>
 
 {% if can_manage %}
-<div class="card mb-4 border-primary-subtle">
+<div class="card mb-4 border-primary-subtle" id="upload-fichas">
     <div class="card-body">
-        <form method="POST" action="{{ url_for('kitchen.upload_sheets') }}" enctype="multipart/form-data"
-              class="row g-3 align-items-end">
+        <form method="POST" action="{{ url_for('kitchen.upload_sheets') }}" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="col-lg-8">
-                <label for="files" class="form-label fw-semibold">
-                    <i class="bi bi-cloud-arrow-up me-1"></i> Arquivos das fichas técnicas
-                </label>
+            <label for="files" class="form-label fw-semibold">
+                <i class="bi bi-cloud-arrow-up me-1"></i> Arquivos das fichas técnicas
+            </label>
+            {# Input e botão na mesma linha (o grid de colunas com
+               align-items-end empurrava o botão para o canto inferior). #}
+            <div class="d-flex gap-2">
                 <input type="file" class="form-control" id="files" name="files" accept=".docx" multiple required>
-                <div class="form-text small">É possível enviar várias fichas de uma vez. Formato aceito: .docx (Word).</div>
-            </div>
-            <div class="col-lg-4">
-                <button type="submit" class="btn btn-primary w-100">
+                <button type="submit" class="btn btn-primary text-nowrap">
                     <i class="bi bi-file-earmark-text me-1"></i> Ler arquivos
                 </button>
             </div>
+            <div class="form-text small">É possível enviar várias fichas de uma vez. Formato aceito: .docx (Word).</div>
         </form>
     </div>
 </div>
@@ -143,31 +138,13 @@
 {% endif %}
 
 <div class="card">
-    <div class="card-header bg-transparent py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <h6 class="fw-bold mb-0"><i class="bi bi-archive me-2"></i>Fichas salvas</h6>
-        <div class="d-flex flex-wrap align-items-center gap-2">
-            <form method="GET" class="d-flex align-items-center gap-2">
-                <label class="form-label small mb-0" for="ordem-ficha">Ordenar por</label>
-                <select name="ordem" id="ordem-ficha" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
-                    <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Envio (mais recentes)</option>
-                    <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Envio (mais antigas)</option>
-                    <option value="arquivo" {{ 'selected' if ordem == 'arquivo' }}>Arquivo (A–Z)</option>
-                    <option value="preparacao" {{ 'selected' if ordem == 'preparacao' }}>Preparação (A–Z)</option>
-                </select>
-                <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Ordenar</button></noscript>
-            </form>
-            {% if can_delete and saved|length %}
-            <form method="POST" action="{{ url_for('kitchen.delete_saved_sheets') }}"
-                  onsubmit="return confirm('Excluir TODAS as {{ saved|length }} ficha(s) salva(s), as preparações geradas e os arquivos .docx enviados? A ação não pode ser desfeita.');">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-sm btn-outline-danger">
-                    <i class="bi bi-trash me-1"></i> Excluir todas ({{ saved|length }})
-                </button>
-            </form>
-            {% endif %}
-        </div>
-    </div>
     <div class="card-body p-0">
+        <div class="form-card-head px-3 pt-3">
+            <span class="hub-card-icone"><i class="bi bi-archive" aria-hidden="true"></i></span>
+            <div>
+                <h3>Fichas salvas</h3>
+            </div>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
                 <thead>
@@ -219,6 +196,30 @@
                 {% endfor %}
                 </tbody>
             </table>
+        </div>
+
+        <div class="form-card-rodape px-3 pb-3">
+            <div class="form-acoes">
+                <form method="GET" class="d-flex align-items-center gap-2">
+                    <label class="form-label small mb-0" for="ordem-ficha">Ordenar por</label>
+                    <select name="ordem" id="ordem-ficha" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                        <option value="recentes" {{ 'selected' if ordem == 'recentes' }}>Envio (mais recentes)</option>
+                        <option value="antigas" {{ 'selected' if ordem == 'antigas' }}>Envio (mais antigas)</option>
+                        <option value="arquivo" {{ 'selected' if ordem == 'arquivo' }}>Arquivo (A–Z)</option>
+                        <option value="preparacao" {{ 'selected' if ordem == 'preparacao' }}>Preparação (A–Z)</option>
+                    </select>
+                    <noscript><button class="btn btn-sm btn-outline-primary" type="submit">Ordenar</button></noscript>
+                </form>
+                {% if can_delete and saved|length %}
+                <form method="POST" action="{{ url_for('kitchen.delete_saved_sheets') }}"
+                      onsubmit="return confirm('Excluir TODAS as {{ saved|length }} ficha(s) salva(s), as preparações geradas e os arquivos .docx enviados? A ação não pode ser desfeita.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash me-1"></i> Excluir todas ({{ saved|length }})
+                    </button>
+                </form>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>

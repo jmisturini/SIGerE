@@ -4,6 +4,7 @@
 {% block content %}
 <div class="page-header mb-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
     <div>
+        <p class="page-eyebrow">Cozinha</p>
         <h3 class="fw-bold mb-1"><i class="bi bi-file-earmark-text text-primary me-2"></i>Relatório de Ingredientes</h3>
         <p class="text-muted mb-0">Ingredientes que serão exportados na requisição de compra. Use <strong>Detalhes</strong>
             para ver a quantidade individual de cada preparação e ajuste os dados abaixo para exportar a planilha.</p>
@@ -14,10 +15,13 @@
 </div>
 
 <div class="card mb-4">
-    <div class="card-header bg-transparent py-3">
-        <h6 class="fw-bold mb-0"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Dados da requisição</h6>
-    </div>
     <div class="card-body">
+        <div class="form-card-head">
+            <span class="hub-card-icone"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i></span>
+            <div>
+                <h3>Dados da requisição</h3>
+            </div>
+        </div>
         <form method="POST" action="{{ url_for('kitchen.shopping_export') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {% for recipe_id in recipe_ids %}
@@ -50,18 +54,14 @@
                     </select>
                 </div>
             </div>
-            <div class="row g-3 align-items-center mt-0">
-                <div class="col-lg">
-                    <div class="alert alert-light border small mb-0">
-                        <i class="bi bi-info-circle me-1"></i>
-                        A planilha gerada segue o modelo "REQUISIÇÃO DE COMPRA - GASTRONOMIA", com a aba de referência
-                        dos centros de custo. Ingredientes sem quantidade definida (ex.: "a gosto") são listados com a
-                        quantidade em branco; ingredientes <strong>desativados</strong> na preparação ficam de fora.
-                        Água não é incluída.
-                    </div>
-                </div>
-                <div class="col-lg-auto">
-                    <button type="submit" class="btn btn-success w-100">
+            <div class="form-card-rodape">
+                <small><i class="bi bi-info-circle me-1"></i>
+                    A planilha gerada segue o modelo "REQUISIÇÃO DE COMPRA - GASTRONOMIA", com a aba de referência
+                    dos centros de custo. Ingredientes sem quantidade definida (ex.: "a gosto") são listados com a
+                    quantidade em branco; ingredientes <strong>desativados</strong> na preparação ficam de fora.
+                    Água não é incluída.</small>
+                <div class="form-acoes">
+                    <button type="submit" class="btn btn-success">
                         <i class="bi bi-file-earmark-excel me-1"></i> Exportar Requisição (.xlsx)
                     </button>
                 </div>
@@ -76,11 +76,14 @@
 </div>
 
 <div class="card">
-    <div class="card-header bg-transparent py-3">
-        <h6 class="fw-bold mb-0"><i class="bi bi-basket me-2"></i>Ingredientes ({{ rows|length }})</h6>
-    </div>
     {% if rows %}
     <div class="card-body p-0">
+        <div class="form-card-head px-3 pt-3">
+            <span class="hub-card-icone"><i class="bi bi-basket" aria-hidden="true"></i></span>
+            <div>
+                <h3>Ingredientes ({{ rows|length }})</h3>
+            </div>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0" data-ordenavel>
                 <thead class="table-light">
