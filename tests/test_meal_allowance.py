@@ -295,23 +295,40 @@ class MealAllowanceTestCase(unittest.TestCase):
         wb = load_workbook(BytesIO(response.data))
         return list(wb.active.iter_rows(values_only=True))
 
-    def _exportar_contando_consultas(self):
-        """(resposta, quantidade de statements SQL) de um export completo —
-        conta tudo o que a requisição executa no banco."""
+    def _exportar_registrando_consultas(self):
+        """(resposta, statements SQL) de um export completo — cada statement
+        como (SQL, parâmetros), na ordem em que a requisição os executou."""
         with self.app.app_context():
             engine = db.engine
         statements = []
 
-        def contar(conn, cursor, statement, parameters, context, executemany):
-            statements.append(statement)
+        def registrar(conn, cursor, statement, parameters, context, executemany):
+            statements.append((statement, parameters))
 
-        event.listen(engine, 'before_cursor_execute', contar)
+        event.listen(engine, 'before_cursor_execute', registrar)
         try:
             response = self._exportar()
         finally:
-            event.remove(engine, 'before_cursor_execute', contar)
+            event.remove(engine, 'before_cursor_execute', registrar)
         self.assertEqual(response.status_code, 200)
-        return response, len(statements)
+        return response, statements
+
+    def _nomes_repetidos_nos_resultados(self, statements, nomes):
+        """Nomes (dentre `nomes`) que algum SELECT do export devolveu em mais
+        de uma linha. Cada SELECT é reexecutado — o export só lê — e as
+        colunas *full_name do resultado são comparadas linha a linha, sem
+        depender de como o carregamento foi feito."""
+        repetidos = set()
+        with self.app.app_context(), db.engine.connect() as conn:
+            for statement, parameters in statements:
+                if not statement.lstrip().upper().startswith('SELECT'):
+                    continue
+                resultado = conn.exec_driver_sql(statement, parameters)
+                colunas = [i for i, chave in enumerate(resultado.keys())
+                           if chave.endswith('full_name')]
+                valores = [linha[i] for linha in resultado.all() for i in colunas]
+                repetidos.update(nome for nome in nomes if valores.count(nome) > 1)
+        return sorted(repetidos)
 
     def test_exportar_excel_total_por_professor(self):
         self._adicionar(teacher=self.professor_id, days='12')
@@ -388,10 +405,11 @@ class MealAllowanceTestCase(unittest.TestCase):
         """Regressão do N+1: o professor de cada lançamento vem por eager
         loading, então o total de consultas do export é o mesmo com 2 ou 7
         professores distintos — sem ele, cada professor seria uma consulta
-        preguiçosa a mais e a planilha continuaria idêntica."""
+        preguiçosa a mais e a planilha continuaria idêntica. E o professor
+        chega uma vez só, não repetido em cada lançamento dele."""
         self._adicionar(teacher=self.professor_id, days='12')
         self._adicionar(teacher=self.professor2_id, days='5')
-        _, consultas_2_professores = self._exportar_contando_consultas()
+        _, statements_2_professores = self._exportar_registrando_consultas()
 
         with self.app.app_context():
             novos = []
@@ -405,14 +423,25 @@ class MealAllowanceTestCase(unittest.TestCase):
                 novos.append(professor)
             db.session.add_all(novos)
             db.session.flush()
-            db.session.add_all(TeacherMealAllowance(
-                teacher_id=professor.id, days=i + 1, unity_id=self.unity_id)
-                for i, professor in enumerate(novos))
+            # Dois lançamentos por docente novo: é o que torna observável uma
+            # carga que repita o professor por lançamento.
+            db.session.add_all(
+                TeacherMealAllowance(teacher_id=professor.id, days=dias,
+                                     unity_id=self.unity_id)
+                for i, professor in enumerate(novos) for dias in (i + 1, 10))
             db.session.commit()
             novos_ids = [professor.id for professor in novos]
 
-        response, consultas_7_professores = self._exportar_contando_consultas()
-        self.assertEqual(consultas_7_professores, consultas_2_professores)
+        response, statements = self._exportar_registrando_consultas()
+        self.assertEqual(len(statements), len(statements_2_professores))
+
+        # Formato do resultado: nenhum SELECT devolve o nome de um professor
+        # em mais de uma linha. Um JOIN por lançamento (joinedload) passaria
+        # na contagem acima, mas copiaria a linha do professor em cada
+        # lançamento — no SQLite o tamanho do nome não é imposto.
+        nomes = {'Professor Silva', 'Professora Souza'} | {
+            f'Docente {i}' for i in range(5)}
+        self.assertEqual(self._nomes_repetidos_nos_resultados(statements, nomes), [])
 
         # A planilha segue completa: uma linha por professor com o total certo.
         rows = self._linhas_planilha(response)
@@ -421,7 +450,7 @@ class MealAllowanceTestCase(unittest.TestCase):
         self.assertEqual(dados[(self.professor_id, 'Professor Silva')], 12)
         self.assertEqual(dados[(self.professor2_id, 'Professora Souza')], 5)
         for i, ident in enumerate(novos_ids):
-            self.assertEqual(dados[(ident, f'Docente {i}')], i + 1)
+            self.assertEqual(dados[(ident, f'Docente {i}')], i + 11)
 
     def test_exportar_sem_lancamentos_redireciona(self):
         response = self._exportar()
