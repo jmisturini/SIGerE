@@ -3,7 +3,7 @@ import re
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, abort
 from flask_login import login_required, current_user
 from sqlalchemy import func
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import selectinload
 from app.models import (User, Reservation, TeacherOvertimePay, TeacherMealAllowance,
                         OvertimeMonthClosure)
 from app.forms import FormTeacherOvertimePay, FormValeAlimentacao
@@ -962,8 +962,12 @@ def export_meal_allowance():
     if month_base:
         query = query.filter_by(month_base=month_base)
     # Eager-load do professor: o agrupamento lê entry.teacher por lançamento —
-    # sem o joinedload, um export grande faria uma consulta por professor.
-    entries = query.options(joinedload(TeacherMealAllowance.teacher)).all()
+    # sem eager load, um export grande faria uma consulta por professor. O
+    # selectinload busca cada professor uma vez (SELECT ... IN) em vez de
+    # repetir a linha dele em todo lançamento, como faria o JOIN do
+    # joinedload: no SQLite o tamanho do nome não é imposto e um nome enorme
+    # importado do legado seria copiado uma vez por lançamento na memória.
+    entries = query.options(selectinload(TeacherMealAllowance.teacher)).all()
 
     if not entries:
         flash('Nenhum lançamento de Vale Alimentação para exportar.', 'danger')

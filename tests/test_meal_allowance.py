@@ -12,6 +12,7 @@ from datetime import date, datetime, time
 from io import BytesIO
 
 from openpyxl import load_workbook
+from sqlalchemy import event
 
 from app import create_app
 from app.config import Config
@@ -294,6 +295,24 @@ class MealAllowanceTestCase(unittest.TestCase):
         wb = load_workbook(BytesIO(response.data))
         return list(wb.active.iter_rows(values_only=True))
 
+    def _exportar_contando_consultas(self):
+        """(resposta, quantidade de statements SQL) de um export completo —
+        conta tudo o que a requisição executa no banco."""
+        with self.app.app_context():
+            engine = db.engine
+        statements = []
+
+        def contar(conn, cursor, statement, parameters, context, executemany):
+            statements.append(statement)
+
+        event.listen(engine, 'before_cursor_execute', contar)
+        try:
+            response = self._exportar()
+        finally:
+            event.remove(engine, 'before_cursor_execute', contar)
+        self.assertEqual(response.status_code, 200)
+        return response, len(statements)
+
     def test_exportar_excel_total_por_professor(self):
         self._adicionar(teacher=self.professor_id, days='12')
         self._adicionar(teacher=self.professor_id, days='3')
@@ -364,6 +383,45 @@ class MealAllowanceTestCase(unittest.TestCase):
         self.assertEqual(dados[(self.professor_id, 'Professor Silva')], 12)
         self.assertEqual(dados[(variante_id, 'Professor Silva')], 7)
         self.assertEqual(len(rows), 3)
+
+    def test_exportar_consultas_nao_crescem_por_professor(self):
+        """Regressão do N+1: o professor de cada lançamento vem por eager
+        loading, então o total de consultas do export é o mesmo com 2 ou 7
+        professores distintos — sem ele, cada professor seria uma consulta
+        preguiçosa a mais e a planilha continuaria idêntica."""
+        self._adicionar(teacher=self.professor_id, days='12')
+        self._adicionar(teacher=self.professor2_id, days='5')
+        _, consultas_2_professores = self._exportar_contando_consultas()
+
+        with self.app.app_context():
+            novos = []
+            for i in range(5):
+                professor = User(
+                    email=f'docente{i}@escola.edu', full_name=f'Docente {i}',
+                    role='room', profile_type='teacher', unities=[self.unity],
+                    force_password_change=False, is_active_user=True,
+                )
+                professor.set_password(PASSWORD)
+                novos.append(professor)
+            db.session.add_all(novos)
+            db.session.flush()
+            db.session.add_all(TeacherMealAllowance(
+                teacher_id=professor.id, days=i + 1, unity_id=self.unity_id)
+                for i, professor in enumerate(novos))
+            db.session.commit()
+            novos_ids = [professor.id for professor in novos]
+
+        response, consultas_7_professores = self._exportar_contando_consultas()
+        self.assertEqual(consultas_7_professores, consultas_2_professores)
+
+        # A planilha segue completa: uma linha por professor com o total certo.
+        rows = self._linhas_planilha(response)
+        dados = {(ident, nome): dias for ident, nome, dias in rows[1:]}
+        self.assertEqual(len(rows), 1 + 7)
+        self.assertEqual(dados[(self.professor_id, 'Professor Silva')], 12)
+        self.assertEqual(dados[(self.professor2_id, 'Professora Souza')], 5)
+        for i, ident in enumerate(novos_ids):
+            self.assertEqual(dados[(ident, f'Docente {i}')], i + 1)
 
     def test_exportar_sem_lancamentos_redireciona(self):
         response = self._exportar()
