@@ -4,7 +4,6 @@ from wtforms import (StringField, PasswordField, SubmitField, IntegerField, Floa
 from wtforms.validators import (DataRequired, InputRequired, Email, EqualTo, Length, ValidationError, Optional, NumberRange)
 from datetime import datetime, date
 import re
-from sqlalchemy import func
 # CORREÇÃO: Holiday e Role não estavam importados — os validadores de
 # HolidayForm.validate_date e RoleForm.validate_name geravam NameError (erro 500).
 from app.models import (User, Course, Subject, RoomCategory, Holiday, Role, Unity,
@@ -885,12 +884,14 @@ class FormVtConfig(BaseForm):
 
 class FormVtPedido(BaseForm):
     """Pedido público de Vale-Transporte: replica as perguntas do formulário
-    do Microsoft Forms, com a identificação por e-mail exigido pelo acesso
-    anônimo. A ramificação (deseja VT → vínculo → nº de empresas) é guiada
-    pelo JavaScript da página e espelhada aqui no servidor — o POST forjado
-    sem os campos obrigatórios do ramo escolhido é rejeitado. As empresas e
-    tarifas são as cadastradas em /admin/vt-empresas: os choices são
-    preenchidos pela rota antes da validação."""
+    do Microsoft Forms, com a identificação pela matrícula exigido pelo acesso
+    anônimo (o botão "Buscar" da página preenche nome e e-mail de conta ativa,
+    e o servidor repete a consulta no POST — a trava de verdade). A
+    ramificação (deseja VT → vínculo → nº de empresas) é guiada pelo
+    JavaScript da página e espelhada aqui no servidor — o POST forjado sem os
+    campos obrigatórios do ramo escolhido é rejeitado. As empresas e tarifas
+    são as cadastradas em /admin/vt-empresas: os choices são preenchidos pela
+    rota antes da validação."""
 
     email = StringField('E-mail', validators=[
         DataRequired(), Email(), Length(max=255)])
@@ -937,41 +938,33 @@ class FormVtPedido(BaseForm):
                                  validators=[Optional()])
     submit = SubmitField('Enviar pedido')
 
-    def _identificar_por_email(self):
-        """Quando o e-mail informado é de uma conta ATIVA, nome, matrícula e
+    def _identificar_por_matricula(self):
+        """Quando a matrícula informada é de uma conta ATIVA, nome, e-mail e
         vínculo vêm do cadastro e sobrescrevem o POST (no navegador os campos
-        ficam travados; aqui é a trava de verdade). Guarda os valores do POST:
-        na resposta de erro do formulário público, nome/matrícula renderizados
-        são os digitados pelo visitante — nunca os lidos do cadastro."""
-        if not self.email.data:
+        ficam travados pelo botão "Buscar"; aqui é a trava de verdade)."""
+        # A correção pelo RH (vt.edit_request) marca _sem_identificacao: quem
+        # edita tem vt:edit e digita o que deve ser gravado.
+        if getattr(self, '_sem_identificacao', False) or not self.registration.data:
             return None
-        usuario = (User.query
-                   .filter(func.lower(User.email) == self.email.data.strip().lower(),
-                           User.is_active_user == True)
-                   .first())
+        matricula = self.registration.data.strip()
+        if not matricula:
+            return None
+        usuario = User.query.filter_by(registration=matricula,
+                                       is_active_user=True).first()
         if usuario is None:
             return None
-        self._antes_da_identificacao = (self.full_name.data,
-                                        self.registration.data)
         self.full_name.data = usuario.full_name
-        self.registration.data = usuario.registration or self.registration.data
+        self.email.data = usuario.email
         self.link.data = ('Professor(a)' if usuario.profile_type == 'teacher'
                           else 'Técnico - Administrativo')
         return usuario
 
     def validate(self, extra_validators=None):
-        # Identificação ANTES dos validadores: o endpoint de auto-preenchimento
-        # só devolve found/vínculo, então o navegador não envia nome/matrícula
-        # de conta ativa — DataRequired falharia antes de o servidor preencher.
-        self._identificar_por_email()
-        valido = self._validar_pedido(extra_validators)
-        # Erro no formulário público: nome/matrícula voltam ao que o visitante
-        # digitou (dados do cadastro não podem ser renderizados para quem só
-        # conhece o e-mail — enumeração). A re-submissão identifica de novo.
-        if not valido and getattr(self, '_antes_da_identificacao', None) is not None:
-            self.full_name.data, self.registration.data = self._antes_da_identificacao
-            self._antes_da_identificacao = None
-        return valido
+        # Identificação ANTES dos validadores: o navegador envia apenas a
+        # matrícula de conta ativa (nome/e-mail chegam travados ou vazios) —
+        # DataRequired de nome/e-mail falharia antes de o servidor preencher.
+        self._identificar_por_matricula()
+        return self._validar_pedido(extra_validators)
 
     def _validar_pedido(self, extra_validators=None):
         if not super().validate(extra_validators):

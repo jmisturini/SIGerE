@@ -4,8 +4,10 @@ Adaptação web do "Gerador Unificado" (script local de vale transporte),
 organizado em duas páginas:
 
 1. Pedido público (/vt/pedido, sem login): réplica do formulário
-   "Pedido de Vale-Transporte" (Microsoft Forms) com identificação apenas
-   pelo e-mail; as respostas ficam em VtRequest;
+   "Pedido de Vale-Transporte" (Microsoft Forms) com identificação pela
+   matrícula (botão "Buscar" preenche nome e e-mail de conta ativa; quem
+   já está logado no sistema chega preenchido); as respostas ficam em
+   VtRequest;
 2. Pedidos VT (/vt/pedidos): as respostas do formulário DA UNIDADE ATIVA,
    com filtros, correção individual (editar/excluir, vt:edit / vt:delete)
    e a planilha de pagamento (planilha_base_vt.xlsx, Matrícula/Nome/Total
@@ -24,7 +26,6 @@ from datetime import date, datetime
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, send_file, url_for)
 from openpyxl import load_workbook
-from sqlalchemy import func
 
 from app.extensions import db, limiter
 from flask_login import current_user, login_required
@@ -168,6 +169,9 @@ def edit_request(request_id):
     if unity is None:
         abort(404)
     form = FormVtPedido(obj=pedido)
+    # Sem identificação automática: quem edita tem vt:edit e digita o que
+    # deve ser gravado — a busca por matrícula não sobrescreve a correção.
+    form._sem_identificacao = True
     _preparar_form_pedido(form, unity)
 
     if request.method == 'GET':
@@ -395,10 +399,13 @@ def relatorio():
 # ── Pedido público de Vale-Transporte ────────────────────────────────────────
 #
 # Adaptação do formulário "Pedido de Vale-Transporte" (Microsoft Forms): a
-# página /vt/pedido é pública (sem login) e identifica o colaborador apenas
-# pelo e-mail informado — as demais perguntas e a ramificação (deseja VT →
-# vínculo → nº de empresas) são as mesmas do formulário original. As respostas
-# ficam em VtRequest, listadas em /vt/pedidos para conferência do RH.
+# página /vt/pedido é pública (sem login) e identifica o colaborador pela
+# matrícula — o botão "Buscar" preenche nome e e-mail de conta ativa e quem
+# já está logado no sistema chega com os próprios dados preenchidos; sem
+# match, os campos ficam livres para digitação. As demais perguntas e a
+# ramificação (deseja VT → vínculo → nº de empresas) são as mesmas do
+# formulário original. As respostas ficam em VtRequest, listadas em
+# /vt/pedidos para conferência do RH.
 
 def _aplicar_form_em_pedido(pedido, form, unity):
     """Grava no VtRequest os campos do FormVtPedido validado — usado na
@@ -503,6 +510,16 @@ def request_form():
     fechado = config.esta_fechado(hoje) if config else False
 
     form = _preparar_form_pedido(FormVtPedido(), unity)
+    # Visitante logado: no primeiro GET, matrícula, nome, e-mail e vínculo
+    # chegam preenchidos pela própria conta (a página trava os campos; no
+    # POST quem manda é o formdata — e a identificação pela matrícula repete
+    # a consulta, a trava de verdade é o servidor).
+    logado = current_user.is_authenticated
+    if logado and request.method == 'GET':
+        form.registration.data = current_user.registration or ''
+        form.full_name.data = current_user.full_name
+        form.email.data = current_user.email
+        form.link.data = _vinculo_por_perfil(current_user)
     # Números base da unidade: alimentam o botão "usar valor base" do
     # formulário (oferecido apenas para Técnico-Administrativo).
     vales_base = None
@@ -525,7 +542,7 @@ def request_form():
     return render_template('vt/pedido.html', form=form, ocultar_sidebar=True,
                            pedido_unity=unity, config=config,
                            fechado=fechado, vales_base=vales_base,
-                           empresas_valores=empresas_valores)
+                           empresas_valores=empresas_valores, logado=logado)
 
 
 def _vinculo_por_perfil(user):
@@ -534,23 +551,24 @@ def _vinculo_por_perfil(user):
     return 'Professor(a)' if user.profile_type == 'teacher' else 'Técnico - Administrativo'
 
 
-@bp.route('/pedido/colaborador')
+@bp.route('/pedido/matricula')
 @limiter.limit('30 per minute')
-def request_form_colaborador():
-    """Auto-preenchimento do formulário público: dado o e-mail informado,
-    devolve apenas a existência da conta ATIVA e o vínculo (found false
-    quando não há — o colaborador preenche à mão). Nome e matrícula não são
-    expostos: o endpoint é anônimo e não pode servir de enumeração de
-    cadastros; no POST, o servidor preenche esses dados pelo cadastro
-    (FormVtPedido._identificar_por_email)."""
-    email = (request.args.get('email') or '').strip().lower()
+def request_form_matricula():
+    """Busca do formulário público (botão "Buscar" do bloco de matrícula):
+    dada a matrícula informada, devolve nome, e-mail e vínculo da conta
+    ATIVA correspondente (found false quando não há — o colaborador preenche
+    à mão). No POST, o servidor repete a consulta e grava o que o cadastro
+    diz (FormVtPedido._identificar_por_matricula)."""
+    matricula = (request.args.get('matricula') or '').strip()
     user = None
-    if email:
-        user = (User.query
-                .filter(func.lower(User.email) == email,
-                        User.is_active_user == True)  # noqa: E712
-                .first())
+    if matricula:
+        user = User.query.filter_by(registration=matricula,
+                                    is_active_user=True).first()
+    if user is None:
+        return jsonify({'found': False})
     return jsonify({
-        'found': user is not None,
-        'vinculo': _vinculo_por_perfil(user) if user else None,
+        'found': True,
+        'nome': user.full_name,
+        'email': user.email,
+        'vinculo': _vinculo_por_perfil(user),
     })
