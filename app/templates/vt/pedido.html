@@ -232,6 +232,7 @@
         // Visitante logado: o servidor já preencheu matrícula, nome e e-mail
         // com os dados da própria conta.
         const LOGADO = {{ 'true' if logado else 'false' }};
+        const EMAIL_LOGADO = {{ (current_user.email | lower | tojson) if logado else 'null' }};
         const blocoVt = document.getElementById('bloco-vt');
         const blocoEmpresas = document.getElementById('bloco-empresas');
         const blocoB = document.getElementById('bloco-empresa-b');
@@ -393,8 +394,10 @@
             document.querySelectorAll('input[name="link"]').forEach(radio => {
                 radio.disabled = true;
             });
-            if (LOGADO) {
-                // Próprios dados: ficam visíveis e travados.
+            // Dados na tela só quando são da própria conta logada: buscando
+            // outro e-mail, a confirmação é da conta encontrada e os campos
+            // do cadastro somem (o servidor preenche pelo e-mail no POST).
+            if (LOGADO && emailInput.value.trim().toLowerCase() === EMAIL_LOGADO) {
                 form.elements['full_name'].readOnly = true;
                 registrationInput.readOnly = true;
             } else {
@@ -418,11 +421,18 @@
             identificado = false;
         }
 
+        // Cada busca recebe um número: quem editar o e-mail (ou disparar
+        // outra busca) invalida a resposta antiga, que não pode re-identificar
+        // o formulário com uma conta que já não é a do campo.
+        let buscaId = 0;
+
         async function buscarColaborador() {
             const email = emailInput.value.trim();
+            const minhaBusca = ++buscaId;
             if (!email || !email.includes('@')) { liberarCampos(); return; }
             try {
                 const resp = await fetch(`{{ url_for('vt.request_form_colaborador') }}?email=${encodeURIComponent(email)}`);
+                if (minhaBusca !== buscaId) return; // resposta antiga
                 if (!resp.ok) return;
                 const dados = await resp.json();
                 if (!dados.found) {
@@ -450,8 +460,10 @@
                 buscarColaborador();
             }
         });
-        // Editar o e-mail depois de identificado destrava os campos.
+        // Editar o e-mail depois de identificado destrava os campos — e
+        // invalida qualquer busca pendente para este e-mail antigo.
         emailInput.addEventListener('input', () => {
+            buscaId++;
             dicaNaoEncontrada.hidden = true;
             liberarCampos();
         });
