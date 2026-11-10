@@ -494,7 +494,7 @@
         // preenchimento tardio do navegador) e os campos do cadastro voltam
         // a sair da tela.
         if (emailInput.value.trim()) {
-            if (LOGADO) {
+            if (LOGADO && emailInput.value.trim().toLowerCase() === EMAIL_LOGADO) {
                 identificar();
             } else {
                 buscarColaborador();
