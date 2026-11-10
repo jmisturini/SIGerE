@@ -426,6 +426,29 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         self.assertNotIn('555777', page)
         self.assertEqual(self._pedidos(), [])
 
+    def test_post_conta_ativa_sem_matricula_rejeitado(self):
+        """Conta ativa sem matrícula no cadastro: o pedido é rejeitado com
+        erro acionável na coluna do e-mail (visível mesmo com os campos do
+        cadastro ocultos) — o pedido não pode gravar identidade incompleta
+        para a planilha de pagamento."""
+        with self.app.app_context():
+            sem_matricula = User(
+                email='sem-matricula@escola.edu', full_name='Conta Sem Matricula',
+                registration=None, role='room', profile_type='employee',
+                unities=[self.unity], force_password_change=False,
+                is_active_user=True)
+            sem_matricula.set_password(PASSWORD)
+            db.session.add(sem_matricula)
+            db.session.commit()
+
+        payload = self._payload_sim_uma_empresa(email='sem-matricula@escola.edu')
+        for campo in ('full_name', 'registration', 'link'):
+            payload.pop(campo)  # o formulário identificado não os envia
+        response = self.client.post('/vt/pedido', data=payload)
+        page = response.get_data(as_text=True)
+        self.assertIn('está sem matrícula cadastrada', page)
+        self.assertEqual(self._pedidos(), [])
+
     def test_vales_acima_de_49_rejeitados(self):
         """O nº de vales é livre, mas sempre menor que 50."""
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(

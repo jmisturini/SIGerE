@@ -950,6 +950,7 @@ class FormVtPedido(BaseForm):
         # A correção pelo RH (vt.edit_request) marca _sem_identificacao: quem
         # edita tem vt:edit e digita o que deve ser gravado.
         self._identificada = False
+        self._sem_matricula = False
         if getattr(self, '_sem_identificacao', False) or not self.email.data:
             return None
         usuario = (User.query
@@ -958,8 +959,17 @@ class FormVtPedido(BaseForm):
                    .first())
         if usuario is None:
             return None
+        # Conta ativa sem matrícula: o pedido seria gravado com identidade
+        # incompleta (ou herdando o que o POST mandar) e quebraria a
+        # conferência/planilha do RH — marca para rejeitar com erro acionável
+        # na coluna do e-mail (sempre visível mesmo com os campos do cadastro
+        # ocultos); o erro é anexado depois da validação dos campos, que
+        # recria field.errors.
+        if not usuario.registration:
+            self._sem_matricula = True
+            return None
         self.full_name.data = usuario.full_name
-        self.registration.data = usuario.registration or self.registration.data
+        self.registration.data = usuario.registration
         self.link.data = ('Professor(a)' if usuario.profile_type == 'teacher'
                           else 'Técnico - Administrativo')
         self._identificada = True
@@ -980,10 +990,17 @@ class FormVtPedido(BaseForm):
         return valido
 
     def _validar_pedido(self, extra_validators=None):
-        if not super().validate(extra_validators):
-            return False
+        valido = super().validate(extra_validators)
+        # Conta ativa sem matrícula: rejeita o pedido com erro acionável na
+        # coluna do e-mail — anexado aqui porque field.errors só vira lista
+        # depois da validação dos campos.
+        if getattr(self, '_sem_matricula', False):
+            self.email.errors.append(
+                'Sua conta no sistema está sem matrícula cadastrada — '
+                'peça ao RH para corrigir o cadastro antes de pedir VT.')
+            valido = False
         if self.optant.data != 'Sim':
-            return True
+            return valido
 
         # Ramo "Sim": as perguntas seguintes do formulário viram obrigatórias
         # (no Microsoft Forms o desvio "Não" simplesmente pula o restante).
@@ -996,7 +1013,6 @@ class FormVtPedido(BaseForm):
             (self.company_a_passes, 'Digite o número de vales necessários.'),
             (self.company_a_route, 'Selecione o trajeto.'),
         ]
-        valido = True
         for campo, mensagem in obrigatorio:
             if campo.data in (None, ''):
                 campo.errors.append(mensagem)
