@@ -30,7 +30,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak,
-    HRFlowable, KeepTogether,
+    HRFlowable,
 )
 from reportlab.platypus.tableofcontents import TableOfContents
 
@@ -997,9 +997,11 @@ BLOCOS = [
           'formulário</b> em Pedidos VT gera o link pronto). A página indica a unidade e, quando '
           'configurada, a data limite — após o prazo, o formulário aparece encerrado.'),
     ('ol', [
-        '<b>Identificação</b> — informe <b>E-mail</b>, <b>Nome</b> e <b>Matrícula</b>. Se o '
-        'e-mail corresponder a uma conta ativa do sistema, nome, matrícula e vínculo são '
-        'preenchidos automaticamente e ficam travados;',
+        '<b>Identificação</b> — informe a <b>Matrícula</b> e clique em <b>Buscar</b>. Se ela '
+        'corresponder a uma conta ativa do sistema, nome, e-mail e vínculo são preenchidos '
+        'automaticamente e ficam travados (quem já está logado no sistema já entra '
+        'identificado). Matrícula sem conta no sistema: nome e e-mail ficam livres para '
+        'digitação;',
         '<b>Deseja Vale-Transporte para o mês?</b> — responda <b>Sim</b> ou <b>Não</b>. '
         'Respondendo “Não”, basta clicar em <b>Enviar pedido</b>;',
         'Respondendo “Sim”, selecione o <b>Vínculo</b> (Técnico-Administrativo ou Professor) e '
