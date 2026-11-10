@@ -1,8 +1,9 @@
-# Revisão automática de PRs com IA via Open Code Review (alibaba/open-code-review),
-# no lugar do CodeRabbit. A action instala a CLI `ocr`, faz checkout da branch base
-# (confiável), busca só os blobs da head do PR, roda `ocr review` no diff
-# merge-base..head e publica um comentário-resumo fixo (atualizado a cada run) mais
-# comentários inline no PR — nunca executa código vindo do PR.
+# Revisão automática de PRs com IA via Open Code Review (alibaba/open-code-review).
+# O CodeRabbit segue instalado como revisor extra, com auto-review restrito aos PRs
+# com destino à main (.coderabbit.yaml). A action instala a CLI `ocr`, faz checkout
+# da branch base (confiável), busca só os blobs da head do PR, roda `ocr review` no
+# diff merge-base..head e publica um comentário-resumo fixo (atualizado a cada run)
+# mais comentários inline no PR — nunca executa código vindo do PR.
 #
 # Segredo necessário (Settings → Secrets and variables → Actions → Secrets):
 #   OCR_LLM_AUTH_TOKEN — chave de API da Z.AI (Coding Plan ou pay-as-you-go).

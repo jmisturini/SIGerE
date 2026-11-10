@@ -27,7 +27,7 @@ git push -u origin feature/minha-funcao
 # o push imprime o link para abrir o Pull Request para dev
 ```
 
-A CI roda em todo PR e em todo push para `main`/`dev`: o workflow **Testes** executa o `pytest` em PRs e pushes para essas branches; o workflow **Qualidade** (ruff, bandit e pip-audit) roda apenas em PRs para elas. Todo PR para essas branches também recebe a **Revisão de código** (Open Code Review, workflow `review.yml`): comentários consultivos de IA no diff — não bloqueiam o merge. Para pedir uma nova rodada, comente `/open-code-review` no PR.
+A CI roda em todo PR e em todo push para `main`/`dev`: o workflow **Testes** executa o `pytest` em PRs e pushes para essas branches; o workflow **Qualidade** (ruff, bandit e pip-audit) roda apenas em PRs para elas. Todo PR para essas branches também recebe a **Revisão de código** (Open Code Review, workflow `review.yml`): comentários consultivos de IA no diff — não bloqueiam o merge. Para pedir uma nova rodada, comente `/open-code-review` no PR. O CodeRabbit segue instalado como revisor extra: revisa automaticamente só os PRs com destino à `main` (ex.: a `dev`→`main` da release); nos demais, peça com `@coderabbitai review` no PR.
 
 ## Release
 

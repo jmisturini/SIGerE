@@ -421,7 +421,9 @@ Todo PR para `main`/`dev` recebe ainda a **Revisão de código** (workflow
 publica comentários consultivos de IA (modelo GLM da Z.AI) nas linhas alteradas,
 mais um resumo na conversa do PR. É orientação, não veto — o resultado não
 bloqueia o merge. Para repetir a revisão depois de uma correção, comente
-`/open-code-review` no PR.
+`/open-code-review` no PR. O CodeRabbit segue instalado como revisor extra:
+revisa automaticamente só os PRs com destino à `main` (`.coderabbit.yaml`); nos
+demais, peça com `@coderabbitai review` no PR.
 
 ### O que a suíte cobre
 
