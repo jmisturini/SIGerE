@@ -778,11 +778,12 @@ class TestPedidosVT(unittest.TestCase):
         self.assertIn('R$ 217.20', page)
 
     def test_edicao_nao_sobrescreve_dados_com_cadastro(self):
-        """Na correção, o RH digita o que deve ser gravado: mesmo com a
-        matrícula batendo com uma conta ativa, nome e e-mail corrigidos não
-        são sobrescritos pelo cadastro — a identificação automática só vale
-        no formulário público."""
-        self._criar_pedido(registration='editor-vt')  # matrícula de conta ativa
+        """Na correção, o RH digita o que deve ser gravado: mesmo com o
+        e-mail batendo com uma conta ativa (que a identificação automática
+        usaria para sobrescrever nome, matrícula e vínculo), os dados
+        corrigidos são gravados como digitados — a identificação automática
+        só vale no formulário público (flag _sem_identificacao)."""
+        self._criar_pedido(registration='editor-vt')
         with self.app.app_context():
             pedido_id = VtRequest.query.first().id
 
@@ -791,14 +792,16 @@ class TestPedidosVT(unittest.TestCase):
             f'/vt/pedidos/{pedido_id}/editar',
             data=self._payload_sim(registration='editor-vt',
                                    full_name='Nome Corrigido',
-                                   email='corrigido@senac.sc.br'),
+                                   email='maria@escola.edu'),  # conta ativa
             follow_redirects=True)
         self.assertIn('Pedido de Nome Corrigido atualizado',
                       response.get_data(as_text=True))
         with self.app.app_context():
             pedido = db.session.get(VtRequest, pedido_id)
             self.assertEqual(pedido.full_name, 'Nome Corrigido')
-            self.assertEqual(pedido.email, 'corrigido@senac.sc.br')
+            self.assertEqual(pedido.email, 'maria@escola.edu')
+            self.assertEqual(pedido.registration, 'editor-vt')
+            self.assertEqual(pedido.link, 'Técnico - Administrativo')
 
     def test_excluir_pedido(self):
         self._criar_pedido()
