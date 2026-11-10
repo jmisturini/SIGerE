@@ -435,6 +435,7 @@
                 if (minhaBusca !== buscaId) return; // resposta antiga
                 if (!resp.ok) return;
                 const dados = await resp.json();
+                if (minhaBusca !== buscaId) return; // e-mail mudou durante a leitura
                 if (!dados.found) {
                     liberarCampos();
                     dicaNaoEncontrada.hidden = false;
