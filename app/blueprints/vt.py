@@ -4,10 +4,11 @@ Adaptação web do "Gerador Unificado" (script local de vale transporte),
 organizado em duas páginas:
 
 1. Pedido público (/vt/pedido, sem login): réplica do formulário
-   "Pedido de Vale-Transporte" (Microsoft Forms) com identificação pela
-   matrícula (botão "Buscar" preenche nome e e-mail de conta ativa; quem
-   já está logado no sistema chega preenchido); as respostas ficam em
-   VtRequest;
+   "Pedido de Vale-Transporte" (Microsoft Forms) com identificação pelo
+   e-mail — o botão "Buscar" apenas confirma a conta (nome curto e
+   vínculo) e o servidor preenche nome, matrícula e vínculo pelo cadastro
+   no POST; quem já está logado no sistema chega preenchido; as respostas
+   ficam em VtRequest;
 2. Pedidos VT (/vt/pedidos): as respostas do formulário DA UNIDADE ATIVA,
    com filtros, correção individual (editar/excluir, vt:edit / vt:delete)
    e a planilha de pagamento (planilha_base_vt.xlsx, Matrícula/Nome/Total
@@ -26,6 +27,7 @@ from datetime import date, datetime
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, send_file, url_for)
 from openpyxl import load_workbook
+from sqlalchemy import func
 
 from app.extensions import db, limiter
 from flask_login import current_user, login_required
@@ -399,10 +401,11 @@ def relatorio():
 # ── Pedido público de Vale-Transporte ────────────────────────────────────────
 #
 # Adaptação do formulário "Pedido de Vale-Transporte" (Microsoft Forms): a
-# página /vt/pedido é pública (sem login) e identifica o colaborador pela
-# matrícula — o botão "Buscar" preenche nome e e-mail de conta ativa e quem
-# já está logado no sistema chega com os próprios dados preenchidos; sem
-# match, os campos ficam livres para digitação. As demais perguntas e a
+# página /vt/pedido é pública (sem login) e identifica o colaborador pelo
+# e-mail — o botão "Buscar" apenas confirma a conta (nome curto e vínculo;
+# nome completo, matrícula e e-mail de cadastro nunca saem do servidor) e
+# quem já está logado no sistema chega com os próprios dados preenchidos;
+# sem match, os campos ficam livres para digitação. As demais perguntas e a
 # ramificação (deseja VT → vínculo → nº de empresas) são as mesmas do
 # formulário original. As respostas ficam em VtRequest, listadas em
 # /vt/pedidos para conferência do RH.
@@ -551,24 +554,39 @@ def _vinculo_por_perfil(user):
     return 'Professor(a)' if user.profile_type == 'teacher' else 'Técnico - Administrativo'
 
 
-@bp.route('/pedido/matricula')
+def _nome_curto(full_name):
+    """Nome de confirmação do formulário público: primeiro nome e inicial do
+    último (ex.: 'Ana Paula Souza' → 'Ana S.') — o endpoint é anônimo e não
+    pode entregar o cadastro completo a quem digita um e-mail."""
+    partes = (full_name or '').split()
+    if not partes:
+        return ''
+    if len(partes) == 1:
+        return partes[0]
+    return f'{partes[0]} {partes[-1][0]}.'
+
+
+@bp.route('/pedido/colaborador')
 @limiter.limit('30 per minute')
-def request_form_matricula():
-    """Busca do formulário público (botão "Buscar" do bloco de matrícula):
-    dada a matrícula informada, devolve nome, e-mail e vínculo da conta
-    ATIVA correspondente (found false quando não há — o colaborador preenche
-    à mão). No POST, o servidor repete a consulta e grava o que o cadastro
-    diz (FormVtPedido._identificar_por_matricula)."""
-    matricula = (request.args.get('matricula') or '').strip()
+def request_form_colaborador():
+    """Confirmação do formulário público (botão "Buscar" do bloco de
+    e-mail): dado o e-mail informado, devolve apenas a existência da conta
+    ATIVA, o nome de confirmação (nome curto) e o vínculo — nome completo,
+    matrícula e e-mail de cadastro NÃO saem do servidor (o endpoint é
+    anônimo e não pode virar diretório de cadastros). No POST, o servidor
+    repete a consulta e preenche/grava o que o cadastro diz
+    (FormVtPedido._identificar_por_email)."""
+    email = (request.args.get('email') or '').strip().lower()
     user = None
-    if matricula:
-        user = User.query.filter_by(registration=matricula,
-                                    is_active_user=True).first()
+    if email:
+        user = (User.query
+                .filter(func.lower(User.email) == email,
+                        User.is_active_user == True)  # noqa: E712
+                .first())
     if user is None:
         return jsonify({'found': False})
     return jsonify({
         'found': True,
-        'nome': user.full_name,
-        'email': user.email,
+        'nome': _nome_curto(user.full_name),
         'vinculo': _vinculo_por_perfil(user),
     })

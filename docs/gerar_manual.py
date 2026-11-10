@@ -997,11 +997,11 @@ BLOCOS = [
           'formulário</b> em Pedidos VT gera o link pronto). A página indica a unidade e, quando '
           'configurada, a data limite — após o prazo, o formulário aparece encerrado.'),
     ('ol', [
-        '<b>Identificação</b> — informe a <b>Matrícula</b> e clique em <b>Buscar</b>. Se ela '
-        'corresponder a uma conta ativa do sistema, nome, e-mail e vínculo são preenchidos '
-        'automaticamente e ficam travados (quem já está logado no sistema já entra '
-        'identificado). Matrícula sem conta no sistema: nome e e-mail ficam livres para '
-        'digitação;',
+        '<b>Identificação</b> — informe o <b>E-mail</b> e clique em <b>Buscar</b>. Se ele '
+        'corresponder a uma conta ativa do sistema, a conta é confirmada na tela (primeiro '
+        'nome e vínculo) e nome, matrícula e vínculo são preenchidos pelo cadastro no envio '
+        '(quem já está logado no sistema já entra identificado). E-mail sem conta no '
+        'sistema: nome, matrícula e e-mail ficam livres para digitação;',
         '<b>Deseja Vale-Transporte para o mês?</b> — responda <b>Sim</b> ou <b>Não</b>. '
         'Respondendo “Não”, basta clicar em <b>Enviar pedido</b>;',
         'Respondendo “Sim”, selecione o <b>Vínculo</b> (Técnico-Administrativo ou Professor) e '

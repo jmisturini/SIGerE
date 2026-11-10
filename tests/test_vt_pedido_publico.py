@@ -72,7 +72,7 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             db.session.flush()
 
             # Colaboradores com cadastro no sistema (para identificação
-            # automática pela matrícula): funcionário e professor.
+            # automática pelo e-mail): funcionário e professor.
             maria = User(email='maria@escola.edu', full_name='Maria Identificada',
                          registration='555777', role='room',
                          profile_type='employee', unities=[self.unity],
@@ -172,14 +172,14 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
     def test_formulario_publico_sem_login(self):
         """A página do pedido é acessível anônima, sem a barra lateral do
         painel, e traz as perguntas com o botão de envio desabilitado —
-        a identificação é o bloco de matrícula com o botão Buscar."""
+        a identificação é o bloco de e-mail com o botão Buscar."""
         response = self.client.get('/vt/pedido')
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
         self.assertIn('Pedido de Vale-Transporte', page)
-        self.assertIn('name="registration"', page)
-        self.assertIn('id="btn-buscar"', page)
         self.assertIn('name="email"', page)
+        self.assertIn('id="btn-buscar"', page)
+        self.assertIn('name="registration"', page)
         self.assertIn('name="optant"', page)
         self.assertIn('name="company_a_name"', page)
         self.assertIn('name="company_a_value"', page)
@@ -199,24 +199,25 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         page = response.get_data(as_text=True)
         self.assertNotIn('<nav class="sidebar">', page)
 
-    def test_busca_colaborador_por_matricula(self):
-        """Botão Buscar: matrícula de conta ativa devolve nome, e-mail e
-        vínculo do cadastro; matrícula desconhecida devolve found=false e a
-        página deixa os campos livres para digitação manual."""
-        response = self.client.get('/vt/pedido/matricula?matricula=555777')
+    def test_busca_colaborador_por_email(self):
+        """Botão Buscar: e-mail de conta ativa devolve apenas a confirmação —
+        found, nome curto e vínculo (nome completo, matrícula e e-mail de
+        cadastro não saem do servidor: o endpoint é anônimo e não pode virar
+        diretório de cadastros). E-mail desconhecido devolve found=false."""
+        response = self.client.get(
+            '/vt/pedido/colaborador?email=GESTOR-VT@escola.edu')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(),
-                         {'found': True, 'nome': 'Maria Identificada',
-                          'email': 'maria@escola.edu',
+                         {'found': True, 'nome': 'Gestor V.',
                           'vinculo': 'Técnico - Administrativo'})
 
-        response = self.client.get('/vt/pedido/matricula?matricula=888999')
+        response = self.client.get('/vt/pedido/colaborador?email=prof@escola.edu')
         self.assertEqual(response.get_json(),
-                         {'found': True, 'nome': 'Prof Identificado',
-                          'email': 'prof@escola.edu',
+                         {'found': True, 'nome': 'Prof I.',
                           'vinculo': 'Professor(a)'})
 
-        response = self.client.get('/vt/pedido/matricula?matricula=000000')
+        response = self.client.get(
+            '/vt/pedido/colaborador?email=desconhecido@senac.sc.br')
         self.assertEqual(response.get_json(), {'found': False})
 
     # ---------- POST público ----------
@@ -361,13 +362,13 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
         page = self.client.get('/vt/pedido?unity=99999').get_data(as_text=True)
         self.assertIn('Unidade Teste', page)
 
-    def test_matricula_cadastrada_trava_dados_no_servidor(self):
-        """Matrícula de conta ativa: nome, e-mail e vínculo vêm do cadastro
+    def test_email_cadastrado_trava_dados_no_servidor(self):
+        """E-mail de conta ativa: nome, matrícula e vínculo vêm do cadastro
         mesmo que o POST tente enviar outros valores."""
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
-            registration='555777',
+            email='maria@escola.edu',
             full_name='Nome Forjado',
-            email='forjado@senac.sc.br',
+            registration='000000',
             link='Professor(a)'), follow_redirects=True)
         self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
 
@@ -380,25 +381,25 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             self.assertEqual(pedido_bd.registration, '555777')
             self.assertEqual(pedido_bd.link, 'Técnico - Administrativo')
 
-    def test_matricula_de_professor_define_vinculo(self):
+    def test_email_de_professor_define_vinculo(self):
         """Professor identificado pelo cadastro tem vínculo Professor(a)."""
         response = self.client.post('/vt/pedido', data=self._payload_sim_uma_empresa(
-            registration='888999'), follow_redirects=True)
+            email='prof@escola.edu'), follow_redirects=True)
         self.assertIn('Pedido enviado com sucesso', response.get_data(as_text=True))
 
         with self.app.app_context():
             pedido_bd = VtRequest.query.first()
             self.assertEqual(pedido_bd.full_name, 'Prof Identificado')
-            self.assertEqual(pedido_bd.email, 'prof@escola.edu')
+            self.assertEqual(pedido_bd.registration, '888999')
             self.assertEqual(pedido_bd.link, 'Professor(a)')
 
-    def test_post_conta_ativa_sem_nome_email_e_vinculo(self):
-        """O botão Buscar preenche o navegador, mas o POST do identificado
-        pode chegar sem nome/e-mail/vínculo: a identificação pela matrícula
-        ocorre ANTES dos validadores DataRequired — o pedido entra com os
-        dados do cadastro em vez de ser rejeitado."""
-        payload = self._payload_sim_uma_empresa(registration='555777')
-        for campo in ('full_name', 'email', 'link'):
+    def test_post_conta_ativa_sem_nome_matricula_e_vinculo(self):
+        """O Buscar só confirma (nome curto e vínculo): com conta ativa o POST
+        chega sem nome/matrícula/vínculo — a identificação pelo e-mail ocorre
+        ANTES dos validadores DataRequired — o pedido entra com os dados do
+        cadastro em vez de ser rejeitado."""
+        payload = self._payload_sim_uma_empresa(email='maria@escola.edu')
+        for campo in ('full_name', 'registration', 'link'):
             payload.pop(campo)
         response = self.client.post('/vt/pedido', data=payload,
                                     follow_redirects=True)
@@ -410,18 +411,19 @@ class VtPedidoPublicoTestCase(unittest.TestCase):
             self.assertEqual(pedido_bd.registration, '555777')
             self.assertEqual(pedido_bd.link, 'Técnico - Administrativo')
 
-    def test_erro_no_post_exibe_dados_do_cadastro(self):
-        """POST com matrícula de conta ativa e campo inválido: a página de
-        erro re-renderiza com os dados do cadastro (a Buscar já os entrega a
-        quem tem a matrícula — sem segredo a preservar no re-render)."""
-        payload = self._payload_sim_uma_empresa(registration='555777',
-                                                full_name='', email='')
+    def test_erro_no_post_nao_exibe_dados_do_cadastro(self):
+        """POST com e-mail de conta ativa e campo inválido: a página de erro
+        re-renderiza SEM os dados do cadastro (mesma régua do endpoint de
+        confirmação — só nome curto e vínculo, refeitos pela re-busca no
+        load), nunca nome/matrícula lidos do cadastro."""
+        payload = self._payload_sim_uma_empresa(email='maria@escola.edu',
+                                                full_name='', registration='')
         payload.pop('company_a_value')  # provoca o erro de validação
         response = self.client.post('/vt/pedido', data=payload)
         page = response.get_data(as_text=True)
         self.assertIn('Selecione o valor do vale.', page)
-        self.assertIn('Maria Identificada', page)
-        self.assertIn('555777', page)
+        self.assertNotIn('Maria Identificada', page)
+        self.assertNotIn('555777', page)
         self.assertEqual(self._pedidos(), [])
 
     def test_vales_acima_de_49_rejeitados(self):

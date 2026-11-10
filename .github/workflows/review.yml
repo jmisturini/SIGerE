@@ -15,15 +15,17 @@ name: Revisão de código
 
 # Grupo de concorrência condicional (padrão do exemplo oficial do OCR): eventos de
 # revisão de um mesmo PR compartilham o grupo ocr-<nº>, então um push novo cancela a
-# revisão antiga do mesmo PR. Comentários que não são gatilho caem num grupo único
-# noop-<run_id> e são descartados sem atrapalhar uma revisão em andamento. O GitHub
-# avalia a concurrency ANTES do if do job — por isso o grupo precisa distinguir os
-# dois casos em vez de usar um grupo fixo por PR.
+# revisão antiga do mesmo PR. Drafts ficam fora do grupo (o job os ignora) — um push
+# em draft não pode cancelar uma revisão em andamento. Comentários que não são
+# gatilho caem num grupo único noop-<run_id> e são descartados sem atrapalhar uma
+# revisão em andamento. O GitHub avalia a concurrency ANTES do if do job — por isso
+# o grupo precisa distinguir os dois casos em vez de usar um grupo fixo por PR.
 concurrency:
   group: >-
     ${{
       (
         github.event_name == 'pull_request_target'
+        && github.event.pull_request.draft == false
         || (
           github.event_name == 'issue_comment'
           && github.event.issue.pull_request
