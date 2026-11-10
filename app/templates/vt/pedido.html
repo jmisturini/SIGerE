@@ -22,7 +22,7 @@
         <div class="page-header text-center mb-4">
             <p class="page-eyebrow">RH · Vale Transporte</p>
             <h3 class="fw-bold mb-2"><i class="bi bi-bus-front text-primary me-2"></i> Pedido de Vale-Transporte</h3>
-            <p class="text-muted mb-0">Responda ao pedido do mês — identifique-se pela matrícula e clique em Buscar.</p>
+            <p class="text-muted mb-0">Responda ao pedido do mês — identifique-se pelo e-mail e clique em Buscar.</p>
             {% if pedido_unity %}
             <p class="small text-muted mb-0 mt-1">
                 <i class="bi bi-geo-alt me-1"></i> Formulário da unidade
@@ -51,43 +51,45 @@
                 <form method="POST" novalidate id="form-pedido">
                     {{ form.hidden_tag() }}
 
-                    {# ── Identificação (sempre visível): a matrícula em
-                         bloco próprio, com o botão Buscar trazendo nome e
-                         e-mail do cadastro; sem match, os campos ficam
-                         livres para digitação ── #}
+                    {# ── Identificação (sempre visível): o e-mail em bloco
+                         próprio, com o botão Buscar apenas CONFIRMANDO a
+                         conta (nome curto e vínculo) — nome, matrícula e
+                         vínculo o servidor preenche pelo cadastro no envio;
+                         sem match, os campos ficam livres para digitação ── #}
                     <div class="row g-3">
                         <div class="col-md-6">
-                            {{ form.registration.label(class="form-label small mb-1") }}
+                            {{ form.email.label(class="form-label small mb-1") }}
                             <div class="input-group">
-                                {{ form.registration(class="form-control", inputmode="numeric") }}
+                                {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
                                 <button type="button" class="btn btn-outline-primary" id="btn-buscar"
-                                        title="Buscar nome e e-mail no cadastro">
+                                        title="Confirmar a conta no cadastro">
                                     <i class="bi bi-search me-1"></i> Buscar
                                 </button>
                             </div>
                             <div class="form-text text-success" id="cadastro-aviso" hidden>
-                                <i class="bi bi-check-circle-fill me-1"></i> Identificado pelo cadastro —
-                                nome, e-mail e vínculo confirmados no envio.
+                                <i class="bi bi-check-circle-fill me-1"></i> Encontrado:
+                                <strong id="confirmacao-nome"></strong> — nome, matrícula e vínculo
+                                serão confirmados pelo cadastro no envio.
                             </div>
-                            <div class="form-text text-warning" id="matricula-dica" hidden>
-                                <i class="bi bi-exclamation-circle me-1"></i> Matrícula não encontrada —
-                                preencha os dados manualmente.
+                            <div class="form-text text-warning" id="email-dica" hidden>
+                                <i class="bi bi-exclamation-circle me-1"></i> E-mail sem conta ativa
+                                no sistema — preencha os dados manualmente.
                             </div>
+                            {{ erro(form.email) }}
+                        </div>
+                        <div class="col-md-6" id="bloco-nome">
+                            {{ form.full_name.label(class="form-label small mb-1") }}
+                            {{ form.full_name(class="form-control") }}
+                            {{ erro(form.full_name) }}
+                        </div>
+                        <div class="col-md-6" id="bloco-matricula">
+                            {{ form.registration.label(class="form-label small mb-1") }}
+                            {{ form.registration(class="form-control", inputmode="numeric") }}
                             <div class="form-text small">
                                 Para verificar sua matrícula, acesse o MyPlace —
                                 <a href="https://rh.sc.senac.br/myplace" target="_blank" rel="noopener">https://rh.sc.senac.br/myplace</a>
                             </div>
                             {{ erro(form.registration) }}
-                        </div>
-                        <div class="col-md-6">
-                            {{ form.full_name.label(class="form-label small mb-1") }}
-                            {{ form.full_name(class="form-control") }}
-                            {{ erro(form.full_name) }}
-                        </div>
-                        <div class="col-md-6">
-                            {{ form.email.label(class="form-label small mb-1") }}
-                            {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
-                            {{ erro(form.email) }}
                         </div>
                     </div>
 
@@ -213,9 +215,10 @@
     //    some e seus campos são desabilitados (não seguem no POST);
     // 2. O botão de envio fica desabilitado até os campos obrigatórios do
     //    ramo visível estarem preenchidos;
-    // 3. A matrícula identifica o colaborador: o botão "Buscar" preenche e
-    //    trava nome, e-mail e vínculo quando a conta ativa é encontrada —
-    //    visitante logado já chega identificado pela própria conta;
+    // 3. O e-mail identifica o colaborador: o botão "Buscar" apenas
+    //    CONFIRMA a conta (nome curto e vínculo) e os campos do cadastro
+    //    saem da tela — nome, matrícula e vínculo o servidor preenche no
+    //    envio; visitante logado já chega identificado pela própria conta;
     // 4. O select de valor lista as linhas de tarifa da empresa escolhida
     //    (cada opção traz a identificação da tarifa e o valor).
     (function () {
@@ -225,7 +228,7 @@
         const registrationInput = document.getElementById('registration');
         const btnBuscar = document.getElementById('btn-buscar');
         const avisoCadastro = document.getElementById('cadastro-aviso');
-        const dicaNaoEncontrada = document.getElementById('matricula-dica');
+        const dicaNaoEncontrada = document.getElementById('email-dica');
         // Visitante logado: o servidor já preencheu matrícula, nome e e-mail
         // com os dados da própria conta.
         const LOGADO = {{ 'true' if logado else 'false' }};
@@ -262,10 +265,13 @@
 
         // Obrigatórios do ramo visível — espelho da validação do servidor.
         // O trajeto é pergunta própria (Somente Volta / Ida e Volta),
-        // independente da tarifa (linha) escolhida.
+        // independente da tarifa (linha) escolhida. Com a conta confirmada,
+        // nome e matrícula ficam de fora da tela (o servidor preenche pelo
+        // cadastro no envio).
         function pedidoPronto() {
-            if (!preenchido('email') || !preenchido('full_name') ||
-                !preenchido('registration') || !preenchido('optant')) return false;
+            if (!preenchido('email') || !preenchido('optant')) return false;
+            if (!identificado && (!preenchido('full_name') ||
+                                  !preenchido('registration'))) return false;
             if (valor('optant') !== 'Sim') return true;
             if (!preenchido('link')) return false;
             if (!preenchido('company_count')) return false;
@@ -361,24 +367,40 @@
             });
         });
 
-        // ── Identificação pela matrícula (botão Buscar / conta logada) ──
-        // A busca devolve nome, e-mail e vínculo da conta ATIVA; o servidor
-        // repete a consulta no POST (FormVtPedido._identificar_por_matricula)
-        // — a trava de verdade é ele. Matrícula sem conta deixa os campos
-        // livres para digitação manual.
+        // ── Identificação pelo e-mail (botão Buscar / conta logada) ──
+        // A busca devolve apenas a CONFIRMAÇÃO (nome curto e vínculo) da
+        // conta ATIVA — nome completo, matrícula e e-mail de cadastro o
+        // servidor preenche no POST (FormVtPedido._identificar_por_email), a
+        // trava de verdade. E-mail sem conta deixa os campos livres para
+        // digitação manual.
         let identificado = false;
+        const blocoNome = document.getElementById('bloco-nome');
+        const blocoMatricula = document.getElementById('bloco-matricula');
+        const confirmacaoNome = document.getElementById('confirmacao-nome');
 
-        function travarIdentificacao() {
-            registrationInput.readOnly = true;
-            form.elements['full_name'].readOnly = true;
-            emailInput.readOnly = true;
+        // Nome e matrícula saem da tela quando a conta é confirmada (o
+        // servidor os preenche pelo cadastro no envio).
+        function setarBlocoIdentificacao(visivel) {
+            [blocoNome, blocoMatricula].forEach(bloco => {
+                bloco.classList.toggle('d-none', !visivel);
+                bloco.querySelectorAll('input').forEach(campo => {
+                    campo.disabled = !visivel;
+                });
+            });
         }
 
         function identificar() {
             document.querySelectorAll('input[name="link"]').forEach(radio => {
                 radio.disabled = true;
             });
-            travarIdentificacao();
+            if (LOGADO) {
+                // Próprios dados: ficam visíveis e travados.
+                form.elements['full_name'].readOnly = true;
+                registrationInput.readOnly = true;
+            } else {
+                // Confirmação sem dados: campos do cadastro somem da tela.
+                setarBlocoIdentificacao(false);
+            }
             avisoCadastro.hidden = false;
             identificado = true;
             atualizar();
@@ -386,8 +408,9 @@
 
         function liberarCampos() {
             if (!identificado) return;
-            [registrationInput, form.elements['full_name'], emailInput]
+            [form.elements['full_name'], registrationInput]
                 .forEach(campo => { campo.readOnly = false; });
+            setarBlocoIdentificacao(true);
             document.querySelectorAll('input[name="link"]').forEach(radio => {
                 radio.disabled = false;
             });
@@ -395,11 +418,11 @@
             identificado = false;
         }
 
-        async function buscarMatricula() {
-            const matricula = registrationInput.value.trim();
-            if (!matricula) { liberarCampos(); return; }
+        async function buscarColaborador() {
+            const email = emailInput.value.trim();
+            if (!email || !email.includes('@')) { liberarCampos(); return; }
             try {
-                const resp = await fetch(`{{ url_for('vt.request_form_matricula') }}?matricula=${encodeURIComponent(matricula)}`);
+                const resp = await fetch(`{{ url_for('vt.request_form_colaborador') }}?email=${encodeURIComponent(email)}`);
                 if (!resp.ok) return;
                 const dados = await resp.json();
                 if (!dados.found) {
@@ -409,11 +432,10 @@
                     return;
                 }
                 dicaNaoEncontrada.hidden = true;
-                // value em vez de innerHTML: os textos vêm do cadastro e não
-                // podem ser interpretados como HTML (formulário público
-                // anônimo — mesmo cuidado dos selects de tarifa).
-                form.elements['full_name'].value = dados.nome;
-                emailInput.value = dados.email;
+                // textContent em vez de innerHTML: os textos vêm do cadastro
+                // e não podem ser interpretados como HTML (formulário
+                // público anônimo — mesmo cuidado dos selects de tarifa).
+                confirmacaoNome.textContent = `${dados.nome} · ${dados.vinculo}`;
                 document.querySelectorAll('input[name="link"]').forEach(radio => {
                     radio.checked = radio.value === dados.vinculo;
                 });
@@ -421,15 +443,15 @@
             } catch (e) { /* falha na busca: preenchimento manual segue */ }
         }
 
-        btnBuscar.addEventListener('click', buscarMatricula);
-        registrationInput.addEventListener('keydown', evento => {
+        btnBuscar.addEventListener('click', buscarColaborador);
+        emailInput.addEventListener('keydown', evento => {
             if (evento.key === 'Enter') {
                 evento.preventDefault();
-                buscarMatricula();
+                buscarColaborador();
             }
         });
-        // Editar a matrícula depois de identificada destrava os campos.
-        registrationInput.addEventListener('input', () => {
+        // Editar o e-mail depois de identificado destrava os campos.
+        emailInput.addEventListener('input', () => {
             dicaNaoEncontrada.hidden = true;
             liberarCampos();
         });
@@ -453,17 +475,18 @@
         atualizar();
 
         // Logado: os dados da própria conta já chegaram preenchidos — trava
-        // sem fetch. Anônimo com a matrícula já no campo (erro de validação
+        // sem fetch. Anônimo com o e-mail já no campo (erro de validação
         // devolvido pelo servidor ou autofill do navegador, que não dispara
-        // "input"): a identificação é refeita (e no load, para cobrir
-        // preenchimento tardio do navegador) e os campos voltam a travar.
-        if (registrationInput.value.trim()) {
+        // "input"): a confirmação é refeita (e no load, para cobrir
+        // preenchimento tardio do navegador) e os campos do cadastro voltam
+        // a sair da tela.
+        if (emailInput.value.trim()) {
             if (LOGADO) {
                 identificar();
             } else {
-                buscarMatricula();
+                buscarColaborador();
                 window.addEventListener('load', () => {
-                    if (!identificado && registrationInput.value.trim()) buscarMatricula();
+                    if (!identificado && emailInput.value.trim()) buscarColaborador();
                 });
             }
         }

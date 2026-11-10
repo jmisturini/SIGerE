@@ -19,16 +19,16 @@ RELEASES = [
     {
         'versao': '1.39.0',
         'data': '2026-11-10',
-        'titulo': 'Identificação do pedido de Vale-Transporte pela matrícula',
+        'titulo': 'Confirmação de conta no pedido de Vale-Transporte com dados protegidos',
         'grupos': [
             ('Alterado', [
-                'Pedido público de VT: a matrícula ganhou bloco próprio com o botão '
-                '"Buscar" — conta ativa preenche e trava nome, e-mail e vínculo (antes '
-                'a identificação era pelo e-mail); matrícula sem conta deixa os campos '
-                'livres para digitação.',
+                'Pedido público de VT: o botão "Buscar" do e-mail apenas confirma a conta '
+                'na tela (primeiro nome e vínculo) — nome completo, matrícula e vínculo '
+                'são preenchidos pelo cadastro no envio, sem sair do servidor antes '
+                '(proteção contra enumeração de cadastros no formulário anônimo).',
                 'Quem já está logado no sistema abre o pedido de VT com os próprios '
                 'dados preenchidos e travados, sem precisar buscar.',
-                'A correção de pedido pelo RH deixa de sobrescrever nome e e-mail com '
+                'A correção de pedido pelo RH deixa de sobrescrever nome e matrícula com '
                 'o cadastro: quem edita (vt:edit) digita exatamente o que deve ser '
                 'gravado.',
             ]),
