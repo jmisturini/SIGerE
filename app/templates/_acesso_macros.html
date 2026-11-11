@@ -1,0 +1,32 @@
+{# Etiquetas de situação de acesso compartilhadas entre a listagem de usuários
+   (users.html) e o formulário de edição (user_form.html): uma única fonte para
+   texto, ícone e estilo — mudanças não divergem entre as telas. #}
+
+{# Conta bloqueada (excesso de tentativas ou bloqueio manual). A dica de onde
+   desbloquear serve tanto na listagem (só há edição pelo form) quanto no
+   próprio formulário, onde fica o botão de desbloqueio. #}
+{% macro badge_bloqueio() %}
+    <span class="badge bg-danger-subtle text-danger-emphasis badge-estado"
+          title="Login bloqueado (excesso de tentativas ou bloqueio manual) — desbloqueie na edição do usuário">
+        <i class="bi bi-lock-fill"></i> Bloqueada
+    </span>
+{% endmacro %}
+
+{# Situação resumida do acesso no formulário de edição, na ordem em que a
+   rota de login recusa: bloqueada e desativada recusam login; a liberada
+   aceita. Conta inativa-desbloqueada NÃO é "acesso liberado". #}
+{% macro badge_situacao_acesso(user) %}
+    {% if user.is_locked %}
+        {{ badge_bloqueio() }}
+    {% elif not user.is_active_user %}
+        <span class="badge bg-secondary-subtle text-secondary-emphasis badge-estado"
+              title="Conta desativada — o login é recusado enquanto o campo Ativo estiver desmarcado">
+            <i class="bi bi-person-slash"></i> Inativa
+        </span>
+    {% else %}
+        <span class="badge bg-success-subtle text-success-emphasis badge-estado"
+              title="A conta aceita login normalmente">
+            <i class="bi bi-unlock"></i> Acesso liberado
+        </span>
+    {% endif %}
+{% endmacro %}

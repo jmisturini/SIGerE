@@ -19,6 +19,11 @@
                     {{ form.hidden_tag() }}
                     
                     <div class="row g-3">
+                        {# ── Identificação ────────────────────────────── #}
+                        <div class="col-12">
+                            <h6 class="text-muted text-uppercase small fw-bold mb-0">Identificação</h6>
+                        </div>
+
                         <div class="col-md-6">
                             {{ form.room_number.label(class="form-label small mb-1") }}
                             {{ form.room_number(class="form-control") }}
@@ -38,37 +43,47 @@
                             <div class="form-text small">Sem nome, a sala será identificada pelo código gerado.</div>
                             {% for err in form.name.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
-                        
+
+                        {# ── Localização e Capacidade ─────────────────── #}
+                        <div class="col-12 mt-3">
+                            <h6 class="text-muted text-uppercase small fw-bold mb-0 pt-3 border-top">Localização e Capacidade</h6>
+                        </div>
+
                         <div class="col-md-4">
                             {{ form.building.label(class="form-label small mb-1") }}
                             {{ form.building(class="form-control") }}
                             {% for err in form.building.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
-                        
+
                         <div class="col-md-4">
                             {{ form.floor.label(class="form-label small mb-1") }}
                             {{ form.floor(class="form-control") }}
                             {% for err in form.floor.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
-                        
+
                         <div class="col-md-4">
                             {{ form.capacity.label(class="form-label small mb-1") }}
                             {{ form.capacity(class="form-control", min="0") }}
                             {% for err in form.capacity.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
-                        
+
                         <div class="col-12 d-none" id="compCountDiv">
                             {{ form.computer_count.label(class="form-label small mb-1") }}
                             {{ form.computer_count(class="form-control", min="0") }}
                             {% for err in form.computer_count.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
-                        
+
+                        {# ── Observações e Status ─────────────────────── #}
+                        <div class="col-12 mt-3">
+                            <h6 class="text-muted text-uppercase small fw-bold mb-0 pt-3 border-top">Observações e Status</h6>
+                        </div>
+
                         <div class="col-12">
                             {{ form.description.label(class="form-label small mb-1") }}
                             {{ form.description(class="form-control", rows="3") }}
                             {% for err in form.description.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
-                        
+
                         <div class="col-12">
                             <div class="form-check mt-2">
                                 {{ form.is_active(class="form-check-input") }}

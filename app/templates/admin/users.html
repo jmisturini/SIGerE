@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% from '_pagination.html' import render_pagination %}
 {% from '_cabecalho.html' import cabecalho_pagina %}
+{% from '_acesso_macros.html' import badge_bloqueio %}
 {% block title %}Gerenciar Usuários{% endblock %}
 
 {% block content %}
@@ -78,7 +79,7 @@
                             <span class="badge text-bg-info-subtle text-info border border-info-subtle">
                                 {% if u.profile_type == 'teacher' %}Professor{% else %}Funcionário{% endif %}
                             </span>
-                            {% if u.is_teacher %}
+                            {% if u.is_teacher and u.profile_type != 'teacher' %}
                                 <span class="badge text-bg-success-subtle text-success border border-success-subtle ms-1" title="Também é Professor">
                                     <i class="bi bi-mortarboard"></i>
                                 </span>
@@ -102,12 +103,7 @@
                             {% else %}
                                 <span class="badge bg-danger-subtle text-danger-emphasis badge-estado">Inativo</span>
                             {% endif %}
-                            {% if u.is_locked %}
-                                <span class="badge bg-warning-subtle text-warning-emphasis badge-estado"
-                                      title="Login bloqueado (excesso de tentativas ou bloqueio manual) — desbloqueie no perfil">
-                                    <i class="bi bi-lock-fill"></i> Bloqueada
-                                </span>
-                            {% endif %}
+                            {% if u.is_locked %}{{ badge_bloqueio() }}{% endif %}
                         </td>
                         <td class="text-end pe-4">
                             {% if u.has_permission('*') and not current_user.has_permission('*') %}
