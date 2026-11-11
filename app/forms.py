@@ -976,9 +976,13 @@ class FormVtPedido(BaseForm):
         return usuario
 
     def validate(self, extra_validators=None):
-        # Identificação ANTES dos validadores: com conta ativa o POST chega
-        # sem nome/matrícula/vínculo (o formulário os esconde e o servidor
-        # preenche) — DataRequired falharia antes de o servidor preencher.
+        """Valida o pedido público de VT identificando o e-mail antes dos
+        validadores de campo: com conta ativa, nome/matrícula/vínculo são
+        preenchidos pelo servidor (o formulário os esconde), então os
+        validadores só enxergam o formulário completo depois da busca. Se
+        algo falha com a conta identificada, limpa o que foi preenchido —
+        o re-render de erro devolve apenas nome curto e vínculo, nunca os
+        dados do cadastro (mesma régua do endpoint de confirmação)."""
         self._identificar_por_email()
         valido = self._validar_pedido(extra_validators)
         if not valido and getattr(self, '_identificada', False):
@@ -990,6 +994,13 @@ class FormVtPedido(BaseForm):
         return valido
 
     def _validar_pedido(self, extra_validators=None):
+        """Validação base do WTForms mais as regras próprias do pedido
+        público: rejeita conta ativa sem matrícula (erro acionável na
+        coluna do e-mail, que nunca é ocultada), torna obrigatórias as
+        perguntas do ramo "Sim" (o desvio "Não" pula o restante, como no
+        Microsoft Forms) e confere se a linha de tarifa pertence à empresa
+        escolhida no cadastro da unidade — cobre POST forjado; a linha
+        resolvida fornece o valor gravado no pedido."""
         valido = super().validate(extra_validators)
         # Conta ativa sem matrícula: rejeita o pedido com erro acionável na
         # coluna do e-mail — anexado aqui porque field.errors só vira lista

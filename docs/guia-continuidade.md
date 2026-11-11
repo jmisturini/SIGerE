@@ -215,15 +215,15 @@ Mudança só de docs pode ir direto por PR sem release.
 
 ## 8. Estado e pendências
 
-Estado em **2026-10-27** (v1.37.0 publicada; documentação revisada):
+Estado em **2026-11-10** (v1.39.0 publicada):
 
 | Item | Situação |
 |---|---|
-| Documentação | Revisada em 2026-10-27: README, api-reservas, implantação-producao, desenvolvimento-debug, guia-continuidade, permissoes.md regenerado (73 permissões) e manual do usuário regenerado para a v1.37.0. |
-| Manual do usuário (`docs/manual-do-usuario.pdf`) | Atualizado para a v1.37.0 (2026-10-27): Adicional Noturno, fluxo de professor pendente, autocancel, política de senha, bloqueio de conta, auditoria. Regenerar com `python docs/gerar_manual.py` a cada release relevante. |
-| Produção (VM OCI) | Confirmar na VM: `db upgrade` **e `sync-permissions`** (o sync saiu do boot — há permissões novas na v1.37: `user:lock`, `system:audit`), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós-update; ver seção 5). |
+| v1.39.0 | Pedido público de VT com confirmação de conta protegida (PRs #203, #205–#208): o botão "Buscar" só confirma a conta (nome curto + vínculo) — nome completo, matrícula e e-mail ficam no servidor e o POST preenche/grava pelo cadastro; visitante logado abre o pedido com os próprios dados travados; correção pelo RH (vt:edit) grava exatamente o digitado, sem re-identificação. Sem migration nem permissão nova — deploy = git pull + restart. |
+| Produção (VM OCI) | Pendente o deploy da v1.39.0 (git pull + restart, **sem db upgrade** — este ciclo não tem migration). Se a VM ainda não recebeu a v1.38.0: `db upgrade` (migration d1a5f8c2b7e9) + `sync-permissions`, `RuntimeDirectory=sigere` no unit e a resolução do incidente de 2026-10-07 (exit 1 pós-update; ver seção 5). |
+| Manual do usuário (`docs/manual-do-usuario.pdf`) | Última atualização: v1.37.0 (2026-10-27). O fluxo do pedido público de VT mudou na v1.39.0 — regenerar com `python docs/gerar_manual.py` na próxima rodada de documentação. |
 | CI | Status check do `tests` ainda não é *required* — pode ser endurecido em Settings depois de comprovado estável. |
-| Revisão de IA | CodeRabbit mantido como revisor extra (auto-review dele restrito aos PRs com destino à `main`, `.coderabbit.yaml`); a revisão automática de todo PR agora é o Open Code Review (`review.yml` + segredo `OCR_LLM_AUTH_TOKEN`): comentários consultivos, sem bloquear merge. Avaliar depois de alguns PRs: virar status check obrigatório, `resolve_outdated`, regras próprias em `.opencodereview/rule.json`, e bump da versão pinada (`ocr_version` + SHA da action) quando sair release nova do OCR. |
+| Revisão de IA | CodeRabbit mantido como revisor extra (auto-review dele restrito aos PRs com destino à `main`, `.coderabbit.yaml`) e rodado MANUALMENTE pelo usuário (1/hora); a revisão automática de todo PR agora é o Open Code Review (`review.yml` + segredo `OCR_LLM_AUTH_TOKEN`): comentários consultivos, sem bloquear merge. Avaliar depois de alguns PRs: virar status check obrigatório, `resolve_outdated`, regras próprias em `.opencodereview/rule.json`, e bump da versão pinada (`ocr_version` + SHA da action) quando sair release nova do OCR. |
 
 ## 9. Memória local do ZCode (não viaja com o git)
 
