@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% from '_cabecalho.html' import cabecalho_pagina %}
+{% from '_acesso_macros.html' import badge_situacao_acesso %}
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
@@ -153,11 +154,24 @@
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                     <div class="small text-muted">
                         {# O contador de tentativas e o horário do bloqueio ficam restritos a user:lock —
-                            para quem só edita, o badge de status basta (mesma exposição da listagem). #}
+                            para quem só edita, o badge de status basta (mesma exposição da listagem).
+                            Conta inativa-desbloqueada NÃO é "acesso liberado": o login a recusa. #}
                         {% if current_user.has_permission('user:lock') %}
                             {% if user.is_locked %}
                                 A conta está <strong>bloqueada</strong>{% if user.locked_at %} desde {{ user.locked_at|horario_local }}{% endif %}.
                                 Nenhuma tentativa de login é aceita — nem com a senha correta — até o desbloqueio.
+                                {% if not user.is_active_user %}
+                                    Além disso, a conta está <strong>desativada</strong>: mesmo desbloqueada,
+                                    o login só volta quando o campo Ativo for marcado.
+                                {% endif %}
+                            {% elif not user.is_active_user %}
+                                A conta está <strong>desativada</strong>: o login é recusado enquanto o
+                                campo Ativo estiver desmarcado.
+                                <span class="d-block mt-1">
+                                    <strong>{{ user.failed_login_attempts or 0 }}</strong> de
+                                    <strong>{{ max_tentativas }}</strong> tentativas de login incorretas —
+                                    na {{ max_tentativas }}ª o bloqueio é automático.
+                                </span>
                             {% else %}
                                 O bloqueio manual impede qualquer login nesta conta até que alguém com
                                 permissão desbloqueie.
@@ -168,24 +182,22 @@
                                 </span>
                             {% endif %}
                         {% else %}
-                            {% if user.is_locked %}
+                            {% if user.is_locked and not user.is_active_user %}
+                                A conta está <strong>bloqueada e desativada</strong>: nenhum login é aceito
+                                até o desbloqueio e a reativação.
+                            {% elif user.is_locked %}
                                 A conta está <strong>bloqueada</strong>: nenhuma tentativa de login é
                                 aceita até o desbloqueio por alguém com permissão.
+                            {% elif not user.is_active_user %}
+                                A conta está <strong>desativada</strong>: o login é recusado enquanto o
+                                campo Ativo estiver desmarcado.
                             {% else %}
                                 A conta aceita login normalmente.
                             {% endif %}
                         {% endif %}
                     </div>
                     <div class="d-flex flex-wrap align-items-center gap-3">
-                        {% if user.is_locked %}
-                            <span class="badge bg-danger-subtle text-danger-emphasis badge-estado" title="Nenhum login é aceito até o desbloqueio">
-                                <i class="bi bi-lock-fill"></i> Bloqueada
-                            </span>
-                        {% else %}
-                            <span class="badge bg-success-subtle text-success-emphasis badge-estado" title="A conta aceita login normalmente">
-                                <i class="bi bi-unlock"></i> Acesso liberado
-                            </span>
-                        {% endif %}
+                        {{ badge_situacao_acesso(user) }}
                         {% if current_user.has_permission('user:lock') %}
                         {% if user.is_locked %}
                         <form method="POST" action="{{ url_for('admin.unlock_user', user_id=user.id) }}" class="d-inline">
