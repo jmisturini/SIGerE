@@ -62,32 +62,34 @@
                         </div>
 
                         {# ── Vínculo / Lotação ───────────────────────── #}
-                        {# O cabeçalho some junto com os campos quando o perfil escolhido não tem campos de vínculo (entrada sem tipo). #}
-                        <div class="col-12 mt-3 secao-vinculo" id="secao-vinculo">
+                        {# O cabeçalho some junto com os campos quando o perfil escolhido não tem campos de vínculo
+                           (entrada sem tipo). O estado inicial é renderizado pelo servidor (d-none condicional,
+                           como em room_form) — o JS só reage às mudanças do seletor, sem flash na primeira pintura. #}
+                        <div class="col-12 mt-3 secao-vinculo{% if form.profile_type.data not in ['teacher', 'employee'] %} d-none{% endif %}" id="secao-vinculo">
                             <h6 class="text-muted text-uppercase small fw-bold mb-0 pt-3 border-top">Vínculo / Lotação</h6>
                         </div>
 
                         {# Campos exclusivos do perfil Professor #}
-                        <div class="col-md-4 campos-professor">
+                        <div class="col-md-4 campos-professor{% if form.profile_type.data != 'teacher' %} d-none{% endif %}">
                             {{ form.department.label(class="form-label small mb-1") }}
                             {{ form.department(class="form-control") }}
                             {% for err in form.department.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
                         {# Campos exclusivos do perfil Funcionário #}
-                        <div class="col-md-6 campos-funcionario">
+                        <div class="col-md-6 campos-funcionario{% if form.profile_type.data != 'employee' %} d-none{% endif %}">
                             {{ form.sector.label(class="form-label small mb-1") }}
                             {{ form.sector(class="form-control") }}
                             {% for err in form.sector.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
-                        <div class="col-md-6 campos-funcionario">
+                        <div class="col-md-6 campos-funcionario{% if form.profile_type.data != 'employee' %} d-none{% endif %}">
                             {{ form.function.label(class="form-label small mb-1") }}
                             {{ form.function(class="form-control") }}
                             {% for err in form.function.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
-                        <div class="col-12 campos-funcionario">
+                        <div class="col-12 campos-funcionario{% if form.profile_type.data != 'employee' %} d-none{% endif %}">
                             <div class="form-check mt-1">
                                 {{ form.is_teacher(class="form-check-input") }}
                                 {{ form.is_teacher.label(class="form-check-label fw-medium") }}
@@ -150,17 +152,28 @@
                 </div>
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                     <div class="small text-muted">
-                        {% if user.is_locked %}
-                            A conta está <strong>bloqueada</strong>{% if user.locked_at %} desde {{ user.locked_at|horario_local }}{% endif %}.
-                            Nenhuma tentativa de login é aceita — nem com a senha correta — até o desbloqueio.
+                        {# O contador de tentativas e o horário do bloqueio ficam restritos a user:lock —
+                            para quem só edita, o badge de status basta (mesma exposição da listagem). #}
+                        {% if current_user.has_permission('user:lock') %}
+                            {% if user.is_locked %}
+                                A conta está <strong>bloqueada</strong>{% if user.locked_at %} desde {{ user.locked_at|horario_local }}{% endif %}.
+                                Nenhuma tentativa de login é aceita — nem com a senha correta — até o desbloqueio.
+                            {% else %}
+                                O bloqueio manual impede qualquer login nesta conta até que alguém com
+                                permissão desbloqueie.
+                                <span class="d-block mt-1">
+                                    <strong>{{ user.failed_login_attempts or 0 }}</strong> de
+                                    <strong>{{ max_tentativas }}</strong> tentativas de login incorretas —
+                                    na {{ max_tentativas }}ª o bloqueio é automático.
+                                </span>
+                            {% endif %}
                         {% else %}
-                            O bloqueio manual impede qualquer login nesta conta até que alguém com
-                            permissão desbloqueie.
-                            <span class="d-block mt-1">
-                                <strong>{{ user.failed_login_attempts or 0 }}</strong> de
-                                <strong>{{ max_tentativas }}</strong> tentativas de login incorretas —
-                                na {{ max_tentativas }}ª o bloqueio é automático.
-                            </span>
+                            {% if user.is_locked %}
+                                A conta está <strong>bloqueada</strong>: nenhuma tentativa de login é
+                                aceita até o desbloqueio por alguém com permissão.
+                            {% else %}
+                                A conta aceita login normalmente.
+                            {% endif %}
                         {% endif %}
                     </div>
                     <div class="d-flex flex-wrap align-items-center gap-3">
@@ -207,8 +220,8 @@
     // campos exclusivos de Professor (Departamento) e Funcionário
     // (Setor, Função, "também professor") — e a seção "Vínculo / Lotação"
     // some por inteiro quando nenhum dos grupos tem campo visível.
-    // Na edição o seletor vem desabilitado, mas o estado inicial dos
-    // grupos continua valendo.
+    // O estado inicial já vem do servidor (d-none conforme o perfil
+    // renderizado); aqui só reagimos às mudanças do seletor.
     (function () {
         var seletor = document.getElementById('profile_type');
         if (!seletor) return;
