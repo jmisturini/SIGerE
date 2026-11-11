@@ -66,8 +66,16 @@ O detalhamento oficial está no `CONTRIBUTING.md`. O que não se deriva dele:
   local com `git pull --ff-only`. Manter a working tree 100% limpa no fim de cada ciclo.
 - CI: job `tests` (pytest, ~4 min) e job `qualidade` (**ruff + bandit + pip-audit** — CVE em
   dependência do `requirements.txt` derruba o CI mesmo com testes verdes; resolver
-  com bump da versão pinada). Num PR, podem existir **2 check-runs** (push da dev +
-  o PR em si): conferir todos antes de mesclar.
+  com bump da versão pinada). Num PR, podem existir **3 check-runs** (push da dev +
+  o PR em si + a revisão de IA): conferir todos antes de mesclar.
+- Revisão de IA (workflow `review.yml`): **Open Code Review** (`alibaba/open-code-review`)
+  revisa o diff de todo PR para `main`/`dev` e publica comentários consultivos no PR —
+  vermelho **não bloqueia** o merge (não é status check obrigatório). Usa GLM (Z.AI) via
+  protocolo OpenAI; o segredo `OCR_LLM_AUTH_TOKEN` vive em *Settings → Secrets* (se a
+  chave expirar, só a revisão falha — testes e qualidade continuam). Nova rodada sob
+  demanda: comentário `/open-code-review` no PR. O **CodeRabbit** segue instalado como
+  revisor extra: automático só nos PRs com destino à `main` (release e hotfix —
+  `.coderabbit.yaml`); nos demais, sob demanda com `@coderabbitai review`.
 - Padrão de commits: prefixos em português (`ui:`, `fix:`, `docs:`, `release:`, `notificacoes:` …).
 
 ### Sem `gh` CLI — API do GitHub via curl
@@ -116,8 +124,10 @@ Mudança só de docs pode ir direto por PR sem release.
 
 ## 5. Produção (Oracle Cloud)
 
-- VM OCI (IP e domínio **fora do repo público** — apontados pelo CodeRabbit como
-  exposição de infraestrutura, CWE-200, no PR #148; registre-os no gerenciador de
+- VM OCI (IP e domínio **fora do repo público** — apontados pelo CodeRabbit (na
+  época o revisor automático de IA; hoje o automático é o Open Code Review e o
+  CodeRabbit ficou como revisor extra), como exposição de
+  infraestrutura, CWE-200, no PR #148; registre-os no gerenciador de
   segredos/nota privada do operador; recuperáveis no console OCI e no DNS). Stack:
   nginx + gunicorn no socket `unix:/run/sigere/sigere.sock` via `sigere.service`.
 - **Firewall em duas camadas:** Security List da VCN no console OCI **e** iptables da
@@ -205,14 +215,15 @@ Mudança só de docs pode ir direto por PR sem release.
 
 ## 8. Estado e pendências
 
-Estado em **2026-10-27** (v1.37.0 publicada; documentação revisada):
+Estado em **2026-11-10** (v1.39.0 publicada):
 
 | Item | Situação |
 |---|---|
-| Documentação | Revisada em 2026-10-27: README, api-reservas, implantação-producao, desenvolvimento-debug, guia-continuidade, permissoes.md regenerado (73 permissões) e manual do usuário regenerado para a v1.37.0. |
-| Manual do usuário (`docs/manual-do-usuario.pdf`) | Atualizado para a v1.37.0 (2026-10-27): Adicional Noturno, fluxo de professor pendente, autocancel, política de senha, bloqueio de conta, auditoria. Regenerar com `python docs/gerar_manual.py` a cada release relevante. |
-| Produção (VM OCI) | Confirmar na VM: `db upgrade` **e `sync-permissions`** (o sync saiu do boot — há permissões novas na v1.37: `user:lock`, `system:audit`), `RuntimeDirectory=sigere` no unit, e a resolução do incidente de 2026-10-07 (exit 1 pós-update; ver seção 5). |
+| v1.39.0 | Pedido público de VT com confirmação de conta protegida (PRs #203, #205–#208): o botão "Buscar" só confirma a conta (nome curto + vínculo) — nome completo, matrícula e e-mail ficam no servidor e o POST preenche/grava pelo cadastro; visitante logado abre o pedido com os próprios dados travados; correção pelo RH (vt:edit) grava exatamente o digitado, sem re-identificação. Sem migration nem permissão nova — deploy = git pull + restart. |
+| Produção (VM OCI) | Pendente o deploy da v1.39.0 (git pull + restart, **sem db upgrade** — este ciclo não tem migration). Se a VM ainda não recebeu a v1.38.0: `db upgrade` (migration d1a5f8c2b7e9) + `sync-permissions`, `RuntimeDirectory=sigere` no unit e a resolução do incidente de 2026-10-07 (exit 1 pós-update; ver seção 5). |
+| Manual do usuário (`docs/manual-do-usuario.pdf`) | Última atualização: v1.37.0 (2026-10-27). O fluxo do pedido público de VT mudou na v1.39.0 — regenerar com `python docs/gerar_manual.py` na próxima rodada de documentação. |
 | CI | Status check do `tests` ainda não é *required* — pode ser endurecido em Settings depois de comprovado estável. |
+| Revisão de IA | CodeRabbit mantido como revisor extra (auto-review dele restrito aos PRs com destino à `main`, `.coderabbit.yaml`) e rodado MANUALMENTE pelo usuário (1/hora); a revisão automática de todo PR agora é o Open Code Review (`review.yml` + segredo `OCR_LLM_AUTH_TOKEN`): comentários consultivos, sem bloquear merge. Avaliar depois de alguns PRs: virar status check obrigatório, `resolve_outdated`, regras próprias em `.opencodereview/rule.json`, e bump da versão pinada (`ocr_version` + SHA da action) quando sair release nova do OCR. |
 
 ## 9. Memória local do ZCode (não viaja com o git)
 

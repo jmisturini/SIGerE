@@ -885,12 +885,15 @@ class FormVtConfig(BaseForm):
 
 class FormVtPedido(BaseForm):
     """Pedido público de Vale-Transporte: replica as perguntas do formulário
-    do Microsoft Forms, com a identificação por e-mail exigido pelo acesso
-    anônimo. A ramificação (deseja VT → vínculo → nº de empresas) é guiada
-    pelo JavaScript da página e espelhada aqui no servidor — o POST forjado
-    sem os campos obrigatórios do ramo escolhido é rejeitado. As empresas e
-    tarifas são as cadastradas em /admin/vt-empresas: os choices são
-    preenchidos pela rota antes da validação."""
+    do Microsoft Forms, com a identificação pelo e-mail exigido pelo acesso
+    anônimo (o botão "Buscar" da página só confirma — nome curto e vínculo —
+    e o servidor preenche nome, matrícula e vínculo do cadastro no POST; a
+    trava de verdade é ele). A ramificação (deseja VT → vínculo → nº de
+    empresas) é guiada pelo JavaScript da página e espelhada aqui no
+    servidor — o POST forjado sem os campos obrigatórios do ramo escolhido é
+    rejeitado. As empresas e tarifas são as cadastradas em
+    /admin/vt-empresas: os choices são preenchidos pela rota antes da
+    validação."""
 
     email = StringField('E-mail', validators=[
         DataRequired(), Email(), Length(max=255)])
@@ -939,11 +942,16 @@ class FormVtPedido(BaseForm):
 
     def _identificar_por_email(self):
         """Quando o e-mail informado é de uma conta ATIVA, nome, matrícula e
-        vínculo vêm do cadastro e sobrescrevem o POST (no navegador os campos
-        ficam travados; aqui é a trava de verdade). Guarda os valores do POST:
-        na resposta de erro do formulário público, nome/matrícula renderizados
-        são os digitados pelo visitante — nunca os lidos do cadastro."""
-        if not self.email.data:
+        vínculo vêm do cadastro e sobrescrevem o POST (no navegador o Buscar
+        só confirma; aqui é a trava de verdade). Marca _identificada: em
+        erro de validação o re-render não pode devolver os dados do cadastro
+        ao visitante anônimo — o endpoint de confirmação entrega apenas nome
+        curto e vínculo, e o re-render segue a mesma régua."""
+        # A correção pelo RH (vt.edit_request) marca _sem_identificacao: quem
+        # edita tem vt:edit e digita o que deve ser gravado.
+        self._identificada = False
+        self._sem_matricula = False
+        if getattr(self, '_sem_identificacao', False) or not self.email.data:
             return None
         usuario = (User.query
                    .filter(func.lower(User.email) == self.email.data.strip().lower(),
@@ -951,33 +959,59 @@ class FormVtPedido(BaseForm):
                    .first())
         if usuario is None:
             return None
-        self._antes_da_identificacao = (self.full_name.data,
-                                        self.registration.data)
+        # Conta ativa sem matrícula: o pedido seria gravado com identidade
+        # incompleta (ou herdando o que o POST mandar) e quebraria a
+        # conferência/planilha do RH — marca para rejeitar com erro acionável
+        # na coluna do e-mail (sempre visível mesmo com os campos do cadastro
+        # ocultos); o erro é anexado depois da validação dos campos, que
+        # recria field.errors.
+        if not usuario.registration:
+            self._sem_matricula = True
+            return None
         self.full_name.data = usuario.full_name
-        self.registration.data = usuario.registration or self.registration.data
+        self.registration.data = usuario.registration
         self.link.data = ('Professor(a)' if usuario.profile_type == 'teacher'
                           else 'Técnico - Administrativo')
+        self._identificada = True
         return usuario
 
     def validate(self, extra_validators=None):
-        # Identificação ANTES dos validadores: o endpoint de auto-preenchimento
-        # só devolve found/vínculo, então o navegador não envia nome/matrícula
-        # de conta ativa — DataRequired falharia antes de o servidor preencher.
+        """Valida o pedido público de VT identificando o e-mail antes dos
+        validadores de campo: com conta ativa, nome/matrícula/vínculo são
+        preenchidos pelo servidor (o formulário os esconde), então os
+        validadores só enxergam o formulário completo depois da busca. Se
+        algo falha com a conta identificada, limpa o que foi preenchido —
+        o re-render de erro devolve apenas nome curto e vínculo, nunca os
+        dados do cadastro (mesma régua do endpoint de confirmação)."""
         self._identificar_por_email()
         valido = self._validar_pedido(extra_validators)
-        # Erro no formulário público: nome/matrícula voltam ao que o visitante
-        # digitou (dados do cadastro não podem ser renderizados para quem só
-        # conhece o e-mail — enumeração). A re-submissão identifica de novo.
-        if not valido and getattr(self, '_antes_da_identificacao', None) is not None:
-            self.full_name.data, self.registration.data = self._antes_da_identificacao
-            self._antes_da_identificacao = None
+        if not valido and getattr(self, '_identificada', False):
+            # Mesma régua do endpoint de confirmação: o re-render devolve
+            # apenas nome curto e vínculo (reconstruídos pela re-busca no
+            # load) — nunca os dados do cadastro.
+            self.full_name.data = ''
+            self.registration.data = ''
         return valido
 
     def _validar_pedido(self, extra_validators=None):
-        if not super().validate(extra_validators):
-            return False
+        """Validação base do WTForms mais as regras próprias do pedido
+        público: rejeita conta ativa sem matrícula (erro acionável na
+        coluna do e-mail, que nunca é ocultada), torna obrigatórias as
+        perguntas do ramo "Sim" (o desvio "Não" pula o restante, como no
+        Microsoft Forms) e confere se a linha de tarifa pertence à empresa
+        escolhida no cadastro da unidade — cobre POST forjado; a linha
+        resolvida fornece o valor gravado no pedido."""
+        valido = super().validate(extra_validators)
+        # Conta ativa sem matrícula: rejeita o pedido com erro acionável na
+        # coluna do e-mail — anexado aqui porque field.errors só vira lista
+        # depois da validação dos campos.
+        if getattr(self, '_sem_matricula', False):
+            self.email.errors.append(
+                'Sua conta no sistema está sem matrícula cadastrada — '
+                'peça ao RH para corrigir o cadastro antes de pedir VT.')
+            valido = False
         if self.optant.data != 'Sim':
-            return True
+            return valido
 
         # Ramo "Sim": as perguntas seguintes do formulário viram obrigatórias
         # (no Microsoft Forms o desvio "Não" simplesmente pula o restante).
@@ -990,7 +1024,6 @@ class FormVtPedido(BaseForm):
             (self.company_a_passes, 'Digite o número de vales necessários.'),
             (self.company_a_route, 'Selecione o trajeto.'),
         ]
-        valido = True
         for campo, mensagem in obrigatorio:
             if campo.data in (None, ''):
                 campo.errors.append(mensagem)

@@ -10,12 +10,30 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.38.0'
+APP_VERSION = '1.39.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.39.0',
+        'data': '2026-11-10',
+        'titulo': 'Confirmação de conta no pedido de Vale-Transporte com dados protegidos',
+        'grupos': [
+            ('Alterado', [
+                'Pedido público de VT: o botão "Buscar" do e-mail apenas confirma a conta '
+                'na tela (primeiro nome e vínculo) — nome completo, matrícula e vínculo '
+                'são preenchidos pelo cadastro no envio, sem sair do servidor antes '
+                '(proteção contra enumeração de cadastros no formulário anônimo).',
+                'Quem já está logado no sistema abre o pedido de VT com os próprios '
+                'dados preenchidos e travados, sem precisar buscar.',
+                'A correção de pedido pelo RH deixa de sobrescrever nome e matrícula com '
+                'o cadastro: quem edita (vt:edit) digita exatamente o que deve ser '
+                'gravado.',
+            ]),
+        ],
+    },
     {
         'versao': '1.38.0',
         'data': '2026-11-06',

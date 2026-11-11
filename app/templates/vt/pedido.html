@@ -22,7 +22,7 @@
         <div class="page-header text-center mb-4">
             <p class="page-eyebrow">RH · Vale Transporte</p>
             <h3 class="fw-bold mb-2"><i class="bi bi-bus-front text-primary me-2"></i> Pedido de Vale-Transporte</h3>
-            <p class="text-muted mb-0">Responda ao pedido do mês — o acesso é identificado apenas pelo seu e-mail.</p>
+            <p class="text-muted mb-0">Responda ao pedido do mês — identifique-se pelo e-mail e clique em Buscar.</p>
             {% if pedido_unity %}
             <p class="small text-muted mb-0 mt-1">
                 <i class="bi bi-geo-alt me-1"></i> Formulário da unidade
@@ -51,23 +51,38 @@
                 <form method="POST" novalidate id="form-pedido">
                     {{ form.hidden_tag() }}
 
-                    {# ── Identificação (sempre visível) ── #}
+                    {# ── Identificação (sempre visível): o e-mail em bloco
+                         próprio, com o botão Buscar apenas CONFIRMANDO a
+                         conta (nome curto e vínculo) — nome, matrícula e
+                         vínculo o servidor preenche pelo cadastro no envio;
+                         sem match, os campos ficam livres para digitação ── #}
                     <div class="row g-3">
                         <div class="col-md-6">
                             {{ form.email.label(class="form-label small mb-1") }}
-                            {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
+                            <div class="input-group">
+                                {{ form.email(class="form-control", placeholder="seu.email@senac.sc.br") }}
+                                <button type="button" class="btn btn-outline-primary" id="btn-buscar"
+                                        title="Confirmar a conta no cadastro">
+                                    <i class="bi bi-search me-1"></i> Buscar
+                                </button>
+                            </div>
                             <div class="form-text text-success" id="cadastro-aviso" hidden>
-                                <i class="bi bi-check-circle-fill me-1"></i> Identificado pelo cadastro —
-                                vínculo travado; nome e matrícula serão confirmados pelo cadastro no envio.
+                                <i class="bi bi-check-circle-fill me-1"></i> Encontrado:
+                                <strong id="confirmacao-nome"></strong> — nome, matrícula e vínculo
+                                serão confirmados pelo cadastro no envio.
+                            </div>
+                            <div class="form-text text-warning" id="email-dica" hidden>
+                                <i class="bi bi-exclamation-circle me-1"></i> E-mail sem conta ativa
+                                no sistema — preencha os dados manualmente.
                             </div>
                             {{ erro(form.email) }}
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-6" id="bloco-nome">
                             {{ form.full_name.label(class="form-label small mb-1") }}
                             {{ form.full_name(class="form-control") }}
                             {{ erro(form.full_name) }}
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-6" id="bloco-matricula">
                             {{ form.registration.label(class="form-label small mb-1") }}
                             {{ form.registration(class="form-control", inputmode="numeric") }}
                             <div class="form-text small">
@@ -200,14 +215,24 @@
     //    some e seus campos são desabilitados (não seguem no POST);
     // 2. O botão de envio fica desabilitado até os campos obrigatórios do
     //    ramo visível estarem preenchidos;
-    // 3. O e-mail preenche automaticamente nome e matrícula quando a conta
-    //    ativa é encontrada;
+    // 3. O e-mail identifica o colaborador: o botão "Buscar" apenas
+    //    CONFIRMA a conta (nome curto e vínculo) e os campos do cadastro
+    //    saem da tela — nome, matrícula e vínculo o servidor preenche no
+    //    envio; visitante logado já chega identificado pela própria conta;
     // 4. O select de valor lista as linhas de tarifa da empresa escolhida
     //    (cada opção traz a identificação da tarifa e o valor).
     (function () {
         const form = document.getElementById('form-pedido');
         const submitBtn = form.querySelector('input[type="submit"]');
         const emailInput = document.getElementById('email');
+        const registrationInput = document.getElementById('registration');
+        const btnBuscar = document.getElementById('btn-buscar');
+        const avisoCadastro = document.getElementById('cadastro-aviso');
+        const dicaNaoEncontrada = document.getElementById('email-dica');
+        // Visitante logado: o servidor já preencheu matrícula, nome e e-mail
+        // com os dados da própria conta.
+        const LOGADO = {{ 'true' if logado else 'false' }};
+        const EMAIL_LOGADO = {{ (current_user.email | lower | tojson) if logado else 'null' }};
         const blocoVt = document.getElementById('bloco-vt');
         const blocoEmpresas = document.getElementById('bloco-empresas');
         const blocoB = document.getElementById('bloco-empresa-b');
@@ -241,10 +266,13 @@
 
         // Obrigatórios do ramo visível — espelho da validação do servidor.
         // O trajeto é pergunta própria (Somente Volta / Ida e Volta),
-        // independente da tarifa (linha) escolhida.
+        // independente da tarifa (linha) escolhida. Com a conta confirmada,
+        // nome e matrícula ficam de fora da tela (o servidor preenche pelo
+        // cadastro no envio).
         function pedidoPronto() {
-            if (!preenchido('email') || !preenchido('full_name') ||
-                !preenchido('registration') || !preenchido('optant')) return false;
+            if (!preenchido('email') || !preenchido('optant')) return false;
+            if (!identificado && (!preenchido('full_name') ||
+                                  !preenchido('registration'))) return false;
             if (valor('optant') !== 'Sim') return true;
             if (!preenchido('link')) return false;
             if (!preenchido('company_count')) return false;
@@ -340,48 +368,106 @@
             });
         });
 
-        // ── Auto-preenchimento pelo e-mail (conta ativa) ──
-        let timer = null;
-        // O endpoint devolve apenas found/vínculo (nome e matrícula ficam de
-        // fora para não expor o cadastro a visitantes anônimos): identificado
-        // trava o vínculo e avisa — nome e matrícula o servidor preenche pelo
-        // cadastro no envio. E-mail sem cadastro libera a digitação manual.
+        // ── Identificação pelo e-mail (botão Buscar / conta logada) ──
+        // A busca devolve apenas a CONFIRMAÇÃO (nome curto e vínculo) da
+        // conta ATIVA — nome completo, matrícula e e-mail de cadastro o
+        // servidor preenche no POST (FormVtPedido._identificar_por_email), a
+        // trava de verdade. E-mail sem conta deixa os campos livres para
+        // digitação manual.
         let identificado = false;
-        function identificar(dados) {
+        const blocoNome = document.getElementById('bloco-nome');
+        const blocoMatricula = document.getElementById('bloco-matricula');
+        const confirmacaoNome = document.getElementById('confirmacao-nome');
+
+        // Nome e matrícula saem da tela quando a conta é confirmada (o
+        // servidor os preenche pelo cadastro no envio).
+        function setarBlocoIdentificacao(visivel) {
+            [blocoNome, blocoMatricula].forEach(bloco => {
+                bloco.classList.toggle('d-none', !visivel);
+                bloco.querySelectorAll('input').forEach(campo => {
+                    campo.disabled = !visivel;
+                });
+            });
+        }
+
+        function identificar() {
             document.querySelectorAll('input[name="link"]').forEach(radio => {
-                radio.checked = radio.value === dados.vinculo;
                 radio.disabled = true;
             });
-            document.getElementById('cadastro-aviso').hidden = false;
+            // Dados na tela só quando são da própria conta logada: buscando
+            // outro e-mail, a confirmação é da conta encontrada e os campos
+            // do cadastro somem (o servidor preenche pelo e-mail no POST).
+            if (LOGADO && emailInput.value.trim().toLowerCase() === EMAIL_LOGADO) {
+                form.elements['full_name'].readOnly = true;
+                registrationInput.readOnly = true;
+            } else {
+                // Confirmação sem dados: campos do cadastro somem da tela.
+                setarBlocoIdentificacao(false);
+            }
+            avisoCadastro.hidden = false;
             identificado = true;
+            atualizar();
         }
 
         function liberarCampos() {
             if (!identificado) return;
+            [form.elements['full_name'], registrationInput]
+                .forEach(campo => { campo.readOnly = false; });
+            setarBlocoIdentificacao(true);
             document.querySelectorAll('input[name="link"]').forEach(radio => {
                 radio.disabled = false;
             });
-            document.getElementById('cadastro-aviso').hidden = true;
+            avisoCadastro.hidden = true;
             identificado = false;
         }
 
+        // Cada busca recebe um número: quem editar o e-mail (ou disparar
+        // outra busca) invalida a resposta antiga, que não pode re-identificar
+        // o formulário com uma conta que já não é a do campo.
+        let buscaId = 0;
+
         async function buscarColaborador() {
             const email = emailInput.value.trim();
+            const minhaBusca = ++buscaId;
             if (!email || !email.includes('@')) { liberarCampos(); return; }
             try {
                 const resp = await fetch(`{{ url_for('vt.request_form_colaborador') }}?email=${encodeURIComponent(email)}`);
+                if (minhaBusca !== buscaId) return; // resposta antiga
                 if (!resp.ok) return;
                 const dados = await resp.json();
-                if (!dados.found) { liberarCampos(); return; }
-                identificar(dados);
-                atualizar();
+                if (minhaBusca !== buscaId) return; // e-mail mudou durante a leitura
+                if (!dados.found) {
+                    liberarCampos();
+                    dicaNaoEncontrada.hidden = false;
+                    atualizar();
+                    return;
+                }
+                dicaNaoEncontrada.hidden = true;
+                // textContent em vez de innerHTML: os textos vêm do cadastro
+                // e não podem ser interpretados como HTML (formulário
+                // público anônimo — mesmo cuidado dos selects de tarifa).
+                confirmacaoNome.textContent = `${dados.nome} · ${dados.vinculo}`;
+                document.querySelectorAll('input[name="link"]').forEach(radio => {
+                    radio.checked = radio.value === dados.vinculo;
+                });
+                identificar();
             } catch (e) { /* falha na busca: preenchimento manual segue */ }
         }
-        emailInput.addEventListener('input', () => {
-            clearTimeout(timer);
-            timer = setTimeout(buscarColaborador, 500);
+
+        btnBuscar.addEventListener('click', buscarColaborador);
+        emailInput.addEventListener('keydown', evento => {
+            if (evento.key === 'Enter') {
+                evento.preventDefault();
+                buscarColaborador();
+            }
         });
-        emailInput.addEventListener('change', buscarColaborador);
+        // Editar o e-mail depois de identificado destrava os campos — e
+        // invalida qualquer busca pendente para este e-mail antigo.
+        emailInput.addEventListener('input', () => {
+            buscaId++;
+            dicaNaoEncontrada.hidden = true;
+            liberarCampos();
+        });
 
         // Select de tarifa dependente da empresa escolhida.
         preencherValores(form.elements['company_a_name'], form.elements['company_a_value']);
@@ -401,14 +487,22 @@
         // servidor devolve a página com erros de validação).
         atualizar();
 
-        // Recarregamento com o e-mail restaurado/autocompletado pelo
-        // navegador: o autofill não dispara "input"/"change", então a
-        // identificação pelo cadastro é refeita aqui (e no load, para cobrir
-        // preenchimento tardio do navegador) e os campos voltam a travar.
-        if (emailInput.value) buscarColaborador();
-        window.addEventListener('load', () => {
-            if (emailInput.value) buscarColaborador();
-        });
+        // Logado: os dados da própria conta já chegaram preenchidos — trava
+        // sem fetch. Anônimo com o e-mail já no campo (erro de validação
+        // devolvido pelo servidor ou autofill do navegador, que não dispara
+        // "input"): a confirmação é refeita (e no load, para cobrir
+        // preenchimento tardio do navegador) e os campos do cadastro voltam
+        // a sair da tela.
+        if (emailInput.value.trim()) {
+            if (LOGADO && emailInput.value.trim().toLowerCase() === EMAIL_LOGADO) {
+                identificar();
+            } else {
+                buscarColaborador();
+                window.addEventListener('load', () => {
+                    if (!identificado && emailInput.value.trim()) buscarColaborador();
+                });
+            }
+        }
     })();
 </script>
 {% endblock %}
