@@ -167,14 +167,12 @@
                             {% elif not user.is_active_user %}
                                 A conta está <strong>desativada</strong>: o login é recusado enquanto o
                                 campo Ativo estiver desmarcado.
-                                <span class="d-block mt-1">
-                                    <strong>{{ user.failed_login_attempts or 0 }}</strong> de
-                                    <strong>{{ max_tentativas }}</strong> tentativas de login incorretas —
-                                    na {{ max_tentativas }}ª o bloqueio é automático.
-                                </span>
                             {% else %}
                                 O bloqueio manual impede qualquer login nesta conta até que alguém com
                                 permissão desbloqueie.
+                            {% endif %}
+                            {# Contador comum às contas não bloqueadas (ativas ou não). #}
+                            {% if not user.is_locked %}
                                 <span class="d-block mt-1">
                                     <strong>{{ user.failed_login_attempts or 0 }}</strong> de
                                     <strong>{{ max_tentativas }}</strong> tentativas de login incorretas —

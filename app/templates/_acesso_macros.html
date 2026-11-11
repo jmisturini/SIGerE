@@ -2,10 +2,12 @@
    (users.html) e o formulário de edição (user_form.html): uma única fonte para
    texto, ícone e estilo — mudanças não divergem entre as telas. #}
 
-{# Conta bloqueada (excesso de tentativas ou bloqueio manual). #}
+{# Conta bloqueada (excesso de tentativas ou bloqueio manual). A dica de onde
+   desbloquear serve tanto na listagem (só há edição pelo form) quanto no
+   próprio formulário, onde fica o botão de desbloqueio. #}
 {% macro badge_bloqueio() %}
     <span class="badge bg-danger-subtle text-danger-emphasis badge-estado"
-          title="Login bloqueado (excesso de tentativas ou bloqueio manual) — nenhum login é aceito até o desbloqueio">
+          title="Login bloqueado (excesso de tentativas ou bloqueio manual) — desbloqueie na edição do usuário">
         <i class="bi bi-lock-fill"></i> Bloqueada
     </span>
 {% endmacro %}
