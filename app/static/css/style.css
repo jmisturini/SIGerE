@@ -179,6 +179,15 @@ body {
     gap: 0.75rem;
 }
 
+/* É um <a>: sem regra própria, o a:hover do Bootstrap (maior especificidade
+   que a classe) aplicava o --bs-link-hover-color azul-escuro sobre o fundo
+   azul da sidebar — a marca quase sumia no hover. */
+.sidebar-brand:hover,
+.sidebar-brand:focus {
+    color: #fff;
+    text-decoration: none;
+}
+
 .sidebar-brand i {
     font-size: 1.5rem;
 }
