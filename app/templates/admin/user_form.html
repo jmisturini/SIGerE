@@ -19,6 +19,11 @@
                     {{ form.hidden_tag() }}
 
                     <div class="row g-3">
+                        {# ── Identificação ────────────────────────────── #}
+                        <div class="col-12">
+                            <h6 class="text-muted text-uppercase small fw-bold mb-0">Identificação</h6>
+                        </div>
+
                         <div class="col-md-4">
                             {{ form.profile_type.label(class="form-label small mb-1") }}
                             {% if modo_edicao %}
@@ -43,7 +48,7 @@
                             {% for err in form.email.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
-                        <div class="col-md-4 d-flex flex-column justify-content-end">
+                        <div class="col-md-4">
                             {{ form.registration.label(class="form-label small mb-1") }}
                             {{ form.registration(class="form-control") }}
                             {% for err in form.registration.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
@@ -54,6 +59,12 @@
                             {{ form.unities(class="form-select", size=form.unities.choices|length if form.unities.choices|length > 1 else 2) }}
                             <div class="form-text small">Segure Ctrl para vincular mais de uma unidade — o usuário alterna a unidade ativa pelo seletor no topo.</div>
                             {% for err in form.unities.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
+                        </div>
+
+                        {# ── Vínculo / Lotação ───────────────────────── #}
+                        {# O cabeçalho some junto com os campos quando o perfil escolhido não tem campos de vínculo (entrada sem tipo). #}
+                        <div class="col-12 mt-3 secao-vinculo" id="secao-vinculo">
+                            <h6 class="text-muted text-uppercase small fw-bold mb-0 pt-3 border-top">Vínculo / Lotação</h6>
                         </div>
 
                         {# Campos exclusivos do perfil Professor #}
@@ -83,6 +94,11 @@
                             </div>
                         </div>
 
+                        {# ── Acesso e Permissões ─────────────────────── #}
+                        <div class="col-12 mt-3">
+                            <h6 class="text-muted text-uppercase small fw-bold mb-0 pt-3 border-top">Acesso e Permissões</h6>
+                        </div>
+
                         <div class="col-md-6">
                             {{ form.role_id.label(class="form-label small mb-1") }}
                             {{ form.role_id(class="form-select") }}
@@ -101,32 +117,8 @@
                             {% for err in form.password.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
-                        {% if modo_edicao %}
-                        <div class="col-md-6 d-flex flex-column justify-content-end">
-                            <label class="form-label small mb-1">Situação do acesso</label>
-                            {% if user.is_locked %}
-                                <span class="badge bg-danger-subtle text-danger-emphasis badge-estado" title="Nenhum login é aceito até o desbloqueio">
-                                    <i class="bi bi-lock-fill"></i> Bloqueada
-                                </span>
-                            {% else %}
-                                <span class="badge bg-success-subtle text-success-emphasis badge-estado" title="A conta aceita login normalmente">
-                                    <i class="bi bi-unlock"></i> Acesso liberado
-                                </span>
-                            {% endif %}
-                            <div class="form-text small">
-                                {% if user.is_locked %}
-                                    Bloqueada{% if user.locked_at %} em {{ user.locked_at|horario_local }}{% endif %}.
-                                    Desbloquear zera o contador de tentativas.
-                                {% else %}
-                                    {{ user.failed_login_attempts or 0 }} de {{ max_tentativas }} tentativas de login incorretas —
-                                    na {{ max_tentativas }}ª a conta é bloqueada automaticamente.
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endif %}
-
-                        <div class="col-12">
-                            <div class="form-check mt-3">
+                        <div class="col-md-6 d-flex align-items-center">
+                            <div class="form-check">
                                 {{ form.is_active_user(class="form-check-input") }}
                                 {{ form.is_active_user.label(class="form-check-label fw-medium") }}
                             </div>
@@ -146,8 +138,7 @@
             </div>
         </div>
 
-        {% if modo_edicao and current_user.has_permission('user:lock')
-              and not (user.has_permission('*') and not current_user.has_permission('*')) %}
+        {% if modo_edicao and not (user.has_permission('*') and not current_user.has_permission('*')) %}
         {# Fora do <form> principal: formulários aninhados são HTML inválido. #}
         <div class="card mt-4">
             <div class="card-body p-4">
@@ -164,26 +155,44 @@
                             Nenhuma tentativa de login é aceita — nem com a senha correta — até o desbloqueio.
                         {% else %}
                             O bloqueio manual impede qualquer login nesta conta até que alguém com
-                            permissão desbloqueie. Com 10 senhas erradas seguidas, o bloqueio é automático.
+                            permissão desbloqueie.
+                            <span class="d-block mt-1">
+                                <strong>{{ user.failed_login_attempts or 0 }}</strong> de
+                                <strong>{{ max_tentativas }}</strong> tentativas de login incorretas —
+                                na {{ max_tentativas }}ª o bloqueio é automático.
+                            </span>
                         {% endif %}
                     </div>
-                    {% if user.is_locked %}
-                    <form method="POST" action="{{ url_for('admin.unlock_user', user_id=user.id) }}" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button class="btn btn-outline-success" data-nome="{{ user.full_name }}"
-                                onclick="return confirm('Desbloquear o acesso de ' + this.dataset.nome + '? O contador de tentativas será zerado.')">
-                            <i class="bi bi-unlock-fill"></i> Desbloquear acesso
-                        </button>
-                    </form>
-                    {% else %}
-                    <form method="POST" action="{{ url_for('admin.lock_user', user_id=user.id) }}" class="d-inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button class="btn btn-outline-danger" data-nome="{{ user.full_name }}"
-                                onclick="return confirm('Bloquear o acesso de ' + this.dataset.nome + '? A conta não fará login até que alguém com permissão desbloqueie.')">
-                            <i class="bi bi-lock-fill"></i> Bloquear acesso
-                        </button>
-                    </form>
-                    {% endif %}
+                    <div class="d-flex flex-wrap align-items-center gap-3">
+                        {% if user.is_locked %}
+                            <span class="badge bg-danger-subtle text-danger-emphasis badge-estado" title="Nenhum login é aceito até o desbloqueio">
+                                <i class="bi bi-lock-fill"></i> Bloqueada
+                            </span>
+                        {% else %}
+                            <span class="badge bg-success-subtle text-success-emphasis badge-estado" title="A conta aceita login normalmente">
+                                <i class="bi bi-unlock"></i> Acesso liberado
+                            </span>
+                        {% endif %}
+                        {% if current_user.has_permission('user:lock') %}
+                        {% if user.is_locked %}
+                        <form method="POST" action="{{ url_for('admin.unlock_user', user_id=user.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-outline-success" data-nome="{{ user.full_name }}"
+                                    onclick="return confirm('Desbloquear o acesso de ' + this.dataset.nome + '? O contador de tentativas será zerado.')">
+                                <i class="bi bi-unlock-fill"></i> Desbloquear acesso
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('admin.lock_user', user_id=user.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-outline-danger" data-nome="{{ user.full_name }}"
+                                    onclick="return confirm('Bloquear o acesso de ' + this.dataset.nome + '? A conta não fará login até que alguém com permissão desbloqueie.')">
+                                <i class="bi bi-lock-fill"></i> Bloquear acesso
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -196,8 +205,10 @@
 <script>
     // Formulário dinâmico: o tipo de perfil escolhido mostra/esconde os
     // campos exclusivos de Professor (Departamento) e Funcionário
-    // (Setor, Função, "também professor"). Na edição o seletor vem
-    // desabilitado, mas o estado inicial dos grupos continua valendo.
+    // (Setor, Função, "também professor") — e a seção "Vínculo / Lotação"
+    // some por inteiro quando nenhum dos grupos tem campo visível.
+    // Na edição o seletor vem desabilitado, mas o estado inicial dos
+    // grupos continua valendo.
     (function () {
         var seletor = document.getElementById('profile_type');
         if (!seletor) return;
@@ -211,6 +222,10 @@
             document.querySelectorAll('.campos-funcionario').forEach(function (el) {
                 el.classList.toggle('d-none', !ehFuncionario);
             });
+            var secaoVinculo = document.getElementById('secao-vinculo');
+            if (secaoVinculo) {
+                secaoVinculo.classList.toggle('d-none', !ehProfessor && !ehFuncionario);
+            }
         }
         seletor.addEventListener('change', alternarCamposPerfil);
         alternarCamposPerfil();
