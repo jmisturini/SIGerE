@@ -78,7 +78,7 @@
                             <span class="badge text-bg-info-subtle text-info border border-info-subtle">
                                 {% if u.profile_type == 'teacher' %}Professor{% else %}Funcionário{% endif %}
                             </span>
-                            {% if u.is_teacher %}
+                            {% if u.is_teacher and u.profile_type != 'teacher' %}
                                 <span class="badge text-bg-success-subtle text-success border border-success-subtle ms-1" title="Também é Professor">
                                     <i class="bi bi-mortarboard"></i>
                                 </span>
