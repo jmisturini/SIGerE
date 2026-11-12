@@ -22,7 +22,7 @@ ORDEM_PAPéis = ['super_admin', 'admin', 'coordinator', 'room_manager',
 
 MODULO_ROTULO = {
     'user': 'Usuários', 'unity': 'Unidades', 'room': 'Salas',
-    'reservation': 'Reservas', 'course': 'Cursos', 'course_type': 'Tipos de Curso',
+    'reservation': 'Reservas', 'course': 'Cursos',
     'holiday': 'Feriados', 'payment': 'Hora Extra', 'meal': 'Vale Alimentação',
     'an': 'Adicional Noturno',
     'vt': 'Vale-Transporte', 'kitchen': 'Cozinha', 'notification': 'Notificações',

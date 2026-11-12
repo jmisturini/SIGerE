@@ -88,7 +88,6 @@ class RotulosModulosPermissoesTestCase(unittest.TestCase):
         rotulos = self._rotulos_de_grupos(response.get_data(as_text=True))
 
         self.assertIn('Vale Alimentação', rotulos)
-        self.assertIn('Tipos de Curso', rotulos)
         self.assertIn('Notificações', rotulos)
         self.assertIn('API', rotulos)
         for estrangeiro in ('Meal', 'Course Type', 'Notification', 'Api'):

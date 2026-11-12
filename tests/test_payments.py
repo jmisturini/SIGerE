@@ -33,7 +33,7 @@ from openpyxl import load_workbook
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.models import (CourseType, OvertimeMonthClosure, Permission, Role,
+from app.models import (OvertimeMonthClosure, Permission, Role,
                         TeacherOvertimePay, Unity, User)
 
 EMAIL = 'financeiro@escola.edu'
@@ -153,12 +153,9 @@ class PaymentsTestCase(unittest.TestCase):
             db.session.add_all([manager, teacher, other_teacher])
             db.session.flush()
 
-            self.course_type = CourseType(name='Técnico', is_active=True)
-            db.session.add(self.course_type)
             db.session.commit()
             self.teacher_id, self.other_teacher_id = teacher.id, other_teacher.id
             self.unity_id = self.unity.id
-            self.course_type_id = self.course_type.id
 
         self._login()
 

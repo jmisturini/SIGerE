@@ -893,7 +893,6 @@ matriz completa papel × permissão é gerada em [docs/permissoes.md](docs/permi
 | `reservation:cancel_all` / `reservation:cancel_own` | Cancelar todas / próprias reservas |
 | `reservation:approve` | Aprovar reservas pendentes |
 | `course:read` / `course:create` / `course:edit` / `course:toggle` | Visualizar / criar / editar / ativar-desativar cursos e disciplinas |
-| `course_type:read` / `course_type:create` / `course_type:edit` / `course_type:toggle` | Visualizar / criar / editar / ativar-desativar Tipos de Curso (catálogo do lançamento de Hora Extra) |
 | `holiday:read` / `holiday:create` / `holiday:edit` / `holiday:delete` | Visualizar / criar / editar / excluir feriados |
 | `holiday:import` | Importar feriados da BrasilAPI |
 | `payment:read` | Ver lançamentos de pagamento extra (hora extra) |
