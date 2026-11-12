@@ -10,12 +10,53 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.39.0'
+APP_VERSION = '1.40.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.40.0',
+        'data': '2026-11-12',
+        'titulo': 'Remoção do catálogo de Tipos de Curso e acabamento dos '
+                  'formulários do painel',
+        'grupos': [
+            ('Removido', [
+                'Catálogo de Tipos de Curso do Painel Admin: o campo "Tipo de Curso" '
+                'da Hora Extra já é texto livre desde a 1.38.0 — o cadastro, seu card '
+                'no painel, as permissões course_type:* e a tabela course_types saem '
+                'do sistema; o histórico dos lançamentos é preservado (os nomes do '
+                'antigo catálogo foram copiados para o próprio lançamento na conversão '
+                'do campo).',
+            ]),
+            ('Alterado', [
+                'Formulários do painel com seções rotuladas: usuário (Identificação, '
+                'Vínculo e Lotação, Acesso e Permissões), sala (Identificação, '
+                'Localização e Capacidade, Observações e Status) e empresa de ônibus '
+                'do VT (dados da empresa separados das Tarifas vigentes); a Situação '
+                'do acesso sai do meio do formulário de usuário e vai para o cartão '
+                '"Acesso e bloqueio", junto ao botão de bloquear.',
+                'Cartão "Acesso e bloqueio" na edição de usuário: aparece para '
+                'qualquer operador em modo edição, com badge de três estados '
+                '(Bloqueada, Inativa, Acesso liberado), dica de onde desbloquear e '
+                'contador de tentativas/horário do bloqueio visíveis apenas a quem '
+                'tem a permissão user:lock.',
+            ]),
+            ('Corrigido', [
+                'Pedido público de VT: visitante logado com e-mail divergente do '
+                'campo não fica mais preso em erro invisível — os dados travados só '
+                'são aplicados quando o e-mail confere; e-mail diferente segue pela '
+                'busca normal.',
+                'Listagem de usuários: o ícone "Também é Professor" só aparece para '
+                'perfis employee que também lecionam (perfis teacher já trazem a '
+                'etiqueta textual Professor).',
+                'Barra lateral: a marca mantém o branco no hover — o hover genérico '
+                'de link aplicava azul escuro sobre o fundo azul e a marca quase '
+                'sumia.',
+            ]),
+        ],
+    },
     {
         'versao': '1.39.0',
         'data': '2026-11-10',
