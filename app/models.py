@@ -422,21 +422,6 @@ class TeacherOvertimePay(db.Model):
     accountable = db.relationship('User', foreign_keys=[accountable_id])
 
 
-# Tipo de curso do lançamento de Hora Extra: o catálogo course_types
-# administrado no Painel Admin (/admin/tipos-curso) precedeu o campo, que
-# hoje é texto livre no próprio lançamento — a tabela segue existindo para
-# o histórico dos nomes migrados e a gestão administrativa.
-class CourseType(db.Model):
-    __tablename__ = 'course_types'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(60), nullable=False, unique=True)
-    is_active = db.Column(db.Boolean, nullable=False, default=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-    def __repr__(self):
-        return f'<CourseType {self.name}>'
-
-
 # Fechamento mensal da Hora Extra: registra quando a unidade fechou os
 # lançamentos de um mês de referência — daí em diante o mês não aceita mais
 # edição nem exclusão (a planilha final foi baixada no fechamento). Substitui

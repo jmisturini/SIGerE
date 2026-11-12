@@ -525,8 +525,7 @@ class FormTeacherOvertimePay(BaseForm):
         ('FIC II', 'FIC II'),
         ('FIC III', 'FIC III')
     ], validators=[DataRequired()])
-    # Tipo de curso é texto livre (ex.: "Técnico", "Superior", "FIC") —
-    # não mais dropdown do catálogo /admin/tipos-curso.
+    # Tipo de curso é texto livre (ex.: "Técnico", "Superior", "FIC").
     course_type = StringField('Tipo de Curso', validators=[
         DataRequired(message='Informe o tipo de curso.'), Length(max=60)])
     # Carga Horária Semanal em dois campos (hora e minuto): a conversão para
@@ -578,19 +577,6 @@ class FormTeacherOvertimePay(BaseForm):
         digits = re.sub(r'\D', '', field.data or '')
         if len(digits) not in (9, 14):
             raise ValidationError('O código orçamentário deve ter 9 ou 14 dígitos.')
-
-
-# =============================================================================
-# COURSE TYPE FORM (admin: tipos de curso da Hora Extra)
-# =============================================================================
-
-class CourseTypeForm(BaseForm):
-    name = StringField('Nome do Tipo de Curso', validators=[DataRequired(), Length(max=60)])
-    is_active = BooleanField('Ativo', default=True)
-    submit = SubmitField('Salvar Tipo de Curso')
-
-    def validate_name(self, field):
-        _validar_texto(field, 'Nome do Tipo de Curso')
 
 
 # =============================================================================

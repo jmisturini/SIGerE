@@ -938,8 +938,8 @@ BLOCOS = [
      [
          ['Professor', 'Sim', 'Docente da unidade ativa.'],
          ['Nível de Ensino', 'Sim', 'Técnico, Superior, FIC, FIC I, FIC II ou FIC III.'],
-         ['Tipo de Curso', 'Sim', 'Escolhido no catálogo de Tipos de Curso do Painel Admin '
-          '(seção 14.5).'],
+         ['Tipo de Curso', 'Sim', 'Texto livre (até 60 caracteres) — ex.: Técnico, '
+          'Superior, FIC.'],
          ['Carga Horária Semanal', 'Sim', 'Informada e exibida em horas e minutos inteiros '
           '(ex.: 4h30) — em toda a tela e na planilha.'],
          ['Valor H/a', 'Sim', 'Valor da hora/aula em reais, aceitando vírgula ou ponto decimal '
@@ -1258,7 +1258,7 @@ BLOCOS = [
         '7 dias”;',
         '<b>Ativo</b> — categorias inativas deixam de aparecer nas telas.',
     ]),
-    ('h2', '14.5 Cursos, disciplinas e tipos de curso'),
+    ('h2', '14.5 Cursos e disciplinas'),
     ('p', 'Cursos e disciplinas compõem a estrutura acadêmica usada nas reservas. Ambos têm '
           'cadastro com nome (obrigatório), código (obrigatório e único na unidade), descrição e '
           'indicador ativo. As listagens têm o botão <b>Mostrar/Esconder inativos</b>, como na '
@@ -1266,9 +1266,6 @@ BLOCOS = [
           '<b>Pertence ao Curso</b> vincula a disciplina a um curso — na reserva, ao escolher o '
           'curso, apenas as disciplinas dele são ofertadas; disciplinas sem curso aparecem '
           'sempre.'),
-    ('p', 'No mesmo bloco acadêmico, o catálogo de <b>Tipos de Curso</b> — acessado pelo card '
-          'do Painel Admin — mantém os tipos oferecidos no campo obrigatório do lançamento de '
-          'Hora Extra (seção 11.2): cadastro com nome (até 60 caracteres) e indicador ativo.'),
     ('h2', '14.6 Feriados'),
     ('p', 'Feriados cadastrados bloqueiam reservas na unidade. A tela oferece dois caminhos:'),
     ('ul', [

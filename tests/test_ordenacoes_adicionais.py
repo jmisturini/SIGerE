@@ -1,5 +1,5 @@
 """Testes das ordenações adicionadas às listagens que ainda não tinham
-ordenação: feriados, tipos de curso, tokens da API, grupos de notificação,
+ordenação: feriados, tokens da API, grupos de notificação,
 empresas de ônibus (VT), minhas reservas, busca pública, preparações e
 fichas da cozinha, horas extras, vale-alimentação e adicional noturno."""
 import os
@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta, time, timezone
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.models import (ApiToken, Classroom, CourseType, Holiday, KitchenPreparation,
+from app.models import (ApiToken, Classroom, Holiday, KitchenPreparation,
                         KitchenRecipe, KitchenRecipeIngredient, NotificationGroup,
                         Permission, Reservation, Role, RoomCategory, TeacherMealAllowance,
                         TeacherNightShiftPay, TeacherOvertimePay, TechnicalSheet,
@@ -20,7 +20,7 @@ EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
 
 # Códigos exigidos pelas páginas exercitadas nesta suíte.
-PERMISSOES = ('holiday:read', 'course_type:read', 'api:manage',
+PERMISSOES = ('holiday:read', 'api:manage',
               'notification:groups', 'vt:empresas', 'reservation:read_own',
               'kitchen:read', 'payment:read', 'meal:read', 'an:read')
 
@@ -80,12 +80,6 @@ class OrdenacoesAdicionaisTestCase(unittest.TestCase):
                         unity_id=self.unity.id),
                 Holiday(name='Feriado Meio', date=date(2026, 1, 1), is_active=False,
                         unity_id=self.unity.id),
-            ])
-
-            # ── Tipos de curso: nome e status invertidos ──
-            db.session.add_all([
-                CourseType(name='Tipo Zulu', is_active=True),
-                CourseType(name='Tipo Alfa', is_active=False),
             ])
 
             # ── Tokens da API: criação, uso, expiração e status distintos ──
@@ -273,22 +267,6 @@ class OrdenacoesAdicionaisTestCase(unittest.TestCase):
         ordem = self._ordem_na_pagina('/admin/holidays?ordem=status',
                                       ['Feriado Zulu', 'Feriado Alfa', 'Feriado Meio'])
         self.assertEqual(ordem, ['Feriado Zulu', 'Feriado Alfa', 'Feriado Meio'])
-
-    # ---------- tipos de curso ----------
-
-    def test_tipos_curso_padrao_nome(self):
-        ordem = self._ordem_na_pagina('/admin/course-types', ['Tipo Zulu', 'Tipo Alfa'])
-        self.assertEqual(ordem, ['Tipo Alfa', 'Tipo Zulu'])
-
-    def test_tipos_curso_nome_desc(self):
-        ordem = self._ordem_na_pagina('/admin/course-types?ordem=nome_desc',
-                                      ['Tipo Zulu', 'Tipo Alfa'])
-        self.assertEqual(ordem, ['Tipo Zulu', 'Tipo Alfa'])
-
-    def test_tipos_curso_status_ativo_primeiro(self):
-        ordem = self._ordem_na_pagina('/admin/course-types?ordem=status',
-                                      ['Tipo Zulu', 'Tipo Alfa'])
-        self.assertEqual(ordem, ['Tipo Zulu', 'Tipo Alfa'])
 
     # ---------- tokens da API ----------
 

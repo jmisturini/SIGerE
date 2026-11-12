@@ -61,11 +61,6 @@ PERMISSION_DATA = [
     ('course:create', 'course', 'create', 'Criar cursos/disciplinas'),
     ('course:edit', 'course', 'edit', 'Editar cursos/disciplinas'),
     ('course:toggle', 'course', 'toggle', 'Ativar/desativar cursos/disciplinas'),
-    # Tipos de curso (catálogo do lançamento de Hora Extra)
-    ('course_type:read', 'course_type', 'read', 'Acessar o cadastro de Tipos de Curso'),
-    ('course_type:create', 'course_type', 'create', 'Criar Tipos de Curso'),
-    ('course_type:edit', 'course_type', 'edit', 'Editar Tipos de Curso'),
-    ('course_type:toggle', 'course_type', 'toggle', 'Ativar/desativar Tipos de Curso'),
     ('holiday:read', 'holiday', 'read', 'Visualizar feriados'),
     ('holiday:create', 'holiday', 'create', 'Criar feriados'),
     ('holiday:edit', 'holiday', 'edit', 'Editar feriados'),
@@ -136,7 +131,6 @@ ROLES_CONFIG = {
             'unity:modules',
             'room:read', 'room:create', 'room:edit', 'room:toggle',
             'course:read', 'course:create', 'course:edit', 'course:toggle',
-            'course_type:read', 'course_type:create', 'course_type:edit', 'course_type:toggle',
             'holiday:read', 'holiday:create', 'holiday:edit', 'holiday:delete', 'holiday:import',
             'reservation:read_all', 'reservation:edit_all', 'reservation:delete_all',
             'reservation:approve', 'reservation:cancel_all',
@@ -153,7 +147,6 @@ ROLES_CONFIG = {
         'is_system': False,
         'permissions': [
             'course:read',
-            'course_type:read',
             'reservation:approve', 'reservation:cancel_own',
             'reservation:create', 'reservation:read_own',
             'system:export',
@@ -168,7 +161,6 @@ ROLES_CONFIG = {
         'is_system': False,
         'permissions': [
             'course:read', 'course:create', 'course:edit', 'course:toggle',
-            'course_type:read', 'course_type:create', 'course_type:edit', 'course_type:toggle',
             'reservation:read_all', 'reservation:read_own',
             'reservation:create', 'reservation:edit_all',
             'reservation:delete_all', 'reservation:cancel_own', 'reservation:cancel_all',
