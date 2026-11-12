@@ -3,7 +3,7 @@
 > 🤖 **Documento gerado** por `docs/gerar_permissoes.py` a partir de
 > `PERMISSION_DATA` e `ROLES_CONFIG` (`app/commands.py`) — não editar à mão.
 > Após alterar o catálogo ou os papéis padrão, regenere com
-> `python docs/gerar_permissoes.py`. Última geração: 2026-10-27.
+> `python docs/gerar_permissoes.py`. Última geração: 2026-11-12.
 
 ## Como funciona
 
@@ -25,9 +25,9 @@ O SIGerE usa **RBAC** com permissões granulares:
 ## Papéis padrão
 
 - **Super Administrador** (`super_admin`, padrão do sistema) — 1 permissão
-- **Administrador** (`admin`, padrão do sistema) — 49 permissões
-- **Analista** (`coordinator`, padrão editável) — 16 permissões
-- **Gestor** (`room_manager`, padrão editável) — 36 permissões
+- **Administrador** (`admin`, padrão do sistema) — 45 permissões
+- **Analista** (`coordinator`, padrão editável) — 15 permissões
+- **Gestor** (`room_manager`, padrão editável) — 32 permissões
 - **Professor** (`teacher`, padrão editável) — 7 permissões
 - **Assistente** (`employee`, padrão editável) — 6 permissões
 - **Módulo Cozinha** (`kitchen`, papel adicional (add-on)) — 3 permissões
@@ -37,7 +37,7 @@ qualquer combinação das permissões abaixo.
 
 ## Matriz papel × permissão
 
-73 permissões no catálogo. ✓ = o papel possui a permissão (o
+69 permissões no catálogo. ✓ = o papel possui a permissão (o
 Super Administrador tem tudo via `*`).
 
 | Permissão | Descrição | `super_admin` | `admin` | `coordinator` | `room_manager` | `teacher` | `employee` | `kitchen` |
@@ -55,11 +55,6 @@ Super Administrador tem tudo via `*`).
 | `course:edit` | Editar cursos/disciplinas | ✓ | ✓ |  | ✓ |  |  |  |
 | `course:read` | Visualizar cursos/disciplinas | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `course:toggle` | Ativar/desativar cursos/disciplinas | ✓ | ✓ |  | ✓ |  |  |  |
-| **Tipos de Curso** (`course_type`) | |  |  |  |  |  |  |  |
-| `course_type:create` | Criar Tipos de Curso | ✓ | ✓ |  | ✓ |  |  |  |
-| `course_type:edit` | Editar Tipos de Curso | ✓ | ✓ |  | ✓ |  |  |  |
-| `course_type:read` | Acessar o cadastro de Tipos de Curso | ✓ | ✓ | ✓ | ✓ |  |  |  |
-| `course_type:toggle` | Ativar/desativar Tipos de Curso | ✓ | ✓ |  | ✓ |  |  |  |
 | **Feriados** (`holiday`) | |  |  |  |  |  |  |  |
 | `holiday:create` | Criar feriados | ✓ | ✓ |  |  |  |  |  |
 | `holiday:delete` | Excluir feriados | ✓ | ✓ |  |  |  |  |  |

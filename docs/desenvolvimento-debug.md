@@ -434,7 +434,7 @@ demais, peça com `@coderabbitai review` no PR.
 | Cozinha — parser de fichas `.docx`, escala de porções e requisição de compra | `test_kitchen_parser.py`, `test_kitchen_scale.py`, `test_kitchen_report.py` |
 | Reservas — conflitos, disponibilidade, séries, passado, filtros | `test_classroom_availability.py`, `test_reservations_past.py`, `test_reservations_all_filters.py`, `test_reservation_title.py` |
 | Fluxo de professor — reservas nascem Pendentes, designação, limite diário | `test_teacher_pending_creation.py`, `test_teacher_daily_limit.py`, `test_professor_teacher_choices.py`, `test_my_reservations_vinculadas.py` |
-| Categorias dinâmicas, tipos de curso e edição | `test_dynamic_categories.py`, `test_category_edit.py`, `test_course_types_admin.py` |
+| Categorias dinâmicas e edição | `test_dynamic_categories.py`, `test_category_edit.py` |
 | Financeiro (hora extra) e Vale Alimentação | `test_payments.py`, `test_meal_allowance.py` |
 | Vale-Transporte (pedido público e empresas) | `test_vt_pedido_publico.py`, `test_vt_empresas_admin.py` |
 | Adicional Noturno (lançamentos e planilha) | `test_adicional_noturno.py` |

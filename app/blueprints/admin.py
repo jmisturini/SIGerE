@@ -10,11 +10,11 @@ from flask_login import login_required, current_user
 from app.models import (User, Classroom, Course, Subject, Holiday, Role, Permission,
                         RoomCategory, Unity, ApiToken, VtConfig, VtEmpresa,
                         VtEmpresaValor, ROLE_POR_PERFIL, NotificationGroup,
-                        UnityNotificationConfig, CourseType, MAX_TENTATIVAS_LOGIN,
+                        UnityNotificationConfig, MAX_TENTATIVAS_LOGIN,
                         AuditLog)
 from app.forms import (ClassroomForm, CourseForm, SubjectForm, UserForm, HolidayForm, RoleForm,
                    RoomCategoryForm, UnityForm, FormVtEmpresa, FormVtConfig,
-                   FormNotificacaoConfig, FormNotificacaoGrupo, CourseTypeForm,
+                   FormNotificacaoConfig, FormNotificacaoGrupo,
                    validar_politica_senha, _PADRAO_TEXTO)
 from app.extensions import db
 from sqlalchemy import func, or_
@@ -214,7 +214,6 @@ def dashboard():
     active_rooms = Classroom.query.filter_by(unity_id=uid, is_active=True).count()
     courses_count = Course.query.filter_by(unity_id=uid).count()
     subjects_count = Subject.query.filter_by(unity_id=uid).count()
-    course_types_count = CourseType.query.filter_by(is_active=True).count()
 
     # Checklist de configuração inicial: apenas o super-admin (curinga *).
     setup_checklist = _setup_checklist() if current_user.has_permission('*') else None
@@ -227,7 +226,6 @@ def dashboard():
                            active_rooms=active_rooms,
                            courses_count=courses_count,
                            subjects_count=subjects_count,
-                           course_types_count=course_types_count,
                            setup_checklist=setup_checklist)
 
 # ================= USER MANAGEMENT =================
@@ -907,7 +905,7 @@ def import_holidays():
 # distintos possam cobrir cada área.
 MODULO_LABELS = {
     'an': 'Adicional Noturno', 'api': 'API', 'course': 'Cursos',
-    'course_type': 'Tipos de Curso', 'holiday': 'Feriados',
+    'holiday': 'Feriados',
     'kitchen': 'Cozinha', 'meal': 'Vale Alimentação',
     'notification': 'Notificações', 'payment': 'Pagamento Extra',
     'reservation': 'Reservas', 'role': 'Papéis', 'room': 'Salas',
@@ -1154,72 +1152,6 @@ def toggle_category(cat_id):
     db.session.commit()
     flash(f'Categoria {cat.name} {"ativada" if cat.is_active else "desativada"}.', 'success')
     return redirect_back('admin.list_categories', anchor=f'category-{cat_id}')
-
-# ================= COURSE TYPE MANAGEMENT (Tipos de Curso) =================
-
-@bp.route('/course-types')
-@login_required
-@require_permission('course_type:read')
-def list_course_types():
-    tipos = CourseType.query.all()
-    # Ordenação escolhida no filtro da página (padrão: nome)
-    ordem = request.args.get('ordem', 'nome')
-    if ordem == 'nome_desc':
-        tipos.sort(key=lambda t: t.name.lower(), reverse=True)
-    elif ordem == 'status':
-        tipos.sort(key=lambda t: (not t.is_active, t.name.lower()))
-    else:
-        ordem = 'nome'
-        tipos.sort(key=lambda t: t.name.lower())
-    return render_template('admin/course_types.html', tipos=tipos, ordem=ordem)
-
-@bp.route('/course-types/create', methods=['GET', 'POST'])
-@login_required
-@require_permission('course_type:create')
-def create_course_type():
-    form = CourseTypeForm()
-    if form.validate_on_submit():
-        duplicado = CourseType.query.filter(
-            func.lower(CourseType.name) == form.name.data.strip().lower()).first()
-        if duplicado:
-            form.name.errors.append('Já existe um tipo de curso com este nome.')
-        else:
-            db.session.add(CourseType(name=form.name.data.strip(),
-                                      is_active=form.is_active.data))
-            db.session.commit()
-            flash('Tipo de curso criado com sucesso.', 'success')
-            return redirect(url_for('admin.list_course_types'))
-    return render_template('admin/course_type_form.html', form=form, title='Criar Tipo de Curso')
-
-@bp.route('/course-types/<int:type_id>/edit', methods=['GET', 'POST'])
-@login_required
-@require_permission('course_type:edit')
-def edit_course_type(type_id):
-    tipo = db.get_or_404(CourseType, type_id)
-    form = CourseTypeForm(obj=tipo)
-    if form.validate_on_submit():
-        duplicado = CourseType.query.filter(
-            func.lower(CourseType.name) == form.name.data.strip().lower(),
-            CourseType.id != tipo.id).first()
-        if duplicado:
-            form.name.errors.append('Já existe um tipo de curso com este nome.')
-        else:
-            tipo.name = form.name.data.strip()
-            tipo.is_active = form.is_active.data
-            db.session.commit()
-            flash('Tipo de curso atualizado com sucesso.', 'success')
-            return redirect(url_for('admin.list_course_types'))
-    return render_template('admin/course_type_form.html', form=form, title='Editar Tipo de Curso')
-
-@bp.route('/course-types/<int:type_id>/toggle', methods=['POST'])
-@login_required
-@require_permission('course_type:toggle')
-def toggle_course_type(type_id):
-    tipo = db.get_or_404(CourseType, type_id)
-    tipo.is_active = not tipo.is_active
-    db.session.commit()
-    flash(f'Tipo de curso {tipo.name} {"ativado" if tipo.is_active else "desativado"}.', 'success')
-    return redirect_back('admin.list_course_types', anchor=f'course-type-{tipo.id}')
 
 # ================= UNITY MANAGEMENT (Multi-unidade) =================
 
