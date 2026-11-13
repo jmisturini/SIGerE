@@ -167,12 +167,17 @@ class AvailabilityBotaoReservarTestCase(unittest.TestCase):
             self.assertIn(f'&amp;date={sabado.isoformat()}"', page)
 
     def test_feriado_da_unidade_ganha_faixa_e_perde_o_mais(self):
+        # Ancora no mês seguinte (year/month na query): todos os dias são
+        # futuros, então todo dia não-domingo tem atalho e a subtração do
+        # feriado nunca fica vaga — mesmo se hoje for o último domingo do mês.
         hoje = date.today()
-        ano, mes = hoje.year, hoje.month
-        # feriado num dia RESERVÁVEL futuro: precisa tirar um atalho existente
-        reservaveis = self._reservaveis_mes(ano, mes, hoje.day)
-        dia_alvo = reservaveis[0] if reservaveis else 1
-        data_feriado = date(ano, mes, dia_alvo)
+        ano_mes, mes_alvo = ((hoje.year + 1, 1) if hoje.month == 12
+                             else (hoje.year, hoje.month + 1))
+        ultimo = calendar.monthrange(ano_mes, mes_alvo)[1]
+        reservaveis = [d for d in range(1, ultimo + 1)
+                       if date(ano_mes, mes_alvo, d).weekday() != 6]
+        dia_alvo = reservaveis[0]
+        data_feriado = date(ano_mes, mes_alvo, dia_alvo)
 
         with self.app.app_context():
             outra = Unity(name='Outra Unidade', code='OU')
@@ -187,7 +192,7 @@ class AvailabilityBotaoReservarTestCase(unittest.TestCase):
 
         response = self.client.get(
             f'/classrooms/{self.room_id}/availability'
-            f'?view=month&year={ano}&month={mes}&day={hoje.day}')
+            f'?view=month&year={ano_mes}&month={mes_alvo}&day={dia_alvo}')
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
         self.assertIn('faixa-dia faixa-feriado', page)
@@ -196,8 +201,7 @@ class AvailabilityBotaoReservarTestCase(unittest.TestCase):
         self.assertNotIn('Feriado de Outra Unidade', page)
         # sem atalho no feriado; a contagem de atalhos cai um dia reservável
         self.assertNotIn(f'&amp;date={data_feriado.isoformat()}"', page)
-        self.assertEqual(page.count('class="day-add"'),
-                         len(reservaveis) - (1 if dia_alvo in reservaveis else 0))
+        self.assertEqual(page.count('class="day-add"'), len(reservaveis) - 1)
 
     def test_sala_inativa_nao_tem_atalho(self):
         """Sala inativa continua com página de disponibilidade, mas sem
