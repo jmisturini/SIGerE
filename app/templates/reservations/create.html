@@ -129,8 +129,11 @@
                         <small>Sem conflito de professor ou excesso de reservas no dia, a reserva é confirmada na hora; havendo, segue para a aprovação da coordenação.</small>
                         {% endif %}
                         <div class="form-acoes">
-                            {% if request.args.get('classroom_id', type=int) %}
-                            <a href="{{ url_for('classrooms.detail', classroom_id=request.args.get('classroom_id', type=int)) }}" class="btn btn-outline-secondary">
+                            {# classroom_id chega na query ao vir da página da sala; o filtro |int
+                               substitui o type=int do werkzeug, indisponível no Jinja (bug 500). #}
+                            {% set sala_voltar = request.args.get('classroom_id') | int %}
+                            {% if sala_voltar %}
+                            <a href="{{ url_for('classrooms.detail', classroom_id=sala_voltar) }}" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left"></i> Voltar
                             </a>
                             {% endif %}
