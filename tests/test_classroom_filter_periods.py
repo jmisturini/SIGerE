@@ -1,9 +1,10 @@
-"""Testes do filtro de disponibilidade da listagem de Salas com vários períodos.
+"""Testes do filtro de disponibilidade da pesquisa de Salas com vários períodos.
 
 O select de períodos aceita múltipla escolha (Manhã/Tarde/Noite): a sala
 precisa estar livre em TODOS os períodos escolhidos — uma única reserva
 aprovada em qualquer um deles já exclui a sala. Um período só continua
-funcionando como antes; sem período, a data sozinha não filtra.
+funcionando como antes; sem período, a data sozinha não filtra e a
+pesquisa fica limpa, sem cartões.
 """
 import os
 import tempfile
@@ -98,12 +99,12 @@ class ClassroomFilterPeriodsTestCase(unittest.TestCase):
             db.session.commit()
 
     def _filtrar(self, *periodos):
-        """GET da listagem com a data e os períodos selecionados (repetidos na
+        """GET da pesquisa com a data e os períodos selecionados (repetidos na
         query string, como o select múltiplo envia)."""
         query = f'available_date={self._dia().isoformat()}'
         for periodo in periodos:
             query += f'&available_period={periodo}'
-        return self.client.get(f'/classrooms/?{query}')
+        return self.client.get(f'/classrooms/search?{query}')
 
     def test_periodo_unico_continua_funcionando(self):
         self._reservar(self.sala1_id, time(9, 0), time(11, 0))
@@ -130,20 +131,22 @@ class ClassroomFilterPeriodsTestCase(unittest.TestCase):
         self.assertIn('Mostrando salas disponíveis', html)
         self.assertIn('Manhã e Tarde', html)
 
-    def test_sem_periodo_nao_filtra(self):
+    def test_sem_periodo_pagina_continua_limpa(self):
+        # Data sem período não é um filtro aplicável: a pesquisa fica limpa,
+        # sem cartões e sem mensagem de resultado.
         self._reservar(self.sala1_id, time(9, 0), time(11, 0))
         response = self.client.get(
-            f'/classrooms/?available_date={self._dia().isoformat()}')
+            f'/classrooms/search?available_date={self._dia().isoformat()}')
         html = response.get_data(as_text=True)
-        self.assertIn('Sala Um', html)
-        self.assertIn('Sala Dois', html)
+        self.assertNotIn('Sala Um', html)
+        self.assertNotIn('Sala Dois', html)
         self.assertNotIn('Mostrando salas disponíveis', html)
 
     def test_export_pdf_aceita_multiplos_periodos(self):
         self._reservar(self.sala1_id, time(9, 0), time(11, 0))
         response = self._filtrar('morning', 'evening')
-        # Mesma URL da listagem serve para o PDF (o botão Exportar repassa a
-        # query string inteira)
+        # Mesma query string da pesquisa serve para o PDF (o botão Exportar
+        # repassa a query string inteira)
         response = self.client.get(f'/classrooms/export_pdf?{response.request.query_string.decode()}')
         self.assertEqual(response.status_code, 200)
 

@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, make_response, abort
+from flask import (Blueprint, redirect, render_template, request,
+                   make_response, abort, url_for)
 from flask_login import login_required, current_user
 from markupsafe import escape
 from app.models import Classroom, Holiday, Reservation, RoomCategory
@@ -44,6 +45,50 @@ def _juntar_nomes(nomes):
         return nomes[0] if nomes else ''
     return ', '.join(nomes[:-1]) + ' e ' + nomes[-1]
 
+
+def _parse_data_iso(texto):
+    """date de 'YYYY-MM-DD' ou None — o mesmo formato do input type=date."""
+    try:
+        return datetime.strptime(texto or '', '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _intervalo_datas(args):
+    """Intervalo [início, fim] do filtro de disponibilidade, inclusive nas
+    pontas. Início inválido cai no dia corrente (como sempre); fim ausente
+    ou inválido vira busca de dia único; fim antes do início é trocado."""
+    inicio = _parse_data_iso(args.get('available_date')) or date.today()
+    fim = _parse_data_iso(args.get('available_date_end')) or inicio
+    if fim < inicio:
+        inicio, fim = fim, inicio
+    return inicio, fim
+
+
+def _rotulo_disponibilidade_pdf(args):
+    """Rótulo 'Livres em/entre ...' da meta do PDF de salas, com as mesmas
+    regras do filtro da pesquisa (_intervalo_datas): o relatório descreve o
+    intervalo efetivamente aplicado, nunca o valor cru da URL. Devolve None
+    quando não há períodos marcados — sem período a listagem não consulta
+    reservas, então o PDF não pode afirmar que as salas estão 'livres'."""
+    periodos = _periodos_filtro(args)
+    if not (args.get('available_date') and periodos):
+        return None
+    filter_date, filter_end = _intervalo_datas(args)
+    if filter_end != filter_date:
+        rotulo = (f"Livres entre {filter_date:%d/%m/%Y} "
+                  f"e {filter_end:%d/%m/%Y}")
+    else:
+        rotulo = f"Livres em {filter_date:%d/%m/%Y}"
+    if len(periodos) == 1:
+        rotulo += {'morning': ' pela manhã', 'afternoon': ' à tarde',
+                   'evening': ' à noite'}[periodos[0]]
+    else:
+        nomes = _juntar_nomes([PERIODOS_FILTRO[p][0] for p in periodos])
+        rotulo += f" nos períodos de {nomes}"
+    return rotulo
+
+
 # Helper function to apply filters and return a query
 def get_filtered_classrooms(args):
     # Multi-unidade: apenas salas da unidade ativa
@@ -51,14 +96,14 @@ def get_filtered_classrooms(args):
         Classroom.is_active == True,
         Classroom.unity_id == current_unity_id()
     )
-    
+
     available_date_str = args.get('available_date')
     available_now = args.get('available_now')
     selected_category = args.get('category', '')
-    
+
     if selected_category:
         query = query.filter(Classroom.category_id == selected_category)
-        
+
     if available_now:
         now = datetime.now()
         today = date.today()
@@ -72,23 +117,21 @@ def get_filtered_classrooms(args):
         occupied_flat = [r[0] for r in occupied_ids]
         if occupied_flat:
             query = query.filter(~Classroom.id.in_(occupied_flat))
-            
+
     elif available_date_str:
         periodos = _periodos_filtro(args)
         if periodos:
-            try:
-                filter_date = datetime.strptime(available_date_str, '%Y-%m-%d').date()
-            except ValueError:
-                filter_date = date.today()
+            filter_date, filter_end = _intervalo_datas(args)
 
-            # A sala precisa estar livre em TODOS os períodos escolhidos:
-            # uma única ocupação em qualquer um deles já a exclui.
+            # A sala precisa estar livre em TODOS os períodos escolhidos em
+            # TODOS os dias do intervalo: uma única reserva aprovada em
+            # qualquer dia/período já a exclui.
             occupied_flat = set()
             for periodo in periodos:
                 _, p_start, p_end = PERIODOS_FILTRO[periodo]
                 occupied_flat.update(
                     r[0] for r in db.session.query(Reservation.classroom_id).filter(
-                        Reservation.date == filter_date,
+                        Reservation.date.between(filter_date, filter_end),
                         Reservation.status == 'approved',
                         Reservation.start_time < p_end,
                         Reservation.end_time > p_start
@@ -97,6 +140,25 @@ def get_filtered_classrooms(args):
                 query = query.filter(~Classroom.id.in_(occupied_flat))
 
     return query.order_by(Classroom.building, Classroom.code).all()
+
+
+def _group_by_floor(classrooms):
+    """Agrupa as salas por andar, ordenadas por número; andares na ordem
+    usual (Térreo, 1º, 2º...)."""
+    grouped_rooms = {}
+    for c in classrooms:
+        floor_name = c.floor or 'Outros'
+        if floor_name not in grouped_rooms:
+            grouped_rooms[floor_name] = []
+        grouped_rooms[floor_name].append(c)
+
+    # Sort rooms inside each floor by room_number (numerically if possible)
+    for floor in grouped_rooms:
+        grouped_rooms[floor].sort(key=lambda x: int(x.room_number) if x.room_number and x.room_number.isdigit() else 9999)
+
+    # Sort floors logically
+    floor_order = {"Térreo": 0, "Ground Floor": 0, "1º Andar": 1, "1st Floor": 1, "2º Andar": 2, "2nd Floor": 2, "3º Andar": 3, "3rd Floor": 3, "4º Andar": 4, "4th Floor": 4, "5º Andar": 5, "5th Floor": 5}
+    return dict(sorted(grouped_rooms.items(), key=lambda item: floor_order.get(item[0], 99)))
 
 def _get_classroom_scoped(classroom_id):
     """Carrega a sala da unidade ativa — salas de outras unidades dão 404."""
@@ -120,51 +182,70 @@ def _ids_reservas_legiveis(reservas):
             if pode_own and (r.user_id == current_user.id
                              or r.teacher_id == current_user.id)}
 
-# Route to list classrooms with filters
+# Filtros que hoje só a pesquisa (/search) aplica — a vitrine ignora
+# qualquer argumento, então URLs antigas com filtro seguem para lá.
+FILTROS_PESQUISA = frozenset({'available_date', 'available_date_end',
+                              'available_period', 'available_now', 'category'})
+
+# Route to list classrooms (somente os cartões; a pesquisa ficou em /search)
 @bp.route('/')
 @login_required
 def list_classrooms():
-    # Get filtered rooms from helper function
-    classrooms = get_filtered_classrooms(request.args)
-    
+    # Bookmark ou link antigo da listagem com filtro continua válido:
+    # redireciona para a pesquisa com a query string intacta — parâmetros
+    # repetidos incluídos — em vez de exibir todas as salas sem feedback.
+    if FILTROS_PESQUISA & request.args.keys():
+        return redirect(url_for('classrooms.search')
+                        + '?' + request.query_string.decode())
+
+    # Sem argumentos de filtro: todas as salas ativas da unidade
+    classrooms = get_filtered_classrooms({})
+
+    return render_template(
+        'classrooms/list.html',
+        grouped_rooms=_group_by_floor(classrooms),
+    )
+
+
+# Pesquisa de salas: bloco de filtros + cartões do resultado filtrado
+@bp.route('/search')
+@login_required
+def search():
     categories = RoomCategory.query.filter_by(is_active=True).order_by(RoomCategory.name).all()
 
-    
-    # Group by floor and sort by room number
-    grouped_rooms = {}
-    for c in classrooms:
-        floor_name = c.floor or 'Outros'
-        if floor_name not in grouped_rooms:
-            grouped_rooms[floor_name] = []
-        grouped_rooms[floor_name].append(c)
-        
-    # Sort rooms inside each floor by room_number (numerically if possible)
-    for floor in grouped_rooms:
-        grouped_rooms[floor].sort(key=lambda x: int(x.room_number) if x.room_number and x.room_number.isdigit() else 9999)
-        
-    # Sort floors logically
-    floor_order = {"Térreo": 0, "Ground Floor": 0, "1º Andar": 1, "1st Floor": 1, "2º Andar": 2, "2nd Floor": 2, "3º Andar": 3, "3rd Floor": 3, "4º Andar": 4, "4th Floor": 4, "5º Andar": 5, "5th Floor": 5}
-    sorted_floors = dict(sorted(grouped_rooms.items(), key=lambda item: floor_order.get(item[0], 99)))
-
-    # Check filters for alert message
+    # Check filters for alert message. Sem filtro a página fica limpa (sem
+    # cartões — nem consulta de salas), então o texto do estado vazio
+    # sempre acompanha o filtro aplicado — não cita períodos/datas que o
+    # usuário não selecionou.
     is_filtered = False
     filter_message = ""
+    texto_vazio = 'Nenhuma sala livre nos períodos e datas selecionados.'
+    periodos_marcados = _periodos_filtro(request.args)
     if request.args.get('available_now'):
         is_filtered = True
         filter_message = "Mostrando salas disponíveis agora."
-    elif request.args.get('available_date') and _periodos_filtro(request.args):
+        texto_vazio = 'Nenhuma sala disponível agora.'
+    elif request.args.get('available_date') and periodos_marcados:
         is_filtered = True
         periodos_txt = _juntar_nomes(
-            [PERIODOS_FILTRO[p][0] for p in _periodos_filtro(request.args)])
-        # Data no padrão da tela (dd/mm/aaaa); valor inválido cai escapado.
-        try:
-            data_filtro = datetime.strptime(request.args.get('available_date', ''), '%Y-%m-%d')
-            data_txt = escape(data_filtro.strftime('%d/%m/%Y'))
-        except ValueError:
-            data_txt = escape(request.args.get('available_date', ''))
+            [PERIODOS_FILTRO[p][0] for p in periodos_marcados])
+        # Datas no padrão da tela (dd/mm/aaaa), com as mesmas regras do
+        # filtro (_intervalo_datas): fim ausente ou inválido vira busca de
+        # dia único e fim antes do início é exibido na ordem cronológica
+        # real. Início inválido é exibido cru (escapado), como sempre foi.
+        inicio_str = request.args.get('available_date', '')
+        if _parse_data_iso(inicio_str):
+            ini, fim = _intervalo_datas(request.args)
+            if fim != ini:
+                data_txt = (f"entre <strong>{ini:%d/%m/%Y}</strong> "
+                            f"e <strong>{fim:%d/%m/%Y}</strong>")
+            else:
+                data_txt = f"em <strong>{ini:%d/%m/%Y}</strong>"
+        else:
+            data_txt = f"em <strong>{escape(inicio_str)}</strong>"
         # Todos os rótulos de período são femininos: o artigo único serve
         # para um período ("a Manhã") ou vários ("a Manhã e Tarde").
-        filter_message = (f"Mostrando salas disponíveis em <strong>{data_txt}</strong> "
+        filter_message = (f"Mostrando salas disponíveis {data_txt} "
                           f"durante a <strong>{periodos_txt}</strong>.")
     elif request.args.get('category'):
         is_filtered = True
@@ -172,13 +253,23 @@ def list_classrooms():
         cat_obj = RoomCategory.query.get(cat_id) if cat_id else None
         cat_name = escape(cat_obj.name) if cat_obj else "Categoria"
         filter_message = f"Mostrando apenas <strong>{cat_name}</strong>."
+        # O nome da categoria já está no alerta logo acima; o vazio fica
+        # genérico — sem Markup/interpolação (bandit B704) e sem escape
+        # duplo no macro.
+        texto_vazio = 'Nenhuma sala desse tipo.'
+
+    # A pesquisa fica limpa até um filtro ser aplicado: sem filtro, nenhum
+    # cartão — nem a consulta das salas, cujo resultado seria descartado.
+    grouped_rooms = (_group_by_floor(get_filtered_classrooms(request.args))
+                     if is_filtered else {})
 
     return render_template(
-        'classrooms/list.html', 
-        grouped_rooms=sorted_floors, # Pass the grouped dictionary instead of flat list
+        'classrooms/search.html',
+        grouped_rooms=grouped_rooms,
         categories=categories,
         is_filtered=is_filtered,
         filter_message=filter_message,
+        texto_vazio=texto_vazio,
         selected_category=request.args.get('category', '')
     )
 
@@ -202,21 +293,10 @@ def export_pdf():
             filtros.append(f"Categoria: {cat_obj.name}")
     if request.args.get('available_now'):
         filtros.append("Livres agora")
-    elif request.args.get('available_date'):
-        data_str = request.args.get('available_date')
-        try:
-            data_filtro = datetime.strptime(data_str, '%Y-%m-%d').date()
-            rotulo = f"Livres em {data_filtro:%d/%m/%Y}"
-        except ValueError:
-            rotulo = f"Livres em {data_str}"
-        periodos = _periodos_filtro(request.args)
-        if len(periodos) == 1:
-            rotulo += {'morning': ' pela manhã', 'afternoon': ' à tarde',
-                       'evening': ' à noite'}[periodos[0]]
-        elif periodos:
-            nomes = _juntar_nomes([PERIODOS_FILTRO[p][0] for p in periodos])
-            rotulo += f" nos períodos de {nomes}"
-        filtros.append(rotulo)
+    else:
+        rotulo = _rotulo_disponibilidade_pdf(request.args)
+        if rotulo:
+            filtros.append(rotulo)
     meta = " \u00b7 ".join(filtros) if filtros else "Todas as salas ativas da unidade"
     pdf.linha_meta(f"{len(classrooms)} salas \u00b7 {meta}")
 
