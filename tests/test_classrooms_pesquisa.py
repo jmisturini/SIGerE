@@ -180,6 +180,37 @@ class ClassroomsPesquisaTestCase(unittest.TestCase):
         self.assertIn('Categoria Vazia', html)
         self.assertNotIn('Nenhuma sala livre nos períodos', html)
 
+    def test_somente_data_final_e_ignorada_em_todas_as_camadas(self):
+        # Regressão (OCR): available_date_end sem available_date não é
+        # filtro — as três camadas exigem a data inicial. Se alguma delas
+        # tratasse o intervalo [hoje, fim] como aplicado, a Sala Um
+        # (ocupada na manhã do dia seguinte) sumiria do PDF/resultado ou o
+        # rótulo diria 'Livres...' sem filtro de datas na consulta.
+        self._reservar(self.sala1_id, self._dia(1), time(9, 0), time(11, 0))
+        with self.app.app_context():
+            category_id = db.session.get(Classroom, self.sala1_id).category_id
+
+        # Consulta: a categoria ativa o resultado; a data final sozinha não
+        # exclui a sala ocupada na manhã do dia apontado.
+        html = self.client.get(
+            f'/classrooms/search?available_date_end={self._dia(1).isoformat()}'
+            f'&available_period=morning&category={category_id}'
+        ).get_data(as_text=True)
+        self.assertIn('Sala Um', html)
+
+        # Pesquisa: só data final + período não é filtro aplicável — página
+        # limpa, sem mensagem de resultado.
+        html = self.client.get(
+            f'/classrooms/search?available_date_end={self._dia(1).isoformat()}'
+            '&available_period=morning').get_data(as_text=True)
+        self.assertNotIn('Mostrando salas', html)
+        self.assertIn('Pesquise uma sala', html)
+
+        # Rótulo do PDF: sem início, não há rótulo de disponibilidade.
+        args = MultiDict([('available_date_end', self._dia(1).isoformat()),
+                          ('available_period', 'morning')])
+        self.assertIsNone(_rotulo_disponibilidade_pdf(args))
+
     def test_intervalo_exclui_ocupada_em_qualquer_dia(self):
         # Sala Um ocupada na manhã do 3º dia do intervalo
         self._reservar(self.sala1_id, self._dia(3), time(9, 0), time(11, 0))
