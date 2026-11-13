@@ -10,12 +10,45 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.40.0'
+APP_VERSION = '1.41.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.41.0',
+        'data': '2026-11-13',
+        'titulo': 'Reserva por dia na disponibilidade da sala e correções de '
+                  'acesso e pagamento',
+        'grupos': [
+            ('Adicionado', [
+                'Atalho de reserva por dia na Disponibilidade da sala (visões '
+                'semana e mês): cada dia reservável ganha um "+" no canto '
+                'oposto ao número, que abre a criação de reserva com a sala e '
+                'a data do dia clicado já preenchidas. Domingos e feriados '
+                'ativos da unidade ganham uma faixa com o nome e ficam sem o '
+                'atalho — o sábado segue reservável e o bloqueio já valia no '
+                'servidor (mesma regra de sempre, agora também visual).',
+            ]),
+            ('Corrigido', [
+                'Erro 500 ao clicar em "Reservar" na página da sala: o botão '
+                '"Voltar" do formulário usava um argumento que só existe em '
+                'código Python, não em template — o erro atingia exatamente '
+                'quem chegava da página da sala (desde a 1.23.0), com '
+                'qualquer papel.',
+                'Funcionário que também leciona ("Também cadastrar como '
+                'Professor") não aparecia nas listas de Hora Extra e '
+                'Vale-Alimentação nem na busca pública de professores — o '
+                'filtro aceitava apenas perfis de professor e ignorava a '
+                'marcação; o cronograma já listava essas contas.',
+                'Sala inativa e datas passadas não oferecem mais o atalho de '
+                'reserva na disponibilidade (nem o botão "Reservar" nos '
+                'detalhes da sala inativa): o formulário já recusava os dois '
+                'casos no servidor e o atalho era um beco sem saída.',
+            ]),
+        ],
+    },
     {
         'versao': '1.40.0',
         'data': '2026-11-12',
