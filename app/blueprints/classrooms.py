@@ -1,7 +1,7 @@
 from flask import (Blueprint, redirect, render_template, request,
                    make_response, abort, url_for)
 from flask_login import login_required, current_user
-from markupsafe import Markup, escape
+from markupsafe import escape
 from app.models import Classroom, Holiday, Reservation, RoomCategory
 from app.extensions import db
 from app.unity_context import current_unity_id, current_unity
@@ -252,10 +252,10 @@ def search():
         cat_obj = RoomCategory.query.get(cat_id) if cat_id else None
         cat_name = escape(cat_obj.name) if cat_obj else "Categoria"
         filter_message = f"Mostrando apenas <strong>{cat_name}</strong>."
-        # Markup: o nome já vem escapado e o macro renderiza o vazio sem
-        # '| safe' — assim não há duplo escape do nome da categoria.
-        texto_vazio = Markup(
-            f"Nenhuma sala do tipo <strong>{cat_name}</strong>.")
+        # O nome da categoria já está no alerta logo acima; o vazio fica
+        # genérico — sem Markup/interpolação (bandit B704) e sem escape
+        # duplo no macro.
+        texto_vazio = 'Nenhuma sala desse tipo.'
 
     # A pesquisa fica limpa até um filtro ser aplicado: sem filtro, nenhum
     # cartão — só o bloco de filtros e o convite à pesquisa.

@@ -167,7 +167,8 @@ class ClassroomsPesquisaTestCase(unittest.TestCase):
 
     def test_vazio_por_categoria_cita_o_tipo(self):
         # Sem resultado num filtro só de categoria, o vazio fala do tipo —
-        # não cita períodos/datas que o usuário não selecionou.
+        # não cita períodos/datas que o usuário não selecionou. O nome da
+        # categoria segue no alerta acima do resultado.
         with self.app.app_context():
             vazia = RoomCategory(name='Categoria Vazia', code='CV')
             db.session.add(vazia)
@@ -175,7 +176,7 @@ class ClassroomsPesquisaTestCase(unittest.TestCase):
             category_id = vazia.id
         html = self.client.get(
             f'/classrooms/search?category={category_id}').get_data(as_text=True)
-        self.assertIn('Nenhuma sala do tipo', html)
+        self.assertIn('Nenhuma sala desse tipo', html)
         self.assertIn('Categoria Vazia', html)
         self.assertNotIn('Nenhuma sala livre nos períodos', html)
 
