@@ -222,11 +222,13 @@ def _mes_datas_postado(referencia, extra=None):
 # ================= HELPER FUNCTIONS =================
 
 def _teachers_for_current_unity():
-    """Professores da unidade ativa + contas globais (para dropdowns de pagamento)."""
+    """Professores da unidade ativa + contas globais (para dropdowns de pagamento).
+    Funcionário que também leciona (is_teacher) recebe pagamento como professor
+    e precisa aparecer nas listas de Hora Extra e Vale-Alimentação."""
     uid = current_unity_id()
     return User.query.filter(
-        User.profile_type == 'teacher',
-        User.is_active_user == True,
+        ((User.profile_type == 'teacher') | (User.is_teacher == True)),  # noqa: E712 — comparação de coluna
+        User.is_active_user == True,  # noqa: E712 — comparação de coluna
         User.escopo_unidade(uid)
     ).order_by(User.full_name).all()
 

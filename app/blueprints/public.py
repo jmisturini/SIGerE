@@ -225,11 +225,12 @@ def search():
             results_rooms = room_query.all()
 
         elif search_type == 'teacher':
-            # Busca professores ativos (escopo por unidade quando determinável)
+            # Busca professores ativos (escopo por unidade quando determinável);
+            # funcionário que também leciona tem agenda no cronograma e entra na busca
             uid = current_unity_id()
             teacher_filter = [
-                User.is_active_user == True,
-                User.profile_type == 'teacher',
+                User.is_active_user == True,  # noqa: E712 — comparação de coluna
+                ((User.profile_type == 'teacher') | (User.is_teacher == True)),  # noqa: E712 — comparação de coluna
                 User.full_name.ilike(f'%{query}%')
             ]
             if uid is not None:
