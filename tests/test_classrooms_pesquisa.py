@@ -147,6 +147,38 @@ class ClassroomsPesquisaTestCase(unittest.TestCase):
         self.assertIn('Sala Um', html)
         self.assertIn('Sala Dois', html)
 
+    def test_url_antiga_com_filtro_redireciona_para_pesquisa(self):
+        # Bookmark da listagem antiga com filtro continua válido: 302 para
+        # a pesquisa com a query string intacta, repetidos incluídos.
+        response = self.client.get(
+            f'/classrooms/?available_date={self._dia().isoformat()}'
+            '&available_period=morning&available_period=afternoon')
+        self.assertEqual(response.status_code, 302)
+        location = response.headers['Location']
+        self.assertIn('/classrooms/search?', location)
+        self.assertIn(f'available_date={self._dia().isoformat()}', location)
+        self.assertIn('available_period=morning', location)
+        self.assertIn('available_period=afternoon', location)
+
+    def test_vitrine_sem_filtro_nao_redireciona(self):
+        response = self.client.get('/classrooms/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Sala Um', response.get_data(as_text=True))
+
+    def test_vazio_por_categoria_cita_o_tipo(self):
+        # Sem resultado num filtro só de categoria, o vazio fala do tipo —
+        # não cita períodos/datas que o usuário não selecionou.
+        with self.app.app_context():
+            vazia = RoomCategory(name='Categoria Vazia', code='CV')
+            db.session.add(vazia)
+            db.session.commit()
+            category_id = vazia.id
+        html = self.client.get(
+            f'/classrooms/search?category={category_id}').get_data(as_text=True)
+        self.assertIn('Nenhuma sala do tipo', html)
+        self.assertIn('Categoria Vazia', html)
+        self.assertNotIn('Nenhuma sala livre nos períodos', html)
+
     def test_intervalo_exclui_ocupada_em_qualquer_dia(self):
         # Sala Um ocupada na manhã do 3º dia do intervalo
         self._reservar(self.sala1_id, self._dia(3), time(9, 0), time(11, 0))

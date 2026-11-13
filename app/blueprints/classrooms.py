@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, request, make_response, abort
+from flask import (Blueprint, redirect, render_template, request,
+                   make_response, abort, url_for)
 from flask_login import login_required, current_user
-from markupsafe import escape
+from markupsafe import Markup, escape
 from app.models import Classroom, Holiday, Reservation, RoomCategory
 from app.extensions import db
 from app.unity_context import current_unity_id, current_unity
@@ -181,10 +182,22 @@ def _ids_reservas_legiveis(reservas):
             if pode_own and (r.user_id == current_user.id
                              or r.teacher_id == current_user.id)}
 
+# Filtros que hoje só a pesquisa (/search) aplica — a vitrine ignora
+# qualquer argumento, então URLs antigas com filtro seguem para lá.
+FILTROS_PESQUISA = frozenset({'available_date', 'available_date_end',
+                              'available_period', 'available_now', 'category'})
+
 # Route to list classrooms (somente os cartões; a pesquisa ficou em /search)
 @bp.route('/')
 @login_required
 def list_classrooms():
+    # Bookmark ou link antigo da listagem com filtro continua válido:
+    # redireciona para a pesquisa com a query string intacta — parâmetros
+    # repetidos incluídos — em vez de exibir todas as salas sem feedback.
+    if FILTROS_PESQUISA & request.args.keys():
+        return redirect(url_for('classrooms.search')
+                        + '?' + request.query_string.decode())
+
     # Sem argumentos de filtro: todas as salas ativas da unidade
     classrooms = get_filtered_classrooms({})
 
@@ -201,12 +214,16 @@ def search():
     classrooms = get_filtered_classrooms(request.args)
     categories = RoomCategory.query.filter_by(is_active=True).order_by(RoomCategory.name).all()
 
-    # Check filters for alert message
+    # Check filters for alert message. Sem filtro a página fica limpa (sem
+    # cartões), então o texto do estado vazio sempre acompanha o filtro
+    # aplicado — não cita períodos/datas que o usuário não selecionou.
     is_filtered = False
     filter_message = ""
+    texto_vazio = 'Nenhuma sala livre nos períodos e datas selecionados.'
     if request.args.get('available_now'):
         is_filtered = True
         filter_message = "Mostrando salas disponíveis agora."
+        texto_vazio = 'Nenhuma sala disponível agora.'
     elif request.args.get('available_date') and _periodos_filtro(request.args):
         is_filtered = True
         periodos_txt = _juntar_nomes(
@@ -235,10 +252,10 @@ def search():
         cat_obj = RoomCategory.query.get(cat_id) if cat_id else None
         cat_name = escape(cat_obj.name) if cat_obj else "Categoria"
         filter_message = f"Mostrando apenas <strong>{cat_name}</strong>."
-
-    # Só chega ao template com filtro ativo (sem filtro a página fica
-    # limpa, sem cartões), então o vazio é sempre do resultado filtrado.
-    texto_vazio = 'Nenhuma sala livre nos períodos e datas selecionados.'
+        # Markup: o nome já vem escapado e o macro renderiza o vazio sem
+        # '| safe' — assim não há duplo escape do nome da categoria.
+        texto_vazio = Markup(
+            f"Nenhuma sala do tipo <strong>{cat_name}</strong>.")
 
     # A pesquisa fica limpa até um filtro ser aplicado: sem filtro, nenhum
     # cartão — só o bloco de filtros e o convite à pesquisa.
