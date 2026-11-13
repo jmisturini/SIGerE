@@ -501,7 +501,7 @@ BLOCOS = [
           '(quando aplicável), com os botões <b>Detalhes</b> e <b>Disponibilidade</b>.'),
     ('p', 'Ações do topo da tela:'),
     ('ul', [
-        '<b>Relatório</b> — abre o Relatório Geral de Salas e Reservas (seção 6), para quem '
+        '<b>Relatório</b> — abre o Relatório Geral de Salas e Reservas (seção 7.1), para quem '
         'tem acesso a relatórios;',
         '<b>Adicionar Sala</b> — abertura do cadastro de sala (somente com permissão; '
         'seção 14.3).',
