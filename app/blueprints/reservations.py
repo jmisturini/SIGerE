@@ -228,6 +228,15 @@ def create():
     if request.method == 'GET' and preselect:
         form.classroom.data = preselect
 
+    # Atalho da página de Disponibilidade da sala: o + do dia chega com a
+    # data na query (ISO). Valor inválido é ignorado — o campo segue vazio.
+    preselect_data = request.args.get('date')
+    if request.method == 'GET' and preselect_data:
+        try:
+            form.date.data = date.fromisoformat(preselect_data)
+        except ValueError:
+            pass
+
     # Fluxo de professor: o criador já entra designado a si mesmo
     if request.method == 'GET' and current_user.has_explicit_permission('reservation:create_pending'):
         form.teacher.data = current_user.id
