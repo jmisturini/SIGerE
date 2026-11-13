@@ -96,8 +96,28 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
                     {% if day == 0 %}
                     <div class="calendar-day empty"></div>
                     {% else %}
+                    {% set feriado_nome = feriados_mes.get(day) %}
+                    {# Domingo e feriado não são reserváveis: faixa no lugar do +.
+                       Sábado segue reservável, então mantém o atalho. #}
+                    {% set bloqueio = feriado_nome or domingos_mes.get(day) %}
+                    {% set data_iso = '%04d-%02d-%02d' | format(year, month, day) %}
                     <div class="calendar-day {% if day == today.day and month == today.month and year == today.year %}today{% endif %}">
+                        {% if bloqueio %}
+                        <div class="faixa-dia {{ 'faixa-feriado' if feriado_nome else 'faixa-domingo' }}"
+                             title="{{ bloqueio }}">{{ bloqueio }}</div>
+                        {% endif %}
                         <div class="day-number">{{ day }}</div>
+                        {# Sem atalho também para sala inativa e dia passado: o
+                           formulário de criação rejeitaria os dois no servidor
+                           (choices só de salas ativas, validate_date). #}
+                        {% if current_user.can_book and classroom.is_active
+                              and not bloqueio and data_iso >= today.isoformat() %}
+                        <a href="{{ url_for('reservations.create', classroom_id=classroom.id, date=data_iso) }}"
+                           class="day-add" title="Reservar em {{ day }}/{{ month }}/{{ year }}"
+                           aria-label="Reservar em {{ day }}/{{ month }}/{{ year }}">
+                            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                        </a>
+                        {% endif %}
                         {% if day in reservations_by_day %}
                         <div class="events-container">
                             {% for ev in reservations_by_day[day] %}
@@ -126,8 +146,24 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
         </div>
         <div class="calendar-grid">
             {% for dia, reservas_dia in days %}
+            {% set feriado_nome = feriados.get(dia) %}
+            {% set bloqueio = feriado_nome or ('Domingo' if dia.weekday() == 6 else None) %}
             <div class="calendar-day {% if dia == today %}today{% endif %}">
+                {% if bloqueio %}
+                <div class="faixa-dia {{ 'faixa-feriado' if feriado_nome else 'faixa-domingo' }}"
+                     title="{{ bloqueio }}">{{ bloqueio }}</div>
+                {% endif %}
                 <div class="day-number">{{ dia.day }}</div>
+                {# Mesma regra da visão mês: sala inativa ou dia passado não
+                   têm atalho (o formulário rejeitaria no servidor). #}
+                {% if current_user.can_book and classroom.is_active
+                      and not bloqueio and dia >= today %}
+                <a href="{{ url_for('reservations.create', classroom_id=classroom.id, date=dia.isoformat()) }}"
+                   class="day-add" title="Reservar em {{ dia.strftime('%d/%m/%Y') }}"
+                   aria-label="Reservar em {{ dia.strftime('%d/%m/%Y') }}">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                </a>
+                {% endif %}
                 <div class="events-container">
                     {% for ev in reservas_dia %}
                     <div class="event-pill" title="{{ ev.title }}" {{ detalhe_reserva(ev) }}>
@@ -211,6 +247,10 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
     </div>
 </div>
 
+<!-- Modal de Nova Reserva removido: o + do calendário leva direto à
+     página de reserva (reservations.create) com a data do dia clicado
+     pré-preenchida pela query (?classroom_id=&date=). -->
+
 <script>
     document.getElementById('modalReserva').addEventListener('show.bs.modal', function (event) {
         // O modal acompanha o tema do app: o Bootstrap 5.3 alterna os tons de
@@ -275,6 +315,34 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
         padding: 8px;
         background-color: var(--topbar-bg, #ffffff); /* Usa a cor de fundo dos cards */
         transition: box-shadow 0.2s ease;
+        position: relative; /* ancora o botão + no canto oposto ao número do dia */
+        overflow: hidden; /* a faixa de domingo/feriado acompanha os cantos */
+    }
+    /* Faixa de dia não reservável (domingo/feriado): tira full-width no topo
+       da célula, no idioma dos badges do app. Domingo neutro; feriado em
+       vermelho com override para o tema escuro. */
+    .faixa-dia {
+        margin: -8px -8px 6px;
+        padding: 2px 8px;
+        font-size: .62rem;
+        font-weight: 700;
+        letter-spacing: .03em;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .faixa-domingo {
+        background-color: var(--body-bg, #f4f6f9);
+        color: var(--text-muted, #6c757d);
+    }
+    .faixa-feriado {
+        background-color: rgba(220, 53, 69, .12);
+        color: #b02a37;
+    }
+    [data-theme="dark"] .faixa-feriado {
+        background-color: rgba(220, 53, 69, .22);
+        color: #ea868f;
     }
     .calendar-day:hover:not(.empty) {
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
@@ -291,6 +359,35 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
         font-weight: 700;
         margin-bottom: 5px;
         color: var(--text-muted, #6c757d);
+    }
+    /* Botão + de Reservar: canto oposto ao número do dia. Discreto em
+       repouso, primária no hover — mesmo idioma dos event-pill. */
+    .day-add {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--text-muted, #6c757d);
+        font-size: .8rem;
+        line-height: 1;
+        text-decoration: none;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    .day-add:hover, .day-add:focus-visible {
+        background-color: var(--primary-color, #004a8d);
+        color: #fff;
+    }
+    .day-add:focus-visible {
+        outline: 2px solid var(--primary-color, #004a8d);
+        outline-offset: 1px;
     }
     .calendar-day.today .day-number {
         color: var(--primary-color, #004a8d);
@@ -422,6 +519,18 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
         .event-pill {
             font-size: 0.6rem;
             padding: 2px 4px;
+        }
+        .day-add {
+            width: 20px;
+            height: 20px;
+            font-size: .7rem;
+            top: 2px;
+            right: 2px;
+        }
+        .faixa-dia {
+            margin: -4px -4px 3px;
+            padding: 1px 4px;
+            font-size: .55rem;
         }
     }
 

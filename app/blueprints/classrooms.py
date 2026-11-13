@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, make_response, abort
 from flask_login import login_required, current_user
 from markupsafe import escape
-from app.models import Classroom, Reservation, RoomCategory
+from app.models import Classroom, Holiday, Reservation, RoomCategory
 from app.extensions import db
 from app.unity_context import current_unity_id, current_unity
 from datetime import datetime, date, time, timedelta
@@ -318,6 +318,7 @@ def availability(classroom_id):
     reservations_by_day = {}
     days = []
     title_periodo = ''
+    inicio_visao, fim_visao = anchor, anchor
 
     if view == 'day':
         days = [(anchor, reservas_entre(anchor, anchor))]
@@ -328,6 +329,7 @@ def availability(classroom_id):
         # Semana começando no domingo, igual ao calendário mensal (firstweekday=6)
         week_start = anchor - timedelta(days=(anchor.weekday() + 1) % 7)
         week_end = week_start + timedelta(days=6)
+        inicio_visao, fim_visao = week_start, week_end
         reservas = reservas_entre(week_start, week_end)
         days = [(week_start + timedelta(days=i),
                  [r for r in reservas if r.date == week_start + timedelta(days=i)])
@@ -339,12 +341,31 @@ def availability(classroom_id):
         first_day = date(anchor.year, anchor.month, 1)
         last_day = date(anchor.year, anchor.month,
                         calendar.monthrange(anchor.year, anchor.month)[1])
+        inicio_visao, fim_visao = first_day, last_day
         for r in reservas_entre(first_day, last_day):
             reservations_by_day.setdefault(r.date.day, []).append(r)
         month_days = calendar.Calendar(firstweekday=6).monthdayscalendar(
             anchor.year, anchor.month)
         prev_date, next_date = first_day - timedelta(days=1), last_day + timedelta(days=1)
         title_periodo = f"{MESES_PT[anchor.month - 1]} de {anchor.year}"
+
+    # Feriados da janela visível (mesmo escopo do check_holiday: unidade
+    # ativa) e os domingos do mês: alimentam a faixa dos dias e escondem o
+    # atalho + — sábado segue reservável, então não entra.
+    feriados_visao = {h.date: h.name for h in Holiday.query.filter(
+        Holiday.date >= inicio_visao,
+        Holiday.date <= fim_visao,
+        Holiday.is_active == True,  # noqa: E712 — comparação de coluna
+        Holiday.unity_id == current_unity_id(),
+    ).all()}
+    feriados_mes = {d.day: nome for d, nome in feriados_visao.items()}
+    domingos_mes = {}
+    if view == 'month':
+        for semana in month_days:
+            for dia_numero in semana:
+                if dia_numero and date(anchor.year, anchor.month,
+                                       dia_numero).weekday() == 6:
+                    domingos_mes[dia_numero] = 'Domingo'
 
     # Conteúdo visível por reserva (título etc.): calculado no servidor com a
     # mesma regra de leitura de reservations.detail para toda a visão corrente.
@@ -360,6 +381,8 @@ def availability(classroom_id):
         prev_date=prev_date, next_date=next_date,
         year=anchor.year, month=anchor.month,
         ids_legiveis=_ids_reservas_legiveis(reservas_visao),
+        feriados_mes=feriados_mes, feriados=feriados_visao,
+        domingos_mes=domingos_mes,
     )
 
 # Route to export a specific classroom's reservations to PDF, following the
