@@ -71,7 +71,8 @@ def _rotulo_disponibilidade_pdf(args):
     intervalo efetivamente aplicado, nunca o valor cru da URL. Devolve None
     quando não há períodos marcados — sem período a listagem não consulta
     reservas, então o PDF não pode afirmar que as salas estão 'livres'."""
-    if not (args.get('available_date') and _periodos_filtro(args)):
+    periodos = _periodos_filtro(args)
+    if not (args.get('available_date') and periodos):
         return None
     filter_date, filter_end = _intervalo_datas(args)
     if filter_end != filter_date:
@@ -79,7 +80,6 @@ def _rotulo_disponibilidade_pdf(args):
                   f"e {filter_end:%d/%m/%Y}")
     else:
         rotulo = f"Livres em {filter_date:%d/%m/%Y}"
-    periodos = _periodos_filtro(args)
     if len(periodos) == 1:
         rotulo += {'morning': ' pela manhã', 'afternoon': ' à tarde',
                    'evening': ' à noite'}[periodos[0]]
@@ -211,23 +211,24 @@ def list_classrooms():
 @bp.route('/search')
 @login_required
 def search():
-    classrooms = get_filtered_classrooms(request.args)
     categories = RoomCategory.query.filter_by(is_active=True).order_by(RoomCategory.name).all()
 
     # Check filters for alert message. Sem filtro a página fica limpa (sem
-    # cartões), então o texto do estado vazio sempre acompanha o filtro
-    # aplicado — não cita períodos/datas que o usuário não selecionou.
+    # cartões — nem consulta de salas), então o texto do estado vazio
+    # sempre acompanha o filtro aplicado — não cita períodos/datas que o
+    # usuário não selecionou.
     is_filtered = False
     filter_message = ""
     texto_vazio = 'Nenhuma sala livre nos períodos e datas selecionados.'
+    periodos_marcados = _periodos_filtro(request.args)
     if request.args.get('available_now'):
         is_filtered = True
         filter_message = "Mostrando salas disponíveis agora."
         texto_vazio = 'Nenhuma sala disponível agora.'
-    elif request.args.get('available_date') and _periodos_filtro(request.args):
+    elif request.args.get('available_date') and periodos_marcados:
         is_filtered = True
         periodos_txt = _juntar_nomes(
-            [PERIODOS_FILTRO[p][0] for p in _periodos_filtro(request.args)])
+            [PERIODOS_FILTRO[p][0] for p in periodos_marcados])
         # Datas no padrão da tela (dd/mm/aaaa), com as mesmas regras do
         # filtro (_intervalo_datas): fim ausente ou inválido vira busca de
         # dia único e fim antes do início é exibido na ordem cronológica
@@ -258,8 +259,9 @@ def search():
         texto_vazio = 'Nenhuma sala desse tipo.'
 
     # A pesquisa fica limpa até um filtro ser aplicado: sem filtro, nenhum
-    # cartão — só o bloco de filtros e o convite à pesquisa.
-    grouped_rooms = _group_by_floor(classrooms) if is_filtered else {}
+    # cartão — nem a consulta das salas, cujo resultado seria descartado.
+    grouped_rooms = (_group_by_floor(get_filtered_classrooms(request.args))
+                     if is_filtered else {})
 
     return render_template(
         'classrooms/search.html',
