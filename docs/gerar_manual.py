@@ -36,7 +36,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 # ---------------------------------------------------------------- constantes
 
-VERSAO = '1.40.0'
+VERSAO = '1.42.0'
 DATA_CAPA = 'Novembro de 2026'
 
 PAGINA_W, PAGINA_H = A4
@@ -495,31 +495,42 @@ BLOCOS = [
 
     # ================================================================ 5
     ('h1', '5. Salas e espaços'),
-    ('h2', '5.1 Consultar salas e disponibilidade'),
+    ('h2', '5.1 Consultar salas'),
     ('p', 'O menu <b>Salas</b> lista todas as salas ativas da unidade, agrupadas por andar. Cada '
           'cartão mostra nome, código, prédio, capacidade, categoria e o número de computadores '
-          '(quando aplicável).'),
-    ('p', 'Use os filtros do painel superior para encontrar a sala ideal:'),
-    ('ul', [
-        '<b>Data Disponível + Períodos</b> (caixas de seleção Manhã/Tarde/Noite) — mostra '
-        'apenas as salas livres na data, em todos os períodos marcados; marcar '
-        '<b>Manhã</b> e <b>Tarde</b>, por exemplo, exclui a sala que tiver qualquer aula em '
-        'qualquer um dos dois períodos;',
-        '<b>Tipo de Sala</b> — restringe a uma categoria;',
-        '<b>Mostrar apenas salas disponíveis AGORA</b> — filtra pelas salas livres no horário '
-        'corrente; o filtro é aplicado na hora em que é marcado ou desmarcado, sem depender do '
-        'botão Filtrar;',
-        'Clique em <b>Filtrar</b> para aplicar ou use a borracha para limpar os critérios.',
-    ]),
+          '(quando aplicável), com os botões <b>Detalhes</b> e <b>Disponibilidade</b>.'),
     ('p', 'Ações do topo da tela:'),
     ('ul', [
-        '<b>Exportar PDF</b> — baixa o relatório de salas com os filtros aplicados, no padrão '
-        'visual do SIGerE, com indicadores (salas listadas, capacidade total, salas com '
-        'computadores e prédios) e a tabela completa;',
+        '<b>Relatório</b> — abre o Relatório Geral de Salas e Reservas (seção 7.1), para quem '
+        'tem acesso a relatórios;',
         '<b>Adicionar Sala</b> — abertura do cadastro de sala (somente com permissão; '
         'seção 14.3).',
     ]),
-    ('h2', '5.2 Detalhes da sala'),
+    ('h2', '5.2 Pesquisar salas'),
+    ('p', 'A busca por critérios fica na página <b>Pesquisar Salas</b> (card no hub <b>Salas e '
+          'Reservas</b> ou endereço /classrooms/search). Sem filtro aplicado, a página mostra '
+          'apenas o bloco de filtros — os cartões do resultado aparecem depois de filtrar.'),
+    ('p', 'Filtros disponíveis:'),
+    ('ul', [
+        '<b>Disponível de / até</b> — intervalo de datas: a sala precisa estar livre nos '
+        'períodos marcados em <b>todos os dias</b> do intervalo; deixe a data final vazia para '
+        'buscar um único dia;',
+        '<b>Períodos</b> (caixas de seleção Manhã/Tarde/Noite) — marcar <b>Manhã</b> e '
+        '<b>Tarde</b>, por exemplo, exclui a sala que tiver qualquer reserva em qualquer um '
+        'dos dois períodos, em qualquer dia do intervalo;',
+        '<b>Tipo de Sala</b> — restringe a uma categoria;',
+        '<b>Mostrar apenas salas disponíveis AGORA</b> — filtra pelas salas livres no horário '
+        'corrente; o filtro é aplicado na hora em que é marcado ou desmarcado, sem depender do '
+        'botão Filtrar.',
+    ]),
+    ('p', 'Clique em <b>Filtrar</b> para aplicar (o botão habilita quando há critério '
+          'preenchido) ou use a borracha para limpar os critérios. O resultado vem com um '
+          'aviso descrevendo o filtro aplicado e os mesmos cartões da listagem.'),
+    ('p', 'Ação do topo da tela: <b>Exportar PDF</b> — baixa o relatório de salas com os '
+          'filtros aplicados (inclusive o intervalo de datas, descrito no cabeçalho do '
+          'relatório), no padrão visual do SIGerE, com indicadores (salas listadas, capacidade '
+          'total, salas com computadores e prédios) e a tabela completa.'),
+    ('h2', '5.3 Detalhes da sala'),
     ('p', 'Clique em <b>Detalhes</b> no cartão da sala para ver o tipo, a descrição e a tabela '
           'de <b>Próximas Reservas</b> (aprovadas e pendentes, de hoje em diante), em que cada '
           'linha tem o botão de detalhes (olho) que abre a reserva completa — para quem tem '
@@ -530,10 +541,14 @@ BLOCOS = [
         'permissão de criar reservas);',
         '<b>Editar</b> — cadastro da sala (somente com permissão de administração).',
     ]),
-    ('h2', '5.3 Disponibilidade e exportação'),
+    ('h2', '5.4 Disponibilidade e exportação'),
     ('p', 'A tela <b>Disponibilidade</b> exibe apenas reservas aprovadas, em três visualizações '
           'alternáveis pelos botões <b>Dia</b>, <b>Semana</b> e <b>Mês</b>. Use <b>Anterior</b> '
-          'e <b>Próximo</b> para navegar no calendário.'),
+          'e <b>Próximo</b> para navegar no calendário. Nas visões de <b>Semana</b> e <b>Mês</b>, '
+          'cada dia reservável ganha um <b>+</b> no canto oposto ao número: clicá-lo abre a '
+          'criação de reserva com a sala e a data do dia já preenchidas. Domingos e feriados '
+          'ativos da unidade ganham uma faixa com o nome e ficam sem o atalho; o sábado segue '
+          'reservável.'),
     ('p', 'Ao clicar em uma reserva — nas pílulas das visões de semana e mês, ou no botão '
           '<b>Detalhes</b> da visão de dia — um banner é exibido com o bloco de data (dia, ano e '
           'horário) ao lado do título, da situação, do curso, da disciplina, do professor, de '
