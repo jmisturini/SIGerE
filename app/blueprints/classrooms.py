@@ -64,6 +64,30 @@ def _intervalo_datas(args):
     return inicio, fim
 
 
+def _rotulo_disponibilidade_pdf(args):
+    """Rótulo 'Livres em/entre ...' da meta do PDF de salas, com as mesmas
+    regras do filtro da pesquisa (_intervalo_datas): o relatório descreve o
+    intervalo efetivamente aplicado, nunca o valor cru da URL. Devolve None
+    quando não há períodos marcados — sem período a listagem não consulta
+    reservas, então o PDF não pode afirmar que as salas estão 'livres'."""
+    if not (args.get('available_date') and _periodos_filtro(args)):
+        return None
+    filter_date, filter_end = _intervalo_datas(args)
+    if filter_end != filter_date:
+        rotulo = (f"Livres entre {filter_date:%d/%m/%Y} "
+                  f"e {filter_end:%d/%m/%Y}")
+    else:
+        rotulo = f"Livres em {filter_date:%d/%m/%Y}"
+    periodos = _periodos_filtro(args)
+    if len(periodos) == 1:
+        rotulo += {'morning': ' pela manhã', 'afternoon': ' à tarde',
+                   'evening': ' à noite'}[periodos[0]]
+    else:
+        nomes = _juntar_nomes([PERIODOS_FILTRO[p][0] for p in periodos])
+        rotulo += f" nos períodos de {nomes}"
+    return rotulo
+
+
 # Helper function to apply filters and return a query
 def get_filtered_classrooms(args):
     # Multi-unidade: apenas salas da unidade ativa
@@ -188,20 +212,17 @@ def search():
         periodos_txt = _juntar_nomes(
             [PERIODOS_FILTRO[p][0] for p in _periodos_filtro(request.args)])
         # Datas no padrão da tela (dd/mm/aaaa), com as mesmas regras do
-        # filtro: início inválido é exibido cru (escapado) e fim inválido
-        # é ignorado — vira busca de dia único. Fim antes do início é
-        # exibido na ordem cronológica real do intervalo aplicado.
+        # filtro (_intervalo_datas): fim ausente ou inválido vira busca de
+        # dia único e fim antes do início é exibido na ordem cronológica
+        # real. Início inválido é exibido cru (escapado), como sempre foi.
         inicio_str = request.args.get('available_date', '')
-        inicio = _parse_data_iso(inicio_str)
-        fim = _parse_data_iso(request.args.get('available_date_end', ''))
-        if inicio:
-            if fim and fim < inicio:
-                inicio, fim = fim, inicio
-            if fim and fim != inicio:
-                data_txt = (f"entre <strong>{inicio:%d/%m/%Y}</strong> "
+        if _parse_data_iso(inicio_str):
+            ini, fim = _intervalo_datas(request.args)
+            if fim != ini:
+                data_txt = (f"entre <strong>{ini:%d/%m/%Y}</strong> "
                             f"e <strong>{fim:%d/%m/%Y}</strong>")
             else:
-                data_txt = f"em <strong>{inicio:%d/%m/%Y}</strong>"
+                data_txt = f"em <strong>{ini:%d/%m/%Y}</strong>"
         else:
             data_txt = f"em <strong>{escape(inicio_str)}</strong>"
         # Todos os rótulos de período são femininos: o artigo único serve
@@ -215,8 +236,9 @@ def search():
         cat_name = escape(cat_obj.name) if cat_obj else "Categoria"
         filter_message = f"Mostrando apenas <strong>{cat_name}</strong>."
 
-    texto_vazio = ('Nenhuma sala livre nos períodos e datas selecionados.'
-                   if is_filtered else 'Não há salas ativas no sistema.')
+    # Só chega ao template com filtro ativo (sem filtro a página fica
+    # limpa, sem cartões), então o vazio é sempre do resultado filtrado.
+    texto_vazio = 'Nenhuma sala livre nos períodos e datas selecionados.'
 
     # A pesquisa fica limpa até um filtro ser aplicado: sem filtro, nenhum
     # cartão — só o bloco de filtros e o convite à pesquisa.
@@ -252,26 +274,10 @@ def export_pdf():
             filtros.append(f"Categoria: {cat_obj.name}")
     if request.args.get('available_now'):
         filtros.append("Livres agora")
-    elif request.args.get('available_date'):
-        # Mesmas regras do filtro (_intervalo_datas): início inválido cai no
-        # dia corrente e fim inválido é ignorado — vira dia único.
-        data_str = request.args.get('available_date')
-        filter_date, filter_end = _intervalo_datas(request.args)
-        if _parse_data_iso(data_str) is None:
-            rotulo = f"Livres em {data_str}"
-        elif filter_end != filter_date:
-            rotulo = (f"Livres entre {filter_date:%d/%m/%Y} "
-                      f"e {filter_end:%d/%m/%Y}")
-        else:
-            rotulo = f"Livres em {filter_date:%d/%m/%Y}"
-        periodos = _periodos_filtro(request.args)
-        if len(periodos) == 1:
-            rotulo += {'morning': ' pela manhã', 'afternoon': ' à tarde',
-                       'evening': ' à noite'}[periodos[0]]
-        elif periodos:
-            nomes = _juntar_nomes([PERIODOS_FILTRO[p][0] for p in periodos])
-            rotulo += f" nos períodos de {nomes}"
-        filtros.append(rotulo)
+    else:
+        rotulo = _rotulo_disponibilidade_pdf(request.args)
+        if rotulo:
+            filtros.append(rotulo)
     meta = " \u00b7 ".join(filtros) if filtros else "Todas as salas ativas da unidade"
     pdf.linha_meta(f"{len(classrooms)} salas \u00b7 {meta}")
 

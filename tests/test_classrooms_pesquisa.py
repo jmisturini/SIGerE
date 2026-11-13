@@ -14,10 +14,12 @@ import unittest
 from datetime import date, time, timedelta
 
 from app import create_app
+from app.blueprints.classrooms import _rotulo_disponibilidade_pdf
 from app.config import Config
 from app.extensions import db
 from app.models import (Classroom, Permission, Reservation, Role,
                         RoomCategory, Unity, User)
+from werkzeug.datastructures import MultiDict
 
 EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
@@ -195,6 +197,54 @@ class ClassroomsPesquisaTestCase(unittest.TestCase):
         response = self.client.get(f'/classrooms/export_pdf?{response.request.query_string.decode()}')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content_type, 'application/pdf')
+
+
+class RotuloDisponibilidadePdfTestCase(unittest.TestCase):
+    """Rótulo 'Livres...' da meta do PDF: existe só com períodos marcados e
+    descreve o intervalo efetivamente aplicado, nunca o valor cru da URL."""
+
+    def test_sem_periodo_nao_afirma_livres(self):
+        # Regressão (CodeRabbit): data + categoria sem período não consulta
+        # reservas na listagem — o PDF não pode afirmar que estão livres.
+        args = MultiDict([('available_date', '2026-11-16'),
+                          ('available_date_end', '2026-11-20'),
+                          ('category', '3')])
+        self.assertIsNone(_rotulo_disponibilidade_pdf(args))
+
+    def test_intervalo_com_periodo(self):
+        args = MultiDict([('available_date', '2026-11-16'),
+                          ('available_date_end', '2026-11-20'),
+                          ('available_period', 'morning')])
+        self.assertEqual(_rotulo_disponibilidade_pdf(args),
+                         'Livres entre 16/11/2026 e 20/11/2026 pela manhã')
+
+    def test_dia_unico_com_periodo(self):
+        args = MultiDict([('available_date', '2026-11-16'),
+                          ('available_period', 'evening')])
+        self.assertEqual(_rotulo_disponibilidade_pdf(args),
+                         'Livres em 16/11/2026 à noite')
+
+    def test_varios_periodos_no_rotulo(self):
+        args = MultiDict([('available_date', '2026-11-16'),
+                          ('available_period', 'morning'),
+                          ('available_period', 'afternoon')])
+        self.assertEqual(_rotulo_disponibilidade_pdf(args),
+                         'Livres em 16/11/2026 nos períodos de Manhã e Tarde')
+
+    def test_data_invalida_mostra_o_dia_aplicado(self):
+        # O filtro aplica o dia corrente quando o início é inválido — o
+        # rótulo segue o filtro real, não o valor cru da URL.
+        args = MultiDict([('available_date', 'nao-e-data'),
+                          ('available_period', 'morning')])
+        self.assertEqual(_rotulo_disponibilidade_pdf(args),
+                         f'Livres em {date.today():%d/%m/%Y} pela manhã')
+
+    def test_fim_antes_do_inicio_no_rotulo(self):
+        args = MultiDict([('available_date', '2026-11-20'),
+                          ('available_date_end', '2026-11-16'),
+                          ('available_period', 'morning')])
+        self.assertEqual(_rotulo_disponibilidade_pdf(args),
+                         'Livres entre 16/11/2026 e 20/11/2026 pela manhã')
 
 
 if __name__ == '__main__':
