@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% from '_cabecalho.html' import cabecalho_pagina %}
+{% from 'classrooms/_grid_salas.html' import grid_salas %}
+{% block title %}Pesquisar Salas{% endblock %}
+
+{% block content %}
+{% call cabecalho_pagina('Pesquisar Salas', 'Salas e Espaços', 'Filtre as salas da unidade por disponibilidade, período e tipo.') %}
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('classrooms.export_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+            <i class="bi bi-filetype-pdf me-1"></i> Exportar PDF
+        </a>
+    </div>
+{% endcall %}
+
+<form method="GET" id="filterForm" class="card mb-4">
+    <div class="card-body">
+        <!-- align-items-start: os rótulos das colunas nascem na mesma
+             altura; o select de períodos (3 linhas) pendura o texto de ajuda
+             abaixo de si sem empurrar os outros campos para baixo -->
+        <div class="row g-3 align-items-start">
+            <div class="col-md-2">
+                <label class="form-label small mb-1" for="available_date">Disponível de</label>
+                <input type="date" id="available_date" name="available_date" class="form-control" value="{{ request.args.get('available_date', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1" for="available_date_end">até <span class="text-muted fw-normal">(opcional)</span></label>
+                <input type="date" id="available_date_end" name="available_date_end" class="form-control"
+                       value="{{ request.args.get('available_date_end', '') }}"
+                       min="{{ request.args.get('available_date', '') }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Períodos</label>
+                <div class="d-flex flex-wrap gap-3 pt-2" role="group" aria-label="Períodos">
+                    {% for valor, rotulo in [('morning', 'Manhã'), ('afternoon', 'Tarde'), ('evening', 'Noite')] %}
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" name="available_period"
+                               id="period_{{ valor }}" value="{{ valor }}"
+                               {{ 'checked' if valor in request.args.getlist('available_period') }}>
+                        <label class="form-check-label" for="period_{{ valor }}">{{ rotulo }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="form-text">A sala precisa estar livre em todos os períodos marcados em todos os dias do intervalo.</div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Tipo de Sala</label>
+                <select id="category_select" name="category" class="form-select">
+                    <option value="">Todos os Tipos</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {{ 'selected' if selected_category == cat.id|string }}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                {# Rótulo invisível: ocupa a mesma altura dos títulos das outras colunas
+                   para o botão nascer alinhado com os campos, e não com os títulos #}
+                <label class="form-label small mb-1 invisible d-none d-md-inline-block" aria-hidden="true">&nbsp;</label>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="submit" id="filterBtn" class="btn btn-outline-primary flex-fill" disabled>
+                        <i class="bi bi-funnel me-1"></i> Filtrar
+                    </button>
+                    {% if is_filtered %}
+                    <a href="{{ url_for('classrooms.search') }}" class="btn btn-outline-secondary flex-fill" title="Limpar Filtros">
+                        <i class="bi bi-eraser"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-12 mt-3 border-top pt-3">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="available_now" name="available_now" value="true" {{ 'checked' if request.args.get('available_now') }}>
+                    <label class="form-check-label fw-medium" for="available_now">Mostrar apenas salas disponíveis AGORA</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+{% if is_filtered %}
+<div class="alert alert-primary-subtle text-primary border border-primary-subtle d-flex align-items-center mb-4" role="alert">
+    <i class="bi bi-info-circle-fill me-2"></i>
+    <div>{{ filter_message | safe }}</div>
+</div>
+
+{{ grid_salas(grouped_rooms, 'Nenhuma sala encontrada', texto_vazio) }}
+{% else %}
+{# Limpa até um filtro ser aplicado: convite à pesquisa no lugar dos cartões #}
+{{ grid_salas({}, 'Pesquise uma sala', 'Aplique os filtros acima para ver as salas da unidade.', 'bi-funnel') }}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('available_date');
+    const dateEndInput = document.getElementById('available_date_end');
+    const periodChecks = document.querySelectorAll('input[name="available_period"]');
+    const categorySelect = document.getElementById('category_select');
+    const nowCheckbox = document.getElementById('available_now');
+    const filterBtn = document.getElementById('filterBtn');
+    const filterForm = document.getElementById('filterForm');
+
+    function updateFilterBtn() {
+        const temPeriodo = Array.from(periodChecks).some(c => c.checked);
+        const hasDatePeriod = dateInput.value && temPeriodo;
+        const hasCategory = categorySelect.value !== '';
+        const hasNow = nowCheckbox.checked;
+        filterBtn.disabled = !(hasDatePeriod || hasCategory || hasNow);
+    }
+
+    // O fim do intervalo não pode nascer antes do início: o min acompanha
+    // a data inicial e o navegador barra a inversão no envio (o servidor
+    // troca as datas como rede de segurança).
+    function syncDataMinima() {
+        if (dateInput.value) {
+            dateEndInput.min = dateInput.value;
+        } else {
+            dateEndInput.removeAttribute('min');
+        }
+    }
+
+    updateFilterBtn();
+    syncDataMinima();
+    [dateInput, categorySelect, nowCheckbox, ...periodChecks].forEach(element => {
+        element.addEventListener('input', updateFilterBtn);
+        element.addEventListener('change', updateFilterBtn);
+    });
+    dateInput.addEventListener('change', syncDataMinima);
+
+    // Disponível agora: filtra ao marcar e também ao desmarcar — sem o
+    // checkbox, o GET sai sem o parâmetro e a listagem volta sem esse filtro.
+    nowCheckbox.addEventListener('change', function() {
+        filterForm.submit();
+    });
+});
+</script>
+{% endblock %}
