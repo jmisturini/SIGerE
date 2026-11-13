@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 from flask import (Blueprint, redirect, render_template, request,
                    make_response, abort, url_for)
 from flask_login import login_required, current_user
@@ -192,11 +194,13 @@ FILTROS_PESQUISA = frozenset({'available_date', 'available_date_end',
 @login_required
 def list_classrooms():
     # Bookmark ou link antigo da listagem com filtro continua válido:
-    # redireciona para a pesquisa com a query string intacta — parâmetros
-    # repetidos incluídos — em vez de exibir todas as salas sem feedback.
+    # redireciona para a pesquisa com a query recodificada via urlencode —
+    # os pares vêm de items(multi=True) (materializados em lista, pois o
+    # urlencode exige len) para preservar parâmetros repetidos, e a URL
+    # nasce bem formada mesmo se o endpoint ganhar defaults no futuro.
     if FILTROS_PESQUISA & request.args.keys():
         return redirect(url_for('classrooms.search')
-                        + '?' + request.query_string.decode())
+                        + '?' + urlencode(list(request.args.items(multi=True))))
 
     # Sem argumentos de filtro: todas as salas ativas da unidade
     classrooms = get_filtered_classrooms({})
