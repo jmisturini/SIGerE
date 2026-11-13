@@ -10,12 +10,44 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.41.0'
+APP_VERSION = '1.42.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.42.0',
+        'data': '2026-11-13',
+        'titulo': 'Pesquisa de salas em página própria com intervalo de '
+                  'datas',
+        'grupos': [
+            ('Adicionado', [
+                'Página "Pesquisar Salas" (card no hub Salas e Reservas): '
+                'o bloco de filtros da listagem virou busca própria, em '
+                '/classrooms/search, com o resultado em cartões abaixo dos '
+                'filtros e o botão Exportar PDF no topo — a página fica '
+                'limpa até um filtro ser aplicado, sem cartões nem consulta '
+                'desnecessária.',
+                'Filtro de intervalo de datas na pesquisa: além do dia '
+                'único de sempre, "Disponível de / até" aceita um '
+                'intervalo — a sala precisa estar livre nos períodos '
+                'marcados em todos os dias do intervalo; a data final '
+                'vazia vale dia único, datas invertidas são trocadas e o '
+                'relatório exportado descreve o intervalo no cabeçalho. '
+                'Sem período marcado, as datas continuam não filtrando.',
+            ]),
+            ('Alterado', [
+                'A página "Salas" virou vitrine: apenas os cartões das '
+                'salas agrupados por andar, com os botões Relatório e '
+                'Adicionar Sala — o bloco de filtros e o Exportar PDF '
+                'migraram para a Pesquisar Salas, que ganhou um card ao '
+                'lado de "Salas" no hub Salas e Reservas. Links antigos da '
+                'listagem com filtro continuam válidos: redirecionam para '
+                'a pesquisa aplicando os mesmos critérios.',
+            ]),
+        ],
+    },
     {
         'versao': '1.41.0',
         'data': '2026-11-13',
