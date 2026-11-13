@@ -21,6 +21,7 @@ sumário é resolvida com multiBuild (duas passagens automáticas).
 
 import os
 import sys
+import importlib.util
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
@@ -36,7 +37,19 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 # ---------------------------------------------------------------- constantes
 
-VERSAO = '1.42.0'
+# Versão lida de app/version.py — a fonte única do APP_VERSION, sem duplicar
+# o literal aqui (a cópia manual já divergiu uma vez: manual em 1.40.0 com o
+# app em 1.41.0). O módulo é carregado direto do arquivo para não importar o
+# pacote `app` — o __init__.py dele puxaria a fábrica Flask inteira, e o
+# script precisa rodar standalone (python docs/gerar_manual.py).
+_CAMINHO_VERSAO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               os.pardir, 'app', 'version.py')
+_spec_versao = importlib.util.spec_from_file_location('sigure_version',
+                                                      _CAMINHO_VERSAO)
+_modulo_versao = importlib.util.module_from_spec(_spec_versao)
+_spec_versao.loader.exec_module(_modulo_versao)
+VERSAO = _modulo_versao.APP_VERSION
+
 DATA_CAPA = 'Novembro de 2026'
 
 PAGINA_W, PAGINA_H = A4
