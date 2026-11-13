@@ -100,14 +100,19 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
                     {# Domingo e feriado não são reserváveis: faixa no lugar do +.
                        Sábado segue reservável, então mantém o atalho. #}
                     {% set bloqueio = feriado_nome or domingos_mes.get(day) %}
+                    {% set data_iso = '%04d-%02d-%02d' | format(year, month, day) %}
                     <div class="calendar-day {% if day == today.day and month == today.month and year == today.year %}today{% endif %}">
                         {% if bloqueio %}
                         <div class="faixa-dia {{ 'faixa-feriado' if feriado_nome else 'faixa-domingo' }}"
                              title="{{ bloqueio }}">{{ bloqueio }}</div>
                         {% endif %}
                         <div class="day-number">{{ day }}</div>
-                        {% if current_user.can_book and not bloqueio %}
-                        <a href="{{ url_for('reservations.create', classroom_id=classroom.id, date='%04d-%02d-%02d' | format(year, month, day)) }}"
+                        {# Sem atalho também para sala inativa e dia passado: o
+                           formulário de criação rejeitaria os dois no servidor
+                           (choices só de salas ativas, validate_date). #}
+                        {% if current_user.can_book and classroom.is_active
+                              and not bloqueio and data_iso >= today.isoformat() %}
+                        <a href="{{ url_for('reservations.create', classroom_id=classroom.id, date=data_iso) }}"
                            class="day-add" title="Reservar em {{ day }}/{{ month }}/{{ year }}"
                            aria-label="Reservar em {{ day }}/{{ month }}/{{ year }}">
                             <i class="bi bi-plus-lg" aria-hidden="true"></i>
@@ -149,7 +154,10 @@ data-link-visivel="{{ '1' if pode_ler else '0' }}"
                      title="{{ bloqueio }}">{{ bloqueio }}</div>
                 {% endif %}
                 <div class="day-number">{{ dia.day }}</div>
-                {% if current_user.can_book and not bloqueio %}
+                {# Mesma regra da visão mês: sala inativa ou dia passado não
+                   têm atalho (o formulário rejeitaria no servidor). #}
+                {% if current_user.can_book and classroom.is_active
+                      and not bloqueio and dia >= today %}
                 <a href="{{ url_for('reservations.create', classroom_id=classroom.id, date=dia.isoformat()) }}"
                    class="day-add" title="Reservar em {{ dia.strftime('%d/%m/%Y') }}"
                    aria-label="Reservar em {{ dia.strftime('%d/%m/%Y') }}">

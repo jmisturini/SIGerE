@@ -98,10 +98,12 @@ class AvailabilityBotaoReservarTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
     @staticmethod
-    def _dias_uteis_mes(ano, mes):
+    def _reservaveis_mes(ano, mes, desde):
+        """Dias do mês com atalho + : de `desde` (hoje) em diante, exceto
+        domingos (sábado conta — segue reservável)."""
         ultimo = calendar.monthrange(ano, mes)[1]
-        return [d for d in range(1, ultimo + 1)
-                if date(ano, mes, d).weekday() < 5]
+        return [d for d in range(desde, ultimo + 1)
+                if date(ano, mes, d).weekday() != 6]
 
     def test_mes_vem_atalhos_nos_dias_uteis_e_faixa_nos_domingos(self):
         hoje = date.today()
@@ -109,34 +111,44 @@ class AvailabilityBotaoReservarTestCase(unittest.TestCase):
         ultimo = calendar.monthrange(ano, mes)[1]
         domingos = [d for d in range(1, ultimo + 1)
                     if date(ano, mes, d).weekday() == 6]
-        sabados = [d for d in range(1, ultimo + 1)
-                   if date(ano, mes, d).weekday() == 5]
-        uteis = self._dias_uteis_mes(ano, mes)
+        reservaveis = self._reservaveis_mes(ano, mes, hoje.day)
 
         response = self.client.get(
             f'/classrooms/{self.room_id}/availability'
             f'?view=month&year={ano}&month={mes}&day={hoje.day}')
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
-        # Um atalho + por dia útil (sábado inclui; domingo não)
-        self.assertEqual(page.count('class="day-add"'), len(uteis) + len(sabados))
-        # Faixa de domingo em cada domingo (a contagem desconta o seletor CSS)
+        # Um atalho + por dia reservável a partir de hoje (dias passados não
+        # têm atalho; a contagem desconta o seletor CSS da faixa)
+        self.assertEqual(page.count('class="day-add"'), len(reservaveis))
+        # Faixa de domingo em cada domingo do mês, inclusive os passados
         self.assertEqual(page.count('faixa-dia faixa-domingo'), len(domingos))
-        # Primeiro dia útil tem o atalho com a data certa (& vem escapado)
-        d = uteis[0]
+        if not reservaveis:
+            # mês acabando num domingo: nada mais a conferir de atalhos
+            return
+        # Primeiro dia reservável tem o atalho com a data certa (& vem escapado)
+        d = reservaveis[0]
         self.assertIn(
             f'href="/reservations/create?classroom_id={self.room_id}'
             f'&amp;date={ano}-%02d-{d:02d}"' % mes,
             page)
-        # Domingo sem atalho; sábado com atalho
+        # Dia passado sem atalho
+        if hoje.day > 1:
+            passado = (f'&amp;date={ano}-%02d-{hoje.day - 1:02d}"' % mes)
+            self.assertNotIn(passado, page)
+        # Domingo sempre sem atalho
         self.assertNotIn(f'&amp;date={ano}-%02d-{domingos[0]:02d}"' % mes, page)
-        self.assertIn(f'&amp;date={ano}-%02d-{sabados[0]:02d}"' % mes, page)
+        # Sábado futuro com atalho
+        sabado = next((d for d in reservaveis if date(ano, mes, d).weekday() == 5),
+                      None)
+        if sabado:
+            self.assertIn(f'&amp;date={ano}-%02d-{sabado:02d}"' % mes, page)
 
     def test_semana_atalhos_nos_reservaveis_e_faixa_no_domingo(self):
         hoje = date.today()
         semana_inicio = hoje - timedelta(days=(hoje.weekday() + 1) % 7)
         dias = [semana_inicio + timedelta(days=i) for i in range(7)]
-        reservaveis = [d for d in dias if d.weekday() != 6]
+        reservaveis = [d for d in dias if d >= hoje and d.weekday() != 6]
 
         response = self.client.get(
             f'/classrooms/{self.room_id}/availability?view=week')
@@ -144,16 +156,23 @@ class AvailabilityBotaoReservarTestCase(unittest.TestCase):
         page = response.get_data(as_text=True)
         self.assertEqual(page.count('class="day-add"'), len(reservaveis))
         self.assertIn('faixa-dia faixa-domingo', page)
-        # domingo sem atalho, sábado com
+        # domingo e dia passado sem atalho, sábado futuro com
         domingo = semana_inicio
-        sabado = next(d for d in dias if d.weekday() == 5)
+        passados = [d for d in dias if d < hoje and d.weekday() != 6]
+        sabado = next((d for d in dias if d.weekday() == 5), None)
         self.assertNotIn(f'&amp;date={domingo.isoformat()}"', page)
-        self.assertIn(f'&amp;date={sabado.isoformat()}"', page)
+        if passados:
+            self.assertNotIn(f'&amp;date={passados[0].isoformat()}"', page)
+        if sabado is not None and sabado >= hoje:
+            self.assertIn(f'&amp;date={sabado.isoformat()}"', page)
 
     def test_feriado_da_unidade_ganha_faixa_e_perde_o_mais(self):
         hoje = date.today()
         ano, mes = hoje.year, hoje.month
-        data_feriado = date(ano, mes, self._dias_uteis_mes(ano, mes)[3])
+        # feriado num dia RESERVÁVEL futuro: precisa tirar um atalho existente
+        reservaveis = self._reservaveis_mes(ano, mes, hoje.day)
+        dia_alvo = reservaveis[0] if reservaveis else 1
+        data_feriado = date(ano, mes, dia_alvo)
 
         with self.app.app_context():
             outra = Unity(name='Outra Unidade', code='OU')
@@ -175,14 +194,31 @@ class AvailabilityBotaoReservarTestCase(unittest.TestCase):
         self.assertIn('Feriado Teste', page)
         # feriado de outra unidade não aparece
         self.assertNotIn('Feriado de Outra Unidade', page)
-        # sem atalho no feriado
+        # sem atalho no feriado; a contagem de atalhos cai um dia reservável
         self.assertNotIn(f'&amp;date={data_feriado.isoformat()}"', page)
-        # a contagem de atalhos cai um dia útil
-        uteis = self._dias_uteis_mes(ano, mes)
-        sabados = [d for d in range(1, calendar.monthrange(ano, mes)[1] + 1)
-                   if date(ano, mes, d).weekday() == 5]
         self.assertEqual(page.count('class="day-add"'),
-                         len(uteis) + len(sabados) - 1)
+                         len(reservaveis) - (1 if dia_alvo in reservaveis else 0))
+
+    def test_sala_inativa_nao_tem_atalho(self):
+        """Sala inativa continua com página de disponibilidade, mas sem
+        atalho — o formulário de criação lista só salas ativas. O mesmo
+        vale para o botão Reservar da página de detalhes."""
+        with self.app.app_context():
+            room = db.session.get(Classroom, self.room_id)
+            room.is_active = False
+            db.session.commit()
+
+        hoje = date.today()
+        response = self.client.get(
+            f'/classrooms/{self.room_id}/availability'
+            f'?view=month&year={hoje.year}&month={hoje.month}&day={hoje.day}')
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        self.assertNotIn('class="day-add"', page)
+
+        detalhes = self.client.get(f'/classrooms/{self.room_id}')
+        self.assertEqual(detalhes.status_code, 200)
+        self.assertNotIn('Reservar', detalhes.get_data(as_text=True))
 
     def test_criacao_recebe_a_data_do_atalho(self):
         """O destino do atalho preenche a data (e a sala) do formulário;
