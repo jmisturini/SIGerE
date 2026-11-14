@@ -1247,8 +1247,10 @@ BLOCOS = [
     ('passo', 'Editar, ativar/desativar, desbloquear e resetar senha'),
     ('ul', [
         '<b>Editar</b> (lápis) — ajusta dados, unidades, papel, módulos adicionais e status; o '
-        'tipo de perfil não muda após a criação. Preenchendo uma nova senha, o usuário será '
-        'obrigado a trocá-la no próximo login;',
+        '<b>Tipo de Perfil</b> também pode ser alterado (professor ↔ funcionário) — os campos '
+        'de vínculo se ajustam ao novo tipo (Departamento ou Setor/Função). Para um funcionário '
+        'que continua lecionando, marque <b>Também cadastrar como Professor</b>. Preenchendo '
+        'uma nova senha, o usuário será obrigado a trocá-la no próximo login;',
         '<b>Ativar/Desativar</b> — alterna o acesso do usuário sem apagar seus dados (contas '
         'desativadas não conseguem entrar). Ninguém consegue desativar a própria conta;',
         '<b>Desbloquear</b> — aparece quando a conta foi bloqueada por excesso de tentativas '
