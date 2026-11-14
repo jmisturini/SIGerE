@@ -589,7 +589,14 @@ def edit_overtime(overtime_id):
             flash('Erro: A Carga Horária Semanal deve ser maior que 0.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
-        if _professor_da_unidade_or_none(form.teacher.data) is None:
+        # O professor GRAVADO passa mesmo fora da unidade ativa: com a troca
+        # de perfil, desativação ou remoção de unidade, o vínculo dele com a
+        # unidade ativa pode ter acabado depois do lançamento — manter o
+        # histórico é deliberado (e igual ao Vale Alimentação, que não
+        # revalida). A checagem de escopo segue valendo para TROCA de
+        # professor: um POST forjado com id de outra unidade continua barrado.
+        professor = _professor_da_unidade_or_none(form.teacher.data)
+        if professor is None and form.teacher.data != overtime.teacher_id:
             flash('Erro: Professor inválido para a unidade ativa.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 

@@ -238,5 +238,78 @@ class FuncionarioProfessorPagamentosTestCase(unittest.TestCase):
                              prof_id)
 
 
+    _OVERTIME_POST = {
+        'teaching_level': 'Técnico', 'course_type': 'Técnico',
+        'weekly_workload_hours': '4', 'weekly_workload_minutes': '0',
+        'hourly_value': '50,00', 'budget_code': '123456789',
+        'shift': 'Matutino', 'justification': 'Aula extra',
+        'multiple_dates': '10',
+    }
+
+    def test_professor_gravado_sem_vinculo_permanece_na_edicao_hora_extra(self):
+        # O professor gravado pode ter PERDIDO o vínculo com a unidade ativa
+        # depois do lançamento (removido para outra unidade): manter o
+        # histórico é deliberado — salvar sem trocar o professor funciona —
+        # e uma TROCA para um professor de outra unidade segue barrada
+        # (política escolhida na rodada do CodeRabbit no PR #230; o Vale
+        # Alimentação já aceitava o gravado sem revalidação).
+        with self.app.app_context():
+            outra = Unity(name='Unidade Outra', code='OU')
+            db.session.add(outra)
+            db.session.flush()
+            prof = db.session.query(User).filter_by(
+                email='professor@escola.edu').first()
+            prof_id = prof.id
+            entrada = TeacherOvertimePay(
+                teacher_id=prof_id, unity_id=self.unity_id,
+                teaching_level='Técnico', weekly_workload=Decimal('4.00'),
+                hourly_value=Decimal('50.00'), budget_code='123456789',
+                shift='Matutino', multiple_dates='10',
+                justification='Aula extra', course_type='Técnico',
+                month_base=datetime.now().strftime('%Y-%m'))
+            db.session.add(entrada)
+            db.session.commit()
+            entrada_id = entrada.id
+            # professor segue ativo, mas com vínculo só na OUTRA unidade
+            prof.unities = [outra]
+            db.session.commit()
+        page = self.client.get(
+            f'/payments/overtime/edit/{entrada_id}').get_data(as_text=True)
+        self.assertIn(PROF_PURO, page)
+        payload = dict(self._OVERTIME_POST, teacher=str(prof_id))
+        response = self.client.post(
+            f'/payments/overtime/edit/{entrada_id}', data=payload,
+            follow_redirects=True)
+        self.assertIn('Alteração realizada!', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.get(TeacherOvertimePay, entrada_id).teacher_id,
+                             prof_id)
+        # troca para um professor de outra unidade: barrado. Ele não entra
+        # nas choices da unidade ativa (escopo) e o guarda de unidade
+        # (_professor_da_unidade_or_none) também o recusa — a combinação
+        # fecha o POST forjado com id de fora.
+        with self.app.app_context():
+            externa = Unity(name='Unidade Externa', code='EX')
+            db.session.add(externa)
+            db.session.flush()
+            externo = User(email='externo@escola.edu', full_name='Externo X',
+                           role='room', profile_type='teacher',
+                           unities=[externa], force_password_change=False,
+                           is_active_user=True)
+            externo.set_password(PASSWORD)
+            db.session.add(externo)
+            db.session.commit()
+            externo_id = externo.id
+        payload = dict(self._OVERTIME_POST, teacher=str(externo_id))
+        response = self.client.post(
+            f'/payments/overtime/edit/{entrada_id}', data=payload,
+            follow_redirects=True)
+        self.assertNotIn('Alteração realizada!',
+                         response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.get(TeacherOvertimePay, entrada_id).teacher_id,
+                             prof_id)
+
+
 if __name__ == '__main__':
     unittest.main()
