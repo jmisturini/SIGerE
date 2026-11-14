@@ -10,11 +10,14 @@ o cronograma já as listava (padrão união profile_type | is_teacher).
 import os
 import tempfile
 import unittest
+from datetime import datetime
+from decimal import Decimal
 
 from app import create_app
 from app.config import Config
 from app.extensions import db
-from app.models import Permission, Role, Unity, User
+from app.models import (Permission, Role, TeacherMealAllowance,
+                        TeacherOvertimePay, Unity, User)
 
 EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
@@ -45,8 +48,8 @@ class FuncionarioProfessorPagamentosTestCase(unittest.TestCase):
             db.session.add(self.unity)
             db.session.flush()
 
-            codigos = ['payment:read', 'payment:create', 'meal:read', 'meal:create',
-                       'user:edit']
+            codigos = ['payment:read', 'payment:create', 'payment:edit',
+                       'meal:read', 'meal:create', 'meal:edit', 'user:edit']
             perms = [Permission(code=c, module=c.split(':')[0], action=c.split(':')[1])
                      for c in codigos]
             db.session.add_all(perms)
@@ -170,6 +173,69 @@ class FuncionarioProfessorPagamentosTestCase(unittest.TestCase):
         page = formulario.get_data(as_text=True)
         self.assertIn(PROF_PURO, page)
         self.assertIn(FUNC_PROF, page)
+
+    # ---------- Edição de lançamentos com professor fora da união ----------
+
+    def test_professor_fora_da_uniao_permanece_na_edicao_hora_extra(self):
+        # Lançamento gravado para o professor que depois deixa de ser
+        # professor (troca de perfil): a edição precisa mantê-lo entre as
+        # choices. Sem isso, o GET não marca opção alguma e o navegador
+        # reenvia o primeiro da lista — salvar reatribuiria o lançamento
+        # em silêncio (achado do CodeRabbit no PR #228).
+        with self.app.app_context():
+            prof_id = db.session.query(User).filter_by(
+                email='professor@escola.edu').first().id
+            entrada = TeacherOvertimePay(
+                teacher_id=prof_id, unity_id=self.unity_id,
+                teaching_level='Técnico', weekly_workload=Decimal('4.00'),
+                hourly_value=Decimal('50.00'), budget_code='123456789',
+                shift='Matutino', multiple_dates='10',
+                justification='Aula extra', course_type='Técnico',
+                month_base=datetime.now().strftime('%Y-%m'))
+            db.session.add(entrada)
+            db.session.commit()
+            entrada_id = entrada.id
+        self._editar(prof_id, profile_type='employee', sector='Secretaria',
+                     function='Apoio')
+        page = self.client.get(f'/payments/overtime/edit/{entrada_id}').get_data(as_text=True)
+        self.assertIn(PROF_PURO, page)
+        response = self.client.post(f'/payments/overtime/edit/{entrada_id}', data={
+            'teacher': str(prof_id), 'teaching_level': 'Técnico',
+            'course_type': 'Técnico', 'weekly_workload_hours': '4',
+            'weekly_workload_minutes': '0', 'hourly_value': '50,00',
+            'budget_code': '123456789', 'shift': 'Matutino',
+            'justification': 'Aula extra', 'multiple_dates': '10',
+        }, follow_redirects=True)
+        self.assertIn('Alteração realizada!', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.get(TeacherOvertimePay, entrada_id).teacher_id,
+                             prof_id)
+
+    def test_professor_fora_da_uniao_permanece_na_edicao_vale(self):
+        # Mesma regra na edição do Vale Alimentação.
+        with self.app.app_context():
+            prof_id = db.session.query(User).filter_by(
+                email='professor@escola.edu').first().id
+            entrada = TeacherMealAllowance(
+                teacher_id=prof_id, unity_id=self.unity_id, days=5,
+                month_base=datetime.now().strftime('%Y-%m'))
+            db.session.add(entrada)
+            db.session.commit()
+            entrada_id = entrada.id
+        self._editar(prof_id, profile_type='employee', sector='Secretaria',
+                     function='Apoio')
+        page = self.client.get(
+            f'/payments/meal-allowance/{entrada_id}/edit').get_data(as_text=True)
+        self.assertIn(PROF_PURO, page)
+        response = self.client.post(
+            f'/payments/meal-allowance/{entrada_id}/edit',
+            data={'teacher': str(prof_id),
+                  'month_base': datetime.now().strftime('%Y-%m'), 'days': '6'},
+            follow_redirects=True)
+        self.assertIn('Alteração realizada!', response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.get(TeacherMealAllowance, entrada_id).teacher_id,
+                             prof_id)
 
 
 if __name__ == '__main__':
