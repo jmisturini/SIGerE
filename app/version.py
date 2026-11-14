@@ -10,12 +10,38 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.42.0'
+APP_VERSION = '1.43.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.43.0',
+        'data': '2026-11-14',
+        'titulo': 'Alteração de perfil do usuário na edição',
+        'grupos': [
+            ('Alterado', [
+                'A edição de usuários (Painel Admin → Usuários) agora '
+                'permite trocar o tipo de perfil — Professor ↔ Funcionário '
+                '— depois do cadastro, para atender à mudança de função '
+                'dentro da instituição. Ao trocar, os campos de vínculo se '
+                'ajustam ao novo tipo: professor grava Departamento; '
+                'funcionário grava Setor e Função, com a marcação "Também '
+                'cadastrar como Professor" para quem continua lecionando. '
+                'Os campos do perfil anterior são zerados e o papel legado '
+                'acompanha o perfil. As listas de professores (reservas, '
+                'agenda, relatórios, Hora Extra, Vale Alimentação, '
+                'Adicional Noturno e busca pública) refletem a troca na '
+                'hora.',
+                'Na edição de Hora Extra e Vale Alimentação, o professor '
+                'gravado no lançamento permanece selecionável mesmo que a '
+                'conta tenha deixado de ser professor (troca de perfil ou '
+                'desativação) — antes, salvar sem mexer no seletor podia '
+                'reatribuir o lançamento ao primeiro professor da lista.',
+            ]),
+        ],
+    },
     {
         'versao': '1.42.0',
         'data': '2026-11-13',
