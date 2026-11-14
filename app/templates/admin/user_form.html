@@ -27,12 +27,7 @@
 
                         <div class="col-md-4">
                             {{ form.profile_type.label(class="form-label small mb-1") }}
-                            {% if modo_edicao %}
-                            {{ form.profile_type(class="form-select", disabled=True) }}
-                            <div class="form-text small">O tipo de perfil não pode ser alterado.</div>
-                            {% else %}
                             {{ form.profile_type(class="form-select") }}
-                            {% endif %}
                             {% for err in form.profile_type.errors %}<div class="text-danger small mt-1">{{ err }}</div>{% endfor %}
                         </div>
 
