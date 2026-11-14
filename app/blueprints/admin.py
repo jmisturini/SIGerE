@@ -292,15 +292,27 @@ def _preparar_form_usuario(form):
 
 def _aplicar_perfil(user, form, profile):
     """Grava os campos dependentes do perfil. O papel legado (coluna role) é
-    derivado do profile_type pelo mapa único ROLE_POR_PERFIL (app.models)."""
+    derivado do profile_type pelo mapa único ROLE_POR_PERFIL (app.models).
+    Quando o perfil muda (cadastro ou troca na edição), os campos do perfil
+    anterior são zerados — sem isso, um professor tornado funcionário ficaria
+    com department órfão (e vice-versa). Ao apenas editar mantendo o perfil,
+    nada é zerado: dados legados de importação (ex. setor em professor) são
+    preservados. Em criação user.profile_type ainda é None e os campos já
+    nascem vazios, então a limpeza não tem efeito."""
+    troca = profile != user.profile_type
     user.profile_type = profile
     user.role = ROLE_POR_PERFIL[profile]
     if profile == 'teacher':
         user.department = form.department.data
+        if troca:
+            user.sector = user.function = None
+            user.is_teacher = False
     else:
         user.sector = form.sector.data
         user.function = form.function.data
         user.is_teacher = form.is_teacher.data
+        if troca:
+            user.department = None
 
 
 @bp.route('/users/create', methods=['GET', 'POST'])
@@ -407,16 +419,25 @@ def edit_user(user_id):
             user.role_id = form.role_id.data
             user.extra_roles = Role.query.filter(Role.id.in_(form.extra_roles.data)).all()
 
-            # O perfil não muda na edição (seletor desabilitado no template);
-            # passar o profile persistido evita que um POST forjado o altere.
-            _aplicar_perfil(user, form, user.profile_type)
+            # O perfil agora é editável: o seletor segue habilitado e a troca
+            # professor ↔ funcionário re-deriva o papel legado e ajusta os
+            # campos de vínculo (_aplicar_perfil). A validação do SelectField
+            # cobre POST forjado: só passa 'teacher'/'employee' — valor
+            # ausente ou estranho cai no DataRequired "Selecione o tipo".
+            perfil_anterior = user.profile_type
+            _aplicar_perfil(user, form, form.profile_type.data)
 
             if form.password.data:
                 user.set_password(form.password.data)
                 user.force_password_change = True
             db.session.commit()
-            auditar('usuario_editado', alvo=user.email,
-                    senha_alterada='sim' if form.password.data else 'nao')
+            campos_auditoria = dict(
+                alvo=user.email,
+                senha_alterada='sim' if form.password.data else 'nao',
+                perfil=user.profile_type)
+            if perfil_anterior != user.profile_type:
+                campos_auditoria['perfil_anterior'] = perfil_anterior
+            auditar('usuario_editado', **campos_auditoria)
             flash('Usuário atualizado com sucesso.', 'success')
             return redirect_preserving_args('admin.list_users')
     return render_template('admin/user_form.html', form=form,

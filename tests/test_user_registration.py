@@ -237,9 +237,9 @@ class UserRegistrationTestCase(unittest.TestCase):
         self.assertNotIn('Editar Teacher', teacher_page)
         self.assertIn('Editar Funcionário', employee_page)
         self.assertNotIn('Editar Employee', employee_page)
-        # Na edição o seletor de perfil fica desabilitado (tipo imutável).
+        # Na edição o seletor de perfil segue HABILITADO (perfil editável).
         seletor = re.search(r'<select[^>]*name="profile_type"[^>]*>', teacher_page).group(0)
-        self.assertIn('disabled', seletor)
+        self.assertNotIn('disabled', seletor)
 
     # ---------- Formulário unificado: mapeamento perfil → papel legado ----------
 
@@ -391,21 +391,100 @@ class UserRegistrationTestCase(unittest.TestCase):
             user = db.session.get(User, user_id)
             self.assertEqual(user.full_name, 'Senac T.I. 2')
 
-    def test_edicao_nao_altera_perfil_mesmo_com_post_forjado(self):
-        # O seletor de perfil vem desabilitado na edição: um POST tentando
-        # trocar profile_type não pode mudar o perfil persistido.
+    # ---------- Edição: troca de perfil (professor ↔ funcionário) ----------
+
+    def test_edicao_altera_perfil_professor_para_funcionario(self):
+        # A situação levantada em testes: um professor que se torna funcionário.
+        # A troca re-deriva o papel legado, grava setor/função e limpa o
+        # departamento que só fazia sentido no perfil antigo.
         self.client.post('/admin/users/create-teacher', data=self._payload())
         with self.app.app_context():
             user_id = db.session.query(User).filter_by(email='maria.souza@escola.edu').first().id
-        self.client.post(f'/admin/users/{user_id}/edit',
-                         data=self._payload(profile_type='employee', sector='Zeladoria',
-                                            function='Auxiliar'),
-                         follow_redirects=True)
+        response = self.client.post(f'/admin/users/{user_id}/edit',
+                                    data=self._payload(profile_type='employee',
+                                                       sector='Zeladoria',
+                                                       function='Auxiliar',
+                                                       password=''),
+                                    follow_redirects=True)
+        self.assertIn('Usuário atualizado com sucesso', response.get_data(as_text=True))
+        with self.app.app_context():
+            user = db.session.get(User, user_id)
+            self.assertEqual(user.profile_type, 'employee')
+            self.assertEqual(user.role, 'viewer')
+            self.assertEqual(user.sector, 'Zeladoria')
+            self.assertEqual(user.function, 'Auxiliar')
+            self.assertIsNone(user.department)
+            self.assertFalse(user.is_teacher)
+
+    def test_edicao_altera_perfil_funcionario_para_professor(self):
+        # Caminho inverso: funcionário promovido a professor — setor/função e
+        # a marcação is_teacher (que só fazem sentido em funcionário) são
+        # zerados, e o papel legado volta a 'room'.
+        self.client.post('/admin/users/create-employee',
+                         data=self._payload(email='joao.pereira@escola.edu',
+                                            full_name='João Pereira',
+                                            registration='FUN001',
+                                            department=None,
+                                            sector='Cozinha', function='Auxiliar',
+                                            is_teacher='y'))
+        with self.app.app_context():
+            user_id = db.session.query(User).filter_by(
+                email='joao.pereira@escola.edu').first().id
+        response = self.client.post(f'/admin/users/{user_id}/edit',
+                                    data=self._payload(profile_type='teacher',
+                                                       email='joao.pereira@escola.edu',
+                                                       full_name='João Pereira',
+                                                       registration='FUN001',
+                                                       department='Gastronomia',
+                                                       password=''),
+                                    follow_redirects=True)
+        self.assertIn('Usuário atualizado com sucesso', response.get_data(as_text=True))
         with self.app.app_context():
             user = db.session.get(User, user_id)
             self.assertEqual(user.profile_type, 'teacher')
             self.assertEqual(user.role, 'room')
+            self.assertEqual(user.department, 'Gastronomia')
             self.assertIsNone(user.sector)
+            self.assertIsNone(user.function)
+            self.assertFalse(user.is_teacher)
+
+    def test_edicao_valor_perfil_invalido_rejeitado(self):
+        # A proteção contra POST forjado agora vem do SelectField: só
+        # 'teacher'/'employee' passam — um valor estranho reprova a validação
+        # e não altera nada (a mensagem de choice inválida é a padrão do
+        # WTForms, igual aos outros selects do app, ex. role_id).
+        self.client.post('/admin/users/create-teacher', data=self._payload())
+        with self.app.app_context():
+            user_id = db.session.query(User).filter_by(email='maria.souza@escola.edu').first().id
+        response = self.client.post(f'/admin/users/{user_id}/edit',
+                                    data=self._payload(profile_type='admin',
+                                                       password=''),
+                                    follow_redirects=True)
+        self.assertNotIn('Usuário atualizado com sucesso', response.get_data(as_text=True))
+        with self.app.app_context():
+            user = db.session.get(User, user_id)
+            self.assertEqual(user.profile_type, 'teacher')
+            self.assertEqual(user.role, 'room')
+            self.assertEqual(user.department, 'Informática')
+
+    def test_edicao_mantendo_perfil_preserva_campos(self):
+        # Editar sem trocar o perfil não pode zerar os campos do outro perfil:
+        # a importação legada gravou setor em professor e isso deve sobreviver.
+        self.client.post('/admin/users/create-teacher', data=self._payload())
+        with self.app.app_context():
+            user_id = db.session.query(User).filter_by(email='maria.souza@escola.edu').first().id
+            db.session.get(User, user_id).sector = 'Secretaria (legado)'
+            db.session.commit()
+        response = self.client.post(f'/admin/users/{user_id}/edit',
+                                    data=self._payload(profile_type='teacher',
+                                                       password=''),
+                                    follow_redirects=True)
+        self.assertIn('Usuário atualizado com sucesso', response.get_data(as_text=True))
+        with self.app.app_context():
+            user = db.session.get(User, user_id)
+            self.assertEqual(user.profile_type, 'teacher')
+            self.assertEqual(user.sector, 'Secretaria (legado)')
+            self.assertEqual(user.department, 'Informática')
 
 
 class UsersListVisibilityTestCase(unittest.TestCase):

@@ -232,6 +232,19 @@ def _teachers_for_current_unity():
         User.escopo_unidade(uid)
     ).order_by(User.full_name).all()
 
+
+def _choices_com_gravado(choices, teacher_id):
+    """Mantém o professor gravado do lançamento entre as choices da edição.
+    Ele pode ter saído da lista de professores da unidade (conta desativada
+    ou troca de perfil na edição de usuários): sem isso, o GET não marca
+    opção alguma e o navegador reenvia o primeiro da lista — salvar
+    reatribuiria o lançamento em silêncio."""
+    if teacher_id and teacher_id not in dict(choices):
+        gravado = db.session.get(User, teacher_id)
+        if gravado is not None:
+            choices = list(choices) + [(gravado.id, gravado.full_name)]
+    return choices
+
 def format_budget_code(value):
     """Aplica a máscara de pontos ao Código Orçamentário.
 
@@ -546,7 +559,9 @@ def edit_overtime(overtime_id):
         return redirect(url_for('main.hub_financeiro_rh'))
 
     form = FormTeacherOvertimePay(obj=overtime)
-    form.teacher.choices = [(t.id, t.full_name) for t in _teachers_for_current_unity()]
+    form.teacher.choices = _choices_com_gravado(
+        [(t.id, t.full_name) for t in _teachers_for_current_unity()],
+        overtime.teacher_id)
 
     # Mês ao qual pertencem os dias gravados (dates_month, ou o mês base nos
     # lançamentos antigos): usado no POST e na reexibição do calendário.
@@ -574,7 +589,14 @@ def edit_overtime(overtime_id):
             flash('Erro: A Carga Horária Semanal deve ser maior que 0.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
-        if _professor_da_unidade_or_none(form.teacher.data) is None:
+        # O professor GRAVADO passa mesmo fora da unidade ativa: com a troca
+        # de perfil, desativação ou remoção de unidade, o vínculo dele com a
+        # unidade ativa pode ter acabado depois do lançamento — manter o
+        # histórico é deliberado (e igual ao Vale Alimentação, que não
+        # revalida). A checagem de escopo segue valendo para TROCA de
+        # professor: um POST forjado com id de outra unidade continua barrado.
+        professor = _professor_da_unidade_or_none(form.teacher.data)
+        if professor is None and form.teacher.data != overtime.teacher_id:
             flash('Erro: Professor inválido para a unidade ativa.', 'danger')
             return redirect(url_for('payments.edit_overtime', overtime_id=overtime_id))
 
@@ -896,7 +918,7 @@ def edit_meal_allowance(entry_id):
     professor), recarregando o vínculo professor/unidade do registro."""
     entry = _get_meal_scoped(entry_id)
     form = FormValeAlimentacao(obj=entry)
-    form.teacher.choices = _meal_choices()
+    form.teacher.choices = _choices_com_gravado(_meal_choices(), entry.teacher_id)
     form.month_base.choices = _meses_opcoes(entry.unity_id or current_unity_id())
 
     if request.method == 'GET':
