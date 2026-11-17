@@ -151,9 +151,12 @@ def upgrade():
     for nome, tabela, colunas, kwargs in INDICES:
         if tabela not in tabelas:
             continue  # instalação antiga sem esta tabela
-        if nome in {i['name'] for i in inspector.get_indexes(tabela)}:
-            continue  # índice já existe (migração idempotente)
-        op.create_index(nome, tabela, colunas, **kwargs)
+        # if_not_exists em vez de reflexão por inspector: o SQLite omite
+        # índices de expressão (ex.: idx_users_email_lower) de get_indexes(),
+        # e a checagem por reflexão quebraria o ciclo
+        # upgrade → downgrade → upgrade (índice "invisível" recriado em
+        # duplicata).
+        op.create_index(nome, tabela, colunas, if_not_exists=True, **kwargs)
 
 
 def downgrade():
@@ -162,6 +165,7 @@ def downgrade():
     for nome, tabela, _, _ in reversed(INDICES):
         if tabela not in tabelas:
             continue
-        if nome not in {i['name'] for i in inspector.get_indexes(tabela)}:
-            continue
-        op.drop_index(nome, tabela)
+        # if_exists: mesmo motivo do if_not_exists acima — índice de
+        # expressão não aparece na reflexão do SQLite e o DROP por nome
+        # falharia nele.
+        op.drop_index(nome, tabela, if_exists=True)
