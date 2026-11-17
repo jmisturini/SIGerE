@@ -992,6 +992,16 @@ def repeat_schedule_all(reservation_id):
     criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
 
     with slot_locks(res.classroom_id, range_dates):
+        # Sala e feriados pré-carregados em 2 consultas — em vez de 2 queries
+        # por dia do intervalo. O horário é fixo no lote, então a sobreposição
+        # de janela entra direto no SQL (mesmo caminho do GET da tela
+        # Repetir). A sala é protegida pelo slot lock do intervalo: nenhuma
+        # reserva concorrente grava nessas (sala, data) sem o mesmo lock, e
+        # feriados não concorrem com gravação de reservas.
+        room_dates, _, holiday_names = _load_range_occupancy(
+            res.classroom_id, None, start_date, end_date,
+            current_unity_id(), res.start_time, res.end_time)
+
         while current_date <= end_date:
             if same_day and current_date.weekday() != original_weekday:
                 current_date += timedelta(days=1)
@@ -1004,14 +1014,36 @@ def repeat_schedule_all(reservation_id):
                     current_date += timedelta(days=1)
                     continue
 
-            allowed, _ = check_schedule_restrictions(current_date, res.start_time, res.end_time)
+            # Mesmas regras de check_schedule_restrictions (domingo, feriado
+            # da unidade e sábado após 18h), com os feriados já pré-carregados.
+            if current_date.weekday() == 6:
+                allowed = False
+            elif current_date in holiday_names:
+                allowed = False
+            elif current_date.weekday() == 5 and (res.start_time >= time(18, 0)
+                                                  or res.end_time > time(18, 0)):
+                allowed = False
+            else:
+                allowed = True
+
             if allowed:
-                conflict = check_conflict(res.classroom_id, current_date, res.start_time, res.end_time)
+                conflict = current_date in room_dates
                 if not conflict:
+                    # Docente revalidado por data no momento da gravação (em
+                    # vez de snapshot pré-lote): uma reserva concorrente em
+                    # OUTRA sala para o mesmo docente não passa por este slot
+                    # lock, então a pré-carga do docente ficaria obsoleta até
+                    # o fim do lote. Sala e feriados podem ser pré-carregados
+                    # porque o lock cobre a dimensão (sala, data).
                     teacher_conflict = False
+                    excede = False
                     if res.teacher_id:
                         teacher_conflict = check_teacher_conflict(
-                            res.teacher_id, current_date, res.start_time, res.end_time) is not None
+                            res.teacher_id, current_date,
+                            res.start_time, res.end_time) is not None
+                        if not teacher_conflict:
+                            excede = teacher_exceeds_daily_limit(
+                                res.teacher_id, current_date)
                     if not teacher_conflict:
                         # Série de repetição: origem e geradas no mesmo grupo.
                         # Carga docente: a repetição que leva o professor além
@@ -1019,9 +1051,6 @@ def repeat_schedule_all(reservation_id):
                         # de aprovada — conflito de horário segue pulando o dia.
                         if res.repeat_group_id is None:
                             res.repeat_group_id = res.id
-                        excede = (res.teacher_id is not None
-                                  and teacher_exceeds_daily_limit(
-                                      res.teacher_id, current_date))
                         new_res = Reservation(
                             user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
                             subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
