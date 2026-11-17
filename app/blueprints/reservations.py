@@ -1,7 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
 from contextlib import ExitStack
-from sqlalchemy import func
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm, _PADRAO_TEXTO
@@ -993,26 +992,15 @@ def repeat_schedule_all(reservation_id):
     criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
 
     with slot_locks(res.classroom_id, range_dates):
-        # Ocupação do intervalo pré-carregada (sala, docente, feriados e carga
-        # diária) em 4 consultas — em vez de ~4 queries por dia do intervalo.
-        # O horário é fixo no lote, então a sobreposição de janela entra direto
-        # no SQL (mesmo caminho do GET da tela Repetir). Cada data do intervalo
-        # é avaliada uma única vez, então as reservas criadas aqui não mudam
-        # os resultados: nenhum dia é reavaliado depois de gravado.
-        room_dates, teacher_dates, holiday_names = _load_range_occupancy(
-            res.classroom_id, res.teacher_id, start_date, end_date,
+        # Sala e feriados pré-carregados em 2 consultas — em vez de 2 queries
+        # por dia do intervalo. O horário é fixo no lote, então a sobreposição
+        # de janela entra direto no SQL (mesmo caminho do GET da tela
+        # Repetir). A sala é protegida pelo slot lock do intervalo: nenhuma
+        # reserva concorrente grava nessas (sala, data) sem o mesmo lock, e
+        # feriados não concorrem com gravação de reservas.
+        room_dates, _, holiday_names = _load_range_occupancy(
+            res.classroom_id, None, start_date, end_date,
             current_unity_id(), res.start_time, res.end_time)
-        # A carga diária conta TODAS as reservas ativas do docente no dia,
-        # sem filtro de horário — diferente da janela de sobreposição acima
-        # (mesmo critério de teacher_exceeds_daily_limit).
-        carga_por_dia = {}
-        if res.teacher_id:
-            carga_por_dia = dict(db.session.query(
-                Reservation.date, func.count(Reservation.id)).filter(
-                Reservation.teacher_id == res.teacher_id,
-                Reservation.date >= start_date, Reservation.date <= end_date,
-                Reservation.status.in_(['approved', 'pending']),
-            ).group_by(Reservation.date).all())
 
         while current_date <= end_date:
             if same_day and current_date.weekday() != original_weekday:
@@ -1041,8 +1029,21 @@ def repeat_schedule_all(reservation_id):
             if allowed:
                 conflict = current_date in room_dates
                 if not conflict:
-                    teacher_conflict = (res.teacher_id is not None
-                                        and current_date in teacher_dates)
+                    # Docente revalidado por data no momento da gravação (em
+                    # vez de snapshot pré-lote): uma reserva concorrente em
+                    # OUTRA sala para o mesmo docente não passa por este slot
+                    # lock, então a pré-carga do docente ficaria obsoleta até
+                    # o fim do lote. Sala e feriados podem ser pré-carregados
+                    # porque o lock cobre a dimensão (sala, data).
+                    teacher_conflict = False
+                    excede = False
+                    if res.teacher_id:
+                        teacher_conflict = check_teacher_conflict(
+                            res.teacher_id, current_date,
+                            res.start_time, res.end_time) is not None
+                        if not teacher_conflict:
+                            excede = teacher_exceeds_daily_limit(
+                                res.teacher_id, current_date)
                     if not teacher_conflict:
                         # Série de repetição: origem e geradas no mesmo grupo.
                         # Carga docente: a repetição que leva o professor além
@@ -1050,9 +1051,6 @@ def repeat_schedule_all(reservation_id):
                         # de aprovada — conflito de horário segue pulando o dia.
                         if res.repeat_group_id is None:
                             res.repeat_group_id = res.id
-                        excede = (res.teacher_id is not None
-                                  and carga_por_dia.get(current_date, 0)
-                                  >= TEACHER_DAILY_RESERVATION_LIMIT)
                         new_res = Reservation(
                             user_id=current_user.id, classroom_id=res.classroom_id, course_id=res.course_id,
                             subject_id=res.subject_id, teacher_id=res.teacher_id, title=res.title,
