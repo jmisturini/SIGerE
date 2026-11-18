@@ -622,14 +622,16 @@ venv/bin/flask --app run backup --no-upload  # só o arquivo local (teste)
   (teto, padrão `45`; `0` desliga o teto) sobrevive, nem semanal. A política
   vale para a pasta local (`BACKUP_DIR`, padrão `backups/`) e para os objetos
   do bucket. `BACKUP_DAILY_KEEP`/`BACKUP_WEEKLY_KEEP` em `0` desligam cada
-  nível; ambos em `0` com teto `0` mantém tudo para sempre.
+  nível; ambos em `0` com teto `0` mantém tudo para sempre — e com teto
+  ativo, a retenção nunca apaga tudo: sobra ao menos o backup mais recente.
 
 #### Conferir que o backup volta (verify-restore)
 
 Backup que nunca foi restaurado não é backup — é esperança. O comando
 `flask --app run verify-restore` restaura o snapshot mais recente — da nuvem,
 quando `BACKUP_S3_BUCKET` está definido (é a cópia fora do servidor que
-precisa voltar) — num banco descartável separado e compara com a produção:
+precisa voltar; sem objetos no bucket, cai para a pasta local) — num banco
+descartável separado e compara com a produção:
 todas as tabelas precisam existir e as contagens de linhas precisam bater
 (`--tolerancia N` aceita desvio de até N linhas por tabela; padrão `0`).
 Imprime também quanto tempo a restauração levou — o número real para o

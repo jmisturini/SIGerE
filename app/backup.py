@@ -115,6 +115,8 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
     - Semanais: o backup mais novo de cada uma das `semanais` semanas ISO
       anteriores à semana corrente — é o que estende o alcance além das
       diárias (até ~35 dias no pior caso).
+    - Rede de segurança: com elegíveis disponíveis, nunca devolve vazio —
+      mantém ao menos o mais novo.
     """
     if teto_dias > 0:
         corte = agora - timedelta(days=teto_dias)
@@ -142,6 +144,12 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
             break
         semanas.append(semana)
         manter.add(nome)
+
+    # Rede de segurança: com diárias e semanais zeradas sob teto ativo, o
+    # conjunto sairia vazio e a limpeza apagaria TODOS os elegíveis — inclusive
+    # o backup recém-gerado desta execução. Nunca menos que o mais novo.
+    if not manter and elegiveis:
+        manter.add(elegiveis[0][1])
     return manter
 
 
@@ -274,7 +282,7 @@ def _tamanho_legivel(caminho):
 def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
     """Aplica a retenção 7+4 aos arquivos locais `sigere-*.gz`.
 
-    Devolve (nomes apagados, nomes mantidos). Arquivos estranhos à pasta
+    Devolve (nomes apagados, quantidade mantida). Arquivos estranhos à pasta
     nunca são tocados.
     """
     if not os.path.isdir(diretorio) or (diarias <= 0 and semanais <= 0
@@ -334,12 +342,19 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
         return []
     cliente = cliente or _criar_cliente_s3(cfg)
     agora = agora or datetime.now(timezone.utc)
-    registros = []  # (LastModified, nome do arquivo, chave completa)
+    registros = []  # (momento, nome do arquivo, chave completa)
     paginador = cliente.get_paginator('list_objects_v2')
     for pagina in paginador.paginate(Bucket=cfg['bucket'], Prefix=cfg['prefixo'] + '/'):
         for obj in pagina.get('Contents', []):
             nome = obj['Key'].rsplit('/', 1)[-1]
-            registros.append((obj['LastModified'], nome, obj['Key']))
+            # Mesma fonte de tempo da retenção local: o carimbo do nome
+            # (LastModified mente quando o objeto é re-enviado/copiado).
+            momento = _momento_de(nome, obj['LastModified'])
+            if momento.tzinfo is None:
+                # O carimbo do nome é hora local do servidor; a comparação na
+                # nuvem é toda em UTC consciente — normalizar antes de comparar.
+                momento = momento.astimezone(timezone.utc)
+            registros.append((momento, nome, obj['Key']))
 
     manter = _selecionar_manter(
         [(momento, nome) for momento, nome, _ in registros],

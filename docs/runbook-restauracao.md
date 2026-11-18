@@ -57,7 +57,8 @@ sudo systemctl status nginx sigere          # ambos inactive (dead)
 ls -lt backups/ | head
 set -a; source .env; set +a
 venv/bin/flask --app run verify-restore     # verde = este snapshot volta
-# (se backups/ estiver vazio, o verify-restore baixa o mais novo do bucket)
+# (com bucket no .env, o verify-restore baixa o mais novo de lá — a cópia
+#  fora do servidor; sem bucket ou com o bucket vazio, usa backups/)
 
 # 3. Recriar o banco e restaurar o snapshot escolhido:
 sudo -u postgres dropdb --if-exists sigere

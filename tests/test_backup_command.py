@@ -156,6 +156,20 @@ class BackupCommandTestCase(unittest.TestCase):
             modulo_backup._selecionar_manter([velho], agora, 7, 4, 0),
             {'sigere-20260919-032000'})
 
+    def test_rede_de_seguranca_mantem_o_mais_recente_sem_politica(self):
+        # Diárias e semanais zeradas sob teto ativo nunca apagam tudo —
+        # inclusive o backup recém-gerado, que já está na pasta.
+        agora = datetime(2026, 11, 18, 3, 20)
+        registros = []
+        for dias in range(3):
+            momento = agora - timedelta(days=dias)
+            registros.append((momento, momento.strftime('sigere-%Y%m%d-032000')))
+
+        self.assertEqual(
+            modulo_backup._selecionar_manter(
+                registros, agora, diarias=0, semanais=0, teto_dias=45),
+            {'sigere-20261118-032000'})
+
     def test_momento_vem_do_carimbo_do_nome(self):
         self.assertEqual(
             modulo_backup._momento_de('sigere-20260117-032033-postgres.sql.gz',

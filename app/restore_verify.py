@@ -1,9 +1,10 @@
 """Verificação de restauração — a prova de que o backup volta.
 
-O comando `flask --app run verify-restore` pega o snapshot mais recente — da
-pasta local ou, com BACKUP_S3_BUCKET definido, baixa o objeto mais novo do
-bucket (a cópia que está fora do servidor é a testada) — restaura em um banco
-descartável, separado da produção, e compara os dois:
+O comando `flask --app run verify-restore` pega o snapshot mais recente —
+com BACKUP_S3_BUCKET definido, baixa o objeto mais novo do bucket (é a cópia
+fora do servidor que precisa voltar; sem objetos na nuvem, cai para a pasta
+local) — restaura em um banco descartável, separado da produção, e compara
+os dois:
 
 - toda tabela da produção precisa existir na cópia restaurada (tabela só na
   cópia também é reportada — sintoma clássico de backup anterior a uma
@@ -83,33 +84,46 @@ def _mais_recente_nuvem(cfg, cliente):
 def _localizar_backup(cfg, arquivo):
     """Devolve (caminho_local_do_gz, descrição_da_origem) ou levanta BackupError.
 
-    Com --arquivo usa o caminho dado; sem ele prefere o mais novo da pasta
-    local e, na falta deste, baixa o objeto mais novo do bucket — é a cópia
-    fora do servidor que precisa voltar, não a que está ao lado do banco.
+    Com --arquivo usa o caminho dado. Com BACKUP_S3_BUCKET definido, baixa o
+    objeto mais novo do bucket — é a cópia fora do servidor que precisa
+    voltar, não o arquivo ao lado do banco (mesmo disco que pode ter falhado);
+    só cai para a pasta local quando a nuvem não tem objetos. Sem bucket,
+    usa a pasta local.
     """
     if arquivo:
         if not os.path.isfile(arquivo):
             raise BackupError(f'Backup indicado não encontrado: {arquivo}')
         return arquivo, 'arquivo informado'
 
+    if cfg['bucket']:
+        try:
+            cliente = _criar_cliente_s3(cfg)
+            chave = _mais_recente_nuvem(cfg, cliente)
+            if chave:
+                os.makedirs(cfg['diretorio'], exist_ok=True)
+                caminho = os.path.join(cfg['diretorio'], chave.rsplit('/', 1)[-1])
+                cliente.download_file(cfg['bucket'], chave, caminho)
+                return caminho, f'nuvem (s3://{cfg["bucket"]}/{chave})'
+        except BackupError:
+            raise
+        except Exception as erro:
+            # boto3/botocore (credenciais, rede, permissão) e falha de disco —
+            # nada escapa como traceback cru ao operador.
+            raise BackupError(
+                f'Falha ao consultar/baixar o backup na nuvem '
+                f'(s3://{cfg["bucket"]}): {erro}') from erro
+
     caminho = _mais_recente_local(cfg['diretorio'])
     if caminho:
         return caminho, f'pasta local ({caminho})'
-    if not cfg['bucket']:
+    if cfg['bucket']:
         raise BackupError(
-            f'Nenhum backup em {cfg["diretorio"]} e nenhum BACKUP_S3_BUCKET '
-            'configurado — gere um antes com `flask --app run backup`.')
-
-    os.makedirs(cfg['diretorio'], exist_ok=True)
-    cliente = _criar_cliente_s3(cfg)
-    chave = _mais_recente_nuvem(cfg, cliente)
-    if not chave:
-        raise BackupError(
-            f'O bucket s3://{cfg["bucket"]}/{cfg["prefixo"]}/ está vazio — '
-            'gere um backup antes com `flask --app run backup`.')
-    caminho = os.path.join(cfg['diretorio'], chave.rsplit('/', 1)[-1])
-    cliente.download_file(cfg['bucket'], chave, caminho)
-    return caminho, f'nuvem (s3://{cfg["bucket"]}/{chave})'
+            f'O bucket s3://{cfg["bucket"]}/{cfg["prefixo"]}/ está vazio e '
+            f'nenhum backup local em {cfg["diretorio"]} — gere um antes com '
+            '`flask --app run backup`.')
+    raise BackupError(
+        f'Nenhum backup em {cfg["diretorio"]} e nenhum BACKUP_S3_BUCKET '
+        'configurado — gere um antes com `flask --app run backup`.')
 
 
 # ── Restaurar o snapshot em banco descartável ─────────────────────────────
@@ -295,8 +309,8 @@ def _resumo_essenciais(producao, copia):
 @click.command('verify-restore')
 @click.option('--arquivo', 'arquivo', default=None,
               type=click.Path(dir_okay=False), metavar='CAMINHO',
-              help='Backup específico a conferir (padrão: o mais recente, '
-                   'local ou baixado da nuvem).')
+              help='Backup específico a conferir (padrão: o mais novo da nuvem '
+                   'quando BACKUP_S3_BUCKET está definido, senão o da pasta local).')
 @click.option('--dir', 'destino', default=None,
               type=click.Path(file_okay=False), metavar='CAMINHO',
               help='Pasta onde procurar os backups (padrão: BACKUP_DIR ou ./backups).')
