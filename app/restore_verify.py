@@ -370,7 +370,11 @@ def verify_restore_command(arquivo, destino, tolerancia):
          flask --app run verify-restore --tolerancia 5
     """
     cfg = _configuracao(destino=destino)
-    motor, dados = _interpretar_uri(current_app.config['SQLALCHEMY_DATABASE_URI'])
+    try:
+        motor, dados = _interpretar_uri(current_app.config['SQLALCHEMY_DATABASE_URI'])
+    except BackupError as erro:
+        click.echo(click.style(f'❌ Falha na verificação: {erro}', fg='red', bold=True))
+        raise SystemExit(1)
 
     click.echo(click.style(
         '🔎 Verificação de restauração iniciada...', fg='green', bold=True))
