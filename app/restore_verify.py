@@ -265,16 +265,23 @@ def _linhas_por_tabela_sqlite(caminho):
     if not os.path.exists(caminho):
         raise BackupError(f'Banco SQLite não encontrado: {caminho}')
     conexao = sqlite3.connect(caminho)
-    # Identificador de tabela não é parametrizável em SQL: o nome vem do
-    # catálogo do próprio banco (sqlite_master) e é escapado por _nome_seguro
-    # — o nosec suprime o B608 do bandit nesses pontos fixos.
     try:
         tabelas = [registro[0] for registro in conexao.execute(
             "SELECT name FROM sqlite_master WHERE type='table' "
             "AND name NOT LIKE 'sqlite_%'")]
-        return {tabela: conexao.execute(
+        # Transação única: todas as contagens saem do mesmo snapshot — com a
+        # aplicação no ar, contagens tomadas em instantes distintos divergem
+        # sem motivo real (e reprovariam com tolerância 0).
+        conexao.execute('BEGIN')
+        linhas = {tabela: conexao.execute(
             'SELECT COUNT(*) FROM ' + _nome_seguro(tabela)).fetchone()[0]  # nosec B608
             for tabela in tabelas}
+        conexao.commit()
+        return linhas
+    except sqlite3.Error as erro:
+        # "database is locked" e companhia não escapam como traceback cru.
+        raise BackupError(
+            f'Inventário de tabelas/linhas falhou em {caminho}: {erro}') from erro
     finally:
         conexao.close()
 
@@ -286,6 +293,10 @@ def _linhas_por_tabela_postgres(parametros, banco):
         conexao = _conectar_postgres(parametros, banco)
         try:
             with conexao.cursor() as cursor:
+                # Snapshot único (REPEATABLE READ): todos os COUNTs leem o
+                # mesmo estado do banco — com a produção no ar, contagens em
+                # instantes distintos divergem sem motivo real.
+                cursor.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
                 cursor.execute(
                     "SELECT table_name FROM information_schema.tables "
                     "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'")
@@ -294,6 +305,7 @@ def _linhas_por_tabela_postgres(parametros, banco):
                 for tabela in tabelas:
                     cursor.execute('SELECT COUNT(*) FROM ' + _nome_seguro(tabela))  # nosec B608
                     linhas[tabela] = cursor.fetchone()[0]
+            conexao.commit()
             return linhas
         finally:
             conexao.close()

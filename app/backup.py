@@ -282,8 +282,10 @@ def _tamanho_legivel(caminho):
 def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
     """Aplica a retenção 7+4 aos arquivos locais `sigere-*.gz`.
 
-    Devolve (nomes apagados, quantidade mantida). Arquivos estranhos à pasta
-    nunca são tocados.
+    Devolve (nomes apagados, quantidade que permaneceu). Arquivos estranhos
+    à pasta nunca são tocados; quem não pôde ser apagado (travado, sem
+    permissão) permanece e é contado junto com os mantidos — o resumo do
+    comando reflete o que há de fato na pasta.
     """
     if not os.path.isdir(diretorio) or (diarias <= 0 and semanais <= 0
                                         and teto_dias <= 0):
@@ -300,6 +302,7 @@ def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
 
     manter = _selecionar_manter(registros, agora, diarias, semanais, teto_dias)
     removidos = []
+    falhas = 0
     for momento, nome in registros:
         if nome in manter:
             continue
@@ -309,9 +312,10 @@ def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
             # Arquivo travado/sem permissão não derruba o backup — avisa e segue.
             click.echo(click.style(
                 f'   ⚠️  Não consegui apagar {nome}: {erro}', fg='yellow'))
+            falhas += 1
             continue
         removidos.append(nome)
-    return sorted(removidos), len(manter)
+    return sorted(removidos), len(manter) + falhas
 
 
 def _criar_cliente_s3(cfg):
