@@ -35,7 +35,8 @@ from flask.cli import with_appcontext
 # Reaproveita a configuração, a leitura da DATABASE_URL e o cliente S3 do
 # módulo de backup — mesma pasta, mesmas credenciais, um só lugar para ajustar.
 from app.backup import (BackupError, PADRAO_ARQUIVOS, _criar_cliente_s3,
-                        _configuracao, _interpretar_uri, _momento_de)
+                        _configuracao, _interpretar_uri, _momento_de,
+                        _momento_nuvem)
 
 # Tabelas cujo vazio/ausência indica restauração inútil mesmo sem desvio
 # aparente — aparecem destacadas no relatório.
@@ -71,14 +72,21 @@ def _mais_recente_local(diretorio):
 
 
 def _mais_recente_nuvem(cfg, cliente):
-    """Chave do objeto mais novo sob o prefixo do bucket (None se vazio)."""
+    """Chave do objeto mais novo sob o prefixo do bucket (None se vazio).
+
+    Mesmo critério de tempo da retenção na nuvem — o carimbo do nome via
+    `_momento_nuvem` — para que o backup testado aqui seja o mesmo que a
+    política de retenção considera mais recente.
+    """
     paginador = cliente.get_paginator('list_objects_v2')
     mais_novo = None
     for pagina in paginador.paginate(Bucket=cfg['bucket'], Prefix=cfg['prefixo'] + '/'):
         for obj in pagina.get('Contents', []):
-            if mais_novo is None or obj['LastModified'] > mais_novo['LastModified']:
-                mais_novo = obj
-    return mais_novo['Key'] if mais_novo else None
+            nome = obj['Key'].rsplit('/', 1)[-1]
+            momento = _momento_nuvem(nome, obj['LastModified'])
+            if mais_novo is None or momento > mais_novo[0]:
+                mais_novo = (momento, obj)
+    return mais_novo[1]['Key'] if mais_novo else None
 
 
 def _localizar_backup(cfg, arquivo):
@@ -223,7 +231,10 @@ def _restaurar_postgres(parametros, arquivo_gz, banco_teste):
     if parametros.get('sslmode'):
         env['PGSSLMODE'] = parametros['sslmode']
 
-    sql = os.path.splitext(arquivo_gz)[0] + '.sql'
+    # O .sql extraído vive em pasta temporária própria — apagada no finally,
+    # sem órfão em kill/OOM e sem colisão entre execuções concorrentes.
+    pasta_sql = tempfile.mkdtemp(prefix='sigere-verify-sql-')
+    sql = os.path.join(pasta_sql, 'restauracao.sql')
     try:
         with gzip.open(arquivo_gz, 'rb') as gz, open(sql, 'wb') as bruto:
             shutil.copyfileobj(gz, bruto)
@@ -244,8 +255,7 @@ def _restaurar_postgres(parametros, arquivo_gz, banco_teste):
                     f'psql terminou com código {processo.returncode} '
                     f'restaurando em "{banco_teste}": {detalhe or "sem detalhes"}')
     finally:
-        if os.path.exists(sql):
-            os.remove(sql)
+        shutil.rmtree(pasta_sql, ignore_errors=True)
 
 
 # ── Inventário de tabelas e linhas ────────────────────────────────────────
@@ -271,20 +281,25 @@ def _linhas_por_tabela_sqlite(caminho):
 
 def _linhas_por_tabela_postgres(parametros, banco):
     """Mapa {tabela: linhas} do schema public de um banco no servidor."""
-    conexao = _conectar_postgres(parametros, banco)
+    import psycopg2
     try:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "SELECT table_name FROM information_schema.tables "
-                "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'")
-            tabelas = [registro[0] for registro in cursor.fetchall()]
-            linhas = {}
-            for tabela in tabelas:
-                cursor.execute('SELECT COUNT(*) FROM ' + _nome_seguro(tabela))  # nosec B608
-                linhas[tabela] = cursor.fetchone()[0]
-        return linhas
-    finally:
-        conexao.close()
+        conexao = _conectar_postgres(parametros, banco)
+        try:
+            with conexao.cursor() as cursor:
+                cursor.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'")
+                tabelas = [registro[0] for registro in cursor.fetchall()]
+                linhas = {}
+                for tabela in tabelas:
+                    cursor.execute('SELECT COUNT(*) FROM ' + _nome_seguro(tabela))  # nosec B608
+                    linhas[tabela] = cursor.fetchone()[0]
+            return linhas
+        finally:
+            conexao.close()
+    except psycopg2.Error as erro:
+        raise BackupError(
+            f'Inventário de tabelas/linhas falhou no banco "{banco}": {erro}') from erro
 
 
 def _comparar(producao, copia, tolerancia):

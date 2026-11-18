@@ -301,9 +301,16 @@ def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
     manter = _selecionar_manter(registros, agora, diarias, semanais, teto_dias)
     removidos = []
     for momento, nome in registros:
-        if nome not in manter:
+        if nome in manter:
+            continue
+        try:
             os.remove(os.path.join(diretorio, nome))
-            removidos.append(nome)
+        except OSError as erro:
+            # Arquivo travado/sem permissão não derruba o backup — avisa e segue.
+            click.echo(click.style(
+                f'   ⚠️  Não consegui apagar {nome}: {erro}', fg='yellow'))
+            continue
+        removidos.append(nome)
     return sorted(removidos), len(manter)
 
 
@@ -336,6 +343,20 @@ def _enviar_nuvem(caminho, cfg, cliente=None):
     return chave
 
 
+def _momento_nuvem(nome, alternativo):
+    """Momento de um objeto do bucket: carimbo do nome normalizado para UTC.
+
+    Mesma fonte da retenção local — o carimbo viaja com o arquivo, o
+    LastModified mente quando o objeto é re-enviado/copiado. O carimbo é
+    gravado em hora local do servidor; na nuvem tudo é comparado em UTC
+    consciente, então o valor naive é convertido antes de qualquer comparação.
+    """
+    momento = _momento_de(nome, alternativo)
+    if momento.tzinfo is None:
+        momento = momento.astimezone(timezone.utc)
+    return momento
+
+
 def _limpar_nuvem(cfg, cliente=None, agora=None):
     """Aplica a mesma política 7+4 aos objetos do bucket (sob o prefixo)."""
     if cfg['dias_retencao'] <= 0 and cfg['diarias'] <= 0 and cfg['semanais'] <= 0:
@@ -347,14 +368,8 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
     for pagina in paginador.paginate(Bucket=cfg['bucket'], Prefix=cfg['prefixo'] + '/'):
         for obj in pagina.get('Contents', []):
             nome = obj['Key'].rsplit('/', 1)[-1]
-            # Mesma fonte de tempo da retenção local: o carimbo do nome
-            # (LastModified mente quando o objeto é re-enviado/copiado).
-            momento = _momento_de(nome, obj['LastModified'])
-            if momento.tzinfo is None:
-                # O carimbo do nome é hora local do servidor; a comparação na
-                # nuvem é toda em UTC consciente — normalizar antes de comparar.
-                momento = momento.astimezone(timezone.utc)
-            registros.append((momento, nome, obj['Key']))
+            registros.append((_momento_nuvem(nome, obj['LastModified']),
+                              nome, obj['Key']))
 
     manter = _selecionar_manter(
         [(momento, nome) for momento, nome, _ in registros],

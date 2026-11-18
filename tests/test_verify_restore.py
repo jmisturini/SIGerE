@@ -213,6 +213,25 @@ class VerifyRestoreTestCase(unittest.TestCase):
         self.assertIn('Falha ao consultar/baixar o backup na nuvem', resultado.output)
         self.assertNotIn('Traceback', resultado.output)
 
+    def test_mais_recente_nuvem_usa_o_carimbo_do_nome(self):
+        # Objeto antigo re-enviado hoje (LastModified fresco) não deve ganhar
+        # do backup realmente mais novo, identificado pelo carimbo do nome —
+        # o mesmo critério da retenção na nuvem.
+        paginador = mock.Mock()
+        paginador.paginate.return_value = [{
+            'Contents': [
+                {'Key': 'sigere/sigere-20260101-000000-postgres.sql.gz',
+                 'LastModified': datetime.now(timezone.utc)},
+                {'Key': 'sigere/sigere-20261118-000000-postgres.sql.gz',
+                 'LastModified': datetime.now(timezone.utc) - timedelta(days=1)},
+            ]}]
+        falso_cliente = mock.Mock()
+        falso_cliente.get_paginator.return_value = paginador
+
+        chave = modulo_verificar._mais_recente_nuvem(
+            {'bucket': 'bucket-sigere', 'prefixo': 'sigere'}, falso_cliente)
+        self.assertEqual(chave, 'sigere/sigere-20261118-000000-postgres.sql.gz')
+
 
 if __name__ == '__main__':
     unittest.main()
