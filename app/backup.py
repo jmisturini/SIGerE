@@ -46,7 +46,7 @@ import shutil
 import subprocess
 import sqlite3
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from urllib.parse import urlsplit, parse_qs, unquote
 
 import click
@@ -98,15 +98,21 @@ def _momento_de(nome, alternativo):
     """
     achou = CARIMBO_NO_NOME.match(os.path.basename(nome))
     if achou:
-        return datetime.strptime(achou.group(1) + achou.group(2), '%Y%m%d%H%M%S')
+        try:
+            return datetime.strptime(achou.group(1) + achou.group(2), '%Y%m%d%H%M%S')
+        except ValueError:
+            # Carimbo sintaticamente válido mas impossível (ex.: 20260230 —
+            # 30 de fevereiro): cai no mtime/LastModified em vez de derrubar
+            # o comando com ValueError cru.
+            pass
     return alternativo
 
 
 def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
     """Escolhe quais backups sobrevivem à retenção (7 diárias + 4 semanais).
 
-    `registros` são pares (momento, nome) com fuso compatível com o `agora`
-    passado (naive local para arquivos; UTC consciente para objetos na nuvem).
+    `registros` são pares (momento, nome) em **naive local** — o mesmo
+    calendário do servidor nas janelas diária/semanal, local ou nuvem.
 
     Política avô/pai/filho:
     - Teto de idade: nada gerado há mais de `teto_dias` dias sobrevive
@@ -115,8 +121,9 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
     - Semanais: o backup mais novo de cada uma das `semanais` semanas ISO
       anteriores à semana corrente — é o que estende o alcance além das
       diárias (até ~35 dias no pior caso).
-    - Rede de segurança: com elegíveis disponíveis, nunca devolve vazio —
-      mantém ao menos o mais novo.
+    - Rede de segurança: o mais recente dos elegíveis sempre permanece —
+      mesmo quando diárias/semanais o deixariam de fora (o recém-gerado cai
+      na semana corrente, que a seleção semanal pula).
     """
     if teto_dias > 0:
         corte = agora - timedelta(days=teto_dias)
@@ -145,10 +152,10 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
         semanas.append(semana)
         manter.add(nome)
 
-    # Rede de segurança: com diárias e semanais zeradas sob teto ativo, o
-    # conjunto sairia vazio e a limpeza apagaria TODOS os elegíveis — inclusive
-    # o backup recém-gerado desta execução. Nunca menos que o mais novo.
-    if not manter and elegiveis:
+    # O backup mais recente jamais sai — sem isto, BACKUP_DAILY_KEEP=0 com
+    # semanais ativas deixaria o recém-gerado de fora (a seleção semanal pula
+    # a semana corrente) e a limpeza — que roda ANTES do upload — o apagaria.
+    if elegiveis:
         manter.add(elegiveis[0][1])
     return manter
 
@@ -348,30 +355,39 @@ def _enviar_nuvem(caminho, cfg, cliente=None):
 
 
 def _momento_nuvem(nome, alternativo):
-    """Momento de um objeto do bucket: carimbo do nome normalizado para UTC.
+    """Momento de um objeto do bucket: carimbo do nome; LastModified de reserva.
 
-    Mesma fonte da retenção local — o carimbo viaja com o arquivo, o
-    LastModified mente quando o objeto é re-enviado/copiado. O carimbo é
-    gravado em hora local do servidor; na nuvem tudo é comparado em UTC
-    consciente, então o valor naive é convertido antes de qualquer comparação.
+    Mesma fonte e mesmo calendário da retenção local — o carimbo viaja com o
+    arquivo (LastModified mente quando o objeto é re-enviado/copiado) e é
+    gravado em hora local do servidor, então um LastModified consciente é
+    convertido de volta para naive local: as janelas diária/semanal são
+    idênticas dos dois lados (23:30 local não vira "semana seguinte" na nuvem
+    só porque o UTC já virou o dia).
     """
     momento = _momento_de(nome, alternativo)
-    if momento.tzinfo is None:
-        momento = momento.astimezone(timezone.utc)
+    if momento.tzinfo is not None:
+        momento = momento.astimezone().replace(tzinfo=None)
     return momento
 
 
 def _limpar_nuvem(cfg, cliente=None, agora=None):
-    """Aplica a mesma política 7+4 aos objetos do bucket (sob o prefixo)."""
+    """Aplica a mesma política 7+4 aos objetos de backup do bucket.
+
+    Só objetos com o padrão de nome do próprio comando (`sigere-*.gz`) são
+    elegíveis — qualquer outra coisa sob o prefixo não é tocada, espelhando
+    o comportamento da pasta local.
+    """
     if cfg['dias_retencao'] <= 0 and cfg['diarias'] <= 0 and cfg['semanais'] <= 0:
         return []
     cliente = cliente or _criar_cliente_s3(cfg)
-    agora = agora or datetime.now(timezone.utc)
+    agora = agora or datetime.now()  # naive local — mesmo calendário da pasta
     registros = []  # (momento, nome do arquivo, chave completa)
     paginador = cliente.get_paginator('list_objects_v2')
     for pagina in paginador.paginate(Bucket=cfg['bucket'], Prefix=cfg['prefixo'] + '/'):
         for obj in pagina.get('Contents', []):
             nome = obj['Key'].rsplit('/', 1)[-1]
+            if not (nome.startswith(PADRAO_ARQUIVOS[0]) and nome.endswith(PADRAO_ARQUIVOS[1])):
+                continue
             registros.append((_momento_nuvem(nome, obj['LastModified']),
                               nome, obj['Key']))
 

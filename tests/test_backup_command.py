@@ -179,6 +179,36 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertEqual(
             modulo_backup._momento_de('outro.gz', datetime(2000, 1, 1)),
             datetime(2000, 1, 1))
+        # Carimbo impossível (30 de fevereiro) não derruba o comando —
+        # cai no mtime em vez de ValueError.
+        self.assertEqual(
+            modulo_backup._momento_de('sigere-20260230-032033-postgres.sql.gz',
+                                      datetime(2000, 1, 1)),
+            datetime(2000, 1, 1))
+
+    def test_momento_nuvem_devolve_naive_no_calendario_local(self):
+        consciente = datetime(2026, 11, 15, 23, 30, tzinfo=timezone.utc)
+        resultado = modulo_backup._momento_nuvem('outro.gz', consciente)
+        self.assertIsNone(resultado.tzinfo)
+        self.assertEqual(resultado, consciente.astimezone().replace(tzinfo=None))
+        # Carimbo do nome vence e já é local — janelas idênticas às da pasta.
+        self.assertEqual(
+            modulo_backup._momento_nuvem('sigere-20260117-032033-postgres.sql.gz',
+                                         consciente),
+            datetime(2026, 1, 17, 3, 20, 33))
+
+    def test_selecao_semanal_sozinha_mantem_o_recem_gerado(self):
+        # BACKUP_DAILY_KEEP=0: a seleção semanal pula a semana corrente —
+        # sem a proteção do "mais recente", o snapshot recém-gerado seria
+        # apagado antes do upload e o comando terminaria sem backup novo.
+        agora = datetime(2026, 11, 18, 3, 20)  # quarta-feira, semana ISO 47
+        semana_passada = datetime(2026, 11, 11, 3, 20)
+        manter = modulo_backup._selecionar_manter(
+            [(semana_passada, 'sigere-20261111-032000'),
+             (agora, 'sigere-20261118-032000')],
+            agora, diarias=0, semanais=4, teto_dias=0)
+        self.assertEqual(manter,
+                         {'sigere-20261111-032000', 'sigere-20261118-032000'})
 
     # ── Upload e retenção na nuvem (cliente S3 falso) ──────────────────────
 

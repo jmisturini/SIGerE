@@ -731,7 +731,7 @@ journalctl -u sigere-backup.service -n 50    # saída da última execução
 Alternativa com cron (no `crontab -e` do seu usuário):
 
 ```cron
-20 3 * * * cd /var/www/sigere && set -a && . ./.env && set +a && venv/bin/flask --app run backup && venv/bin/flask --app run verify-restore >> /var/log/sigere/backup.log 2>&1
+20 3 * * * cd /var/www/sigere && { set -a; . ./.env; set +a; venv/bin/flask --app run backup && venv/bin/flask --app run verify-restore; } >> /var/log/sigere/backup.log 2>&1
 ```
 
 #### Restaurar

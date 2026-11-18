@@ -26,6 +26,7 @@ import sqlite3
 import subprocess
 import tempfile
 import time
+import uuid
 from datetime import datetime
 
 import click
@@ -72,10 +73,12 @@ def _mais_recente_local(diretorio):
 
 
 def _mais_recente_nuvem(cfg, cliente):
-    """Chave do objeto mais novo sob o prefixo do bucket (None se vazio).
+    """Chave do objeto de backup mais novo sob o prefixo (None se vazio).
 
-    Mesmo critério de tempo da retenção na nuvem — o carimbo do nome via
-    `_momento_nuvem` — para que o backup testado aqui seja o mesmo que a
+    Só objetos com o padrão de nome do próprio comando são candidatos — um
+    marcador de pasta ou objeto estranho não pode "vencer" a comparação.
+    Mesmo critério de tempo da retenção na nuvem (carimbo do nome via
+    `_momento_nuvem`), para que o backup testado aqui seja o mesmo que a
     política de retenção considera mais recente.
     """
     paginador = cliente.get_paginator('list_objects_v2')
@@ -83,6 +86,8 @@ def _mais_recente_nuvem(cfg, cliente):
     for pagina in paginador.paginate(Bucket=cfg['bucket'], Prefix=cfg['prefixo'] + '/'):
         for obj in pagina.get('Contents', []):
             nome = obj['Key'].rsplit('/', 1)[-1]
+            if not (nome.startswith(PADRAO_ARQUIVOS[0]) and nome.endswith(PADRAO_ARQUIVOS[1])):
+                continue
             momento = _momento_nuvem(nome, obj['LastModified'])
             if mais_novo is None or momento > mais_novo[0]:
                 mais_novo = (momento, obj)
@@ -90,28 +95,38 @@ def _mais_recente_nuvem(cfg, cliente):
 
 
 def _localizar_backup(cfg, arquivo):
-    """Devolve (caminho_local_do_gz, descrição_da_origem) ou levanta BackupError.
+    """Devolve (caminho_do_gz, descrição_da_origem, pasta_download) ou BackupError.
 
-    Com --arquivo usa o caminho dado. Com BACKUP_S3_BUCKET definido, baixa o
-    objeto mais novo do bucket — é a cópia fora do servidor que precisa
-    voltar, não o arquivo ao lado do banco (mesmo disco que pode ter falhado);
-    só cai para a pasta local quando a nuvem não tem objetos. Sem bucket,
-    usa a pasta local.
+    Com --arquivo usa o caminho dado (pasta_download = None). Com
+    BACKUP_S3_BUCKET definido, baixa o objeto mais novo do bucket — é a cópia
+    fora do servidor que precisa voltar, não o arquivo ao lado do banco (mesmo
+    disco que pode ter falhado); só cai para a pasta local quando a nuvem não
+    tem objetos. Sem bucket, usa a pasta local.
+
+    O download vai para pasta temporária própria (`pasta_download`, que o
+    comando apaga no fim) — nunca sobre o backup retido local: um objeto
+    danificado na nuvem não pode estragar a cópia saudável que está ao lado.
     """
     if arquivo:
         if not os.path.isfile(arquivo):
             raise BackupError(f'Backup indicado não encontrado: {arquivo}')
-        return arquivo, 'arquivo informado'
+        return arquivo, 'arquivo informado', None
 
     if cfg['bucket']:
         try:
             cliente = _criar_cliente_s3(cfg)
             chave = _mais_recente_nuvem(cfg, cliente)
             if chave:
-                os.makedirs(cfg['diretorio'], exist_ok=True)
-                caminho = os.path.join(cfg['diretorio'], chave.rsplit('/', 1)[-1])
-                cliente.download_file(cfg['bucket'], chave, caminho)
-                return caminho, f'nuvem (s3://{cfg["bucket"]}/{chave})'
+                pasta_download = tempfile.mkdtemp(prefix='sigere-verify-download-')
+                caminho = os.path.join(pasta_download, chave.rsplit('/', 1)[-1])
+                try:
+                    cliente.download_file(cfg['bucket'], chave, caminho)
+                except BaseException:
+                    shutil.rmtree(pasta_download, ignore_errors=True)
+                    raise
+                return (caminho,
+                        f'nuvem (s3://{cfg["bucket"]}/{chave})',
+                        pasta_download)
         except BackupError:
             raise
         except Exception as erro:
@@ -123,7 +138,7 @@ def _localizar_backup(cfg, arquivo):
 
     caminho = _mais_recente_local(cfg['diretorio'])
     if caminho:
-        return caminho, f'pasta local ({caminho})'
+        return caminho, f'pasta local ({caminho})', None
     if cfg['bucket']:
         raise BackupError(
             f'O bucket s3://{cfg["bucket"]}/{cfg["prefixo"]}/ está vazio e '
@@ -359,16 +374,18 @@ def verify_restore_command(arquivo, destino, tolerancia):
 
     click.echo(click.style(
         '🔎 Verificação de restauração iniciada...', fg='green', bold=True))
+    pasta_download = None
     try:
-        caminho_backup, origem = _localizar_backup(cfg, arquivo)
+        caminho_backup, origem, pasta_download = _localizar_backup(cfg, arquivo)
     except BackupError as erro:
         click.echo(click.style(f'❌ Falha na verificação: {erro}', fg='red', bold=True))
         raise SystemExit(1)
     click.echo(f'   📦 Backup: {os.path.basename(caminho_backup)} — origem: {origem}')
 
-    # Banco descartável no mesmo servidor, nome fixo e derivado — a próxima
-    # execução recria por cima mesmo que uma anterior tenha mordo no meio.
-    # (SQLite restaura num arquivo temporário; o nome só faz sentido no PG.)
+    # Banco descartável no mesmo servidor, com nome único por execução —
+    # verificações concorrentes não colidem no DROP/CREATE. Encerramento
+    # normal apaga o próprio; execução morta no meio vaza um banco
+    # `*_verificacao_*`, que o operador apaga à mão (DROP DATABASE).
     banco_teste = None
     pasta_temporaria = tempfile.mkdtemp(prefix='sigere-verify-')
     try:
@@ -379,9 +396,14 @@ def verify_restore_command(arquivo, destino, tolerancia):
                 _restaurar_sqlite(caminho_backup, copia_restaurada)
                 duracao = time.monotonic() - inicio
                 copia = _linhas_por_tabela_sqlite(copia_restaurada)
-                producao = _linhas_por_tabela_sqlite(dados)
+                # Flask-SQLAlchemy resolve caminho SQLite relativo contra a
+                # pasta instance/ — o inventário precisa ler o mesmo arquivo.
+                caminho_producao = (dados if os.path.isabs(dados) else
+                                    os.path.join(current_app.instance_path, dados))
+                producao = _linhas_por_tabela_sqlite(caminho_producao)
             else:
-                banco_teste = (dados['database'] or 'sigere')[:50] + '_verificacao'
+                banco_teste = ((dados['database'] or 'sigere')[:40]
+                               + '_verificacao_' + uuid.uuid4().hex[:8])
                 _restaurar_postgres(dados, caminho_backup, banco_teste)
                 duracao = time.monotonic() - inicio
                 copia = _linhas_por_tabela_postgres(dados, banco_teste)
@@ -392,6 +414,8 @@ def verify_restore_command(arquivo, destino, tolerancia):
             raise SystemExit(1)
     finally:
         shutil.rmtree(pasta_temporaria, ignore_errors=True)
+        if pasta_download:
+            shutil.rmtree(pasta_download, ignore_errors=True)
         if banco_teste:
             _apagar_banco_postgres(dados, banco_teste)
 

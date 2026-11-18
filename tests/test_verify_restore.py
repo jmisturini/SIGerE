@@ -37,6 +37,14 @@ class TestConfig(Config):
 
 class VerifyRestoreTestCase(unittest.TestCase):
     def setUp(self):
+        # Ambiente pode exportar BACKUP_S3_BUCKET — os testes locais não podem
+        # chamar S3 de verdade; os de nuvem definem o próprio patch por cima.
+        ambiente = mock.patch.dict(os.environ, {'BACKUP_S3_BUCKET': '',
+                                                'BACKUP_S3_ENDPOINT': '',
+                                                'BACKUP_S3_REGION': ''})
+        ambiente.start()
+        self.addCleanup(ambiente.stop)
+
         fd, self.db_path = tempfile.mkstemp(suffix='.db')
         os.close(fd)
         TestConfig.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + self.db_path.replace('\\', '/')
@@ -195,6 +203,9 @@ class VerifyRestoreTestCase(unittest.TestCase):
             self.assertIn('origem: nuvem', resultado.output)
             self.assertNotEqual(resultado.exit_code, 0)
             self.assertIn('produção 1, cópia 2', resultado.output)
+            # O download vai para pasta temporária própria — a pasta de
+            # backups retidos continua só com o snapshot original.
+            self.assertEqual(len(os.listdir(self.pasta_backup)), 1)
         finally:
             shutil.rmtree(pasta_nuvem, ignore_errors=True)
             os.remove(outro_db)

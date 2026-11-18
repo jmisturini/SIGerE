@@ -46,6 +46,14 @@ Oracle Cloud autogerenciada; o bucket S3 é a única cópia fora do servidor.
 
 ## O dia ruim — PostgreSQL (produção)
 
+> **Importante sobre o `verify-restore`:** ele compara o snapshot com a
+> **produção atual** — é garantia diária, não ferramenta de triagem de
+> desastre. Se a produção foi apagada, a aplicação nem sobe para ele rodar;
+> se a causa foi um DELETE acidental, a comparação reprova justamente o
+> snapshot bom de antes do erro. Nesses cenários, baixe o snapshot direto do
+> bucket (cópia fora do servidor) e escolha pela data no nome do arquivo —
+> não espere uma conferência verde contra a produção atual.
+
 ```bash
 cd /var/www/sigere
 
@@ -53,21 +61,33 @@ cd /var/www/sigere
 sudo systemctl stop nginx sigere
 sudo systemctl status nginx sigere          # ambos inactive (dead)
 
-# 2. Escolher o backup (mais recente primeiro) e conferir qual é "bom":
+# 2. Escolher o backup — mais recente primeiro, pela data no nome:
 ls -lt backups/ | head
-set -a; source .env; set +a
-venv/bin/flask --app run verify-restore     # verde = este snapshot volta
-# (com bucket no .env, o verify-restore baixa o mais novo de lá — a cópia
-#  fora do servidor; sem bucket ou com o bucket vazio, usa backups/)
+# backups/ indisponível ou comprometido? baixe do bucket:
+#   aws s3 cp "s3://MEU-BUCKET/sigere/sigere-AAAAMMDD-HHMMSS-postgres.sql.gz" backups/
+#   (ou pelo console do provedor; rclone também serve)
 
 # 3. Recriar o banco e restaurar o snapshot escolhido:
+BACKUP=backups/sigere-AAAAMMDD-HHMMSS-postgres.sql.gz
 sudo -u postgres dropdb --if-exists sigere
 sudo -u postgres createdb -O sigere sigere
-gunzip -c backups/sigere-AAAAMMDD-HHMMSS-postgres.sql.gz | \
+gunzip -c "$BACKUP" | \
   psql --set=ON_ERROR_STOP=1 "postgresql://sigere:SENHA@localhost:5432/sigere"
+# se o psql falhar no meio (ON_ERROR_STOP), o banco fica pela metade:
+# recrie (dropdb/createdb) e tente o snapshot anterior.
 # alternativa guiada: python setup_interativo.py  →  modo 3 "Restaurar backup"
 
-# 4. Subir e checar:
+# 4. Alinhar schema e permissões ANTES de abrir o serviço — o snapshot pode
+#    ser anterior a uma migration do código atual, e o app atual contra
+#    schema antigo quebra na frente do usuário:
+set -a; source .env; set +a
+venv/bin/flask --app run db upgrade
+# se o código avançou desde o snapshot: registre as revogações de
+# Painel Admin → Papéis, rode `venv/bin/flask --app run sync-permissions`
+# e reaplique as revogações (procedimento completo na doc de implantação).
+# Falhou aqui? Mantenha nginx e sigere PARADOS até resolver.
+
+# 5. Subir e checar:
 sudo systemctl start sigere
 sudo journalctl -u sigere -n 30 --no-pager
 # o gunicorn escuta em socket unix — teste direto nele antes de abrir o nginx:
@@ -75,26 +95,43 @@ curl -fsS --unix-socket /run/sigere/sigere.sock -o /dev/null -w '%{http_code}\n'
 sudo systemctl start nginx
 # smoke test no navegador: login de um usuário real + abrir cronograma + criar/editar uma reserva.
 
-# 5. Regerar backup imediatamente — o próximo "ontem" precisa existir:
+# 6. Regerar backup imediatamente e conferir o ciclo — a produção agora está
+#    saudável, então a comparação contra ela é válida de novo:
 venv/bin/flask --app run backup
+venv/bin/flask --app run verify-restore
 ```
-
-Se o passo 3 falhar no meio (`ON_ERROR_STOP`), o banco fica pela metade:
-recrie (`dropdb`/`createdb`) e tente o snapshot anterior.
 
 ## O dia ruim — SQLite (desenvolvimento/avaliação)
 
 ```bash
 sudo systemctl stop sigere                  # se houver serviço rodando
-gunzip -c backups/sigere-AAAAMMDD-HHMMSS-sqlite.sqlite.gz > reservation.db
-venv/bin/flask --app run verify-restore     # sanidade
+
+# 1. Extrair num arquivo temporário PRIMEIRO — o `> reservation.db` direto
+#    trunca o banco atual antes de o gunzip reclamar de caminho errado ou
+#    arquivo corrompido, deixando o problema pior:
+BACKUP=backups/sigere-AAAAMMDD-HHMMSS-sqlite.sqlite.gz
+gunzip -c "$BACKUP" > /tmp/sigere-restaurado.sqlite
+
+# 2. Validar a integridade do extraído antes de tocar no banco atual:
+venv/bin/python -c "import sqlite3; print(sqlite3.connect('/tmp/sigere-restaurado.sqlite').execute('PRAGMA integrity_check').fetchone()[0])"
+# 'ok' esperado — qualquer outra coisa: NÃO substitua; tente outro snapshot.
+
+# 3. Preservar o estado ruim para análise e substituir:
+cp reservation.db reservation.db.bak-dia-ruim
+mv /tmp/sigere-restaurado.sqlite reservation.db
+
+# 4. Conferir o ciclo — com --arquivo, garante que o testado é o mesmo
+#    snapshot restaurado, e não "o mais recente" da pasta/bucket:
+venv/bin/flask --app run verify-restore --arquivo "$BACKUP"
 sudo systemctl start sigere
 ```
 
 ## Depois de qualquer restauração
 
-1. Se o código avançou desde o snapshot: `venv/bin/flask --app run db upgrade`
-   e `sync-permissions` com o procedimento de revogações da doc de implantação.
+1. Migration e `sync-permissions` já rodaram antes de subir o serviço
+   (passo 4 do PostgreSQL) — se algo precisar ficar para depois, mantenha os
+   serviços parados até concluir, com o procedimento de revogações da doc de
+   implantação.
 2. Ajuste o relógio das expectativas: avisar usuários o que foi perdido no
    intervalo (reservas do dia refeitas à mão).
 3. Investigar a causa antes de religar o mundo: disco cheio, update quebrado,
