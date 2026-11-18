@@ -2,7 +2,8 @@
 
 Cobre:
 - geração de snapshot SQLite válido (integridade e conteúdo) com a CLI;
-- retenção local de arquivos antigos (e preservação de estranhos à pasta);
+- política de retenção avô/pai/filho (7 diárias + 4 semanais, com teto de
+  idade) local e na nuvem, e preservação de arquivos estranhos à pasta;
 - upload e retenção na nuvem com cliente S3 falso (sem rede, sem boto3);
 - interpretação das DATABASE_URL SQLite e PostgreSQL.
 """
@@ -119,14 +120,58 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertFalse(os.path.exists(antigo))
         self.assertTrue(os.path.exists(recente))
         self.assertTrue(os.path.exists(estranho))
-        self.assertIn('Retenção local: 1', resultado.output)
+        # Mantidos: o recém-gerado e o de 2099; apagado: o de 2020.
+        self.assertIn('Retenção local: 2 mantido(s), 1 apagado(s)', resultado.output)
+
+    # ── Política de retenção (7 diárias + 4 semanais + teto) ───────────────
+
+    def test_selecao_guarda_sete_diarias_e_quatro_semanais(self):
+        # 18/11/2026 é uma quarta-feira (semana ISO 47: dom 15 termina a semana 46).
+        agora = datetime(2026, 11, 18, 3, 20)
+        registros = []
+        for dias_atras in range(30, -1, -1):
+            momento = agora - timedelta(days=dias_atras)
+            registros.append((momento, momento.strftime('sigere-%Y%m%d-%H%M%S')))
+
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=7, semanais=4, teto_dias=0)
+
+        # Diárias: tudo de 12 a 18/11 — inclusive o domingo 15/11, que também
+        # é o "mais novo" da semana 46 (contado uma só vez) → 7 + 3 = 10.
+        esperados = {f'sigere-202611{dia:02d}-032000' for dia in range(12, 19)}
+        esperados |= {'sigere-20261025-032000', 'sigere-20261101-032000',
+                      'sigere-20261108-032000'}
+        self.assertEqual(manter, esperados)
+        # Um dia dentro da semana 46, mas fora das janelas, não sobrevive.
+        self.assertNotIn('sigere-20261111-032000', manter)
+
+    def test_teto_de_idade_apaga_ate_semanal(self):
+        agora = datetime(2026, 11, 18, 3, 20)
+        velho = (agora - timedelta(days=60), 'sigere-20260919-032000')
+
+        self.assertEqual(
+            modulo_backup._selecionar_manter([velho], agora, 7, 4, 45), set())
+        # Sem teto (0), o único backup vira o "semanal" da sua semana.
+        self.assertEqual(
+            modulo_backup._selecionar_manter([velho], agora, 7, 4, 0),
+            {'sigere-20260919-032000'})
+
+    def test_momento_vem_do_carimbo_do_nome(self):
+        self.assertEqual(
+            modulo_backup._momento_de('sigere-20260117-032033-postgres.sql.gz',
+                                      datetime(2000, 1, 1)),
+            datetime(2026, 1, 17, 3, 20, 33))
+        # Sem carimbo no nome, cai no mtime informado.
+        self.assertEqual(
+            modulo_backup._momento_de('outro.gz', datetime(2000, 1, 1)),
+            datetime(2000, 1, 1))
 
     # ── Upload e retenção na nuvem (cliente S3 falso) ──────────────────────
 
     def test_upload_e_retencao_nuvem_com_cliente_falso(self):
         antigo_nuvem = {
             'Key': 'sigere/sigere-20200101-000000-postgres.sql.gz',
-            'LastModified': datetime.now(timezone.utc) - timedelta(days=30),
+            'LastModified': datetime.now(timezone.utc) - timedelta(days=90),
         }
         recente_nuvem = {
             'Key': 'sigere/sigere-20990101-000000-postgres.sql.gz',

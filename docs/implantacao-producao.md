@@ -244,10 +244,11 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
 | `TOTEM_LATITUDE` / `TOTEM_LONGITUDE` | Opcional | **Fallback** global do clima (totem/portal) para unidades sem coordenadas próprias. A localização de cada unidade é configurada no painel, com prioridade sobre estas variáveis |
 | `BACKUP_S3_BUCKET` | Opcional | Bucket compatível com a API S3 para o `flask --app run backup` enviar os snapshots; ausente/vazio = backup apenas local |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Com o bucket | Credenciais do bucket (AWS S3, Backblaze B2, Cloudflare R2, Wasabi, MinIO, Google Cloud Storage via chaves HMAC) |
-| `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` | Opcional | Pasta local dos backups (padrão `backups/`) e dias de retenção (padrão `14`) — valem para a pasta e para o bucket |
+| `BACKUP_DIR` / `BACKUP_DAILY_KEEP` / `BACKUP_WEEKLY_KEEP` | Opcional | Pasta local dos backups (padrão `backups/`) e política de retenção: guarda tudo gerado nas **7 datas mais recentes** mais o backup mais novo de cada uma das **4 semanas ISO anteriores** — vale para a pasta e para o bucket |
+| `BACKUP_RETENTION_DAYS` | Opcional | Teto de idade em dias (padrão `45`): nada mais velho que isso sobrevive, nem semanal. `0` desliga o teto |
 | `BACKUP_S3_ENDPOINT` / `BACKUP_S3_REGION` / `BACKUP_S3_PATH_STYLE` | Com o bucket | Endpoint e região para provedores fora da AWS; `BACKUP_S3_PATH_STYLE="true"` para os que exigem path-style (ex.: MinIO) |
 | `BACKUP_S3_PREFIX` | Opcional | Prefixo dos objetos no bucket (padrão `sigere`) |
-| `BACKUP_PG_DUMP_BIN` | Opcional | Caminho alternativo do binário `pg_dump` quando ele não está no `PATH` |
+| `BACKUP_PG_DUMP_BIN` / `BACKUP_PSQL_BIN` | Opcional | Caminho alternativo dos binários `pg_dump` (backup) e `psql` (verificação de restauração) quando não estão no `PATH` |
 | `MAIL_SMTP_HOST` / `MAIL_FROM` | Opcional | Espelho por e-mail das notificações (`flask --app run notify-email`): servidor SMTP e remetente. Ausentes/vazios = envio por e-mail desativado (o sino in-app segue normal) |
 | `MAIL_SMTP_PORT` / `MAIL_SMTP_USER` / `MAIL_SMTP_PASSWORD` / `MAIL_SMTP_STARTTLS` | Com o SMTP | Porta (padrão `587`), credenciais e STARTTLS (padrão `1`) do servidor de e-mail |
 | `MAIL_MAX_ATTEMPTS` | Opcional | Tentativas de envio por notificação antes de sair da fila do espelho de e-mail (padrão `10`) |
@@ -614,9 +615,37 @@ venv/bin/flask --app run backup --no-upload  # só o arquivo local (teste)
 - **SQLite (desenvolvimento):** o arquivo gerado (`.sqlite.gz`) é um snapshot
   consistente pela API de backup do SQLite — pode rodar com a aplicação no ar —
   seguido de `PRAGMA integrity_check` no arquivo criado.
-- **Retenção:** `BACKUP_RETENTION_DAYS` (padrão 14; `0` mantém tudo) apaga os
-  `sigere-*.gz` antigos da pasta local (`BACKUP_DIR`, padrão `backups/`) e os
-  objetos vencidos do bucket.
+- **Retenção (avô/pai/filho):** ficam guardados os backups das **7 datas mais
+  recentes** (`BACKUP_DAILY_KEEP`) mais o backup mais novo de cada uma das
+  **4 semanas ISO anteriores** à corrente (`BACKUP_WEEKLY_KEEP`) — no pior
+  caso, ~35 dias de alcance. Nada mais velho que `BACKUP_RETENTION_DAYS` dias
+  (teto, padrão `45`; `0` desliga o teto) sobrevive, nem semanal. A política
+  vale para a pasta local (`BACKUP_DIR`, padrão `backups/`) e para os objetos
+  do bucket. `BACKUP_DAILY_KEEP`/`BACKUP_WEEKLY_KEEP` em `0` desligam cada
+  nível; ambos em `0` com teto `0` mantém tudo para sempre.
+
+#### Conferir que o backup volta (verify-restore)
+
+Backup que nunca foi restaurado não é backup — é esperança. O comando
+`flask --app run verify-restore` restaura o snapshot mais recente — da nuvem,
+quando `BACKUP_S3_BUCKET` está definido (é a cópia fora do servidor que
+precisa voltar) — num banco descartável separado e compara com a produção:
+todas as tabelas precisam existir e as contagens de linhas precisam bater
+(`--tolerancia N` aceita desvio de até N linhas por tabela; padrão `0`).
+Imprime também quanto tempo a restauração levou — o número real para o
+runbook. Falha = código de saída 1, visível no journal do timer.
+
+```bash
+set -a; source .env; set +a
+venv/bin/flask --app run verify-restore          # restaura o mais recente e confere
+venv/bin/flask --app run verify-restore --tolerancia 5   # aceita desvio de até 5 linhas
+```
+
+O usuário do `DATABASE_URL` precisa de permissão de criar bancos (uma única
+vez): `sudo -u postgres psql -c 'ALTER USER sigere WITH CREATEDB;'`. O banco
+descartável (`<nome>_verificacao`) é apagado ao final, inclusive em falha.
+Agende junto do backup (mesmo timer/cron): conferir o snapshot de minutos
+atrás contra a produção parada da madrugada é o cenário sem desvio de linhas.
 
 #### Backup na nuvem (opcional)
 
@@ -656,14 +685,18 @@ User=SEU_USUARIO
 WorkingDirectory=/var/www/sigere
 EnvironmentFile=/var/www/sigere/.env
 ExecStart=/var/www/sigere/venv/bin/flask --app run backup
+ExecStart=/var/www/sigere/venv/bin/flask --app run verify-restore
 ExecStart=/var/www/sigere/venv/bin/flask --app run notify-cleanup
 ```
 
-O segundo `ExecStart` aproveita o mesmo disparo diário para a limpeza de
-notificações antigas: lidas há mais de 90 dias e avisos de reservas cuja data
-foi há mais de 30 dias (ajustável com `--dias-lidas`/`--dias-passadas`). Sem
-ele, a tabela `notifications` cresce indefinidamente. Para testar:
-`flask --app run notify-cleanup --dry-run`.
+Os três `ExecStart` rodam em sequência: backup → verificação de restauração →
+limpeza de notificações antigas. O `verify-restore` aproveita o snapshot de
+minutos atrás — sem desvio de linhas — e, se falhar, o serviço marca falha
+visível no `systemctl list-timers` e no journal. O `notify-cleanup` aproveita
+o mesmo disparo diário para a limpeza de notificações antigas: lidas há mais
+de 90 dias e avisos de reservas cuja data foi há mais de 30 dias (ajustável
+com `--dias-lidas`/`--dias-passadas`). Sem ele, a tabela `notifications`
+cresce indefinidamente. Para testar: `flask --app run notify-cleanup --dry-run`.
 
 E `/etc/systemd/system/sigere-backup.timer`:
 
@@ -696,10 +729,13 @@ journalctl -u sigere-backup.service -n 50    # saída da última execução
 Alternativa com cron (no `crontab -e` do seu usuário):
 
 ```cron
-20 3 * * * cd /var/www/sigere && set -a && . ./.env && set +a && venv/bin/flask --app run backup >> /var/log/sigere/backup.log 2>&1
+20 3 * * * cd /var/www/sigere && set -a && . ./.env && set +a && venv/bin/flask --app run backup && venv/bin/flask --app run verify-restore >> /var/log/sigere/backup.log 2>&1
 ```
 
 #### Restaurar
+
+> **Dia ruim? Siga o [docs/runbook-restauracao.md](runbook-restauracao.md)** —
+> passo a passo curto de restauração com tempo estimado e o que se perde.
 
 > O `setup_interativo.py` tem o modo **"Restaurar backup"** (SQLite e
 > PostgreSQL, com `dropdb`/`createdb`/`psql ON_ERROR_STOP`) — alternativa

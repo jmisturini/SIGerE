@@ -12,29 +12,36 @@ configurado em DATABASE_URL — os dois motores suportados pela aplicação:
   (`Connection.backup`), consistente mesmo com a aplicação no ar, seguido de
   `PRAGMA integrity_check` no arquivo gerado.
 
-Depois do dump: retenção local (apaga arquivos `sigere-*.gz` mais antigos que
-BACKUP_RETENTION_DAYS) e, quando BACKUP_S3_BUCKET está definido, upload para
-qualquer armazenamento compatível com a API S3 (AWS S3, Backblaze B2,
-Cloudflare R2, Wasabi, MinIO, Google Cloud Storage com chaves HMAC) — com a
-mesma retenção aplicada aos objetos antigos do bucket.
+Depois do dump: retenção local — política avô/pai/filho com **7 diárias + 4
+semanais** — e, quando BACKUP_S3_BUCKET está definido, upload para qualquer
+armazenamento compatível com a API S3 (AWS S3, Backblaze B2, Cloudflare R2,
+Wasabi, MinIO, Google Cloud Storage com chaves HMAC) — a mesma política
+aplicada aos objetos do bucket.
 
 Configuração por variáveis de ambiente (todas opcionais):
 
 | Variável                | Padrão            | Função                                          |
 |-------------------------|-------------------|-------------------------------------------------|
 | BACKUP_DIR              | `<projeto>/backups` | Pasta local dos arquivos                      |
-| BACKUP_RETENTION_DAYS   | `14`              | Dias de retenção local e na nuvem (0 = manter tudo) |
+| BACKUP_DAILY_KEEP       | `7`               | Guarda tudo gerado nas N datas mais recentes    |
+| BACKUP_WEEKLY_KEEP      | `4`               | Guarda o mais novo de cada uma das últimas N semanas ISO (exceto a corrente) |
+| BACKUP_RETENTION_DAYS   | `45`              | Teto de idade em dias: nada mais velho sobrevive (0 = sem teto) |
 | BACKUP_S3_BUCKET        | (sem upload)      | Bucket de destino; ausente = só backup local    |
 | BACKUP_S3_PREFIX        | `sigere`          | Prefixo (pasta) dos objetos no bucket           |
 | BACKUP_S3_ENDPOINT      | AWS padrão        | Endpoint S3-compatível (B2, R2, MinIO, GCS...)  |
 | BACKUP_S3_REGION        | padrão do boto3   | Região do bucket                                |
 | BACKUP_S3_PATH_STYLE    | `false`           | `true` para provedores que exigem path-style (MinIO) |
 
+A prova de que o backup volta é o comando irmão `flask --app run
+verify-restore` (app/restore_verify.py): restaura o snapshot mais recente —
+da nuvem, quando houver — num banco descartável e compara com a produção.
+
 Credenciais: as variáveis padrão `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`
 (ou a cadeia padrão do boto3 — role da instância, perfil configurado etc.).
 """
 import gzip
 import os
+import re
 import shutil
 import subprocess
 import sqlite3
@@ -53,6 +60,9 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 # qualquer outra coisa na pasta (dump manual, anotação) fica intacta.
 PADRAO_ARQUIVOS = ('sigere-', '.gz')
 
+# Carimbo de geração gravado no nome do arquivo: sigere-AAAAMMDD-HHMMSS-…
+CARIMBO_NO_NOME = re.compile(r'^sigere-(\d{8})-(\d{6})-')
+
 
 class BackupError(Exception):
     """Falha de backup com mensagem apresentável ao operador."""
@@ -64,9 +74,13 @@ def _configuracao(destino=None, dias_retencao=None):
         'diretorio': (destino
                       or os.environ.get('BACKUP_DIR')
                       or os.path.join(BASE_DIR, 'backups')),
+        'diarias': int(os.environ.get('BACKUP_DAILY_KEEP', '7')),
+        'semanais': int(os.environ.get('BACKUP_WEEKLY_KEEP', '4')),
+        # Teto de idade: rede de segurança da política 7+4 — precisa cobrir as
+        # 4 semanas ISO anteriores (~35 dias) com folga.
         'dias_retencao': int(dias_retencao
                              if dias_retencao is not None
-                             else os.environ.get('BACKUP_RETENTION_DAYS', '14')),
+                             else os.environ.get('BACKUP_RETENTION_DAYS', '45')),
         'bucket': os.environ.get('BACKUP_S3_BUCKET') or None,
         'prefixo': os.environ.get('BACKUP_S3_PREFIX', 'sigere').strip('/'),
         'endpoint': os.environ.get('BACKUP_S3_ENDPOINT') or None,
@@ -74,6 +88,61 @@ def _configuracao(destino=None, dias_retencao=None):
         'path_style': os.environ.get('BACKUP_S3_PATH_STYLE', '').strip().lower()
                       in ('1', 'true', 'yes', 'on'),
     }
+
+
+def _momento_de(nome, alternativo):
+    """Momento de geração do backup: carimbo do nome; mtime/LastModified de reserva.
+
+    O nome é a fonte confiável — mtime mente quando a pasta é copiada/rsyncada,
+    o carimbo viaja com o arquivo.
+    """
+    achou = CARIMBO_NO_NOME.match(os.path.basename(nome))
+    if achou:
+        return datetime.strptime(achou.group(1) + achou.group(2), '%Y%m%d%H%M%S')
+    return alternativo
+
+
+def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
+    """Escolhe quais backups sobrevivem à retenção (7 diárias + 4 semanais).
+
+    `registros` são pares (momento, nome) com fuso compatível com o `agora`
+    passado (naive local para arquivos; UTC consciente para objetos na nuvem).
+
+    Política avô/pai/filho:
+    - Teto de idade: nada gerado há mais de `teto_dias` dias sobrevive
+      (0 desliga o teto).
+    - Diárias: tudo gerado nas `diarias` datas de calendário mais recentes.
+    - Semanais: o backup mais novo de cada uma das `semanais` semanas ISO
+      anteriores à semana corrente — é o que estende o alcance além das
+      diárias (até ~35 dias no pior caso).
+    """
+    if teto_dias > 0:
+        corte = agora - timedelta(days=teto_dias)
+        elegiveis = [par for par in registros if par[0] >= corte]
+    else:
+        elegiveis = list(registros)
+    elegiveis.sort(key=lambda par: par[0], reverse=True)
+
+    manter = set()
+    datas = []
+    for momento, nome in elegiveis:
+        dia = momento.date()
+        if dia not in datas:
+            datas.append(dia)
+        if len(datas) <= diarias:
+            manter.add(nome)
+
+    semana_corrente = agora.isocalendar()[:2]
+    semanas = []
+    for momento, nome in elegiveis:
+        semana = momento.isocalendar()[:2]
+        if semana == semana_corrente or semana in semanas:
+            continue
+        if len(semanas) >= semanais:
+            break
+        semanas.append(semana)
+        manter.add(nome)
+    return manter
 
 
 def _interpretar_uri(uri):
@@ -202,20 +271,32 @@ def _tamanho_legivel(caminho):
         tamanho /= 1024
 
 
-def _limpar_locais(diretorio, dias, agora=None):
-    """Apaga backups locais (`sigere-*.gz`) mais antigos que `dias` dias."""
-    if dias <= 0 or not os.path.isdir(diretorio):
-        return []
-    corte = (agora or datetime.now()) - timedelta(days=dias)
-    removidos = []
-    for nome in sorted(os.listdir(diretorio)):
+def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
+    """Aplica a retenção 7+4 aos arquivos locais `sigere-*.gz`.
+
+    Devolve (nomes apagados, nomes mantidos). Arquivos estranhos à pasta
+    nunca são tocados.
+    """
+    if not os.path.isdir(diretorio) or (diarias <= 0 and semanais <= 0
+                                        and teto_dias <= 0):
+        return [], 0
+    agora = agora or datetime.now()
+    registros = []
+    for nome in os.listdir(diretorio):
         if not (nome.startswith(PADRAO_ARQUIVOS[0]) and nome.endswith(PADRAO_ARQUIVOS[1])):
             continue
         caminho = os.path.join(diretorio, nome)
-        if os.path.isfile(caminho) and datetime.fromtimestamp(os.path.getmtime(caminho)) < corte:
-            os.remove(caminho)
+        if os.path.isfile(caminho):
+            registros.append((_momento_de(nome, datetime.fromtimestamp(
+                os.path.getmtime(caminho))), nome))
+
+    manter = _selecionar_manter(registros, agora, diarias, semanais, teto_dias)
+    removidos = []
+    for momento, nome in registros:
+        if nome not in manter:
+            os.remove(os.path.join(diretorio, nome))
             removidos.append(nome)
-    return removidos
+    return sorted(removidos), len(manter)
 
 
 def _criar_cliente_s3(cfg):
@@ -248,23 +329,31 @@ def _enviar_nuvem(caminho, cfg, cliente=None):
 
 
 def _limpar_nuvem(cfg, cliente=None, agora=None):
-    """Apaga objetos do bucket (sob o prefixo) mais antigos que a retenção."""
-    if cfg['dias_retencao'] <= 0:
+    """Aplica a mesma política 7+4 aos objetos do bucket (sob o prefixo)."""
+    if cfg['dias_retencao'] <= 0 and cfg['diarias'] <= 0 and cfg['semanais'] <= 0:
         return []
     cliente = cliente or _criar_cliente_s3(cfg)
-    corte = (agora or datetime.now(timezone.utc)) - timedelta(days=cfg['dias_retencao'])
-    removidos = []
+    agora = agora or datetime.now(timezone.utc)
+    registros = []  # (LastModified, nome do arquivo, chave completa)
     paginador = cliente.get_paginator('list_objects_v2')
     for pagina in paginador.paginate(Bucket=cfg['bucket'], Prefix=cfg['prefixo'] + '/'):
-        antigos = [obj for obj in pagina.get('Contents', [])
-                   if obj['LastModified'] < corte]
-        for inicio in range(0, len(antigos), 1000):
-            lote = antigos[inicio:inicio + 1000]
-            cliente.delete_objects(
-                Bucket=cfg['bucket'],
-                Delete={'Objects': [{'Key': obj['Key']} for obj in lote],
-                        'Quiet': True})
-            removidos.extend(obj['Key'] for obj in lote)
+        for obj in pagina.get('Contents', []):
+            nome = obj['Key'].rsplit('/', 1)[-1]
+            registros.append((obj['LastModified'], nome, obj['Key']))
+
+    manter = _selecionar_manter(
+        [(momento, nome) for momento, nome, _ in registros],
+        agora, cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
+    vencidos = [(chave, nome) for momento, nome, chave in registros
+                if nome not in manter]
+    removidos = []
+    for inicio in range(0, len(vencidos), 1000):
+        lote = vencidos[inicio:inicio + 1000]
+        cliente.delete_objects(
+            Bucket=cfg['bucket'],
+            Delete={'Objects': [{'Key': chave} for chave, _ in lote],
+                    'Quiet': True})
+        removidos.extend(chave for chave, _ in lote)
     return removidos
 
 
@@ -274,7 +363,8 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
               metavar='CAMINHO',
               help='Pasta de destino (padrão: BACKUP_DIR ou ./backups).')
 @click.option('--keep-days', 'dias', default=None, type=int, metavar='N',
-              help='Dias de retenção local/nuvem (padrão: BACKUP_RETENTION_DAYS ou 14).')
+              help='Teto de idade em dias (padrão: BACKUP_RETENTION_DAYS ou 45); '
+                   'a política 7 diárias + 4 semanais vem de BACKUP_DAILY_KEEP/BACKUP_WEEKLY_KEEP.')
 @click.option('--no-upload', is_flag=True,
               help='Não envia para a nuvem, mesmo com BACKUP_S3_BUCKET definido.')
 @with_appcontext
@@ -282,7 +372,7 @@ def backup_command(destino, dias, no_upload):
     """Gera o backup do banco de dados e envia para a nuvem.
 
     Snapshot comprimido (gzip) do banco configurado em DATABASE_URL — SQLite
-    ou PostgreSQL — com retenção automática dos arquivos antigos e upload
+    ou PostgreSQL — com retenção automática (7 diárias + 4 semanais) e upload
     para bucket compatível com a API S3 quando BACKUP_S3_BUCKET está definido.
 
     Uso: flask --app run backup
@@ -313,10 +403,11 @@ def backup_command(destino, dias, no_upload):
 
     click.echo(f'   ✅ Arquivo gerado: {arquivo_gz} ({_tamanho_legivel(arquivo_gz)})')
 
-    antigos = _limpar_locais(cfg['diretorio'], cfg['dias_retencao'])
+    antigos, mantidos = _limpar_locais(
+        cfg['diretorio'], cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
     if antigos:
-        click.echo(f'   🧹 Retenção local: {len(antigos)} backup(s) antigo(s) apagado(s) '
-                   f'(> {cfg["dias_retencao"]} dias)')
+        click.echo(f'   🧹 Retenção local: {mantidos} mantido(s), {len(antigos)} apagado(s) '
+                   f'({cfg["diarias"]} diárias + {cfg["semanais"]} semanais)')
 
     if no_upload:
         click.echo(click.style('✅ Backup concluído (upload pulado por --no-upload).',
