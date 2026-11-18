@@ -163,7 +163,16 @@ def _criar_banco_postgres(parametros, banco_teste):
             f'O usuário "{usuario}" não tem permissão de criar bancos — '
             'necessária uma única vez para o banco descartável da verificação. '
             'Libere com: sudo -u postgres psql -c '
-            f'"ALTER USER {_nome_seguro(usuario)} WITH CREATEDB;"')
+            f'"ALTER USER {_nome_seguro(usuario)} WITH CREATEDB;"') from None
+    except psycopg2.errors.ObjectInUse:
+        raise BackupError(
+            f'O banco descartável "{banco_teste}" ainda tem conexões ativas '
+            '(execução anterior/concorrente?) — encerre-as e rode de novo.') from None
+    except psycopg2.Error as erro:
+        # Falha de rede, recursos, sessões travadas no meio do cursor —
+        # nada disso deve escapar como traceback cru ao operador.
+        raise BackupError(
+            f'Falha ao criar o banco descartável "{banco_teste}": {erro}') from erro
 
 
 def _apagar_banco_postgres(parametros, banco_teste):
@@ -232,12 +241,15 @@ def _linhas_por_tabela_sqlite(caminho):
     if not os.path.exists(caminho):
         raise BackupError(f'Banco SQLite não encontrado: {caminho}')
     conexao = sqlite3.connect(caminho)
+    # Identificador de tabela não é parametrizável em SQL: o nome vem do
+    # catálogo do próprio banco (sqlite_master) e é escapado por _nome_seguro
+    # — o nosec suprime o B608 do bandit nesses pontos fixos.
     try:
         tabelas = [registro[0] for registro in conexao.execute(
             "SELECT name FROM sqlite_master WHERE type='table' "
             "AND name NOT LIKE 'sqlite_%'")]
         return {tabela: conexao.execute(
-            'SELECT COUNT(*) FROM ' + _nome_seguro(tabela)).fetchone()[0]
+            'SELECT COUNT(*) FROM ' + _nome_seguro(tabela)).fetchone()[0]  # nosec B608
             for tabela in tabelas}
     finally:
         conexao.close()
@@ -254,7 +266,7 @@ def _linhas_por_tabela_postgres(parametros, banco):
             tabelas = [registro[0] for registro in cursor.fetchall()]
             linhas = {}
             for tabela in tabelas:
-                cursor.execute('SELECT COUNT(*) FROM ' + _nome_seguro(tabela))
+                cursor.execute('SELECT COUNT(*) FROM ' + _nome_seguro(tabela))  # nosec B608
                 linhas[tabela] = cursor.fetchone()[0]
         return linhas
     finally:
