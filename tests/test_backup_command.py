@@ -114,6 +114,15 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertIn('não é um número inteiro', resultado.output)
         self.assertNotIn('Traceback', resultado.output)
 
+    def test_variavel_de_retencao_negativa_erro_claro(self):
+        # Negativo é erro de digitação: sem o aviso, desativaria o nível em
+        # silêncio e sobraria só o "mais recente" da rede de segurança.
+        with mock.patch.dict(os.environ, {'BACKUP_DAILY_KEEP': '-3'}):
+            resultado = self._rodar('--dir', self.pasta_backup)
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('é negativo — precisa ser >= 0', resultado.output)
+        self.assertNotIn('Traceback', resultado.output)
+
     # ── Retenção local ─────────────────────────────────────────────────────
 
     def test_retencao_remove_apenas_backups_antigos(self):

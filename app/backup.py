@@ -69,16 +69,26 @@ class BackupError(Exception):
 
 
 def _inteiro_da_ambiente(nome, padrao):
-    """Inteiro da variável de ambiente, com mensagem apresentável ao operador."""
+    """Inteiro da variável de ambiente, com mensagem apresentável ao operador.
+
+    Negativo é sempre erro de digitação (são contagens e dias) — rejeitado
+    com aviso em vez de reinterpretado silenciosamente (um BACKUP_DAILY_KEEP
+    negativo desativaria as diárias sem dizer nada).
+    """
     bruto = os.environ.get(nome)
     if bruto is None:
         return padrao
     try:
-        return int(bruto)
+        valor = int(bruto)
     except ValueError:
         raise BackupError(
             f'{nome}="{bruto}" não é um número inteiro — ajuste o .env e rode '
             'de novo.') from None
+    if valor < 0:
+        raise BackupError(
+            f'{nome}="{bruto}" é negativo — precisa ser >= 0 (0 desliga o '
+            'nível; no teto, mantém tudo). Ajuste o .env e rode de novo.')
+    return valor
 
 
 def _configuracao(destino=None, dias_retencao=None):
