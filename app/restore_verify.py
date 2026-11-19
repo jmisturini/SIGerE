@@ -272,7 +272,11 @@ def _restaurar_postgres(parametros, arquivo_gz, banco_teste):
         with tempfile.TemporaryFile() as erros:
             try:
                 processo = subprocess.run(
-                    [binario, '--quiet', '--set=ON_ERROR_STOP=1', '--file=' + sql],
+                    # --no-psqlrc: o ~/.psqlrc do operador não pode alterar a
+                    # restauração (ex.: \set ON_ERROR_STOP off desligaria a
+                    # proteção silenciosamente).
+                    [binario, '--no-psqlrc', '--quiet',
+                     '--set=ON_ERROR_STOP=1', '--file=' + sql],
                     env=env, stderr=erros)
             except FileNotFoundError:
                 raise BackupError(
