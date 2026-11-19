@@ -312,15 +312,16 @@ def _linhas_por_tabela_sqlite(caminho):
         raise BackupError(f'Banco SQLite não encontrado: {caminho}')
     conexao = sqlite3.connect(caminho)
     try:
+        # Lock momentâneo da aplicação não reprova a conferência: espera até
+        # 5 s antes de levantar "database is locked" — tem de valer desde a
+        # PRIMEIRA leitura (sqlite_master), não só das contagens.
+        conexao.execute('PRAGMA busy_timeout = 5000')
         tabelas = [registro[0] for registro in conexao.execute(
             "SELECT name FROM sqlite_master WHERE type='table' "
             "AND name NOT LIKE 'sqlite_%'")]
         # Transação única: todas as contagens saem do mesmo snapshot — com a
         # aplicação no ar, contagens tomadas em instantes distintos divergem
         # sem motivo real (e reprovariam com tolerância 0).
-        # Lock momentâneo da aplicação não reprova a conferência: espera até
-        # 5 s antes de levantar "database is locked".
-        conexao.execute('PRAGMA busy_timeout = 5000')
         conexao.execute('BEGIN')
         linhas = {tabela: conexao.execute(
             'SELECT COUNT(*) FROM ' + _nome_seguro(tabela)).fetchone()[0]  # nosec B608
