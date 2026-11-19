@@ -253,6 +253,7 @@ class BackupCommandTestCase(unittest.TestCase):
             'LastModified': datetime.now(timezone.utc) - timedelta(days=1),
         }
         falso_cliente = mock.Mock()
+        falso_cliente.delete_objects.return_value = {'Errors': []}
         paginador = mock.Mock()
         paginador.paginate.return_value = [{'Contents': [antigo_nuvem, recente_nuvem]}]
         falso_cliente.get_paginator.return_value = paginador
@@ -302,6 +303,7 @@ class BackupCommandTestCase(unittest.TestCase):
              'LastModified': agora - timedelta(days=300)},
         ]
         falso_cliente = mock.Mock()
+        falso_cliente.delete_objects.return_value = {'Errors': []}
         paginador = mock.Mock()
         paginador.paginate.return_value = [{'Contents': conteudo}]
         falso_cliente.get_paginator.return_value = paginador
@@ -312,6 +314,31 @@ class BackupCommandTestCase(unittest.TestCase):
                                                 agora=agora)
         self.assertEqual(removidos,
                          ['sigere/2025/sigere-20250101-032000-postgres.sql.gz'])
+
+    def test_retencao_nuvem_nao_conta_falha_como_removida(self):
+        # Object lock/permissão recusam a exclusão: a chave volta em Errors
+        # mesmo com Quiet — não pode entrar nos removidos nem passar calada.
+        agora = datetime(2026, 11, 18, 12, 0)
+        chave_vencida = 'sigere/sigere-20250101-032000-postgres.sql.gz'
+        falso_cliente = mock.Mock()
+        paginador = mock.Mock()
+        paginador.paginate.return_value = [{'Contents': [
+            {'Key': chave_vencida, 'LastModified': agora - timedelta(days=300)}]}]
+        falso_cliente.get_paginator.return_value = paginador
+        falso_cliente.delete_objects.return_value = {
+            'Errors': [{'Key': chave_vencida, 'Code': 'AccessDenied',
+                        'Message': 'Access Denied'}]}
+        cfg = {'bucket': 'bucket-sigere', 'prefixo': 'sigere', 'diarias': 7,
+               'semanais': 4, 'dias_retencao': 45}
+
+        with mock.patch.object(modulo_backup.click, 'echo') as eco:
+            removidos = modulo_backup._limpar_nuvem(cfg, cliente=falso_cliente,
+                                                    agora=agora)
+        self.assertEqual(removidos, [])
+        avisos = [str(chamada.args[0]) for chamada in eco.call_args_list
+                  if chamada.args]
+        self.assertTrue(any('não foram apagados no bucket' in aviso
+                            for aviso in avisos))
 
     # ── Interpretação da DATABASE_URL ──────────────────────────────────────
 

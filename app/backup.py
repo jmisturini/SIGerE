@@ -317,14 +317,14 @@ def _tamanho_legivel(caminho):
 def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
     """Aplica a retenção 7+4 aos arquivos locais `sigere-*.gz`.
 
-    Devolve (nomes apagados, quantidade que permaneceu). Arquivos estranhos
-    à pasta nunca são tocados; quem não pôde ser apagado (travado, sem
-    permissão) permanece e é contado junto com os mantidos — o resumo do
-    comando reflete o que há de fato na pasta. Teto `<= 0` desliga a
-    retenção: nada é apagado.
+    Devolve (nomes apagados, quantidade mantida, falhas de exclusão).
+    Arquivos estranhos à pasta nunca são tocados; quem não pôde ser apagado
+    (travado, sem permissão) fica de pé e volta separado em `falhas` — o
+    resumo do operador não pode disfarçar retenção furada. Teto `<= 0`
+    desliga a retenção: nada é apagado.
     """
     if teto_dias <= 0 or not os.path.isdir(diretorio):
-        return [], 0
+        return [], 0, 0
     agora = agora or datetime.now()
     registros = []
     for nome in os.listdir(diretorio):
@@ -350,7 +350,7 @@ def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
             falhas += 1
             continue
         removidos.append(nome)
-    return sorted(removidos), len(manter) + falhas
+    return sorted(removidos), len(manter), falhas
 
 
 def _criar_cliente_s3(cfg):
@@ -428,11 +428,19 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
     removidos = []
     for inicio in range(0, len(vencidos), 1000):
         lote = vencidos[inicio:inicio + 1000]
-        cliente.delete_objects(
+        resposta = cliente.delete_objects(
             Bucket=cfg['bucket'],
             Delete={'Objects': [{'Key': chave} for chave in lote],
                     'Quiet': True})
-        removidos.extend(lote)
+        # Quiet não esconde erro: chaves com permissão negada/object lock
+        # voltam em Errors e precisam sair dos removidos — senão o resumo
+        # informa uma retenção que não aconteceu.
+        falhas = {erro['Key'] for erro in resposta.get('Errors', [])}
+        if falhas:
+            click.echo(click.style(
+                f'   ⚠️  {len(falhas)} objeto(s) não foram apagados no bucket — '
+                'verifique permissões/object lock.', fg='yellow'))
+        removidos.extend(chave for chave in lote if chave not in falhas)
     return removidos
 
 
@@ -484,11 +492,15 @@ def backup_command(destino, dias, no_upload):
 
     click.echo(f'   ✅ Arquivo gerado: {arquivo_gz} ({_tamanho_legivel(arquivo_gz)})')
 
-    antigos, mantidos = _limpar_locais(
+    antigos, mantidos, falhas = _limpar_locais(
         cfg['diretorio'], cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
     if antigos:
         click.echo(f'   🧹 Retenção local: {mantidos} mantido(s), {len(antigos)} apagado(s) '
                    f'({cfg["diarias"]} diárias + {cfg["semanais"]} semanais)')
+    if falhas:
+        click.echo(click.style(
+            f'   ⚠️  Retenção incompleta: {falhas} backup(s) não pôde ser apagado(s) — '
+            'a pasta segue com mais do que a política manda.', fg='yellow'))
 
     if no_upload:
         click.echo(click.style('✅ Backup concluído (upload pulado por --no-upload).',
