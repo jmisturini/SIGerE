@@ -31,6 +31,7 @@ Configuração por variáveis de ambiente (todas opcionais):
 | BACKUP_S3_ENDPOINT      | AWS padrão        | Endpoint S3-compatível (B2, R2, MinIO, GCS...)  |
 | BACKUP_S3_REGION        | padrão do boto3   | Região do bucket                                |
 | BACKUP_S3_PATH_STYLE    | `false`           | `true` para provedores que exigem path-style (MinIO) |
+| BACKUP_PG_DUMP_BIN      | `pg_dump`         | Caminho alternativo do binário no backup — o par do `BACKUP_PSQL_BIN` da verificação de restauração |
 
 A prova de que o backup volta é o comando irmão `flask --app run
 verify-restore` (app/restore_verify.py): restaura o snapshot mais recente —

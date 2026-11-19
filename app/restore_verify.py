@@ -15,6 +15,10 @@ os dois:
 O tempo de restauração é medido e impresso — é o número real para o runbook.
 O banco descartável é apagado ao final, inclusive quando a verificação falha.
 
+Binário do psql: `BACKUP_PSQL_BIN` (padrão `psql`) — par do
+`BACKUP_PG_DUMP_BIN` do backup; em ambientes com caminho customizado
+(múltiplas versões de postgresql-client, contêineres), ajuste os dois juntos.
+
 Agende junto do backup (no mesmo timer/cron): restaurar o snapshot de minutos
 atrás contra uma produção parada da madrugada é o cenário sem desvio de
 linhas — desvio reprova de verdade.
