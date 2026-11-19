@@ -145,6 +145,20 @@ class VerifyRestoreTestCase(unittest.TestCase):
         self.assertNotEqual(resultado.exit_code, 0)
         self.assertIn('não encontrado', resultado.output)
 
+    def test_essencial_ausente_dos_dois_lados_reprova(self):
+        # `faltando` pega essencial que está na produção e sumiu da cópia;
+        # sumida dos DOIS lados (backup de banco vazio/errado) só o
+        # _essenciais_ausentes pega — e reprova.
+        self.assertEqual(
+            modulo_verificar._essenciais_ausentes(
+                {'unities': 3, 'classrooms': 17}, {'unities': 3}),
+            ['users', 'reservations'])
+        # Todas as essenciais presentes nos dois lados: nada a reportar
+        # (zero linhas é informativo, não reprova).
+        vazias = {'users': 0, 'unities': 0, 'classrooms': 0, 'reservations': 0}
+        self.assertEqual(
+            modulo_verificar._essenciais_ausentes(vazias, dict(vazias)), [])
+
     def test_reprova_backup_corrompido_erro_claro(self):
         # Arquivo que não é gzip: descompressão falha — e o operador recebe
         # mensagem apresentável, não traceback cru.

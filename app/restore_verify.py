@@ -39,8 +39,10 @@ from app.backup import (BackupError, PADRAO_ARQUIVOS, _criar_cliente_s3,
                         _caminho_sqlite, _configuracao, _interpretar_uri,
                         _momento_de, _momento_nuvem)
 
-# Tabelas cujo vazio/ausência indica restauração inútil mesmo sem desvio
-# aparente — aparecem destacadas no relatório.
+# Tabelas que uma restauração útil precisa ter — aparecem destacadas no
+# relatório. Ausente da CÓPIA reprova a verificação, mesmo quando também
+# sumiu da produção (backup de banco vazio/errado); zero linhas é
+# informativo, não reprova sozinho (instalação nova tem 0 reservas).
 TABELAS_ESSENCIAIS = ('users', 'unities', 'classrooms', 'reservations')
 
 
@@ -367,8 +369,24 @@ def _comparar(producao, copia, tolerancia):
     return faltando, extras, desvios
 
 
+def _essenciais_ausentes(producao, copia):
+    """Essenciais ausentes da CÓPIA restaurada.
+
+    `faltando` já reprova essencial presente na produção e ausente da cópia;
+    aqui entra o caso que escaparia: a essencial sumiu dos DOIS lados —
+    sintoma de backup de banco vazio ou do banco errado.
+    """
+    return [tabela for tabela in TABELAS_ESSENCIAIS
+            if tabela not in copia and tabela not in producao]
+
+
 def _resumo_essenciais(producao, copia):
-    """Uma linha por tabela essencial: `users 5→5`. Ausente vira erro adiante."""
+    """Uma linha por tabela essencial: `users 5→5`.
+
+    Ausente da cópia vira reprovação adiante (na produção, via `faltando`;
+    ausente dos dois lados, via `_essenciais_ausentes`). Zero linhas é
+    informativo — instalação nova tem 0 reservas.
+    """
     return ' · '.join(
         f'{tabela} {producao.get(tabela, "AUSENTE")}→{copia.get(tabela, "AUSENTE")}'
         for tabela in TABELAS_ESSENCIAIS)
@@ -451,12 +469,17 @@ def verify_restore_command(arquivo, destino, tolerancia):
             _apagar_banco_postgres(dados, banco_teste)
 
     faltando, extras, desvios = _comparar(producao, copia, tolerancia)
+    essenciais_ausentes = _essenciais_ausentes(producao, copia)
     click.echo(f'   ⏱️  Restauração levou {duracao:.1f} s')
     click.echo(f'   🗃️  Tabelas: {len(producao)} na produção, '
                f'{len(copia)} na cópia restaurada')
     click.echo(f'   📌 Essenciais: {_resumo_essenciais(producao, copia)}')
 
     reprovacoes = []
+    if essenciais_ausentes:
+        reprovacoes.append(
+            'tabelas essenciais ausentes dos dois lados (backup de banco '
+            'vazio ou do banco errado?): ' + ', '.join(essenciais_ausentes))
     if faltando:
         reprovacoes.append(
             'tabelas da produção ausentes na cópia: ' + ', '.join(faltando))
