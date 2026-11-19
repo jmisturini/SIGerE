@@ -88,6 +88,10 @@ def _mais_recente_nuvem(cfg, cliente):
             nome = obj['Key'].rsplit('/', 1)[-1]
             if not (nome.startswith(PADRAO_ARQUIVOS[0]) and nome.endswith(PADRAO_ARQUIVOS[1])):
                 continue
+            # Só filhos diretos do prefixo — cópias em subpastas não disputam
+            # a restauração (espelho do comportamento da pasta local).
+            if obj['Key'].rsplit('/', 1)[0] != cfg['prefixo']:
+                continue
             momento = _momento_nuvem(nome, obj['LastModified'])
             if mais_novo is None or momento > mais_novo[0]:
                 mais_novo = (momento, obj)
@@ -368,7 +372,7 @@ def _resumo_essenciais(producao, copia):
 @click.option('--dir', 'destino', default=None,
               type=click.Path(file_okay=False), metavar='CAMINHO',
               help='Pasta onde procurar os backups (padrão: BACKUP_DIR ou ./backups).')
-@click.option('--tolerancia', default=0, type=int, metavar='N',
+@click.option('--tolerancia', default=0, type=click.IntRange(min=0), metavar='N',
               help='Diferença máxima de linhas aceita por tabela (padrão 0).')
 @with_appcontext
 def verify_restore_command(arquivo, destino, tolerancia):

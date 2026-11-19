@@ -277,6 +277,31 @@ class BackupCommandTestCase(unittest.TestCase):
         # O arquivo local continua intacto — o upload falhou, o backup não.
         self.assertEqual(len(os.listdir(self.pasta_backup)), 1)
 
+    def test_retencao_nuvem_decide_pela_chave_completa(self):
+        # Cópia manual em subpasta compartilha o basename com o backup vivo:
+        # a identidade é a chave completa — a cópia velha sai, o vivo fica.
+        # agora naive local — mesmo calendário dos momentos normalizados
+        agora = datetime(2026, 11, 18, 12, 0)
+        conteudo = [
+            {'Key': 'sigere/sigere-20261118-032000-postgres.sql.gz',
+             'LastModified': agora},
+            {'Key': 'sigere/2025/sigere-20261118-032000-postgres.sql.gz',
+             'LastModified': agora},
+            {'Key': 'sigere/2025/sigere-20250101-032000-postgres.sql.gz',
+             'LastModified': agora - timedelta(days=300)},
+        ]
+        falso_cliente = mock.Mock()
+        paginador = mock.Mock()
+        paginador.paginate.return_value = [{'Contents': conteudo}]
+        falso_cliente.get_paginator.return_value = paginador
+        cfg = {'bucket': 'bucket-sigere', 'prefixo': 'sigere', 'diarias': 7,
+               'semanais': 4, 'dias_retencao': 45}
+
+        removidos = modulo_backup._limpar_nuvem(cfg, cliente=falso_cliente,
+                                                agora=agora)
+        self.assertEqual(removidos,
+                         ['sigere/2025/sigere-20250101-032000-postgres.sql.gz'])
+
     # ── Interpretação da DATABASE_URL ──────────────────────────────────────
 
     def test_interpretar_uri_sqlite(self):

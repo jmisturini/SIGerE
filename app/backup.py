@@ -393,7 +393,7 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
         return []
     cliente = cliente or _criar_cliente_s3(cfg)
     agora = agora or datetime.now()  # naive local — mesmo calendário da pasta
-    registros = []  # (momento, nome do arquivo, chave completa)
+    registros = []  # (momento, chave completa)
     paginador = cliente.get_paginator('list_objects_v2')
     for pagina in paginador.paginate(Bucket=cfg['bucket'], Prefix=cfg['prefixo'] + '/'):
         for obj in pagina.get('Contents', []):
@@ -401,21 +401,22 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
             if not (nome.startswith(PADRAO_ARQUIVOS[0]) and nome.endswith(PADRAO_ARQUIVOS[1])):
                 continue
             registros.append((_momento_nuvem(nome, obj['LastModified']),
-                              nome, obj['Key']))
+                              obj['Key']))
 
+    # Identidade é a CHAVE COMPLETA: cópias manuais em subpastas sob o
+    # prefixo podem compartilhar o basename — decidir pelo nome apagaria ou
+    # preservaria os dois de uma vez.
     manter = _selecionar_manter(
-        [(momento, nome) for momento, nome, _ in registros],
-        agora, cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
-    vencidos = [(chave, nome) for momento, nome, chave in registros
-                if nome not in manter]
+        registros, agora, cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
+    vencidos = [chave for momento, chave in registros if chave not in manter]
     removidos = []
     for inicio in range(0, len(vencidos), 1000):
         lote = vencidos[inicio:inicio + 1000]
         cliente.delete_objects(
             Bucket=cfg['bucket'],
-            Delete={'Objects': [{'Key': chave} for chave, _ in lote],
+            Delete={'Objects': [{'Key': chave} for chave in lote],
                     'Quiet': True})
-        removidos.extend(chave for chave, _ in lote)
+        removidos.extend(lote)
     return removidos
 
 

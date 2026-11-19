@@ -255,6 +255,28 @@ class VerifyRestoreTestCase(unittest.TestCase):
             {'bucket': 'bucket-sigere', 'prefixo': 'sigere'}, falso_cliente)
         self.assertEqual(chave, 'sigere/sigere-20261118-000000-postgres.sql.gz')
 
+    def test_mais_recente_nuvem_ignora_subpastas(self):
+        # Cópia em subpasta com carimbo mais novo não disputa a restauração —
+        # só filhos diretos do prefixo.
+        paginador = mock.Mock()
+        paginador.paginate.return_value = [{
+            'Contents': [
+                {'Key': 'sigere/sub/sigere-20261201-000000-postgres.sql.gz',
+                 'LastModified': datetime.now(timezone.utc)},
+                {'Key': 'sigere/sigere-20261118-000000-postgres.sql.gz',
+                 'LastModified': datetime.now(timezone.utc) - timedelta(days=1)},
+            ]}]
+        falso_cliente = mock.Mock()
+        falso_cliente.get_paginator.return_value = paginador
+
+        chave = modulo_verificar._mais_recente_nuvem(
+            {'bucket': 'bucket-sigere', 'prefixo': 'sigere'}, falso_cliente)
+        self.assertEqual(chave, 'sigere/sigere-20261118-000000-postgres.sql.gz')
+
+    def test_tolerancia_negativa_e_rejeitada(self):
+        resultado = self._rodar('--tolerancia', '-1')
+        self.assertNotEqual(resultado.exit_code, 0)
+
 
 if __name__ == '__main__':
     unittest.main()
