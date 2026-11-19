@@ -217,8 +217,10 @@ def _criar_banco_postgres(parametros, banco_teste):
         raise BackupError(
             f'O usuário "{usuario}" não tem permissão de criar bancos — '
             'necessária uma única vez para o banco descartável da verificação. '
-            'Libere com: sudo -u postgres psql -c '
-            f'"ALTER USER {_nome_seguro(usuario)} WITH CREATEDB;"') from None
+            # Aspas simples do shell em volta do SQL: com aspas duplas em
+            # ambos os níveis, o comando do operador quebraria ao copiar.
+            f'Libere com: sudo -u postgres psql -c \'ALTER USER '
+            f'{_nome_seguro(usuario)} WITH CREATEDB;\'') from None
     except psycopg2.errors.ObjectInUse:
         raise BackupError(
             f'O banco descartável "{banco_teste}" ainda tem conexões ativas '
