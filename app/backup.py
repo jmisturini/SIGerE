@@ -239,16 +239,22 @@ def _interpretar_uri(uri):
     }
 
 
-def _caminho_sqlite(caminho):
+def _caminho_sqlite(caminho, app=None):
     """Caminho absoluto do banco SQLite da aplicação.
 
     Flask-SQLAlchemy resolve caminho relativo na DATABASE_URL contra a pasta
     instance/ — backup e verificação precisam ler o MESMO arquivo que a
     aplicação escreve, não um homônimo relativo ao diretório corrente.
+
+    Com `app=None` usa o contexto atual; um app explícito (ex.: um
+    `Flask(__name__)` descartável, como no runbook) permite resolver o
+    caminho sem criar a aplicação — e sem abrir um banco que pode estar
+    corrompido (o boot da aplicação inspeciona as tabelas).
     """
     if os.path.isabs(caminho):
         return caminho
-    return os.path.join(current_app.instance_path, caminho)
+    app = app or current_app._get_current_object()
+    return os.path.join(app.instance_path, caminho)
 
 
 def _dump_sqlite(caminho_banco, arquivo_gz):

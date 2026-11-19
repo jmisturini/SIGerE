@@ -128,17 +128,17 @@ sudo systemctl stop sigere                  # se houver serviço rodando
 # 1. Alvo da restauração = o banco que a DATABASE_URL aponta, com a MESMA
 #    resolução do app (relativo cai na instance/, absoluto fica como está —
 #    o helper _caminho_sqlite): restaurar por hábito num reservation.db do
-#    diretório corrente pode substituir o arquivo errado.
+#    diretório corrente pode substituir o arquivo errado. Usa um Flask
+#    descartável — NÃO abre o banco, que pode estar corrompido justamente
+#    neste cenário (o boot da aplicação inspecionaria as tabelas):
 BANCO_ATUAL="$(venv/bin/python -c "
-import os
-os.environ.setdefault('SECRET_KEY', 'apenas-resolucao-de-caminho')
 from dotenv import load_dotenv; load_dotenv()
-from app import create_app
+from app.config import Config
 from app.backup import _caminho_sqlite, _interpretar_uri
-app = create_app()
-with app.app_context():
-    _, dados = _interpretar_uri(app.config['SQLALCHEMY_DATABASE_URI'])
-    print(_caminho_sqlite(dados))
+from flask import Flask
+uri = Config.SQLALCHEMY_DATABASE_URI
+_, dados = _interpretar_uri(uri)
+print(_caminho_sqlite(dados, Flask(__name__)))
 ")"
 echo "Banco atual: $BANCO_ATUAL"
 
@@ -153,9 +153,15 @@ gunzip -c "$BACKUP" > "$PASTA_TRABALHO/sigere-restaurado.sqlite" \
 [ -s "$PASTA_TRABALHO/sigere-restaurado.sqlite" ] \
   || { echo "❌ Extração produziu arquivo vazio"; rm -rf "$PASTA_TRABALHO"; exit 1; }
 
-# 3. Validar a integridade do extraído antes de tocar no banco atual:
-venv/bin/python -c "import sqlite3; print(sqlite3.connect('$PASTA_TRABALHO/sigere-restaurado.sqlite').execute('PRAGMA integrity_check').fetchone()[0])"
-# 'ok' esperado — qualquer outra coisa: NÃO substitua; tente outro snapshot.
+# 3. Validar a integridade do extraído e SÓ SEGUIR com 'ok' — num bloco
+#    colado, o procedimento continuaria e substituiria o banco por um
+#    snapshot inválido:
+INTEGRIDADE="$(venv/bin/python -c "import sqlite3; print(sqlite3.connect('$PASTA_TRABALHO/sigere-restaurado.sqlite').execute('PRAGMA integrity_check').fetchone()[0])")"
+if [ "$INTEGRIDADE" != "ok" ]; then
+  echo "❌ integrity_check: $INTEGRIDADE — NÃO substitua; tente outro snapshot."
+  rm -rf "$PASTA_TRABALHO"
+  exit 1
+fi
 
 # 4. Preservar o estado ruim PARA ANÁLISE e limpar o caminho — um journal
 #    quente (-journal/-wal/-shm do banco do desastre) ao lado do arquivo
@@ -168,33 +174,43 @@ for sufixo in journal wal shm; do
     mv "$BANCO_ATUAL-$sufixo" "$BANCO_ATUAL.bak-dia-ruim-$sufixo"
 done
 mv "$PASTA_TRABALHO/sigere-restaurado.sqlite" "$BANCO_ATUAL"
+# dono e permissões do arquivo movido para o .bak — o extraído herda o do
+# operador; se o serviço rodar com outro usuário, ele não escreveria (com
+# umask restritivo, nem leria) o banco restaurado:
+sudo chown --reference="$BANCO_ATUAL.bak-dia-ruim" "$BANCO_ATUAL"
+sudo chmod --reference="$BANCO_ATUAL.bak-dia-ruim" "$BANCO_ATUAL"
 rm -rf "$PASTA_TRABALHO"
 
-# 5. Alinhar schema e permissões ANTES de abrir o serviço (igual ao
-#    PostgreSQL): o snapshot pode ser anterior a uma migration do código
-#    atual. Falhou aqui? sigere segue PARADO.
-set -a; source .env; set +a
-venv/bin/flask --app run db upgrade
-# se o código avançou: registre as revogações de Painel Admin → Papéis,
-# rode `venv/bin/flask --app run sync-permissions` e reaplique-as
-# (procedimento completo na doc de implantação).
-
-# 6. Conferir o ciclo — com --arquivo, garante que o testado é o mesmo
-#    snapshot restaurado, e não "o mais recente" da pasta/bucket. Só suba o
-#    serviço com a verificação verde:
+# 5. Conferir o ciclo ANTES das migrations — com --arquivo, garante que o
+#    testado é o MESMO snapshot restaurado, e não "o mais recente" da
+#    pasta/bucket. Verificar aqui (e não depois das migrations): se uma
+#    migration adicionar tabela, o snapshot — que não a tem — seria
+#    reprovado injustamente pela comparação:
 venv/bin/flask --app run verify-restore --arquivo "$BACKUP" || {
   echo "❌ Verificação reprovou — sigere segue PARADO; investigue antes de abrir."
   exit 1
 }
+
+# 6. Alinhar schema e permissões ANTES de abrir o serviço: o snapshot pode
+#    ser anterior a uma migration do código atual. Falhou aqui? sigere segue
+#    PARADO.
+set -a; source .env; set +a
+venv/bin/flask --app run db upgrade || {
+  echo "❌ db upgrade falhou — sigere segue PARADO; resolva antes de abrir."
+  exit 1
+}
+# se o código avançou: registre as revogações de Painel Admin → Papéis,
+# rode `venv/bin/flask --app run sync-permissions` e reaplique-as
+# (procedimento completo na doc de implantação).
 sudo systemctl start sigere
 ```
 
 ## Depois de qualquer restauração
 
 1. Migration e `sync-permissions` já rodaram antes de subir o serviço
-   (passo 4 no PostgreSQL, passo 5 no SQLite) — se algo precisar ficar para
-   depois, mantenha os serviços parados até concluir, com o procedimento de
-   revogações da doc de implantação.
+   (passo 4 no PostgreSQL, passos 5–6 no SQLite) — se algo precisar ficar
+   para depois, mantenha os serviços parados até concluir, com o
+   procedimento de revogações da doc de implantação.
 2. Ajuste o relógio das expectativas: avisar usuários o que foi perdido no
    intervalo (reservas do dia refeitas à mão).
 3. Investigar a causa antes de religar o mundo: disco cheio, update quebrado,
