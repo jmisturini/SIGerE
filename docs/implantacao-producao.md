@@ -624,8 +624,10 @@ venv/bin/flask --app run backup --no-upload  # só o arquivo local (teste)
   `--keep-days 0` preservado). A política vale para a pasta local
   (`BACKUP_DIR`, padrão `backups/`) e para os objetos de backup do bucket.
   `BACKUP_DAILY_KEEP`/`BACKUP_WEEKLY_KEEP` em `0` desligam cada nível — e
-  com o teto ativo, a política nunca apaga tudo: sobra ao menos o backup
-  mais recente.
+  com o teto ativo, a política nunca apaga tudo que esteja dentro do teto:
+  sobra ao menos o backup mais recente que os 45 dias alcancem. Se até ele
+  exceder o teto (máquina parada por meses), nada sobrevive — é o teto
+  cumprindo o seu papel.
 
 #### Conferir que o backup volta (verify-restore)
 
@@ -688,22 +690,24 @@ Type=oneshot
 User=SEU_USUARIO
 WorkingDirectory=/var/www/sigere
 EnvironmentFile=/var/www/sigere/.env
-ExecStart=/var/www/sigere/venv/bin/flask --app run notify-cleanup
+ExecStart=-/var/www/sigere/venv/bin/flask --app run notify-cleanup
 ExecStart=/var/www/sigere/venv/bin/flask --app run backup
 ExecStart=/var/www/sigere/venv/bin/flask --app run verify-restore
 ```
 
 Os três `ExecStart` rodam em sequência: limpeza de notificações antigas →
-backup → verificação de restauração. A limpeza vem **primeiro** de propósito:
-num serviço `Type=oneshot`, um `ExecStart` que termina com erro pula os
-seguintes — e uma verificação que reprovou não pode impedir a limpeza de
-rodar. O `verify-restore` segue logo após o `backup` por aproveitar o
-snapshot de minutos atrás — sem desvio de linhas — e, se falhar, o serviço
-marca falha visível no `systemctl list-timers` e no journal (backup e limpeza
-já concluíram). O `notify-cleanup` apaga notificações lidas há mais de 90
-dias e avisos de reservas cuja data foi há mais de 30 dias (ajustável com
-`--dias-lidas`/`--dias-passadas`). Sem ele, a tabela `notifications` cresce
-indefinidamente. Para testar: `flask --app run notify-cleanup --dry-run`.
+backup → verificação de restauração. Num serviço `Type=oneshot`, um
+`ExecStart` que termina com erro pula os seguintes — por isso a **limpeza
+leva `-` na frente do comando** (sintaxe do systemd para ignorar falha): é
+housekeeping, e um erro dela fica registrado no journal **sem impedir o
+backup**. O `verify-restore` segue logo após o `backup` por aproveitar o
+snapshot de minutos atrás — sem desvio de linhas — e, se a verificação
+reprovar, o serviço marca falha visível no `systemctl list-timers` e no
+journal (backup e limpeza já concluíram). O `notify-cleanup` apaga
+notificações lidas há mais de 90 dias e avisos de reservas cuja data foi há
+mais de 30 dias (ajustável com `--dias-lidas`/`--dias-passadas`). Sem ele, a
+tabela `notifications` cresce indefinidamente. Para testar:
+`flask --app run notify-cleanup --dry-run`.
 
 E `/etc/systemd/system/sigere-backup.timer`:
 
@@ -736,7 +740,7 @@ journalctl -u sigere-backup.service -n 50    # saída da última execução
 Alternativa com cron (no `crontab -e` do seu usuário):
 
 ```cron
-20 3 * * * cd /var/www/sigere && { set -a; . ./.env; set +a; venv/bin/flask --app run backup && venv/bin/flask --app run verify-restore; } >> /var/log/sigere/backup.log 2>&1
+20 3 * * * cd /var/www/sigere && { set -a; . ./.env; set +a; venv/bin/flask --app run notify-cleanup; venv/bin/flask --app run backup && venv/bin/flask --app run verify-restore; } >> /var/log/sigere/backup.log 2>&1
 ```
 
 #### Restaurar

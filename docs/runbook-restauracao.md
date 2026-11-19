@@ -69,19 +69,26 @@ ls -lt backups/ | head
 
 # 3. Extrair e validar ANTES de tocar na produção — num pipeline
 #    `gunzip | psql`, o gunzip com arquivo errado falha "quieto", o psql
-#    recebe entrada vazia e TERMINA BEM — com a produção já dropada:
+#    recebe entrada vazia e TERMINA BEM — com a produção já dropada.
+#    mktemp -d cria pasta PRIVADA (0700): o dump é confidencial — nada
+#    world-readable em /tmp — e sai do disco no fim do procedimento:
 BACKUP=backups/sigere-AAAAMMDD-HHMMSS-postgres.sql.gz
-gunzip -tc "$BACKUP" && gunzip -c "$BACKUP" > /tmp/sigere-restaurado.sql
-ls -l /tmp/sigere-restaurado.sql            # tem de ser maior que zero
+PASTA_TRABALHO="$(mktemp -d)"
+gunzip -tc "$BACKUP" && gunzip -c "$BACKUP" > "$PASTA_TRABALHO/restaurado.sql"
+ls -l "$PASTA_TRABALHO/restaurado.sql"      # tem de ser maior que zero
 # falhou aqui? PARE — produção intacta, serviços parados; tente outro snapshot.
 
 sudo -u postgres dropdb --if-exists sigere
 sudo -u postgres createdb -O sigere sigere
-psql --set=ON_ERROR_STOP=1 -f /tmp/sigere-restaurado.sql \
+# --no-psqlrc: o ~/.psqlrc do operador não pode desligar o ON_ERROR_STOP
+# (\set ON_ERROR_STOP off nele deixaria restauração pela metade "passar bem").
+psql --no-psqlrc --set=ON_ERROR_STOP=1 -f "$PASTA_TRABALHO/restaurado.sql" \
   "postgresql://sigere:SENHA@localhost:5432/sigere" || {
   echo "❌ Restauração falhou no meio — recrie (dropdb/createdb) e tente o snapshot anterior"
+  rm -rf "$PASTA_TRABALHO"
   exit 1
 }
+rm -rf "$PASTA_TRABALHO"
 # alternativa guiada: python setup_interativo.py  →  modo 3 "Restaurar backup"
 
 # 4. Alinhar schema e permissões ANTES de abrir o serviço — o snapshot pode
@@ -113,14 +120,16 @@ venv/bin/flask --app run verify-restore
 ```bash
 sudo systemctl stop sigere                  # se houver serviço rodando
 
-# 1. Extrair num arquivo temporário PRIMEIRO — o `> reservation.db` direto
-#    trunca o banco atual antes de o gunzip reclamar de caminho errado ou
-#    arquivo corrompido, deixando o problema pior:
+# 1. Extrair num arquivo privado (mktemp -d, 0700) PRIMEIRO — o
+#    `> reservation.db` direto trunca o banco atual antes de o gunzip
+#    reclamar de caminho errado ou arquivo corrompido, deixando o problema
+#    pior; e /tmp com umask 022 deixaria o banco legível por qualquer conta:
 BACKUP=backups/sigere-AAAAMMDD-HHMMSS-sqlite.sqlite.gz
-gunzip -c "$BACKUP" > /tmp/sigere-restaurado.sqlite
+PASTA_TRABALHO="$(mktemp -d)"
+gunzip -c "$BACKUP" > "$PASTA_TRABALHO/sigere-restaurado.sqlite"
 
 # 2. Validar a integridade do extraído antes de tocar no banco atual:
-venv/bin/python -c "import sqlite3; print(sqlite3.connect('/tmp/sigere-restaurado.sqlite').execute('PRAGMA integrity_check').fetchone()[0])"
+venv/bin/python -c "import sqlite3; print(sqlite3.connect('$PASTA_TRABALHO/sigere-restaurado.sqlite').execute('PRAGMA integrity_check').fetchone()[0])"
 # 'ok' esperado — qualquer outra coisa: NÃO substitua; tente outro snapshot.
 
 # 3. Preservar o estado ruim PARA ANÁLISE e limpar o caminho — um journal
@@ -133,7 +142,8 @@ for sufixo in journal wal shm; do
   [ -f "reservation.db-$sufixo" ] && \
     mv "reservation.db-$sufixo" "reservation.db.bak-dia-ruim-$sufixo"
 done
-mv /tmp/sigere-restaurado.sqlite reservation.db
+mv "$PASTA_TRABALHO/sigere-restaurado.sqlite" reservation.db
+rm -rf "$PASTA_TRABALHO"
 
 # 4. Conferir o ciclo — com --arquivo, garante que o testado é o mesmo
 #    snapshot restaurado, e não "o mais recente" da pasta/bucket:
