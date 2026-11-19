@@ -245,7 +245,7 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
 | `BACKUP_S3_BUCKET` | Opcional | Bucket compatível com a API S3 para o `flask --app run backup` enviar os snapshots; ausente/vazio = backup apenas local |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Com o bucket | Credenciais do bucket (AWS S3, Backblaze B2, Cloudflare R2, Wasabi, MinIO, Google Cloud Storage via chaves HMAC) |
 | `BACKUP_DIR` / `BACKUP_DAILY_KEEP` / `BACKUP_WEEKLY_KEEP` | Opcional | Pasta local dos backups (padrão `backups/`) e política de retenção: guarda tudo gerado nas **7 datas mais recentes** mais o backup mais novo de cada uma das **4 semanas ISO anteriores** — vale para a pasta e para o bucket |
-| `BACKUP_RETENTION_DAYS` | Opcional | Teto de idade em dias (padrão `45`): nada mais velho que isso sobrevive, nem semanal. `0` desliga o teto |
+| `BACKUP_RETENTION_DAYS` | Opcional | Teto de idade em dias (padrão `45`): nada mais velho que isso sobrevive, nem semanal. `0` mantém tudo para sempre — desliga a retenção inteira, como no contrato antigo |
 | `BACKUP_S3_ENDPOINT` / `BACKUP_S3_REGION` / `BACKUP_S3_PATH_STYLE` | Com o bucket | Endpoint e região para provedores fora da AWS; `BACKUP_S3_PATH_STYLE="true"` para os que exigem path-style (ex.: MinIO) |
 | `BACKUP_S3_PREFIX` | Opcional | Prefixo dos objetos no bucket (padrão `sigere`) |
 | `BACKUP_PG_DUMP_BIN` / `BACKUP_PSQL_BIN` | Opcional | Caminho alternativo dos binários `pg_dump` (backup) e `psql` (verificação de restauração) quando não estão no `PATH` |
@@ -619,11 +619,13 @@ venv/bin/flask --app run backup --no-upload  # só o arquivo local (teste)
   recentes** (`BACKUP_DAILY_KEEP`) mais o backup mais novo de cada uma das
   **4 semanas ISO anteriores** à corrente (`BACKUP_WEEKLY_KEEP`) — no pior
   caso, ~35 dias de alcance. Nada mais velho que `BACKUP_RETENTION_DAYS` dias
-  (teto, padrão `45`; `0` desliga o teto) sobrevive, nem semanal. A política
-  vale para a pasta local (`BACKUP_DIR`, padrão `backups/`) e para os objetos
-  do bucket. `BACKUP_DAILY_KEEP`/`BACKUP_WEEKLY_KEEP` em `0` desligam cada
-  nível; ambos em `0` com teto `0` mantém tudo para sempre — e com teto
-  ativo, a retenção nunca apaga tudo: sobra ao menos o backup mais recente.
+  (teto, padrão `45`) sobrevive, nem semanal; **`0` mantém tudo para
+  sempre**, desligando a retenção inteira (contrato antigo do
+  `--keep-days 0` preservado). A política vale para a pasta local
+  (`BACKUP_DIR`, padrão `backups/`) e para os objetos de backup do bucket.
+  `BACKUP_DAILY_KEEP`/`BACKUP_WEEKLY_KEEP` em `0` desligam cada nível — e
+  com o teto ativo, a política nunca apaga tudo: sobra ao menos o backup
+  mais recente.
 
 #### Conferir que o backup volta (verify-restore)
 

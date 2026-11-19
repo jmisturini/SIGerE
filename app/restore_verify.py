@@ -152,18 +152,26 @@ def _localizar_backup(cfg, arquivo):
 # ── Restaurar o snapshot em banco descartável ─────────────────────────────
 
 def _restaurar_sqlite(arquivo_gz, destino):
-    """Descomprime o snapshot num arquivo novo e valida a integridade."""
-    with gzip.open(arquivo_gz, 'rb') as gz, open(destino, 'wb') as bruto:
-        shutil.copyfileobj(gz, bruto)
-    conexao = sqlite3.connect(destino)
+    """Descomprime o snapshot num arquivo novo e valida a integridade.
+
+    Backup corrompido/truncado e banco ilegível viram BackupError — nada
+    escapa como traceback cru ao operador.
+    """
     try:
-        integridade = conexao.execute('PRAGMA integrity_check').fetchone()[0]
-        if integridade != 'ok':
-            raise BackupError(
-                f'Cópia restaurada reprovou na verificação de integridade: '
-                f'{integridade}')
-    finally:
-        conexao.close()
+        with gzip.open(arquivo_gz, 'rb') as gz, open(destino, 'wb') as bruto:
+            shutil.copyfileobj(gz, bruto)
+        conexao = sqlite3.connect(destino)
+        try:
+            integridade = conexao.execute('PRAGMA integrity_check').fetchone()[0]
+            if integridade != 'ok':
+                raise BackupError(
+                    f'Cópia restaurada reprovou na verificação de integridade: '
+                    f'{integridade}')
+        finally:
+            conexao.close()
+    except (OSError, EOFError, sqlite3.Error) as erro:
+        raise BackupError(
+            f'Backup corrompido ou ilegível ({arquivo_gz}): {erro}') from erro
 
 
 def _conectar_postgres(parametros, banco):
@@ -251,8 +259,12 @@ def _restaurar_postgres(parametros, arquivo_gz, banco_teste):
     pasta_sql = tempfile.mkdtemp(prefix='sigere-verify-sql-')
     sql = os.path.join(pasta_sql, 'restauracao.sql')
     try:
-        with gzip.open(arquivo_gz, 'rb') as gz, open(sql, 'wb') as bruto:
-            shutil.copyfileobj(gz, bruto)
+        try:
+            with gzip.open(arquivo_gz, 'rb') as gz, open(sql, 'wb') as bruto:
+                shutil.copyfileobj(gz, bruto)
+        except (OSError, EOFError) as erro:
+            raise BackupError(
+                f'Backup corrompido ou ilegível ({arquivo_gz}): {erro}') from erro
         with tempfile.TemporaryFile() as erros:
             try:
                 processo = subprocess.run(

@@ -25,7 +25,7 @@ Configuração por variáveis de ambiente (todas opcionais):
 | BACKUP_DIR              | `<projeto>/backups` | Pasta local dos arquivos                      |
 | BACKUP_DAILY_KEEP       | `7`               | Guarda tudo gerado nas N datas mais recentes    |
 | BACKUP_WEEKLY_KEEP      | `4`               | Guarda o mais novo de cada uma das últimas N semanas ISO (exceto a corrente) |
-| BACKUP_RETENTION_DAYS   | `45`              | Teto de idade em dias: nada mais velho sobrevive (0 = sem teto) |
+| BACKUP_RETENTION_DAYS   | `45`              | Teto de idade em dias: nada mais velho sobrevive (0 = manter tudo, retenção desligada) |
 | BACKUP_S3_BUCKET        | (sem upload)      | Bucket de destino; ausente = só backup local    |
 | BACKUP_S3_PREFIX        | `sigere`          | Prefixo (pasta) dos objetos no bucket           |
 | BACKUP_S3_ENDPOINT      | AWS padrão        | Endpoint S3-compatível (B2, R2, MinIO, GCS...)  |
@@ -115,21 +115,22 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
     calendário do servidor nas janelas diária/semanal, local ou nuvem.
 
     Política avô/pai/filho:
-    - Teto de idade: nada gerado há mais de `teto_dias` dias sobrevive
-      (0 desliga o teto).
+    - Teto de idade: nada gerado há mais de `teto_dias` dias sobrevive.
+      **`teto_dias <= 0` desliga a retenção inteira — mantém tudo** (contrato
+      antigo do `--keep-days 0`/`BACKUP_RETENTION_DAYS=0` preservado).
     - Diárias: tudo gerado nas `diarias` datas de calendário mais recentes.
     - Semanais: o backup mais novo de cada uma das `semanais` semanas ISO
-      anteriores à semana corrente — é o que estende o alcance além das
+      anteriores à semana corrente, dentro da janela real de 4 semanas ISO
+      (não "4 semanas preenchidas") — é o que estende o alcance além das
       diárias (até ~35 dias no pior caso).
     - Rede de segurança: o mais recente dos elegíveis sempre permanece —
       mesmo quando diárias/semanais o deixariam de fora (o recém-gerado cai
       na semana corrente, que a seleção semanal pula).
     """
-    if teto_dias > 0:
-        corte = agora - timedelta(days=teto_dias)
-        elegiveis = [par for par in registros if par[0] >= corte]
-    else:
-        elegiveis = list(registros)
+    if teto_dias <= 0:
+        return {nome for _, nome in registros}
+    corte = agora - timedelta(days=teto_dias)
+    elegiveis = [par for par in registros if par[0] >= corte]
     elegiveis.sort(key=lambda par: par[0], reverse=True)
 
     manter = set()
@@ -303,10 +304,10 @@ def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
     Devolve (nomes apagados, quantidade que permaneceu). Arquivos estranhos
     à pasta nunca são tocados; quem não pôde ser apagado (travado, sem
     permissão) permanece e é contado junto com os mantidos — o resumo do
-    comando reflete o que há de fato na pasta.
+    comando reflete o que há de fato na pasta. Teto `<= 0` desliga a
+    retenção: nada é apagado.
     """
-    if not os.path.isdir(diretorio) or (diarias <= 0 and semanais <= 0
-                                        and teto_dias <= 0):
+    if teto_dias <= 0 or not os.path.isdir(diretorio):
         return [], 0
     agora = agora or datetime.now()
     registros = []
@@ -386,9 +387,9 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
 
     Só objetos com o padrão de nome do próprio comando (`sigere-*.gz`) são
     elegíveis — qualquer outra coisa sob o prefixo não é tocada, espelhando
-    o comportamento da pasta local.
+    o comportamento da pasta local. Teto `<= 0` desliga a retenção.
     """
-    if cfg['dias_retencao'] <= 0 and cfg['diarias'] <= 0 and cfg['semanais'] <= 0:
+    if cfg['dias_retencao'] <= 0:
         return []
     cliente = cliente or _criar_cliente_s3(cfg)
     agora = agora or datetime.now()  # naive local — mesmo calendário da pasta
@@ -424,8 +425,10 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
               metavar='CAMINHO',
               help='Pasta de destino (padrão: BACKUP_DIR ou ./backups).')
 @click.option('--keep-days', 'dias', default=None, type=int, metavar='N',
-              help='Teto de idade em dias (padrão: BACKUP_RETENTION_DAYS ou 45); '
-                   'a política 7 diárias + 4 semanais vem de BACKUP_DAILY_KEEP/BACKUP_WEEKLY_KEEP.')
+              help='Teto de idade em dias (padrão: BACKUP_RETENTION_DAYS ou 45). '
+                   '0 mantém tudo para sempre — desliga a retenção inteira, '
+                   'como no contrato antigo; a política 7 diárias + 4 semanais '
+                   'vem de BACKUP_DAILY_KEEP/BACKUP_WEEKLY_KEEP.')
 @click.option('--no-upload', is_flag=True,
               help='Não envia para a nuvem, mesmo com BACKUP_S3_BUCKET definido.')
 @with_appcontext

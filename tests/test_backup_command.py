@@ -134,7 +134,7 @@ class BackupCommandTestCase(unittest.TestCase):
             registros.append((momento, momento.strftime('sigere-%Y%m%d-%H%M%S')))
 
         manter = modulo_backup._selecionar_manter(
-            registros, agora, diarias=7, semanais=4, teto_dias=0)
+            registros, agora, diarias=7, semanais=4, teto_dias=45)
 
         # Diárias: tudo de 12 a 18/11 — inclusive o domingo 15/11, que também
         # é o "mais novo" da semana 46 (contado uma só vez) → 7 + 3 = 10.
@@ -151,10 +151,16 @@ class BackupCommandTestCase(unittest.TestCase):
 
         self.assertEqual(
             modulo_backup._selecionar_manter([velho], agora, 7, 4, 45), set())
-        # Sem teto (0), o único backup vira o "semanal" da sua semana.
+        # Teto 0 desliga a retenção inteira — contrato antigo do
+        # `--keep-days 0` preservado: até velhos de 100 dias permanecem.
+        antigos = []
+        for dias in (60, 100):
+            momento = agora - timedelta(days=dias)
+            antigos.append((momento, momento.strftime('sigere-%Y%m%d-032000')))
         self.assertEqual(
-            modulo_backup._selecionar_manter([velho], agora, 7, 4, 0),
-            {'sigere-20260919-032000'})
+            modulo_backup._selecionar_manter(
+                antigos, agora, diarias=7, semanais=4, teto_dias=0),
+            {nome for _, nome in antigos})
 
     def test_rede_de_seguranca_mantem_o_mais_recente_sem_politica(self):
         # Diárias e semanais zeradas sob teto ativo nunca apagam tudo —
@@ -206,7 +212,7 @@ class BackupCommandTestCase(unittest.TestCase):
         manter = modulo_backup._selecionar_manter(
             [(semana_passada, 'sigere-20261111-032000'),
              (agora, 'sigere-20261118-032000')],
-            agora, diarias=0, semanais=4, teto_dias=0)
+            agora, diarias=0, semanais=4, teto_dias=45)
         self.assertEqual(manter,
                          {'sigere-20261111-032000', 'sigere-20261118-032000'})
 

@@ -145,6 +145,18 @@ class VerifyRestoreTestCase(unittest.TestCase):
         self.assertNotEqual(resultado.exit_code, 0)
         self.assertIn('não encontrado', resultado.output)
 
+    def test_reprova_backup_corrompido_erro_claro(self):
+        # Arquivo que não é gzip: descompressão falha — e o operador recebe
+        # mensagem apresentável, não traceback cru.
+        corrompido = os.path.join(self.pasta_backup,
+                                  'sigere-20990101-000000-sqlite.sqlite.gz')
+        with open(corrompido, 'wb') as fh:
+            fh.write(b'isso definitivamente nao e gzip')
+        resultado = self._rodar('--arquivo', corrompido)
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('corrompido ou ilegível', resultado.output)
+        self.assertNotIn('Traceback', resultado.output)
+
     # ── Nuvem ─────────────────────────────────────────────────────────────
 
     def test_verifica_a_copia_da_nuvem_com_bucket(self):
