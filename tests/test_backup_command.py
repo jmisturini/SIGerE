@@ -176,6 +176,17 @@ class BackupCommandTestCase(unittest.TestCase):
                 registros, agora, diarias=0, semanais=0, teto_dias=45),
             {'sigere-20261118-032000'})
 
+    def test_caminho_sqlite_relativo_resolve_na_instance(self):
+        # Mesma resolução do Flask-SQLAlchemy: relativo cai na pasta
+        # instance/ — backup e verificação leem o arquivo que o app escreve.
+        with self.app.app_context():
+            self.assertEqual(
+                modulo_backup._caminho_sqlite('/absoluto/x.db'), '/absoluto/x.db')
+            relativo = modulo_backup._caminho_sqlite('relativo.db')
+        self.assertTrue(os.path.isabs(relativo))
+        self.assertTrue(relativo.endswith(
+            os.path.join('instance', 'relativo.db')))
+
     def test_momento_vem_do_carimbo_do_nome(self):
         self.assertEqual(
             modulo_backup._momento_de('sigere-20260117-032033-postgres.sql.gz',

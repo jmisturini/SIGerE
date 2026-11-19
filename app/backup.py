@@ -148,8 +148,12 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
     # política um backup de semana vazia intermediária — dentro do teto de
     # idade, mas fora das 4 semanas prometidas.
     if semanais > 0:
-        inicio_janela_semanal = (agora - timedelta(days=agora.weekday())
-                                 ) - timedelta(days=7 * semanais)
+        # Meia-noite da segunda — sem isto, a janela herdaria o horário da
+        # execução e um backup gerado na segunda anterior MAS antes da hora
+        # da limpeza (03:00 vs 03:20) cairia fora das N semanas prometidas.
+        segunda_corrente = (agora - timedelta(days=agora.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        inicio_janela_semanal = segunda_corrente - timedelta(days=7 * semanais)
     else:
         inicio_janela_semanal = None
     semanas = []
@@ -209,6 +213,18 @@ def _interpretar_uri(uri):
         'database': (partes.path or '').lstrip('/'),
         'sslmode': sslmodes[0] if sslmodes else None,
     }
+
+
+def _caminho_sqlite(caminho):
+    """Caminho absoluto do banco SQLite da aplicação.
+
+    Flask-SQLAlchemy resolve caminho relativo na DATABASE_URL contra a pasta
+    instance/ — backup e verificação precisam ler o MESMO arquivo que a
+    aplicação escreve, não um homônimo relativo ao diretório corrente.
+    """
+    if os.path.isabs(caminho):
+        return caminho
+    return os.path.join(current_app.instance_path, caminho)
 
 
 def _dump_sqlite(caminho_banco, arquivo_gz):
@@ -459,7 +475,7 @@ def backup_command(destino, dias, no_upload):
         f'💾 Backup do banco ({motor}) iniciado...', fg='green', bold=True))
     try:
         if motor == 'sqlite':
-            _dump_sqlite(dados, arquivo_gz)
+            _dump_sqlite(_caminho_sqlite(dados), arquivo_gz)
         else:
             _dump_postgres(dados, arquivo_gz)
     except BackupError as erro:

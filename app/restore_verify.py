@@ -36,8 +36,8 @@ from flask.cli import with_appcontext
 # Reaproveita a configuração, a leitura da DATABASE_URL e o cliente S3 do
 # módulo de backup — mesma pasta, mesmas credenciais, um só lugar para ajustar.
 from app.backup import (BackupError, PADRAO_ARQUIVOS, _criar_cliente_s3,
-                        _configuracao, _interpretar_uri, _momento_de,
-                        _momento_nuvem)
+                        _caminho_sqlite, _configuracao, _interpretar_uri,
+                        _momento_de, _momento_nuvem)
 
 # Tabelas cujo vazio/ausência indica restauração inútil mesmo sem desvio
 # aparente — aparecem destacadas no relatório.
@@ -416,11 +416,10 @@ def verify_restore_command(arquivo, destino, tolerancia):
                 _restaurar_sqlite(caminho_backup, copia_restaurada)
                 duracao = time.monotonic() - inicio
                 copia = _linhas_por_tabela_sqlite(copia_restaurada)
-                # Flask-SQLAlchemy resolve caminho SQLite relativo contra a
-                # pasta instance/ — o inventário precisa ler o mesmo arquivo.
-                caminho_producao = (dados if os.path.isabs(dados) else
-                                    os.path.join(current_app.instance_path, dados))
-                producao = _linhas_por_tabela_sqlite(caminho_producao)
+                # MESMA resolução do flask backup: caminho relativo cai na
+                # pasta instance/, onde o Flask-SQLAlchemy de fato escreve —
+                # comparar com homônimo do CWD aprovaria backup de outro banco.
+                producao = _linhas_por_tabela_sqlite(_caminho_sqlite(dados))
             else:
                 banco_teste = ((dados['database'] or 'sigere')[:40]
                                + '_verificacao_' + uuid.uuid4().hex[:8])
