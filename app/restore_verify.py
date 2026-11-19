@@ -269,26 +269,31 @@ def _restaurar_postgres(parametros, arquivo_gz, banco_teste):
         except (OSError, EOFError) as erro:
             raise BackupError(
                 f'Backup corrompido ou ilegível ({arquivo_gz}): {erro}') from erro
-        with tempfile.TemporaryFile() as erros:
-            try:
-                processo = subprocess.run(
-                    # --no-psqlrc: o ~/.psqlrc do operador não pode alterar a
-                    # restauração (ex.: \set ON_ERROR_STOP off desligaria a
-                    # proteção silenciosamente).
-                    [binario, '--no-psqlrc', '--quiet',
-                     '--set=ON_ERROR_STOP=1', '--file=' + sql],
-                    env=env, stderr=erros)
-            except FileNotFoundError:
-                raise BackupError(
-                    f'Binário "{binario}" não encontrado. Instale o cliente '
-                    'PostgreSQL (Debian/Ubuntu: sudo apt install '
-                    'postgresql-client) ou aponte BACKUP_PSQL_BIN para ele.')
-            if processo.returncode != 0:
-                erros.seek(0)
-                detalhe = erros.read().decode('utf-8', 'replace').strip()
-                raise BackupError(
-                    f'psql terminou com código {processo.returncode} '
-                    f'restaurando em "{banco_teste}": {detalhe or "sem detalhes"}')
+        try:
+            with tempfile.TemporaryFile() as erros:
+                try:
+                    processo = subprocess.run(
+                        # --no-psqlrc: o ~/.psqlrc do operador não pode alterar
+                        # a restauração (ex.: \set ON_ERROR_STOP off desligaria
+                        # a proteção silenciosamente).
+                        [binario, '--no-psqlrc', '--quiet',
+                         '--set=ON_ERROR_STOP=1', '--file=' + sql],
+                        env=env, stderr=erros)
+                except FileNotFoundError:
+                    raise BackupError(
+                        f'Binário "{binario}" não encontrado. Instale o cliente '
+                        'PostgreSQL (Debian/Ubuntu: sudo apt install '
+                        'postgresql-client) ou aponte BACKUP_PSQL_BIN para ele.')
+                if processo.returncode != 0:
+                    erros.seek(0)
+                    detalhe = erros.read().decode('utf-8', 'replace').strip()
+                    raise BackupError(
+                        f'psql terminou com código {processo.returncode} '
+                        f'restaurando em "{banco_teste}": {detalhe or "sem detalhes"}')
+        except OSError as erro:
+            # Binário presente mas não executável, disco cheio no temporário…
+            raise BackupError(
+                f'Falha ao preparar/executar o "{binario}": {erro}') from erro
     finally:
         shutil.rmtree(pasta_sql, ignore_errors=True)
 
@@ -392,8 +397,8 @@ def verify_restore_command(arquivo, destino, tolerancia):
     Uso: flask --app run verify-restore
          flask --app run verify-restore --tolerancia 5
     """
-    cfg = _configuracao(destino=destino)
     try:
+        cfg = _configuracao(destino=destino)
         motor, dados = _interpretar_uri(current_app.config['SQLALCHEMY_DATABASE_URI'])
     except BackupError as erro:
         click.echo(click.style(f'❌ Falha na verificação: {erro}', fg='red', bold=True))

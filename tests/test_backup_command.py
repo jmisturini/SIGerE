@@ -104,6 +104,16 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertEqual(resultado.exit_code, 0, resultado.output)
         self.assertIn('apenas local', resultado.output)
 
+    def test_variavel_de_retencao_invalida_erro_claro(self):
+        # BACKUP_DAILY_KEEP com lixo no .env: mensagem apresentável, sem
+        # ValueError cru.
+        with mock.patch.dict(os.environ, {'BACKUP_DAILY_KEEP': 'sete'}):
+            resultado = self._rodar('--dir', self.pasta_backup)
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('BACKUP_DAILY_KEEP', resultado.output)
+        self.assertIn('não é um número inteiro', resultado.output)
+        self.assertNotIn('Traceback', resultado.output)
+
     # ── Retenção local ─────────────────────────────────────────────────────
 
     def test_retencao_remove_apenas_backups_antigos(self):

@@ -68,19 +68,32 @@ class BackupError(Exception):
     """Falha de backup com mensagem apresentável ao operador."""
 
 
+def _inteiro_da_ambiente(nome, padrao):
+    """Inteiro da variável de ambiente, com mensagem apresentável ao operador."""
+    bruto = os.environ.get(nome)
+    if bruto is None:
+        return padrao
+    try:
+        return int(bruto)
+    except ValueError:
+        raise BackupError(
+            f'{nome}="{bruto}" não é um número inteiro — ajuste o .env e rode '
+            'de novo.') from None
+
+
 def _configuracao(destino=None, dias_retencao=None):
     """Resolve a configuração: parâmetro da CLI > variável de ambiente > padrão."""
     return {
         'diretorio': (destino
                       or os.environ.get('BACKUP_DIR')
                       or os.path.join(BASE_DIR, 'backups')),
-        'diarias': int(os.environ.get('BACKUP_DAILY_KEEP', '7')),
-        'semanais': int(os.environ.get('BACKUP_WEEKLY_KEEP', '4')),
+        'diarias': _inteiro_da_ambiente('BACKUP_DAILY_KEEP', 7),
+        'semanais': _inteiro_da_ambiente('BACKUP_WEEKLY_KEEP', 4),
         # Teto de idade: rede de segurança da política 7+4 — precisa cobrir as
         # 4 semanas ISO anteriores (~35 dias) com folga.
-        'dias_retencao': int(dias_retencao
-                             if dias_retencao is not None
-                             else os.environ.get('BACKUP_RETENTION_DAYS', '45')),
+        'dias_retencao': (dias_retencao
+                          if dias_retencao is not None
+                          else _inteiro_da_ambiente('BACKUP_RETENTION_DAYS', 45)),
         'bucket': os.environ.get('BACKUP_S3_BUCKET') or None,
         'prefixo': os.environ.get('BACKUP_S3_PREFIX', 'sigere').strip('/'),
         'endpoint': os.environ.get('BACKUP_S3_ENDPOINT') or None,
@@ -467,9 +480,13 @@ def backup_command(destino, dias, no_upload):
     Uso: flask --app run backup
          flask --app run backup --no-upload   # só o arquivo local (teste)
     """
-    cfg = _configuracao(destino=destino, dias_retencao=dias)
-    uri = current_app.config['SQLALCHEMY_DATABASE_URI']
-    motor, dados = _interpretar_uri(uri)
+    try:
+        cfg = _configuracao(destino=destino, dias_retencao=dias)
+        uri = current_app.config['SQLALCHEMY_DATABASE_URI']
+        motor, dados = _interpretar_uri(uri)
+    except BackupError as erro:
+        click.echo(click.style(f'❌ Falha no backup: {erro}', fg='red', bold=True))
+        raise SystemExit(1)
 
     os.makedirs(cfg['diretorio'], exist_ok=True)
     carimbo = datetime.now().strftime('%Y%m%d-%H%M%S')
