@@ -159,6 +159,41 @@ class VerifyRestoreTestCase(unittest.TestCase):
         self.assertEqual(
             modulo_verificar._essenciais_ausentes(vazias, dict(vazias)), [])
 
+    def test_comparar_classifica_faltando_extras_e_desvios(self):
+        producao = {'users': 5, 'reservations': 10, 'antiga': 1}
+        copia = {'users': 5, 'reservations': 8, 'nova': 2}
+
+        faltando, extras, desvios = modulo_verificar._comparar(
+            producao, copia, tolerancia=0)
+        self.assertEqual(faltando, ['antiga'])
+        self.assertEqual(extras, ['nova'])
+        self.assertEqual(desvios, [('reservations', 10, 8)])
+        # Tolerância 2 absolve o desvio de 2 linhas.
+        _, _, desvios = modulo_verificar._comparar(
+            producao, copia, tolerancia=2)
+        self.assertEqual(desvios, [])
+
+    def test_mais_recente_local_escolhe_pelo_carimbo(self):
+        # O mais novo pelo carimbo do nome vence, mesmo com mtime invertido;
+        # arquivos estranhos à pasta não entram na disputa.
+        pasta = tempfile.mkdtemp(prefix='sigere-recente-')
+        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
+        antigo = os.path.join(pasta, 'sigere-20260101-000000-sqlite.sqlite.gz')
+        recente = os.path.join(pasta, 'sigere-20261118-032000-sqlite.sqlite.gz')
+        estranho = os.path.join(pasta, 'sigere-leia-me.txt')
+        for caminho in (antigo, recente, estranho):
+            with open(caminho, 'wb') as fh:
+                fh.write(b'x')
+            mais_velho = datetime.now().timestamp() - 3600
+            os.utime(antigo, (mais_velho, mais_velho))
+
+        encontrado = modulo_verificar._mais_recente_local(pasta)
+        self.assertEqual(os.path.basename(encontrado),
+                         'sigere-20261118-032000-sqlite.sqlite.gz')
+        # Pasta inexistente → None.
+        self.assertIsNone(modulo_verificar._mais_recente_local(
+            os.path.join(pasta, 'vazio-que-nao-existe')))
+
     def test_reprova_backup_corrompido_erro_claro(self):
         # Arquivo que não é gzip: descompressão falha — e o operador recebe
         # mensagem apresentável, não traceback cru.
