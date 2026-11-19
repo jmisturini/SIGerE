@@ -142,8 +142,19 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
             manter.add(nome)
 
     semana_corrente = agora.isocalendar()[:2]
+    # Janela semanal real: começa na segunda-feira da `semanais`-ésima semana
+    # ISO anterior. Contar "semanas preenchidas" traria para dentro da
+    # política um backup de semana vazia intermediária — dentro do teto de
+    # idade, mas fora das 4 semanas prometidas.
+    if semanais > 0:
+        inicio_janela_semanal = (agora - timedelta(days=agora.weekday())
+                                 ) - timedelta(days=7 * semanais)
+    else:
+        inicio_janela_semanal = None
     semanas = []
     for momento, nome in elegiveis:
+        if inicio_janela_semanal is not None and momento < inicio_janela_semanal:
+            break  # elegíveis estão em ordem desc — tudo daqui para trás é velho demais
         semana = momento.isocalendar()[:2]
         if semana == semana_corrente or semana in semanas:
             continue

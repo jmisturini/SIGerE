@@ -67,14 +67,21 @@ ls -lt backups/ | head
 #   aws s3 cp "s3://MEU-BUCKET/sigere/sigere-AAAAMMDD-HHMMSS-postgres.sql.gz" backups/
 #   (ou pelo console do provedor; rclone também serve)
 
-# 3. Recriar o banco e restaurar o snapshot escolhido:
+# 3. Extrair e validar ANTES de tocar na produção — num pipeline
+#    `gunzip | psql`, o gunzip com arquivo errado falha "quieto", o psql
+#    recebe entrada vazia e TERMINA BEM — com a produção já dropada:
 BACKUP=backups/sigere-AAAAMMDD-HHMMSS-postgres.sql.gz
+gunzip -tc "$BACKUP" && gunzip -c "$BACKUP" > /tmp/sigere-restaurado.sql
+ls -l /tmp/sigere-restaurado.sql            # tem de ser maior que zero
+# falhou aqui? PARE — produção intacta, serviços parados; tente outro snapshot.
+
 sudo -u postgres dropdb --if-exists sigere
 sudo -u postgres createdb -O sigere sigere
-gunzip -c "$BACKUP" | \
-  psql --set=ON_ERROR_STOP=1 "postgresql://sigere:SENHA@localhost:5432/sigere"
-# se o psql falhar no meio (ON_ERROR_STOP), o banco fica pela metade:
-# recrie (dropdb/createdb) e tente o snapshot anterior.
+psql --set=ON_ERROR_STOP=1 -f /tmp/sigere-restaurado.sql \
+  "postgresql://sigere:SENHA@localhost:5432/sigere" || {
+  echo "❌ Restauração falhou no meio — recrie (dropdb/createdb) e tente o snapshot anterior"
+  exit 1
+}
 # alternativa guiada: python setup_interativo.py  →  modo 3 "Restaurar backup"
 
 # 4. Alinhar schema e permissões ANTES de abrir o serviço — o snapshot pode
@@ -116,8 +123,16 @@ gunzip -c "$BACKUP" > /tmp/sigere-restaurado.sqlite
 venv/bin/python -c "import sqlite3; print(sqlite3.connect('/tmp/sigere-restaurado.sqlite').execute('PRAGMA integrity_check').fetchone()[0])"
 # 'ok' esperado — qualquer outra coisa: NÃO substitua; tente outro snapshot.
 
-# 3. Preservar o estado ruim para análise e substituir:
-cp reservation.db reservation.db.bak-dia-ruim
+# 3. Preservar o estado ruim PARA ANÁLISE e limpar o caminho — um journal
+#    quente (-journal/-wal/-shm do banco do desastre) ao lado do arquivo
+#    restaurado seria REPRODUZIDO pelo SQLite por cima das páginas novas:
+#    o estado ruim vai embora inteiro, e nada de sidecar pode sobrar no nome
+#    de destino (sem sidecars, os mv opcionais apenas não fazem nada):
+mv reservation.db reservation.db.bak-dia-ruim
+for sufixo in journal wal shm; do
+  [ -f "reservation.db-$sufixo" ] && \
+    mv "reservation.db-$sufixo" "reservation.db.bak-dia-ruim-$sufixo"
+done
 mv /tmp/sigere-restaurado.sqlite reservation.db
 
 # 4. Conferir o ciclo — com --arquivo, garante que o testado é o mesmo

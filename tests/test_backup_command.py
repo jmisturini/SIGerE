@@ -210,6 +210,20 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertEqual(manter,
                          {'sigere-20261111-032000', 'sigere-20261118-032000'})
 
+    def test_semanal_nao_vaza_para_semanas_vazias_intermediarias(self):
+        # Semanas 43-46 sem nenhum backup e um órfão da semana 41 (38 dias
+        # atrás, dentro do teto de 45): não é semanal — o alcance real é o
+        # intervalo das 4 semanas ISO anteriores, não "4 semanas preenchidas".
+        agora = datetime(2026, 11, 18, 3, 20)  # quarta-feira, semana ISO 47
+        registros = [(datetime(2026, 11, dia, 3, 20),
+                      f'sigere-202611{dia:02d}-032000') for dia in range(12, 19)]
+        registros.append((datetime(2026, 10, 11, 3, 20), 'sigere-20261011-032000'))
+
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=7, semanais=4, teto_dias=45)
+        self.assertEqual(manter,
+                         {f'sigere-202611{dia:02d}-032000' for dia in range(12, 19)})
+
     # ── Upload e retenção na nuvem (cliente S3 falso) ──────────────────────
 
     def test_upload_e_retencao_nuvem_com_cliente_falso(self):

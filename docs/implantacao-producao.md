@@ -686,19 +686,22 @@ Type=oneshot
 User=SEU_USUARIO
 WorkingDirectory=/var/www/sigere
 EnvironmentFile=/var/www/sigere/.env
+ExecStart=/var/www/sigere/venv/bin/flask --app run notify-cleanup
 ExecStart=/var/www/sigere/venv/bin/flask --app run backup
 ExecStart=/var/www/sigere/venv/bin/flask --app run verify-restore
-ExecStart=/var/www/sigere/venv/bin/flask --app run notify-cleanup
 ```
 
-Os três `ExecStart` rodam em sequência: backup → verificação de restauração →
-limpeza de notificações antigas. O `verify-restore` aproveita o snapshot de
-minutos atrás — sem desvio de linhas — e, se falhar, o serviço marca falha
-visível no `systemctl list-timers` e no journal. O `notify-cleanup` aproveita
-o mesmo disparo diário para a limpeza de notificações antigas: lidas há mais
-de 90 dias e avisos de reservas cuja data foi há mais de 30 dias (ajustável
-com `--dias-lidas`/`--dias-passadas`). Sem ele, a tabela `notifications`
-cresce indefinidamente. Para testar: `flask --app run notify-cleanup --dry-run`.
+Os três `ExecStart` rodam em sequência: limpeza de notificações antigas →
+backup → verificação de restauração. A limpeza vem **primeiro** de propósito:
+num serviço `Type=oneshot`, um `ExecStart` que termina com erro pula os
+seguintes — e uma verificação que reprovou não pode impedir a limpeza de
+rodar. O `verify-restore` segue logo após o `backup` por aproveitar o
+snapshot de minutos atrás — sem desvio de linhas — e, se falhar, o serviço
+marca falha visível no `systemctl list-timers` e no journal (backup e limpeza
+já concluíram). O `notify-cleanup` apaga notificações lidas há mais de 90
+dias e avisos de reservas cuja data foi há mais de 30 dias (ajustável com
+`--dias-lidas`/`--dias-passadas`). Sem ele, a tabela `notifications` cresce
+indefinidamente. Para testar: `flask --app run notify-cleanup --dry-run`.
 
 E `/etc/systemd/system/sigere-backup.timer`:
 
