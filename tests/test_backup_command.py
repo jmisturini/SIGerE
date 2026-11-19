@@ -123,6 +123,14 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertIn('é negativo — precisa ser >= 0', resultado.output)
         self.assertNotIn('Traceback', resultado.output)
 
+    def test_keep_days_negativo_e_rejeitado(self):
+        # Na CLI vale o mesmo contrato: --keep-days negativo cairia no teto
+        # <= 0 e desligaria toda a retenção em silêncio — o click reprova
+        # antes de qualquer efeito.
+        resultado = self._rodar('--keep-days', '-1', '--dir', self.pasta_backup)
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('--keep-days', resultado.output)
+
     # ── Retenção local ─────────────────────────────────────────────────────
 
     def test_retencao_remove_apenas_backups_antigos(self):
@@ -308,17 +316,18 @@ class BackupCommandTestCase(unittest.TestCase):
         # O arquivo local continua intacto — o upload falhou, o backup não.
         self.assertEqual(len(os.listdir(self.pasta_backup)), 1)
 
-    def test_retencao_nuvem_decide_pela_chave_completa(self):
-        # Cópia manual em subpasta compartilha o basename com o backup vivo:
-        # a identidade é a chave completa — a cópia velha sai, o vivo fica.
+    def test_retencao_nuvem_so_toca_filhos_diretos_do_prefixo(self):
+        # Cópia manual em subpasta (mesmo com basename de backup e vencida)
+        # NÃO entra na política — espelho do comportamento da pasta local,
+        # que não desce em subpastas. Vencido de verdade é o filho direto.
         # agora naive local — mesmo calendário dos momentos normalizados
         agora = datetime(2026, 11, 18, 12, 0)
         conteudo = [
             {'Key': 'sigere/sigere-20261118-032000-postgres.sql.gz',
              'LastModified': agora},
-            {'Key': 'sigere/2025/sigere-20261118-032000-postgres.sql.gz',
-             'LastModified': agora},
             {'Key': 'sigere/2025/sigere-20250101-032000-postgres.sql.gz',
+             'LastModified': agora - timedelta(days=300)},
+            {'Key': 'sigere/sigere-20250101-032000-postgres.sql.gz',
              'LastModified': agora - timedelta(days=300)},
         ]
         falso_cliente = mock.Mock()
@@ -332,7 +341,7 @@ class BackupCommandTestCase(unittest.TestCase):
         removidos = modulo_backup._limpar_nuvem(cfg, cliente=falso_cliente,
                                                 agora=agora)
         self.assertEqual(removidos,
-                         ['sigere/2025/sigere-20250101-032000-postgres.sql.gz'])
+                         ['sigere/sigere-20250101-032000-postgres.sql.gz'])
 
     def test_retencao_nuvem_nao_conta_falha_como_removida(self):
         # Object lock/permissão recusam a exclusão: a chave volta em Errors

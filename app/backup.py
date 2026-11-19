@@ -424,9 +424,10 @@ def _momento_nuvem(nome, alternativo):
 def _limpar_nuvem(cfg, cliente=None, agora=None):
     """Aplica a mesma política 7+4 aos objetos de backup do bucket.
 
-    Só objetos com o padrão de nome do próprio comando (`sigere-*.gz`) são
-    elegíveis — qualquer outra coisa sob o prefixo não é tocada, espelhando
-    o comportamento da pasta local. Teto `<= 0` desliga a retenção.
+    Só FILHOS DIRETOS do prefixo com o padrão de nome do próprio comando
+    (`sigere-*.gz`) são elegíveis — subpastas e arquivos estranhos não são
+    tocados, espelhando o comportamento da pasta local (que não desce em
+    subpastas). Teto `<= 0` desliga a retenção.
     """
     if cfg['dias_retencao'] <= 0:
         return []
@@ -437,14 +438,18 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
     for pagina in paginador.paginate(Bucket=cfg['bucket'], Prefix=cfg['prefixo'] + '/'):
         for obj in pagina.get('Contents', []):
             nome = obj['Key'].rsplit('/', 1)[-1]
+            # Só filhos diretos do prefixo, como na pasta local: cópias
+            # manuais em subpastas não entram na política (não são tocadas),
+            # do mesmo jeito que _mais_recente_nuvem não as escolhe.
+            if obj['Key'].rsplit('/', 1)[0] != cfg['prefixo']:
+                continue
             if not (nome.startswith(PADRAO_ARQUIVOS[0]) and nome.endswith(PADRAO_ARQUIVOS[1])):
                 continue
             registros.append((_momento_nuvem(nome, obj['LastModified']),
                               obj['Key']))
 
-    # Identidade é a CHAVE COMPLETA: cópias manuais em subpastas sob o
-    # prefixo podem compartilhar o basename — decidir pelo nome apagaria ou
-    # preservaria os dois de uma vez.
+    # Identidade é a chave completa — dentro dos filhos diretos as chaves já
+    # são únicas; o basename só serviu ao filtro de padrão acima.
     manter = _selecionar_manter(
         registros, agora, cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
     vencidos = [chave for momento, chave in registros if chave not in manter]
@@ -472,7 +477,8 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
               type=click.Path(file_okay=False),
               metavar='CAMINHO',
               help='Pasta de destino (padrão: BACKUP_DIR ou ./backups).')
-@click.option('--keep-days', 'dias', default=None, type=int, metavar='N',
+@click.option('--keep-days', 'dias', default=None,
+              type=click.IntRange(min=0), metavar='N',
               help='Teto de idade em dias (padrão: BACKUP_RETENTION_DAYS ou 45). '
                    '0 mantém tudo para sempre — desliga a retenção inteira, '
                    'como no contrato antigo; a política 7 diárias + 4 semanais '
