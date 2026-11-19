@@ -61,8 +61,9 @@ cd /var/www/sigere
 sudo systemctl stop nginx sigere
 sudo systemctl status nginx sigere          # ambos inactive (dead)
 
-# 2. Escolher o backup — mais recente primeiro, pela data no nome:
-ls -lt backups/ | head
+# 2. Escolher o backup — mais novo primeiro, pelo CARIMBO DO NOME (mtime
+#    mente: um snapshot antigo baixado agora do bucket apareceria na frente):
+ls -1 backups/sigere-*.gz | sort -r | head
 # backups/ indisponível ou comprometido? baixe do bucket:
 #   aws s3 cp "s3://MEU-BUCKET/sigere/sigere-AAAAMMDD-HHMMSS-postgres.sql.gz" backups/
 #   (ou pelo console do provedor; rclone também serve)
@@ -74,9 +75,13 @@ ls -lt backups/ | head
 #    world-readable em /tmp — e sai do disco no fim do procedimento:
 BACKUP=backups/sigere-AAAAMMDD-HHMMSS-postgres.sql.gz
 PASTA_TRABALHO="$(mktemp -d)"
-gunzip -tc "$BACKUP" && gunzip -c "$BACKUP" > "$PASTA_TRABALHO/restaurado.sql"
+gunzip -tc "$BACKUP" && gunzip -c "$BACKUP" > "$PASTA_TRABALHO/restaurado.sql" \
+  || { echo "❌ Extração falhou — o caminho do BACKUP existe?"; rm -rf "$PASTA_TRABALHO"; exit 1; }
 ls -l "$PASTA_TRABALHO/restaurado.sql"      # tem de ser maior que zero
-# falhou aqui? PARE — produção intacta, serviços parados; tente outro snapshot.
+[ -s "$PASTA_TRABALHO/restaurado.sql" ] \
+  || { echo "❌ Extração produziu arquivo vazio"; rm -rf "$PASTA_TRABALHO"; exit 1; }
+# falhou em qualquer passo acima? PARE — produção intacta, serviços
+# parados; tente outro snapshot.
 
 sudo -u postgres dropdb --if-exists sigere
 sudo -u postgres createdb -O sigere sigere
@@ -120,43 +125,76 @@ venv/bin/flask --app run verify-restore
 ```bash
 sudo systemctl stop sigere                  # se houver serviço rodando
 
-# 1. Extrair num arquivo privado (mktemp -d, 0700) PRIMEIRO — o
+# 1. Alvo da restauração = o banco que a DATABASE_URL aponta, com a MESMA
+#    resolução do app (relativo cai na instance/, absoluto fica como está —
+#    o helper _caminho_sqlite): restaurar por hábito num reservation.db do
+#    diretório corrente pode substituir o arquivo errado.
+BANCO_ATUAL="$(venv/bin/python -c "
+import os
+os.environ.setdefault('SECRET_KEY', 'apenas-resolucao-de-caminho')
+from dotenv import load_dotenv; load_dotenv()
+from app import create_app
+from app.backup import _caminho_sqlite, _interpretar_uri
+app = create_app()
+with app.app_context():
+    _, dados = _interpretar_uri(app.config['SQLALCHEMY_DATABASE_URI'])
+    print(_caminho_sqlite(dados))
+")"
+echo "Banco atual: $BANCO_ATUAL"
+
+# 2. Extrair num arquivo privado (mktemp -d, 0700) e EXIGIR sucesso — o
 #    `> reservation.db` direto trunca o banco atual antes de o gunzip
-#    reclamar de caminho errado ou arquivo corrompido, deixando o problema
-#    pior; e /tmp com umask 022 deixaria o banco legível por qualquer conta:
+#    reclamar de caminho errado; e um BACKUP ausente criaria arquivo VAZIO
+#    (SQLite abre arquivo vazio e integrity_check responde 'ok'):
 BACKUP=backups/sigere-AAAAMMDD-HHMMSS-sqlite.sqlite.gz
 PASTA_TRABALHO="$(mktemp -d)"
-gunzip -c "$BACKUP" > "$PASTA_TRABALHO/sigere-restaurado.sqlite"
+gunzip -c "$BACKUP" > "$PASTA_TRABALHO/sigere-restaurado.sqlite" \
+  || { echo "❌ Extração falhou — o caminho do BACKUP existe?"; rm -rf "$PASTA_TRABALHO"; exit 1; }
+[ -s "$PASTA_TRABALHO/sigere-restaurado.sqlite" ] \
+  || { echo "❌ Extração produziu arquivo vazio"; rm -rf "$PASTA_TRABALHO"; exit 1; }
 
-# 2. Validar a integridade do extraído antes de tocar no banco atual:
+# 3. Validar a integridade do extraído antes de tocar no banco atual:
 venv/bin/python -c "import sqlite3; print(sqlite3.connect('$PASTA_TRABALHO/sigere-restaurado.sqlite').execute('PRAGMA integrity_check').fetchone()[0])"
 # 'ok' esperado — qualquer outra coisa: NÃO substitua; tente outro snapshot.
 
-# 3. Preservar o estado ruim PARA ANÁLISE e limpar o caminho — um journal
+# 4. Preservar o estado ruim PARA ANÁLISE e limpar o caminho — um journal
 #    quente (-journal/-wal/-shm do banco do desastre) ao lado do arquivo
 #    restaurado seria REPRODUZIDO pelo SQLite por cima das páginas novas:
 #    o estado ruim vai embora inteiro, e nada de sidecar pode sobrar no nome
 #    de destino (sem sidecars, os mv opcionais apenas não fazem nada):
-mv reservation.db reservation.db.bak-dia-ruim
+mv "$BANCO_ATUAL" "$BANCO_ATUAL.bak-dia-ruim"
 for sufixo in journal wal shm; do
-  [ -f "reservation.db-$sufixo" ] && \
-    mv "reservation.db-$sufixo" "reservation.db.bak-dia-ruim-$sufixo"
+  [ -f "$BANCO_ATUAL-$sufixo" ] && \
+    mv "$BANCO_ATUAL-$sufixo" "$BANCO_ATUAL.bak-dia-ruim-$sufixo"
 done
-mv "$PASTA_TRABALHO/sigere-restaurado.sqlite" reservation.db
+mv "$PASTA_TRABALHO/sigere-restaurado.sqlite" "$BANCO_ATUAL"
 rm -rf "$PASTA_TRABALHO"
 
-# 4. Conferir o ciclo — com --arquivo, garante que o testado é o mesmo
-#    snapshot restaurado, e não "o mais recente" da pasta/bucket:
-venv/bin/flask --app run verify-restore --arquivo "$BACKUP"
+# 5. Alinhar schema e permissões ANTES de abrir o serviço (igual ao
+#    PostgreSQL): o snapshot pode ser anterior a uma migration do código
+#    atual. Falhou aqui? sigere segue PARADO.
+set -a; source .env; set +a
+venv/bin/flask --app run db upgrade
+# se o código avançou: registre as revogações de Painel Admin → Papéis,
+# rode `venv/bin/flask --app run sync-permissions` e reaplique-as
+# (procedimento completo na doc de implantação).
+
+# 6. Conferir o ciclo — com --arquivo, garante que o testado é o mesmo
+#    snapshot restaurado, e não "o mais recente" da pasta/bucket. Só suba o
+#    serviço com a verificação verde:
+venv/bin/flask --app run verify-restore --arquivo "$BACKUP" || {
+  echo "❌ Verificação reprovou — sigere segue PARADO; investigue antes de abrir."
+  exit 1
+}
 sudo systemctl start sigere
 ```
 
 ## Depois de qualquer restauração
 
 1. Migration e `sync-permissions` já rodaram antes de subir o serviço
-   (passo 4 do PostgreSQL) — se algo precisar ficar para depois, mantenha os
-   serviços parados até concluir, com o procedimento de revogações da doc de
-   implantação.
+   (passo 4 no PostgreSQL, passo 5 no SQLite) — se algo precisar ficar para
+   depois, mantenha os serviços parados até concluir, com o procedimento de
+   revogações da doc de implantação.
 2. Ajuste o relógio das expectativas: avisar usuários o que foi perdido no
    intervalo (reservas do dia refeitas à mão).
 3. Investigar a causa antes de religar o mundo: disco cheio, update quebrado,

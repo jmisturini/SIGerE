@@ -701,9 +701,12 @@ backup → verificação de restauração. Num serviço `Type=oneshot`, um
 leva `-` na frente do comando** (sintaxe do systemd para ignorar falha): é
 housekeeping, e um erro dela fica registrado no journal **sem impedir o
 backup**. O `verify-restore` segue logo após o `backup` por aproveitar o
-snapshot de minutos atrás — sem desvio de linhas — e, se a verificação
-reprovar, o serviço marca falha visível no `systemctl list-timers` e no
-journal (backup e limpeza já concluíram). O `notify-cleanup` apaga
+snapshot de minutos atrás — a janela para a produção mudar é mínima, mas
+**não zero**: com gravação noturna esperada (job de integração,
+sincronização), passe `--tolerancia N`. Se a verificação reprovar, o
+serviço marca falha visível em `systemctl status sigere-backup.service`
+(ou `systemctl --failed`) e no journal — `list-timers` só mostra o
+agendamento (backup e limpeza já concluíram). O `notify-cleanup` apaga
 notificações lidas há mais de 90 dias e avisos de reservas cuja data foi há
 mais de 30 dias (ajustável com `--dias-lidas`/`--dias-passadas`). Sem ele, a
 tabela `notifications` cresce indefinidamente. Para testar:
@@ -740,8 +743,13 @@ journalctl -u sigere-backup.service -n 50    # saída da última execução
 Alternativa com cron (no `crontab -e` do seu usuário):
 
 ```cron
-20 3 * * * cd /var/www/sigere && { set -a; . ./.env; set +a; venv/bin/flask --app run notify-cleanup; venv/bin/flask --app run backup && venv/bin/flask --app run verify-restore; } >> /var/log/sigere/backup.log 2>&1
+20 3 * * * cd /var/www/sigere && { venv/bin/flask --app run notify-cleanup; venv/bin/flask --app run backup && venv/bin/flask --app run verify-restore; } >> /var/log/sigere/backup.log 2>&1
 ```
+
+> A linha não faz `source .env`: o CLI do Flask carrega o `.env` do diretório
+> sozinho — e o shell do cron expandiria `$` dentro de valores entre aspas
+> duplas (uma `DATABASE_URL` com `$` na senha autenticaria no systemd, que
+> lê o arquivo literalmente, e falharia no cron).
 
 #### Restaurar
 
