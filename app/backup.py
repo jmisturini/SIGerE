@@ -262,6 +262,8 @@ def _dump_sqlite(caminho_banco, arquivo_gz):
     snapshot = arquivo_gz[:-3]  # mesmo nome sem o .gz, apagado após comprimir
     origem = sqlite3.connect(caminho_banco)
     try:
+        # Lock momentâneo da aplicação não derruba o backup: espera até 5 s.
+        origem.execute('PRAGMA busy_timeout = 5000')
         destino = sqlite3.connect(snapshot)
         try:
             with destino:
@@ -523,6 +525,10 @@ def backup_command(destino, dias, no_upload):
     except BackupError as erro:
         click.echo(click.style(f'❌ Falha no backup: {erro}', fg='red', bold=True))
         raise SystemExit(1)
+    except Exception as erro:
+        click.echo(click.style(
+            f'❌ Falha inesperada no backup: {erro}', fg='red', bold=True))
+        raise  # traceback segue no journal — inesperada é bug, precisa investigar
 
     click.echo(f'   ✅ Arquivo gerado: {arquivo_gz} ({_tamanho_legivel(arquivo_gz)})')
 
@@ -553,6 +559,10 @@ def backup_command(destino, dias, no_upload):
     except BackupError as erro:
         click.echo(click.style(f'❌ Falha no backup: {erro}', fg='red', bold=True))
         raise SystemExit(1)
+    except Exception as erro:
+        click.echo(click.style(
+            f'❌ Falha inesperada no backup: {erro}', fg='red', bold=True))
+        raise  # traceback segue no journal — inesperada é bug, precisa investigar
     click.echo(f'   ☁️  Enviado para s3://{cfg["bucket"]}/{chave}')
     if removidos:
         click.echo(f'   🧹 Retenção na nuvem: {len(removidos)} objeto(s) antigo(s) apagado(s)')

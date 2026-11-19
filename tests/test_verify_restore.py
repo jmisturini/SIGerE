@@ -285,6 +285,17 @@ class VerifyRestoreTestCase(unittest.TestCase):
         self.assertIn('Falha ao consultar/baixar o backup na nuvem', resultado.output)
         self.assertNotIn('Traceback', resultado.output)
 
+    def test_falha_inesperada_na_verificacao_vira_mensagem(self):
+        # Bug do comando ou ambiente fora do previsto (ex.: driver ausente):
+        # mensagem rotulada para o operador + código 1 — não traceback cru
+        # sem rótulo.
+        with mock.patch.object(modulo_verificar, '_restaurar_sqlite',
+                               side_effect=ImportError('psycopg2 ausente')):
+            resultado = self._rodar()
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('Falha inesperada na verificação', resultado.output)
+        self.assertIn('psycopg2 ausente', resultado.output)
+
     def test_mais_recente_nuvem_usa_o_carimbo_do_nome(self):
         # Objeto antigo re-enviado hoje (LastModified fresco) não deve ganhar
         # do backup realmente mais novo, identificado pelo carimbo do nome —

@@ -435,6 +435,10 @@ def verify_restore_command(arquivo, destino, tolerancia):
     except BackupError as erro:
         click.echo(click.style(f'❌ Falha na verificação: {erro}', fg='red', bold=True))
         raise SystemExit(1)
+    except Exception as erro:
+        click.echo(click.style(
+            f'❌ Falha inesperada na verificação: {erro}', fg='red', bold=True))
+        raise  # traceback segue no journal — inesperada é bug, precisa investigar
     click.echo(f'   📦 Backup: {os.path.basename(caminho_backup)} — origem: {origem}')
 
     # Banco descartável no mesmo servidor, com nome único por execução —
@@ -466,6 +470,10 @@ def verify_restore_command(arquivo, destino, tolerancia):
             click.echo(click.style(f'❌ Falha na verificação: {erro}',
                                    fg='red', bold=True))
             raise SystemExit(1)
+        except Exception as erro:
+            click.echo(click.style(
+                f'❌ Falha inesperada na verificação: {erro}', fg='red', bold=True))
+            raise  # traceback segue no journal — inesperada é bug, precisa investigar
     finally:
         shutil.rmtree(pasta_temporaria, ignore_errors=True)
         if pasta_download:

@@ -131,6 +131,16 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertNotEqual(resultado.exit_code, 0)
         self.assertIn('--keep-days', resultado.output)
 
+    def test_falha_inesperada_no_dump_vira_mensagem(self):
+        # Bug do comando ou ambiente fora do previsto: mensagem para o
+        # operador + código 1 — não traceback cru sem rótulo.
+        with mock.patch.object(modulo_backup, '_dump_sqlite',
+                               side_effect=RuntimeError('bug do comando')):
+            resultado = self._rodar('--no-upload', '--dir', self.pasta_backup)
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('Falha inesperada no backup', resultado.output)
+        self.assertIn('bug do comando', resultado.output)
+
     # ── Retenção local ─────────────────────────────────────────────────────
 
     def test_retencao_remove_apenas_backups_antigos(self):
