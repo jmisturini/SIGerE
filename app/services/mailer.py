@@ -98,16 +98,20 @@ def drenar_fila_email(limite=200, dry_run=False):
     # ARQUIVADO (archived_at) — sai do índice parcial da fila
     # (idx_notifications_mail_queue) sem apagar o aviso do sino e sem tocar
     # no sent_at. O dreno mesmo faz o papel das linhas anteriores à coluna:
-    # a migration não conhece o MAIL_MAX_ATTEMPTS do ambiente.
-    mortas = (Notification.query
-              .filter(Notification.sent_at.is_(None),
-                      Notification.send_attempts >= tentativas_max,
-                      Notification.archived_at.is_(None))
-              .all())
-    stats['excedidas'] = len(mortas)
-    if mortas and not dry_run:
-        for n in mortas:
-            n.archived_at = agora
+    # a migration não conhece o MAIL_MAX_ATTEMPTS do ambiente. UPDATE em
+    # bulk (synchronize_session=False): a primeira rodada após o upgrade
+    # pode ter milhares de linhas históricas — materializá-las em ORM para
+    # carimbar uma a uma alongaria o timer à toa.
+    mortas_q = Notification.query.filter(
+        Notification.sent_at.is_(None),
+        Notification.send_attempts >= tentativas_max,
+        Notification.archived_at.is_(None))
+    if dry_run:
+        stats['excedidas'] = mortas_q.count()
+    else:
+        # rowcount = linhas modificadas: NULL → carimbo sempre muda o valor.
+        stats['excedidas'] = mortas_q.update(
+            {Notification.archived_at: agora}, synchronize_session=False)
         db.session.commit()
 
     pendentes = (Notification.query
