@@ -1325,6 +1325,7 @@ class TestEmailMirror(NotificationsTestCase):
             db.session.commit()
             stats = drenar_fila_email()
         self.assertEqual(stats['falhas'], 1)
+        self.assertEqual(stats['excedidas'], 1)  # arquivada nesta rodada conta
         with self.app.app_context():
             n = db.session.get(Notification, notificacao_id)
             self.assertEqual(n.send_attempts, 10)
@@ -1351,6 +1352,25 @@ class TestEmailMirror(NotificationsTestCase):
         with self.app.app_context():
             self.assertIsNone(db.session.get(Notification,
                                              notificacao_id).archived_at)
+
+    def test_aviso_do_arquivamento_distingue_dry_run_do_real(self):
+        # No dry-run, nada foi arquivado ainda: "seriam arquivadas". Na
+        # rodada real, o carimbo aconteceu: "foram arquivadas".
+        self._habilitar_smtp()
+        notificacao_id = self._notificar(self.ids['professor'])
+        with self.app.app_context():
+            db.session.get(Notification, notificacao_id).send_attempts = 10
+            db.session.commit()
+        runner = self.app.test_cli_runner()
+        preview = runner.invoke(args=['notify-email', '--dry-run'])
+        self.assertEqual(preview.exit_code, 0)
+        self.assertIn('seriam arquivadas', preview.output)
+        real = runner.invoke(args=['notify-email'])
+        self.assertEqual(real.exit_code, 0)
+        self.assertIn('foram arquivadas', real.output)
+        with self.app.app_context():
+            self.assertIsNotNone(db.session.get(Notification,
+                                                notificacao_id).archived_at)
 
     @patch('app.services.mailer.smtplib.SMTP')
     def test_arquivada_nao_volta_mesmo_com_limite_maior(self, smtp_cls):

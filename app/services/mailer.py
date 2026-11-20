@@ -185,8 +185,11 @@ def drenar_fila_email(limite=200, dry_run=False):
                             if n.send_attempts >= tentativas_max:
                                 # Esgotou nesta falha: sai da fila de vez —
                                 # o sino segue e o sent_at fica nulo (o
-                                # e-mail nunca saiu).
+                                # e-mail nunca saiu). Conta no mesmo aviso
+                                # do sweep: rodadas futuras já não a
+                                # enxergariam em contagem nenhuma.
                                 n.archived_at = agora
+                                stats['excedidas'] += 1
                         continue
                     for n in itens:
                         n.sent_at = agora
