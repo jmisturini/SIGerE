@@ -261,7 +261,7 @@ class TestSomenteAprovadas(TeacherLocksTestCase):
                 status='pending', unity_id=self.unity_id)
             db.session.add_all([pendente_a, pendente_b])
             db.session.commit()
-            id_a, id_b = pendente_a.id, pendente_b.id
+            _id_a, id_b = pendente_a.id, pendente_b.id
 
         with self.app.app_context():
             # Padrão (criação/edição): pendente também sinaliza conflito.
