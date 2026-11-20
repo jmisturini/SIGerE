@@ -857,8 +857,11 @@ notificações do sino). Sem `MAIL_SMTP_HOST`/`MAIL_FROM` no `.env`, ele apenas
 registra que está desativado — o resto do sistema segue funcionando. O envio é
 um **digest por destinatário**: as notificações de um mesmo usuário numa
 rodada saem num único e-mail. Falha no envio para um destinatário conta tentativa
-(`MAIL_MAX_ATTEMPTS`, padrão 10) e, esgotadas, a notificação sai da fila;
-falha de conexão/autenticação (SMTP fora do ar, STARTTLS/login) mantém a
+(`MAIL_MAX_ATTEMPTS`, padrão 10) e, esgotadas, a notificação é **arquivada**
+(`archived_at`): sai da fila para sempre — o aviso segue no sino, nenhum
+e-mail saiu e linhas anteriores à coluna são arquivadas na primeira rodada
+após o upgrade —; falha de conexão/autenticação (SMTP fora do ar,
+STARTTLS/login) mantém a
 fila inteira para a rodada seguinte, sem contar tentativas — o comando
 termina em sucesso para não marcar a unidade como falha.
 Para testar sem enviar nada: `flask --app run notify-email --dry-run`.
