@@ -201,7 +201,7 @@ else
   # (User= da unit sigere-backup) e lê o banco diretamente — 644 é o modo
   # que a própria instalação produz em operação:
   sudo chown www-data:www-data "$BANCO_ATUAL" \
-    || { echo "❌ chown falhou — sigere segue PARADO; ajuste dono e permissão à mão (modo do .bak: stat -c %a) e continue do passo 5"; exit 1; }
+    || { echo "❌ chown falhou — sigere segue PARADO; ajuste dono e permissão à mão — dono/grupo do \`systemctl cat sigere\` (User=/Group=) e modo 644 — e continue do passo 5"; exit 1; }
   sudo chmod 644 "$BANCO_ATUAL" \
     || { echo "❌ chmod falhou — sigere segue PARADO; ajuste permissão à mão e continue do passo 5"; exit 1; }
 fi
