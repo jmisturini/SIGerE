@@ -10,12 +10,48 @@ topo de RELEASES — a tela /changelog (main.changelog) e o rodapé exibem estes
 dados automaticamente.
 """
 
-APP_VERSION = '1.43.0'
+APP_VERSION = '1.44.0'
 
 # Histórico de versões, do mais novo para o mais antigo. Cada release tem
 # versão, data (AAAA-MM-DD), título e grupos no padrão do "Keep a Changelog"
 # (Adicionado, Alterado, Corrigido, Removido).
 RELEASES = [
+    {
+        'versao': '1.44.0',
+        'data': '2026-11-18',
+        'titulo': 'Prova de que o backup volta e retenção com semanais',
+        'grupos': [
+            ('Adicionado', [
+                'Comando `flask --app run verify-restore`: restaura o backup '
+                'mais recente — baixado da nuvem quando `BACKUP_S3_BUCKET` '
+                'está definido, então é a cópia fora do servidor que é '
+                'testada — num banco descartável separado da produção e '
+                'confere tudo: toda tabela da produção precisa existir na '
+                'cópia e a contagem de linhas precisa bater (opção '
+                '`--tolerancia N` para aceitar desvio; padrão zero). Imprime '
+                'o tempo de restauração medido — o número real para o '
+                'runbook — e termina com código 1 quando o backup não volta. '
+                'O banco descartável (`<nome>_verificacao`) é apagado ao '
+                'final, inclusive em falha; no PostgreSQL o usuário precisa '
+                'de `CREATEDB` (liberado uma única vez com `ALTER USER`).',
+                'Runbook de desastre (`docs/runbook-restauracao.md`): passo a '
+                'passo curto do dia que der ruim — como restaurar em '
+                'PostgreSQL e SQLite, quanto tempo leva e o que se perde.',
+            ]),
+            ('Alterado', [
+                'A retenção do backup passa de "apagar por dias" para a '
+                'política avô/pai/filho: ficam os backups das 7 datas mais '
+                'recentes (`BACKUP_DAILY_KEEP`) mais o mais novo de cada uma '
+                'das 4 semanas ISO anteriores (`BACKUP_WEEKLY_KEEP`) — '
+                'alcança ~35 dias com poucos arquivos. `BACKUP_RETENTION_'
+                'DAYS` virou teto de idade (padrão 45 dias; nada mais velho '
+                'sobrevive, nem semanal). A política vale para a pasta '
+                'local e para os objetos do bucket, e o timer diário '
+                'documentado ganhou o `verify-restore` logo após o backup '
+                '(mesmo disparo, sem desvio de linhas na comparação).',
+            ]),
+        ],
+    },
     {
         'versao': '1.43.0',
         'data': '2026-11-14',
