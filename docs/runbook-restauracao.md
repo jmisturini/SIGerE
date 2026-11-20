@@ -177,6 +177,10 @@ for sufixo in journal wal shm; do
   [ -f "$BANCO_ATUAL-$sufixo" ] && \
     mv "$BANCO_ATUAL-$sufixo" "$BANCO_ATUAL.bak-dia-ruim-$sufixo"
 done
+# 0600 antes de sair da pasta privada (0700): entre o mv e o chown/chmod do
+# bloco seguinte — sudo pode esperar senha — o arquivo já instalado não fica
+# legível para os demais usuários; o modo FINAL vem do .bak logo em seguida:
+chmod 600 "$PASTA_TRABALHO/sigere-restaurado.sqlite"
 mv "$PASTA_TRABALHO/sigere-restaurado.sqlite" "$BANCO_ATUAL" \
   || { echo "❌ Instalação falhou — snapshot extraído preservado em $PASTA_TRABALHO"; exit 1; }
 # dono e permissões do arquivo movido para o .bak — o extraído herda o do
@@ -193,7 +197,9 @@ else
   # sem o .bak de referência (o banco atual nem existia): copie dono/permissão
   # de outro arquivo do serviço ou derive da unidade — `sudo systemctl cat
   # sigere` mostra User=/Group= (na instalação padrão, www-data:www-data);
-  # modo 644 costuma bastar:
+  # modo 644 (não 600): o timer de backup roda como o dono do repositório
+  # (User= da unit sigere-backup) e lê o banco diretamente — 644 é o modo
+  # que a própria instalação produz em operação:
   sudo chown www-data:www-data "$BANCO_ATUAL" \
     || { echo "❌ chown falhou — sigere segue PARADO; ajuste dono e permissão à mão (modo do .bak: stat -c %a) e continue do passo 5"; exit 1; }
   sudo chmod 644 "$BANCO_ATUAL" \
