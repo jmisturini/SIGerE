@@ -180,8 +180,14 @@ if [ -e "$BANCO_ATUAL" ]; then
     || { echo "❌ Preservação falhou — banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO"; exit 1; }
 fi
 for sufixo in journal wal shm; do
-  [ -f "$BANCO_ATUAL-$sufixo" ] && \
-    mv "$BANCO_ATUAL-$sufixo" "$BANCO_ATUAL.bak-dia-ruim-$sufixo"
+  # bloco if, não `&& ... || ...`: com `||`, a ausência do sidecar (teste
+  # falso) dispararia o ramo de erro. Falha no mv PARA — um -journal/-wal
+  # antigo sobrando no nome de destino seria REPRODUZIDO pelo SQLite por
+  # cima das páginas novas:
+  if [ -f "$BANCO_ATUAL-$sufixo" ]; then
+    mv "$BANCO_ATUAL-$sufixo" "$BANCO_ATUAL.bak-dia-ruim-$sufixo" \
+      || { echo "❌ Preservação de $BANCO_ATUAL-$sufixo falhou — banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO"; exit 1; }
+  fi
 done
 # 0600 antes de sair da pasta privada (0700): entre o mv e o chown/chmod do
 # bloco seguinte — sudo pode esperar senha — o arquivo já instalado não fica
