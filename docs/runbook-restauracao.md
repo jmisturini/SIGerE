@@ -172,7 +172,13 @@ fi
 #    restaurado seria REPRODUZIDO pelo SQLite por cima das páginas novas:
 #    o estado ruim vai embora inteiro, e nada de sidecar pode sobrar no nome
 #    de destino (sem sidecars, os mv opcionais apenas não fazem nada):
-mv "$BANCO_ATUAL" "$BANCO_ATUAL.bak-dia-ruim"
+# o banco atual pode nem existir (host novo, disco formatado) — só preserva
+# quando existe; se a preservação falhar, PARA antes de qualquer substituição
+# — senão o mv de instalação apagaria o estado ruim antes da análise:
+if [ -e "$BANCO_ATUAL" ]; then
+  mv "$BANCO_ATUAL" "$BANCO_ATUAL.bak-dia-ruim" \
+    || { echo "❌ Preservação falhou — banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO"; exit 1; }
+fi
 for sufixo in journal wal shm; do
   [ -f "$BANCO_ATUAL-$sufixo" ] && \
     mv "$BANCO_ATUAL-$sufixo" "$BANCO_ATUAL.bak-dia-ruim-$sufixo"
