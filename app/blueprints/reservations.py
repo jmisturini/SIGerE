@@ -753,11 +753,31 @@ def approve(reservation_id):
         if not (current_user.has_permission('reservation:read_own') and vinculado):
             abort(403)
     if reservation.status == 'pending':
+        # As chaves de lock vêm do LOAD da reserva (antes do lock) — uma
+        # edição concorrente pode ter trocado docente/sala/data entre o load
+        # e o lock, e aprovar com chave velha aprovaria sobreposição que a
+        # checagem do docente/sala novos nunca viu. Dentro da seção crítica a
+        # linha é RELIDA: se os campos de conflito mudaram, as chaves
+        # travadas não são mais as da reserva — aborta para retry (o
+        # PostgreSQL, em READ COMMITTED, vê o commit mais recente; no SQLite
+        # a própria escrita da edição serializa sob o reader aberto).
+        sala_no_lock = reservation.classroom_id
+        docente_no_lock = reservation.teacher_id
+        data_no_lock = reservation.date
         # Aprovar revalida o conflito de sala dentro da seção crítica:
         # enquanto a reserva estava pendente outra pode ter sido aprovada
         # sobre a mesma janela (ou estar sendo aprovada em paralelo).
-        with slot_locks(reservation.classroom_id, [reservation.date]), \
-                teacher_locks([(reservation.teacher_id, reservation.date)]):
+        with slot_locks(sala_no_lock, [data_no_lock]), \
+                teacher_locks([(docente_no_lock, data_no_lock)]):
+            db.session.refresh(reservation)
+            if (reservation.classroom_id, reservation.teacher_id,
+                    reservation.date) != (sala_no_lock, docente_no_lock,
+                                          data_no_lock):
+                flash('A reserva foi editada durante a aprovação '
+                      '(docente, sala ou data mudaram) — tente de novo.',
+                      'warning')
+                return redirect(url_for('reservations.detail',
+                                        reservation_id=reservation.id))
             conflict = check_conflict(
                 reservation.classroom_id, reservation.date,
                 reservation.start_time, reservation.end_time,

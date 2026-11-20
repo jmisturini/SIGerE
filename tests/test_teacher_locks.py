@@ -19,6 +19,7 @@ import tempfile
 import threading
 import unittest
 from datetime import date, datetime, timedelta
+from unittest.mock import patch
 
 from app import create_app
 from app.config import Config
@@ -283,6 +284,13 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
     """Aprovar revalida o docente dentro do lock: outra reserva do docente
     que foi APROVADA na janela enquanto esta pendia (em outra sala) impede a
     aprovação — sem isso, duas aprovações concorrentes materializavam a
+    sobreposição que o slot lock (sala) não enxergava. E, se a reserva foi
+    EDITADA enquanto a aprovação estava a caminho (docente/sala/data mudaram
+    entre o load e o lock), a aprovação ABORTA: aprovar com chave velha
+    materializaria sobreposição que a checagem do docente novo nunca viu."""
+    """Aprovar revalida o docente dentro do lock: outra reserva do docente
+    que foi APROVADA na janela enquanto esta pendia (em outra sala) impede a
+    aprovação — sem isso, duas aprovações concorrentes materializavam a
     sobreposição que o slot lock (sala) não enxergava."""
 
     def test_aprovacao_recusa_docente_sobreposto_e_depois_passa(self):
@@ -306,6 +314,65 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
         self.client.post(f'/reservations/{id_b}/approve', follow_redirects=True)
         with self.app.app_context():
             self.assertEqual(db.session.get(Reservation, id_b).status, 'approved')
+
+    @patch('app.blueprints.reservations.slot_locks')
+    def test_aprovacao_aborta_se_a_reserva_foi_editada_sob_o_lock(self, mock_slot):
+        # Race edit↔approve: a aprovação escolhe as chaves de lock no LOAD;
+        # uma edição concorrente troca o docente antes do lock. Reler sob o
+        # lock mostra a mudança e a aprovação ABORTA — aprovar com a chave
+        # velha aprovaria o docente NOVO sem a checagem dele (o sugerido de
+        # travar chaves antigas na edição não fecha: dois approves com
+        # chaves diferentes não serializam entre si).
+        from contextlib import contextmanager
+        from sqlalchemy import text as sql_text
+        from app.models import User as UserModel
+        real_slot_locks = scheduling.slot_locks
+
+        with self.app.app_context():
+            unity = db.session.get(Unity, self.unity_id)
+            professor2 = UserModel(
+                email='professor2@escola.edu', full_name='Professor Costa',
+                role='room', profile_type='teacher', unities=[unity],
+                force_password_change=False, is_active_user=True)
+            professor2.set_password(PASSWORD)
+            db.session.add(professor2)
+            db.session.commit()
+            teacher2_id = professor2.id
+
+        dia = self.dia
+        _, id_a = self._criar(dia, self.room1_id)   # nasce aprovada
+        _, id_b = self._criar(dia, self.room2_id)   # nasce PENDENTE: docente
+
+        @contextmanager
+        def com_edicao_concorrente(classroom_id, dates):
+            with real_slot_locks(classroom_id, dates):
+                # A edição comita a troca de docente ENQUANTO a aprovação
+                # está dentro da seção crítica (chaves ainda são as antigas).
+                db.session.execute(
+                    sql_text('UPDATE reservations SET teacher_id = :t '
+                             'WHERE id = :i'),
+                    {'t': teacher2_id, 'i': id_b})
+                db.session.commit()
+                yield
+
+        mock_slot.side_effect = com_edicao_concorrente
+        resposta = self.client.post(f'/reservations/{id_b}/approve',
+                                    follow_redirects=True)
+        self.assertIn('editada durante a aprovação',
+                      resposta.get_data(as_text=True))
+        with self.app.app_context():
+            reserva = db.session.get(Reservation, id_b)
+            self.assertEqual(reserva.status, 'pending')      # não aprovou
+            self.assertEqual(reserva.teacher_id, teacher2_id)  # edição intata
+
+        # Retry com o estado já consolidado: aprova de novo, agora sob as
+        # chaves corretas (e a reserva A segue aprovada — docentes
+        # DIFERENTES não conflitam).
+        mock_slot.side_effect = None
+        self.client.post(f'/reservations/{id_b}/approve', follow_redirects=True)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, id_b).status,
+                             'approved')
 
 
 if __name__ == '__main__':
