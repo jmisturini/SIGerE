@@ -651,7 +651,9 @@ O usuário do `DATABASE_URL` precisa de permissão de criar bancos (uma única
 vez): `sudo -u postgres psql -c 'ALTER USER sigere WITH CREATEDB;'`. O banco
 descartável (`<nome>_verificacao`) é apagado ao final, inclusive em falha.
 Agende junto do backup (mesmo timer/cron): conferir o snapshot de minutos
-atrás contra a produção parada da madrugada é o cenário sem desvio de linhas.
+atrás reduz — sem zerar — a janela em que a produção muda entre o dump e a
+conferência; desvio de linhas que sobrar reprova de verdade, e um
+`--tolerancia N` só entra depois de conferir as contagens do relatório.
 
 #### Backup na nuvem (opcional)
 

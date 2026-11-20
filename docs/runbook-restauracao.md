@@ -101,12 +101,13 @@ rm -rf "$PASTA_TRABALHO"
 #    schema antigo quebra na frente do usuário:
 set -a; source .env; set +a
 venv/bin/flask --app run db upgrade
-# se o código avançou desde o snapshot: rode `venv/bin/flask --app run
-# sync-permissions` e reaplique e confira as revogações de propósito ANTES
-# de abrir o serviço — rota OFFLINE, pois o Painel Admin → Papéis exige o
-# serviço no ar: Flask shell via SSH, com nginx e sigere PARADOS
-# (procedimento completo na doc de implantação, seção «Atualizando a
-# aplicação»).
+# revogações de propósito feitas DEPOIS do snapshot morreram com ele —
+# reaplique e confira SEMPRE, mesmo sem mudança de código, ANTES de abrir o
+# serviço — rota OFFLINE, pois o Painel Admin → Papéis exige o serviço no
+# ar: Flask shell via SSH, com nginx e sigere PARADOS (procedimento
+# completo na doc de implantação, seção «Atualizando a aplicação»). O
+# `sync-permissions` é que fica condicionado ao código avançado — rode-o
+# ANTES de reaplicar as revogações.
 # Falhou aqui? Mantenha nginx e sigere PARADOS até resolver.
 
 # 5. Subir e checar:
@@ -185,7 +186,7 @@ mv "$PASTA_TRABALHO/sigere-restaurado.sqlite" "$BANCO_ATUAL" \
 # start:
 if [ -f "$BANCO_ATUAL.bak-dia-ruim" ]; then
   sudo chown --reference="$BANCO_ATUAL.bak-dia-ruim" "$BANCO_ATUAL" \
-    || { echo "❌ chown falhou — sigere segue PARADO; ajuste dono à mão e continue do passo 5"; exit 1; }
+    || { echo "❌ chown falhou — sigere segue PARADO; ajuste dono e permissão à mão (modo do .bak: stat -c %a) e continue do passo 5"; exit 1; }
   sudo chmod --reference="$BANCO_ATUAL.bak-dia-ruim" "$BANCO_ATUAL" \
     || { echo "❌ chmod falhou — sigere segue PARADO; ajuste permissão à mão e continue do passo 5"; exit 1; }
 else
@@ -194,7 +195,7 @@ else
   # sigere` mostra User=/Group= (na instalação padrão, www-data:www-data);
   # modo 644 costuma bastar:
   sudo chown www-data:www-data "$BANCO_ATUAL" \
-    || { echo "❌ chown falhou — sigere segue PARADO; ajuste dono à mão e continue do passo 5"; exit 1; }
+    || { echo "❌ chown falhou — sigere segue PARADO; ajuste dono e permissão à mão (modo do .bak: stat -c %a) e continue do passo 5"; exit 1; }
   sudo chmod 644 "$BANCO_ATUAL" \
     || { echo "❌ chmod falhou — sigere segue PARADO; ajuste permissão à mão e continue do passo 5"; exit 1; }
 fi
@@ -218,12 +219,14 @@ venv/bin/flask --app run db upgrade || {
   echo "❌ db upgrade falhou — sigere segue PARADO; resolva antes de abrir."
   exit 1
 }
-# se o código avançou: rode `venv/bin/flask --app run sync-permissions` e
-# reaplique e confira as revogações de propósito ANTES de subir — rota
-# OFFLINE, pois o Painel Admin → Papéis exige o serviço no ar: Flask shell
-# via SSH, com sigere (e o Nginx, se houver) PARADOS (procedimento completo
-# na doc de implantação, seção «Atualizando a aplicação»). O serviço só
-# sobe com as revogações reaplicadas e conferidas:
+# revogações de propósito feitas DEPOIS do snapshot morreram com ele —
+# reaplique e confira SEMPRE, mesmo sem mudança de código, ANTES de subir —
+# rota OFFLINE, pois o Painel Admin → Papéis exige o serviço no ar: Flask
+# shell via SSH, com sigere (e o Nginx, se houver) PARADOS (procedimento
+# completo na doc de implantação, seção «Atualizando a aplicação»). O
+# `sync-permissions` é que fica condicionado ao código avançado — rode-o
+# ANTES de reaplicar as revogações. O serviço só sobe com as revogações
+# reaplicadas e conferidas:
 sudo systemctl start sigere
 ```
 
