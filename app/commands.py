@@ -1017,7 +1017,8 @@ def notify_email_command(dry_run, limite):
     if stats['excedidas']:
         click.echo(click.style(
             f"  ⚠ {stats['excedidas']} notificação(ões) passaram do limite de "
-            f"tentativas e saíram da fila (verifique o SMTP).", fg="yellow"))
+            f"tentativas e foram arquivadas fora da fila — o aviso segue no "
+            f"app (verifique o SMTP).", fg="yellow"))
     if dry_run and stats['emails']:
         click.echo("Rode sem --dry-run para enviar.")
 
