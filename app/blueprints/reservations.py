@@ -12,7 +12,7 @@ from app.permissions import require_permission, require_permission_or_owner
 # central — mantidos aqui por re-export para compatibilidade.
 from app.services.scheduling import (check_conflict, check_schedule_restrictions,
                                      check_teacher_conflict, slot_locks,
-                                     teacher_exceeds_daily_limit,
+                                     teacher_exceeds_daily_limit, teacher_locks,
                                      TEACHER_DAILY_RESERVATION_LIMIT,
                                      MAX_REPEAT_RANGE_DAYS)
 from app.services.notifications import (notificar_sobrecarga_professor,
@@ -262,9 +262,13 @@ def create():
             return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
         # Gravação atômica: checagens e INSERT na mesma seção crítica por
-        # (sala, data) — duas requisições simultâneas nunca gravam a mesma
-        # janela (a segunda reexecuta as checagens após o commit da primeira).
-        with slot_locks(classroom_id, [form.date.data]):
+        # (sala, data) E (docente, data) — duas requisições simultâneas nunca
+        # gravam a mesma janela nem dobram o docente (a segunda reexecuta as
+        # checagens após o commit da primeira). Ordem única: sala, depois
+        # docente.
+        teacher_id = form.teacher.data if form.teacher.data > 0 else None
+        with slot_locks(classroom_id, [form.date.data]), \
+                teacher_locks([(teacher_id, form.date.data)]):
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
@@ -276,7 +280,6 @@ def create():
                 flash(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})', 'danger')
                 return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
-            teacher_id = form.teacher.data if form.teacher.data > 0 else None
             is_teacher_conflict = False
             excede_limite_diario = False
             if teacher_id:
@@ -592,9 +595,13 @@ def edit(reservation_id):
             flash('Sala inválida para a unidade ativa.', 'danger')
             return render_template('reservations/edit.html', form=form, reservation=reservation)
 
-        # Mesma seção crítica da criação: revalida restrições e conflitos já
-        # enxergando o estado consolidado (edit + approve concorrentes).
-        with slot_locks(classroom_id, [form.date.data]):
+        # Mesma seção crítica da criação (sala, depois docente — o lock de
+        # docente é do NOVO docente do formulário, que é o que a revalidação
+        # abaixo confere): revalida restrições e conflitos já enxergando o
+        # estado consolidado (edit + approve concorrentes).
+        teacher_id_novo = form.teacher.data if form.teacher.data > 0 else None
+        with slot_locks(classroom_id, [form.date.data]), \
+                teacher_locks([(teacher_id_novo, form.date.data)]):
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
@@ -749,7 +756,8 @@ def approve(reservation_id):
         # Aprovar revalida o conflito de sala dentro da seção crítica:
         # enquanto a reserva estava pendente outra pode ter sido aprovada
         # sobre a mesma janela (ou estar sendo aprovada em paralelo).
-        with slot_locks(reservation.classroom_id, [reservation.date]):
+        with slot_locks(reservation.classroom_id, [reservation.date]), \
+                teacher_locks([(reservation.teacher_id, reservation.date)]):
             conflict = check_conflict(
                 reservation.classroom_id, reservation.date,
                 reservation.start_time, reservation.end_time,
@@ -758,6 +766,23 @@ def approve(reservation_id):
                 flash(f'Não é possível aprovar: a sala já possui a reserva aprovada '
                       f'"{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - '
                       f'{conflict.end_time.strftime("%H:%M")}) nesta janela. '
+                      f'A reserva permanece PENDENTE.', 'danger')
+                return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+            # Revalidação docente (mesma razão da de sala): enquanto a reserva
+            # estava pendente, outra do mesmo docente pode ter sido APROVADA
+            # sobreposta (outra sala — o slot lock não cruzava). Somente
+            # aprovadas: duas pendências sobrepostas do docente se bloqueariam
+            # para sempre se contassem pendentes.
+            conflito_docente = None
+            if reservation.teacher_id:
+                conflito_docente = check_teacher_conflict(
+                    reservation.teacher_id, reservation.date,
+                    reservation.start_time, reservation.end_time,
+                    exclude_id=reservation.id, somente_aprovadas=True)
+            if conflito_docente:
+                flash(f'Não é possível aprovar: o docente já possui a reserva aprovada '
+                      f'"{conflito_docente.title}" ({conflito_docente.start_time.strftime("%H:%M")} - '
+                      f'{conflito_docente.end_time.strftime("%H:%M")}) sobreposta nesta janela. '
                       f'A reserva permanece PENDENTE.', 'danger')
                 return redirect(url_for('reservations.detail', reservation_id=reservation.id))
             reservation.status = 'approved'
@@ -891,7 +916,11 @@ def repeat_schedule(reservation_id):
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
     excede_limite_diario = False
-    with slot_locks(res.classroom_id, [new_date]):
+    # Sala, depois docente (ordem única): a repetição leva o docente da
+    # origem para a nova data — sem o lock, outra gravação em sala diferente
+    # para o mesmo docente passaria pela checagem no meio.
+    with slot_locks(res.classroom_id, [new_date]), \
+            teacher_locks([(res.teacher_id, new_date)]):
         allowed, msg = check_schedule_restrictions(new_date, res.start_time, res.end_time)
         if not allowed:
             flash(msg, 'danger')
@@ -991,7 +1020,11 @@ def repeat_schedule_all(reservation_id):
     # permissão explícita, sem expandir o curinga '*'.
     criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
 
-    with slot_locks(res.classroom_id, range_dates):
+    # Lote: sala E docente travados no intervalo inteiro (mesma expansão de
+    # chaves do lado da sala — a revalidação docente por data do momento da
+    # gravação fica race-free dentro do lock).
+    with slot_locks(res.classroom_id, range_dates), \
+            teacher_locks([(res.teacher_id, d) for d in range_dates]):
         # Sala e feriados pré-carregados em 2 consultas — em vez de 2 queries
         # por dia do intervalo. O horário é fixo no lote, então a sobreposição
         # de janela entra direto no SQL (mesmo caminho do GET da tela
@@ -1218,8 +1251,15 @@ def series_edit(reservation_id):
     criador_pendente_serie = current_user.has_explicit_permission(
         'reservation:create_pending')
     with ExitStack() as stack:
-        for room_id, room_targets in by_classroom.items():
-            stack.enter_context(slot_locks(room_id, [m.date for m in room_targets]))
+        # Salas em ordem canônica (o dict seguia a ordem dos alvos — dois
+        # fluxos com conjuntos de salas sobrepostos podiam adquirir em
+        # ordens diferentes); docentes por último, sempre depois das salas.
+        for room_id in sorted(by_classroom):
+            stack.enter_context(slot_locks(
+                room_id, [m.date for m in by_classroom[room_id]]))
+        stack.enter_context(teacher_locks(
+            [(m.teacher_id, m.date)
+             for room_targets in by_classroom.values() for m in room_targets]))
         for room_targets in by_classroom.values():
             for m in room_targets:
                 start = new_start or m.start_time
