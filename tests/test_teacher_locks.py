@@ -467,6 +467,12 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
         dia = self.dia
         _, id_a = self._criar(dia, self.room1_id)   # nasce aprovada
         _, id_b = self._criar(dia, self.room2_id)   # nasce PENDENTE: docente
+        # Cancelada a aprovada: sem conflito de docente, a checagem passa e
+        # o fluxo CHEGA ao CAS — o gate de docente não pode mascarar o ramo
+        # rowcount=0 que este teste exercita. (O patch abaixo está ativo
+        # sobre o create também — sem o cancelamento, o MagicMock do create
+        # faria o nascer das reservas depender dele.)
+        self.client.post(f'/reservations/{id_a}/cancel', follow_redirects=True)
 
         def check_com_mudanca_no_meio(*args, **kwargs):
             resultado = real_check(*args, **kwargs)
