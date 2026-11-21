@@ -17,6 +17,7 @@ recusa docente sobreposto aprovado concorrentemente.
 import os
 import tempfile
 import threading
+from contextlib import contextmanager
 import unittest
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
@@ -226,18 +227,32 @@ class TestTeacherLocksUnit(TeacherLocksTestCase):
             self.assertEqual(scheduling._teacher_locks, {})
 
     def test_docentes_e_datas_em_ordem_canonica(self):
-        # Lote com vários pares: todas as chaves são criadas e liberadas —
-        # e duas chamadas com os mesmos pares em ordem diferente não travam
-        # (o mesmo thread é reentrante nas MESMAS chaves e chaves distintas
-        # não se cruzam aqui).
+        # Lote com vários pares: as chaves chegam a _travar_chaves na MESMA
+        # sequência ordenada, independentemente da ordem de entrada — o
+        # contrato anti-deadlock. Registrar a sequência (e não olhar o
+        # dicionário do registry, que não prova a ordem de aquisição).
         pares = [(3, date(2026, 12, 3)), (1, date(2026, 12, 1)),
                  (2, date(2026, 12, 2))]
-        with self.app.app_context():
-            with teacher_locks(pares), teacher_locks(list(reversed(pares))):
-                pass
-            self.assertEqual(
-                sorted(scheduling._teacher_locks),
-                sorted(scheduling._teacher_key(t, d) for t, d in pares))
+        chamadas = []
+        real = scheduling._travar_chaves
+
+        @contextmanager
+        def gravadora(keys, tabela_locks, prefixo_advisory):
+            chamadas.append((prefixo_advisory, list(keys)))
+            with real(keys, tabela_locks, prefixo_advisory):
+                yield
+
+        with patch.object(scheduling, '_travar_chaves', gravadora):
+            with self.app.app_context():
+                with teacher_locks(pares), teacher_locks(list(reversed(pares))):
+                    pass
+        self.assertEqual(len(chamadas), 2)
+        self.assertEqual(chamadas[0][0], 'docente')
+        self.assertEqual(chamadas[0][1], sorted(chamadas[0][1]))
+        self.assertEqual(chamadas[0], chamadas[1])
+        self.assertEqual(
+            sorted(scheduling._teacher_locks),
+            sorted(scheduling._teacher_key(t, d) for t, d in pares))
 
 
 class TestSomenteAprovadas(TeacherLocksTestCase):
