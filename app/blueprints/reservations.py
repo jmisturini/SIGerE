@@ -1430,11 +1430,14 @@ def series_edit(reservation_id):
                 # individual: a reserva volta a PENDENTE para revisão. No
                 # fluxo de professor (reservation:create_pending), a edição
                 # que muda dados devolve à avaliação — a aprovação anterior
-                # não cobre os dados novos.
+                # não cobre os dados novos. A checagem usa os horários
+                # PROPOSTOS (start/end): validar a janela velha deixaria uma
+                # movimentação 09–10h → 11–12h aprovada sobreposta à 11–12h
+                # que o docente já tem.
                 rebaixa = m.status == 'approved' and (
                     (criador_pendente_serie and mudou)
                     or (m.teacher_id and check_teacher_conflict(
-                        m.teacher_id, m.date, m.start_time, m.end_time,
+                        m.teacher_id, m.date, start, end,
                         exclude_id=m.id)))
                 if rebaixa:
                     voltaram_pending += 1
