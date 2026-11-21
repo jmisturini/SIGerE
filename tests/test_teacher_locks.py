@@ -455,6 +455,39 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
             # Rollback com a requisição: o horário simulado volta ao original.
             self.assertEqual(reserva.start_time.strftime('%H:%M'), '09:00')
 
+    @patch('app.blueprints.reservations.check_teacher_conflict')
+    def test_aprovacao_aborta_se_horario_mudar_entre_releitura_e_cas(self, mock_check):
+        # Ordem REVERSA da janela (a do teste anterior muda antes da
+        # re-leitura): a mudança entra ENTRE a re-leitura com row lock e o
+        # CAS — interceptada na checagem de docente, que roda nesse exato
+        # intervalo. O CAS condicionado aos horários é o que pega.
+        from sqlalchemy import text as sql_text
+        real_check = scheduling.check_teacher_conflict
+
+        dia = self.dia
+        _, id_a = self._criar(dia, self.room1_id)   # nasce aprovada
+        _, id_b = self._criar(dia, self.room2_id)   # nasce PENDENTE: docente
+
+        def check_com_mudanca_no_meio(*args, **kwargs):
+            resultado = real_check(*args, **kwargs)
+            # A edição comita a mudança de horário DEPOIS da re-leitura e
+            # ANTES do CAS (sem commit: visível na mesma conexão, invisível
+            # ao identity map).
+            db.session.execute(
+                sql_text("UPDATE reservations SET start_time = '10:00', "
+                         "end_time = '11:00' WHERE id = :i"),
+                {'i': id_b})
+            return resultado
+
+        mock_check.side_effect = check_com_mudanca_no_meio
+        resposta = self.client.post(f'/reservations/{id_b}/approve',
+                                    follow_redirects=True)
+        self.assertIn('editada ou cancelada durante a aprovação',
+                      resposta.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, id_b).status,
+                             'pending')
+
 
 if __name__ == '__main__':
     unittest.main()

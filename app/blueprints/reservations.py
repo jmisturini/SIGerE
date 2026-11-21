@@ -676,20 +676,21 @@ def edit(reservation_id):
             if excede_limite_diario:
                 notificar_sobrecarga_professor(reservation)
 
-            db.session.commit()
+            # Downgrade condicional DENTRO da transação da edição — o par
+            # commit→sweep deixava janela de crash entre os dois commits com
+            # a reserva aprovada e conflitante. No SQLite pega também o flip
+            # do approve ocorrido após a re-leitura (chaves diferentes não se
+            # excluem lá — o CAS do approve só casa com as chaves DELE); no
+            # PostgreSQL é no-op (o row lock já serializou — ou o próprio
+            # flush rebaixou, e o UPDATE casa 0 linhas).
             if downgrade_warranted:
-                # SQLite: um approve pode ter flipado pending→approved DEPOIS
-                # da re-leitura (chaves diferentes não se excluem lá — o CAS
-                # do approve só casa com as chaves DELE) e a decisão acima
-                # viu status obsoleto. O downgrade condicionado ao status
-                # approved vale no estado FINAL; no PostgreSQL é no-op (o
-                # row lock já serializou — ou o próprio flush rebaixou).
                 db.session.execute(
                     update(Reservation)
                     .where(Reservation.id == reservation.id,
                            Reservation.status == 'approved')
                     .values(status='pending'))
-                db.session.commit()
+            db.session.commit()
+            if downgrade_warranted:
                 db.session.refresh(reservation)  # flashes refletem o final
 
         if teacher_conflict and reservation.status == 'pending':
