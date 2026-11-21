@@ -346,13 +346,17 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
         @contextmanager
         def com_edicao_concorrente(classroom_id, dates):
             with real_slot_locks(classroom_id, dates):
-                # A edição comita a troca de docente ENQUANTO a aprovação
-                # está dentro da seção crítica (chaves ainda são as antigas).
+                # A troca de docente aparece SOB o lock do approve — mas SEM
+                # commit: um commit expiraria os atributos do identity map
+                # (a leitura seguinte recarregaria mesmo sem refresh, e o
+                # teste deixaria de cobrir o refresh). Sem commit, o UPDATE
+                # é visível na MESMA conexão e o identity map segue com os
+                # valores obsoletos do load — o único caminho para o gate
+                # enxergar a mudança é o db.session.refresh do route.
                 db.session.execute(
                     sql_text('UPDATE reservations SET teacher_id = :t '
                              'WHERE id = :i'),
                     {'t': teacher2_id, 'i': id_b})
-                db.session.commit()
                 yield
 
         mock_slot.side_effect = com_edicao_concorrente
@@ -360,19 +364,61 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
                                     follow_redirects=True)
         self.assertIn('editada durante a aprovação',
                       resposta.get_data(as_text=True))
+        # O abort não comita: o UPDATE simulado rollbacka com a requisição —
+        # a pendência segue com o docente original, intacta.
         with self.app.app_context():
             reserva = db.session.get(Reservation, id_b)
-            self.assertEqual(reserva.status, 'pending')      # não aprovou
-            self.assertEqual(reserva.teacher_id, teacher2_id)  # edição intata
+            self.assertEqual(reserva.status, 'pending')   # não aprovou
+            self.assertEqual(reserva.teacher_id, self.teacher_id)
 
-        # Retry com o estado já consolidado: aprova de novo, agora sob as
-        # chaves corretas (e a reserva A segue aprovada — docentes
-        # DIFERENTES não conflitam).
+        # Retry com o estado consolidado: a checagem de docente (só
+        # aprovadas) recusa enquanto A segue aprovada sobreposta; cancelada
+        # A, a aprovação passa.
         mock_slot.side_effect = None
         self.client.post(f'/reservations/{id_b}/approve', follow_redirects=True)
         with self.app.app_context():
             self.assertEqual(db.session.get(Reservation, id_b).status,
+                             'pending')
+        self.client.post(f'/reservations/{id_a}/cancel', follow_redirects=True)
+        self.client.post(f'/reservations/{id_b}/approve', follow_redirects=True)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, id_b).status,
                              'approved')
+
+    @patch('app.blueprints.reservations.slot_locks')
+    def test_aprovacao_aborta_se_reserva_foi_cancelada_sob_o_lock(self, mock_slot):
+        # O gate de pendência roda ANTES do lock — um cancelamento que
+        # acontece nesse intervalo faria o approve ressuscitar uma reserva
+        # cancelada. A rechecagem de status dentro da seção crítica fecha o
+        # buraco (mesma família do abort por edição).
+        from contextlib import contextmanager
+        from sqlalchemy import text as sql_text
+        real_slot_locks = scheduling.slot_locks
+
+        dia = self.dia
+        _, id_a = self._criar(dia, self.room1_id)   # nasce aprovada
+        _, id_b = self._criar(dia, self.room2_id)   # nasce PENDENTE: docente
+
+        @contextmanager
+        def com_cancelamento_concorrente(classroom_id, dates):
+            with real_slot_locks(classroom_id, dates):
+                # Sem commit, pelo mesmo motivo do teste de edição: o
+                # identity map precisa seguir obsoleto para o refresh ser
+                # o único caminho de o gate enxergar a mudança.
+                db.session.execute(
+                    sql_text("UPDATE reservations SET status = 'cancelled' "
+                             'WHERE id = :i'),
+                    {'i': id_b})
+                yield
+
+        mock_slot.side_effect = com_cancelamento_concorrente
+        resposta = self.client.post(f'/reservations/{id_b}/approve',
+                                    follow_redirects=True)
+        self.assertIn('mudou de situação', resposta.get_data(as_text=True))
+        # Rollback com a requisição: a pendência volta ao estado anterior.
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, id_b).status,
+                             'pending')
 
 
 if __name__ == '__main__':

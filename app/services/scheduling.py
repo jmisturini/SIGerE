@@ -14,9 +14,14 @@ Mecanismos de proteção por ambiente:
 - SQLite: o lock de processo é o mecanismo efetivo (o banco já serializa
   escritas entre processos no nível do arquivo).
 
-Ordem de aquisição em TODA gravação: primeiro os locks de sala, depois os de
-docente. Quem segura lock de docente nunca espera por lock de sala — o ciclo
-clássico entre as duas dimensões fica impossível.
+Ordem de aquisição em TODA gravação DOS FLUXOS WEB (blueprints): primeiro os
+locks de sala, depois os de docente. Quem segura lock de docente nunca espera
+por lock de sala — o ciclo clássico entre as duas dimensões fica impossível.
+
+Comandos CLI que gravam reservas (importação legada, seed de demo, utilitários
+administrativos) NÃO adquirem esses locks — e os locks de processo não
+atravessam processos: são procedimentos offline, que precisam rodar sem
+tráfego concorrente (só os advisory locks do PostgreSQL os cobririam).
 """
 import threading
 from contextlib import contextmanager

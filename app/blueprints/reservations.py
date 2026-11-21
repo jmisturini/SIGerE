@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
 from contextlib import ExitStack
+from sqlalchemy import select
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm, _PADRAO_TEXTO
@@ -602,6 +603,14 @@ def edit(reservation_id):
         teacher_id_novo = form.teacher.data if form.teacher.data > 0 else None
         with slot_locks(classroom_id, [form.date.data]), \
                 teacher_locks([(teacher_id_novo, form.date.data)]):
+            # Re-leitura COM row lock: o status lido no gate veio antes do
+            # lock — um approve concorrente pode ter commitado approved. Sem
+            # a re-leitura, o downgrade abaixo veria status pendente obsoleto
+            # e a reserva ficaria aprovada sobre o docente/sala novos.
+            reservation = db.session.execute(
+                select(Reservation).where(Reservation.id == reservation.id)
+                .with_for_update().execution_options(populate_existing=True)
+            ).scalar_one()
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
@@ -769,7 +778,25 @@ def approve(reservation_id):
         # sobre a mesma janela (ou estar sendo aprovada em paralelo).
         with slot_locks(sala_no_lock, [data_no_lock]), \
                 teacher_locks([(docente_no_lock, data_no_lock)]):
-            db.session.refresh(reservation)
+            # Re-leitura COM row lock (populate_existing força o refresh do
+            # identity map): serializa edit↔approve na própria linha — um
+            # refresh puro é leitura simples e deixaria um edit com chaves
+            # diferentes commitar ENTRE a re-leitura e o flip (o approve
+            # grava só status/reviewed_by; o docente novo ficaria aprovado
+            # sem a checagem dele). SQLite ignora o FOR UPDATE — a escrita
+            # da edição já serializa no nível do arquivo.
+            reservation = db.session.execute(
+                select(Reservation).where(Reservation.id == reservation.id)
+                .with_for_update().execution_options(populate_existing=True)
+            ).scalar_one()
+            # O gate de pendência roda antes do lock: um cancelamento pode
+            # ter commitado nesse intervalo — sem a rechecagem, uma reserva
+            # cancelada voltaria a approved.
+            if reservation.status != 'pending':
+                flash('A reserva mudou de situação durante a aprovação.',
+                      'warning')
+                return redirect(url_for('reservations.detail',
+                                        reservation_id=reservation.id))
             if (reservation.classroom_id, reservation.teacher_id,
                     reservation.date) != (sala_no_lock, docente_no_lock,
                                           data_no_lock):
@@ -1270,6 +1297,10 @@ def series_edit(reservation_id):
     voltaram_pending = 0
     criador_pendente_serie = current_user.has_explicit_permission(
         'reservation:create_pending')
+    # Chaves (sala, docente, data) travadas, capturadas antes de qualquer
+    # trava — os alvos foram carregados fora delas.
+    travadas = {m.id: (m.classroom_id, m.teacher_id, m.date)
+                for room_targets in by_classroom.values() for m in room_targets}
     with ExitStack() as stack:
         # Salas em ordem canônica (o dict seguia a ordem dos alvos — dois
         # fluxos com conjuntos de salas sobrepostos podiam adquirir em
@@ -1280,6 +1311,22 @@ def series_edit(reservation_id):
         stack.enter_context(teacher_locks(
             [(m.teacher_id, m.date)
              for room_targets in by_classroom.values() for m in room_targets]))
+        # Re-leitura COM row lock de cada alvo (mesma razão do approve): um
+        # edit concorrente não pode commitar entre a re-leitura e o commit do
+        # lote. Se sala/docente/data mudaram desde o load, as chaves travadas
+        # já não são as da reserva — aborta ANTES de qualquer escrita.
+        for room_targets in by_classroom.values():
+            for m in room_targets:
+                db.session.execute(
+                    select(Reservation).where(Reservation.id == m.id)
+                    .with_for_update().execution_options(populate_existing=True))
+        if any((m.classroom_id, m.teacher_id, m.date) != travadas[m.id]
+               for room_targets in by_classroom.values() for m in room_targets):
+            flash('As reservas da série foram editadas durante a alteração '
+                  '(docente, sala ou data mudaram) — tente de novo.',
+                  'warning')
+            return redirect(url_for('reservations.series_manage',
+                                    reservation_id=res.id))
         for room_targets in by_classroom.values():
             for m in room_targets:
                 start = new_start or m.start_time
