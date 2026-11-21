@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
 from contextlib import ExitStack
-from sqlalchemy import select
+from sqlalchemy import select, update
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm, _PADRAO_TEXTO
@@ -832,6 +832,27 @@ def approve(reservation_id):
                       f'{conflito_docente.end_time.strftime("%H:%M")}) sobreposta nesta janela. '
                       f'A reserva permanece PENDENTE.', 'danger')
                 return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+            # Flip atômico (compare-and-set): o UPDATE só toca a linha se
+            # status e campos de conflito continuarem EXATAMENTE os valores
+            # travados. No PostgreSQL o row lock já impedia a mudança; no
+            # SQLite (FOR UPDATE ignorado) é o que fecha a janela entre a
+            # re-leitura e o commit — um edit/cancelamento que commitar
+            # nesse intervalo faz o rowcount virar 0 e a aprovação abortar,
+            # em vez de aprovar docente/sala novos sem a checagem deles.
+            resultado = db.session.execute(
+                update(Reservation)
+                .where(Reservation.id == reservation.id,
+                       Reservation.status == 'pending',
+                       Reservation.classroom_id == sala_no_lock,
+                       Reservation.teacher_id == docente_no_lock,
+                       Reservation.date == data_no_lock)
+                .values(status='approved', reviewed_by=current_user.id))
+            if resultado.rowcount != 1:
+                flash('A reserva foi editada ou cancelada durante a aprovação '
+                      '— tente de novo.', 'warning')
+                return redirect(url_for('reservations.detail',
+                                        reservation_id=reservation.id))
+            # Espelha o CAS no objeto: as notificações abaixo leem o estado.
             reservation.status = 'approved'
             # Auditoria: registra quem aprovou (coluna antes nunca preenchida)
             reservation.reviewed_by = current_user.id
@@ -1313,18 +1334,24 @@ def series_edit(reservation_id):
              for room_targets in by_classroom.values() for m in room_targets]))
         # Re-leitura COM row lock de cada alvo (mesma razão do approve): um
         # edit concorrente não pode commitar entre a re-leitura e o commit do
-        # lote. Se sala/docente/data mudaram desde o load, as chaves travadas
-        # já não são as da reserva — aborta ANTES de qualquer escrita.
+        # lote. O resultado TEM de ser consumido (scalar_one) — execute()
+        # sozinho não aplica o populate_existing: o objeto segue com os
+        # valores do load até o Result ser consumido. Se sala/docente/data
+        # mudaram desde o load, as chaves travadas já não são as da reserva —
+        # aborta ANTES de qualquer escrita; alvo cancelado nesse intervalo
+        # também (targets foi filtrado fora dos locks).
         for room_targets in by_classroom.values():
             for m in room_targets:
                 db.session.execute(
                     select(Reservation).where(Reservation.id == m.id)
-                    .with_for_update().execution_options(populate_existing=True))
+                    .with_for_update().execution_options(populate_existing=True)
+                ).scalar_one()
         if any((m.classroom_id, m.teacher_id, m.date) != travadas[m.id]
+               or m.status == 'cancelled'
                for room_targets in by_classroom.values() for m in room_targets):
-            flash('As reservas da série foram editadas durante a alteração '
-                  '(docente, sala ou data mudaram) — tente de novo.',
-                  'warning')
+            flash('As reservas da série foram editadas ou canceladas durante '
+                  'a alteração (docente, sala ou data mudaram) — tente de '
+                  'novo.', 'warning')
             return redirect(url_for('reservations.series_manage',
                                     reservation_id=res.id))
         for room_targets in by_classroom.values():
