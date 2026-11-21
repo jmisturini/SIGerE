@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
 from contextlib import ExitStack
+from sqlalchemy import select, update
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm, _PADRAO_TEXTO
@@ -12,7 +13,7 @@ from app.permissions import require_permission, require_permission_or_owner
 # central — mantidos aqui por re-export para compatibilidade.
 from app.services.scheduling import (check_conflict, check_schedule_restrictions,
                                      check_teacher_conflict, slot_locks,
-                                     teacher_exceeds_daily_limit,
+                                     teacher_exceeds_daily_limit, teacher_locks,
                                      TEACHER_DAILY_RESERVATION_LIMIT,
                                      MAX_REPEAT_RANGE_DAYS)
 from app.services.notifications import (notificar_sobrecarga_professor,
@@ -262,9 +263,13 @@ def create():
             return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
         # Gravação atômica: checagens e INSERT na mesma seção crítica por
-        # (sala, data) — duas requisições simultâneas nunca gravam a mesma
-        # janela (a segunda reexecuta as checagens após o commit da primeira).
-        with slot_locks(classroom_id, [form.date.data]):
+        # (sala, data) E (docente, data) — duas requisições simultâneas nunca
+        # gravam a mesma janela nem dobram o docente (a segunda reexecuta as
+        # checagens após o commit da primeira). Ordem única: sala, depois
+        # docente.
+        teacher_id = form.teacher.data if form.teacher.data > 0 else None
+        with slot_locks(classroom_id, [form.date.data]), \
+                teacher_locks([(teacher_id, form.date.data)]):
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
@@ -276,7 +281,6 @@ def create():
                 flash(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})', 'danger')
                 return render_template('reservations/create.html', form=form, classrooms=classrooms)
 
-            teacher_id = form.teacher.data if form.teacher.data > 0 else None
             is_teacher_conflict = False
             excede_limite_diario = False
             if teacher_id:
@@ -592,9 +596,23 @@ def edit(reservation_id):
             flash('Sala inválida para a unidade ativa.', 'danger')
             return render_template('reservations/edit.html', form=form, reservation=reservation)
 
-        # Mesma seção crítica da criação: revalida restrições e conflitos já
-        # enxergando o estado consolidado (edit + approve concorrentes).
-        with slot_locks(classroom_id, [form.date.data]):
+        # Mesma seção crítica da criação (sala, depois docente — o lock de
+        # docente é do NOVO docente do formulário, que é o que a revalidação
+        # abaixo confere): revalida restrições e conflitos já enxergando o
+        # estado consolidado (edit + approve concorrentes).
+        teacher_id_novo = form.teacher.data if form.teacher.data > 0 else None
+        with slot_locks(classroom_id, [form.date.data]), \
+                teacher_locks([(teacher_id_novo, form.date.data)]):
+            # Re-leitura COM row lock: o status lido no gate veio antes do
+            # lock — um approve concorrente pode ter commitado approved. Sem
+            # a re-leitura, o downgrade abaixo veria status pendente obsoleto
+            # e a reserva ficaria aprovada sobre o docente/sala novos.
+            reservation = db.session.execute(
+                select(Reservation).where(Reservation.id == reservation.id)
+                .with_for_update().execution_options(populate_existing=True)
+            ).scalar_one_or_none()
+            if reservation is None:
+                abort(404)
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
@@ -653,14 +671,29 @@ def edit(reservation_id):
             # editar — dados novos voltam à avaliação; sem mudança de dados,
             # a aprovação permanece.
             criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
-            if ((criador_pendente and dados_alterados)
-                    or teacher_conflict or excede_limite_diario) \
-                    and reservation.status == 'approved':
+            downgrade_warranted = ((criador_pendente and dados_alterados)
+                                   or teacher_conflict or excede_limite_diario)
+            if downgrade_warranted and reservation.status == 'approved':
                 reservation.status = 'pending'
             if excede_limite_diario:
                 notificar_sobrecarga_professor(reservation)
 
+            # Downgrade condicional DENTRO da transação da edição — o par
+            # commit→sweep deixava janela de crash entre os dois commits com
+            # a reserva aprovada e conflitante. No SQLite pega também o flip
+            # do approve ocorrido após a re-leitura (chaves diferentes não se
+            # excluem lá — o CAS do approve só casa com as chaves DELE); no
+            # PostgreSQL é no-op (o row lock já serializou — ou o próprio
+            # flush rebaixou, e o UPDATE casa 0 linhas).
+            if downgrade_warranted:
+                db.session.execute(
+                    update(Reservation)
+                    .where(Reservation.id == reservation.id,
+                           Reservation.status == 'approved')
+                    .values(status='pending'))
             db.session.commit()
+            if downgrade_warranted:
+                db.session.refresh(reservation)  # flashes refletem o final
 
         if teacher_conflict and reservation.status == 'pending':
             flash('Reserva atualizada como PENDENTE devido a conflito de professor.', 'warning')
@@ -746,10 +779,52 @@ def approve(reservation_id):
         if not (current_user.has_permission('reservation:read_own') and vinculado):
             abort(403)
     if reservation.status == 'pending':
+        # As chaves de lock vêm do LOAD da reserva (antes do lock) — uma
+        # edição concorrente pode ter trocado docente/sala/data entre o load
+        # e o lock, e aprovar com chave velha aprovaria sobreposição que a
+        # checagem do docente/sala novos nunca viu. Dentro da seção crítica a
+        # linha é RELIDA: se os campos de conflito mudaram, as chaves
+        # travadas não são mais as da reserva — aborta para retry (o
+        # PostgreSQL, em READ COMMITTED, vê o commit mais recente; no SQLite
+        # a própria escrita da edição serializa sob o reader aberto).
+        sala_no_lock = reservation.classroom_id
+        docente_no_lock = reservation.teacher_id
+        data_no_lock = reservation.date
         # Aprovar revalida o conflito de sala dentro da seção crítica:
         # enquanto a reserva estava pendente outra pode ter sido aprovada
         # sobre a mesma janela (ou estar sendo aprovada em paralelo).
-        with slot_locks(reservation.classroom_id, [reservation.date]):
+        with slot_locks(sala_no_lock, [data_no_lock]), \
+                teacher_locks([(docente_no_lock, data_no_lock)]):
+            # Re-leitura COM row lock (populate_existing força o refresh do
+            # identity map): serializa edit↔approve na própria linha — um
+            # refresh puro é leitura simples e deixaria um edit com chaves
+            # diferentes commitar ENTRE a re-leitura e o flip (o approve
+            # grava só status/reviewed_by; o docente novo ficaria aprovado
+            # sem a checagem dele). SQLite ignora o FOR UPDATE — a escrita
+            # da edição já serializa no nível do arquivo.
+            reservation = db.session.execute(
+                select(Reservation).where(Reservation.id == reservation.id)
+                .with_for_update().execution_options(populate_existing=True)
+            ).scalar_one_or_none()
+            if reservation is None:
+                # Excluída permanentemente entre o load e o lock.
+                abort(404)
+            # O gate de pendência roda antes do lock: um cancelamento pode
+            # ter commitado nesse intervalo — sem a rechecagem, uma reserva
+            # cancelada voltaria a approved.
+            if reservation.status != 'pending':
+                flash('A reserva mudou de situação durante a aprovação.',
+                      'warning')
+                return redirect(url_for('reservations.detail',
+                                        reservation_id=reservation.id))
+            if (reservation.classroom_id, reservation.teacher_id,
+                    reservation.date) != (sala_no_lock, docente_no_lock,
+                                          data_no_lock):
+                flash('A reserva foi editada durante a aprovação '
+                      '(docente, sala ou data mudaram) — tente de novo.',
+                      'warning')
+                return redirect(url_for('reservations.detail',
+                                        reservation_id=reservation.id))
             conflict = check_conflict(
                 reservation.classroom_id, reservation.date,
                 reservation.start_time, reservation.end_time,
@@ -760,6 +835,47 @@ def approve(reservation_id):
                       f'{conflict.end_time.strftime("%H:%M")}) nesta janela. '
                       f'A reserva permanece PENDENTE.', 'danger')
                 return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+            # Revalidação docente (mesma razão da de sala): enquanto a reserva
+            # estava pendente, outra do mesmo docente pode ter sido APROVADA
+            # sobreposta (outra sala — o slot lock não cruzava). Somente
+            # aprovadas: duas pendências sobrepostas do docente se bloqueariam
+            # para sempre se contassem pendentes.
+            conflito_docente = None
+            if reservation.teacher_id:
+                conflito_docente = check_teacher_conflict(
+                    reservation.teacher_id, reservation.date,
+                    reservation.start_time, reservation.end_time,
+                    exclude_id=reservation.id, somente_aprovadas=True)
+            if conflito_docente:
+                flash(f'Não é possível aprovar: o docente já possui a reserva aprovada '
+                      f'"{conflito_docente.title}" ({conflito_docente.start_time.strftime("%H:%M")} - '
+                      f'{conflito_docente.end_time.strftime("%H:%M")}) sobreposta nesta janela. '
+                      f'A reserva permanece PENDENTE.', 'danger')
+                return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+            # Flip atômico (compare-and-set): o UPDATE só toca a linha se
+            # status e campos de conflito — INCLUSIVE horários — continuarem
+            # EXATAMENTE os valores travados. No PostgreSQL o row lock já
+            # impedia a mudança; no SQLite (FOR UPDATE ignorado) é o que
+            # fecha a janela entre a re-leitura e o commit — um edit que
+            # mude qualquer campo de conflito faz o rowcount virar 0 e a
+            # aprovação abortar (horário incluído: sala/docente/data ficam
+            # iguais e a checagem de chave sozinha não o pegaria).
+            resultado = db.session.execute(
+                update(Reservation)
+                .where(Reservation.id == reservation.id,
+                       Reservation.status == 'pending',
+                       Reservation.classroom_id == sala_no_lock,
+                       Reservation.teacher_id == docente_no_lock,
+                       Reservation.date == data_no_lock,
+                       Reservation.start_time == reservation.start_time,
+                       Reservation.end_time == reservation.end_time)
+                .values(status='approved', reviewed_by=current_user.id))
+            if resultado.rowcount != 1:
+                flash('A reserva foi editada ou cancelada durante a aprovação '
+                      '— tente de novo.', 'warning')
+                return redirect(url_for('reservations.detail',
+                                        reservation_id=reservation.id))
+            # Espelha o CAS no objeto: as notificações abaixo leem o estado.
             reservation.status = 'approved'
             # Auditoria: registra quem aprovou (coluna antes nunca preenchida)
             reservation.reviewed_by = current_user.id
@@ -891,7 +1007,11 @@ def repeat_schedule(reservation_id):
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
     excede_limite_diario = False
-    with slot_locks(res.classroom_id, [new_date]):
+    # Sala, depois docente (ordem única): a repetição leva o docente da
+    # origem para a nova data — sem o lock, outra gravação em sala diferente
+    # para o mesmo docente passaria pela checagem no meio.
+    with slot_locks(res.classroom_id, [new_date]), \
+            teacher_locks([(res.teacher_id, new_date)]):
         allowed, msg = check_schedule_restrictions(new_date, res.start_time, res.end_time)
         if not allowed:
             flash(msg, 'danger')
@@ -900,6 +1020,17 @@ def repeat_schedule(reservation_id):
         conflict = check_conflict(res.classroom_id, new_date, res.start_time, res.end_time)
         if conflict:
             flash(f'Conflito de sala em {new_date}.', 'danger')
+            return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+
+        # Conflito de docente — mesma regra do lote de repetição, que recusa
+        # a data: a janela já ocupada para o docente em OUTRA sala não pode
+        # nascer aprovada aqui (o lote checa desde a #233; a repetição única
+        # só tinha sala e limite diário).
+        if res.teacher_id and check_teacher_conflict(
+                res.teacher_id, new_date, res.start_time, res.end_time) is not None:
+            flash(f'Docente já possui reserva sobreposta em '
+                  f'{new_date.strftime("%d/%m/%Y")} — repetição não criada.',
+                  'danger')
             return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
         # Série de repetição: origem e geradas compartilham o mesmo grupo.
@@ -991,7 +1122,11 @@ def repeat_schedule_all(reservation_id):
     # permissão explícita, sem expandir o curinga '*'.
     criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
 
-    with slot_locks(res.classroom_id, range_dates):
+    # Lote: sala E docente travados no intervalo inteiro (mesma expansão de
+    # chaves do lado da sala — a revalidação docente por data do momento da
+    # gravação fica race-free dentro do lock).
+    with slot_locks(res.classroom_id, range_dates), \
+            teacher_locks([(res.teacher_id, d) for d in range_dates]):
         # Sala e feriados pré-carregados em 2 consultas — em vez de 2 queries
         # por dia do intervalo. O horário é fixo no lote, então a sobreposição
         # de janela entra direto no SQL (mesmo caminho do GET da tela
@@ -1217,9 +1352,59 @@ def series_edit(reservation_id):
     voltaram_pending = 0
     criador_pendente_serie = current_user.has_explicit_permission(
         'reservation:create_pending')
+    # Chaves (sala, docente, data) travadas, capturadas antes de qualquer
+    # trava — os alvos foram carregados fora delas.
+    travadas = {m.id: (m.classroom_id, m.teacher_id, m.date)
+                for room_targets in by_classroom.values() for m in room_targets}
     with ExitStack() as stack:
-        for room_id, room_targets in by_classroom.items():
-            stack.enter_context(slot_locks(room_id, [m.date for m in room_targets]))
+        # Salas em ordem canônica (o dict seguia a ordem dos alvos — dois
+        # fluxos com conjuntos de salas sobrepostos podiam adquirir em
+        # ordens diferentes); docentes por último, sempre depois das salas.
+        for room_id in sorted(by_classroom):
+            stack.enter_context(slot_locks(
+                room_id, [m.date for m in by_classroom[room_id]]))
+        stack.enter_context(teacher_locks(
+            [(m.teacher_id, m.date)
+             for room_targets in by_classroom.values() for m in room_targets]))
+        # Re-leitura COM row lock de cada alvo (mesma razão do approve): um
+        # edit concorrente não pode commitar entre a re-leitura e o commit do
+        # lote. O resultado TEM de ser consumido (scalar_one) — execute()
+        # sozinho não aplica o populate_existing: o objeto segue com os
+        # valores do load até o Result ser consumido. Se sala/docente/data
+        # mudaram desde o load, as chaves travadas já não são as da reserva —
+        # aborta ANTES de qualquer escrita; alvo cancelado nesse intervalo
+        # também (targets foi filtrado fora dos locks).
+        # Row locks em ordem canônica — salas na MESMA ordem dos slot_locks
+        # e alvos por id dentro de cada sala: em multi-processo (gunicorn +
+        # PostgreSQL) os locks de processo não excluem outros workers, e
+        # duas séries com conjuntos sobrepostos adquirindo FOR UPDATE em
+        # ordens diferentes gerariam deadlock no banco (erro 500 em vez de
+        # retry).
+        # Ordem canônica GLOBAL por id (não por sala: duas séries com
+        # parâmetros de sala diferentes agrupam diferente e os row locks
+        # formariam ciclo mesmo com as salas ordenadas dentro do grupo).
+        alvos_lidos = [m for room_targets in by_classroom.values()
+                       for m in room_targets]
+        for m in sorted(alvos_lidos, key=lambda r: r.id):
+            # scalar_one_or_none: o alvo pode ter sido APAGADO desde o load
+            # (exclusão permanente por outro fluxo) — aborta antes de
+            # qualquer escrita.
+            if db.session.execute(
+                select(Reservation).where(Reservation.id == m.id)
+                .with_for_update().execution_options(populate_existing=True)
+            ).scalar_one_or_none() is None:
+                flash('As reservas da série foram alteradas durante a '
+                      'edição — tente de novo.', 'warning')
+                return redirect(url_for('reservations.series_manage',
+                                        reservation_id=res.id))
+        if any((m.classroom_id, m.teacher_id, m.date) != travadas[m.id]
+               or m.status == 'cancelled'
+               for room_targets in by_classroom.values() for m in room_targets):
+            flash('As reservas da série foram editadas ou canceladas durante '
+                  'a alteração (docente, sala ou data mudaram) — tente de '
+                  'novo.', 'warning')
+            return redirect(url_for('reservations.series_manage',
+                                    reservation_id=res.id))
         for room_targets in by_classroom.values():
             for m in room_targets:
                 start = new_start or m.start_time
@@ -1241,27 +1426,51 @@ def series_edit(reservation_id):
                          or (title is not None and m.title != title)
                          or (description is not None
                              and ((m.description or '').strip() or None) != description))
-                if classroom:
-                    m.classroom_id = classroom.id
-                    m.unity_id = classroom.unity_id
-                m.start_time = start
-                m.end_time = end
-                if title:
-                    m.title = title
-                if description:
-                    m.description = description
                 # Docente sobreposto após a mudança → mesma regra da edição
                 # individual: a reserva volta a PENDENTE para revisão. No
                 # fluxo de professor (reservation:create_pending), a edição
                 # que muda dados devolve à avaliação — a aprovação anterior
-                # não cobre os dados novos.
-                if m.status == 'approved' and (
-                        (criador_pendente_serie and mudou)
-                        or (m.teacher_id and check_teacher_conflict(
-                            m.teacher_id, m.date, m.start_time, m.end_time,
-                            exclude_id=m.id))):
-                    m.status = 'pending'
+                # não cobre os dados novos. A checagem usa os horários
+                # PROPOSTOS (start/end): validar a janela velha deixaria uma
+                # movimentação 09–10h → 11–12h aprovada sobreposta à 11–12h
+                # que o docente já tem.
+                rebaixa = m.status == 'approved' and (
+                    (criador_pendente_serie and mudou)
+                    or (m.teacher_id and check_teacher_conflict(
+                        m.teacher_id, m.date, start, end,
+                        exclude_id=m.id)))
+                if rebaixa:
                     voltaram_pending += 1
+                # Escrita condicional (CAS do approve): no SQLite o FOR
+                # UPDATE não trava a linha — um edit concorrente que mova o
+                # membro (chaves DIFERENTES das travadas) commitaria entre a
+                # re-leitura e o flush do lote, e a escrita cairia na
+                # sala/docente NOVOS sem checagem. O UPDATE só toca a linha
+                # com as chaves travadas e não cancelada; rowcount 0 aborta
+                # o lote inteiro.
+                valores = {'start_time': start, 'end_time': end}
+                if title:
+                    valores['title'] = title
+                if description:
+                    valores['description'] = description
+                if classroom:
+                    valores['classroom_id'] = classroom.id
+                    valores['unity_id'] = classroom.unity_id
+                if rebaixa:
+                    valores['status'] = 'pending'
+                resultado = db.session.execute(
+                    update(Reservation)
+                    .where(Reservation.id == m.id,
+                           Reservation.status != 'cancelled',
+                           Reservation.classroom_id == travadas[m.id][0],
+                           Reservation.teacher_id == travadas[m.id][1],
+                           Reservation.date == travadas[m.id][2])
+                    .values(**valores))
+                if resultado.rowcount != 1:
+                    flash('As reservas da série foram editadas durante a '
+                          'alteração — tente de novo.', 'warning')
+                    return redirect(url_for('reservations.series_manage',
+                                            reservation_id=res.id))
                 updated.append(m)
         db.session.commit()
 
