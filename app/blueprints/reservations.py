@@ -669,14 +669,28 @@ def edit(reservation_id):
             # editar — dados novos voltam à avaliação; sem mudança de dados,
             # a aprovação permanece.
             criador_pendente = current_user.has_explicit_permission('reservation:create_pending')
-            if ((criador_pendente and dados_alterados)
-                    or teacher_conflict or excede_limite_diario) \
-                    and reservation.status == 'approved':
+            downgrade_warranted = ((criador_pendente and dados_alterados)
+                                   or teacher_conflict or excede_limite_diario)
+            if downgrade_warranted and reservation.status == 'approved':
                 reservation.status = 'pending'
             if excede_limite_diario:
                 notificar_sobrecarga_professor(reservation)
 
             db.session.commit()
+            if downgrade_warranted:
+                # SQLite: um approve pode ter flipado pending→approved DEPOIS
+                # da re-leitura (chaves diferentes não se excluem lá — o CAS
+                # do approve só casa com as chaves DELE) e a decisão acima
+                # viu status obsoleto. O downgrade condicionado ao status
+                # approved vale no estado FINAL; no PostgreSQL é no-op (o
+                # row lock já serializou — ou o próprio flush rebaixou).
+                db.session.execute(
+                    update(Reservation)
+                    .where(Reservation.id == reservation.id,
+                           Reservation.status == 'approved')
+                    .values(status='pending'))
+                db.session.commit()
+                db.session.refresh(reservation)  # flashes refletem o final
 
         if teacher_conflict and reservation.status == 'pending':
             flash('Reserva atualizada como PENDENTE devido a conflito de professor.', 'warning')
@@ -833,19 +847,22 @@ def approve(reservation_id):
                       f'A reserva permanece PENDENTE.', 'danger')
                 return redirect(url_for('reservations.detail', reservation_id=reservation.id))
             # Flip atômico (compare-and-set): o UPDATE só toca a linha se
-            # status e campos de conflito continuarem EXATAMENTE os valores
-            # travados. No PostgreSQL o row lock já impedia a mudança; no
-            # SQLite (FOR UPDATE ignorado) é o que fecha a janela entre a
-            # re-leitura e o commit — um edit/cancelamento que commitar
-            # nesse intervalo faz o rowcount virar 0 e a aprovação abortar,
-            # em vez de aprovar docente/sala novos sem a checagem deles.
+            # status e campos de conflito — INCLUSIVE horários — continuarem
+            # EXATAMENTE os valores travados. No PostgreSQL o row lock já
+            # impedia a mudança; no SQLite (FOR UPDATE ignorado) é o que
+            # fecha a janela entre a re-leitura e o commit — um edit que
+            # mude qualquer campo de conflito faz o rowcount virar 0 e a
+            # aprovação abortar (horário incluído: sala/docente/data ficam
+            # iguais e a checagem de chave sozinha não o pegaria).
             resultado = db.session.execute(
                 update(Reservation)
                 .where(Reservation.id == reservation.id,
                        Reservation.status == 'pending',
                        Reservation.classroom_id == sala_no_lock,
                        Reservation.teacher_id == docente_no_lock,
-                       Reservation.date == data_no_lock)
+                       Reservation.date == data_no_lock,
+                       Reservation.start_time == reservation.start_time,
+                       Reservation.end_time == reservation.end_time)
                 .values(status='approved', reviewed_by=current_user.id))
             if resultado.rowcount != 1:
                 flash('A reserva foi editada ou cancelada durante a aprovação '

@@ -420,6 +420,41 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
             self.assertEqual(db.session.get(Reservation, id_b).status,
                              'pending')
 
+    @patch('app.blueprints.reservations.slot_locks')
+    def test_aprovacao_aborta_se_horarios_mudaram_sob_o_lock(self, mock_slot):
+        # Edição que muda SÓ o horário: sala/docente/data ficam iguais e a
+        # checagem de chaves travadas passa — o CAS do flip (horários no
+        # WHERE) é o que impede aprovar janela que ninguém validou.
+        from contextlib import contextmanager
+        from sqlalchemy import text as sql_text
+        real_slot_locks = scheduling.slot_locks
+
+        dia = self.dia
+        _, id_a = self._criar(dia, self.room1_id)   # nasce aprovada
+        _, id_b = self._criar(dia, self.room2_id)   # nasce PENDENTE: docente
+
+        @contextmanager
+        def com_ajuste_de_horario(classroom_id, dates):
+            with real_slot_locks(classroom_id, dates):
+                # Sem commit: identity map obsoleto, e o re-read/CAS (mesma
+                # conexão) enxergam o horário novo.
+                db.session.execute(
+                    sql_text("UPDATE reservations SET start_time = '10:00', "
+                             "end_time = '11:00' WHERE id = :i"),
+                    {'i': id_b})
+                yield
+
+        mock_slot.side_effect = com_ajuste_de_horario
+        resposta = self.client.post(f'/reservations/{id_b}/approve',
+                                    follow_redirects=True)
+        self.assertIn('editada ou cancelada durante a aprovação',
+                      resposta.get_data(as_text=True))
+        with self.app.app_context():
+            reserva = db.session.get(Reservation, id_b)
+            self.assertEqual(reserva.status, 'pending')   # CAS rowcount 0
+            # Rollback com a requisição: o horário simulado volta ao original.
+            self.assertEqual(reserva.start_time.strftime('%H:%M'), '09:00')
+
 
 if __name__ == '__main__':
     unittest.main()
