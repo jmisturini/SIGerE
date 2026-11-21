@@ -1358,8 +1358,14 @@ def series_edit(reservation_id):
         # mudaram desde o load, as chaves travadas já não são as da reserva —
         # aborta ANTES de qualquer escrita; alvo cancelado nesse intervalo
         # também (targets foi filtrado fora dos locks).
-        for room_targets in by_classroom.values():
-            for m in room_targets:
+        # Row locks em ordem canônica — salas na MESMA ordem dos slot_locks
+        # e alvos por id dentro de cada sala: em multi-processo (gunicorn +
+        # PostgreSQL) os locks de processo não excluem outros workers, e
+        # duas séries com conjuntos sobrepostos adquirindo FOR UPDATE em
+        # ordens diferentes gerariam deadlock no banco (erro 500 em vez de
+        # retry).
+        for room_id in sorted(by_classroom):
+            for m in sorted(by_classroom[room_id], key=lambda r: r.id):
                 db.session.execute(
                     select(Reservation).where(Reservation.id == m.id)
                     .with_for_update().execution_options(populate_existing=True)
