@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIGerE · Redesign dos cartões de sala</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+    /* ===== Tokens copiados do style.css do app ===== */
+    :root {
+        --primary-color: #004a8d;
+        --primary-hover: #003d70;
+        --primary-active: #003361;
+        --primary-color-rgb: 0, 74, 141;
+        --accent-orange: #f7941d;
+        --accent-orange-text: #b45309;
+        --accent-orange-tint: rgba(247, 148, 29, 0.12);
+        --body-bg: #f4f6f9;
+        --border-color: rgba(0, 0, 0, 0.05);
+        --radius-sm: 10px;
+        --radius-md: 14px;
+        --radius-lg: 16px;
+        --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -8px rgba(16, 24, 40, 0.1);
+        --shadow-raised: 0 2px 4px rgba(16, 24, 40, 0.05), 0 16px 40px -12px rgba(16, 24, 40, 0.18);
+        --bs-primary: #004a8d;
+        --bs-primary-rgb: 0, 74, 141;
+        --bs-link-color: #004a8d;
+        --bs-link-color-rgb: 0, 74, 141;
+        --bs-link-hover-color: #003a6e;
+        --bs-body-bg: #f4f6f9;
+    }
+
+    body { background: var(--body-bg); color: #333; scroll-behavior: smooth; }
+
+    /* Botões no padrão do app (sobrescreve todos os tokens do Bootstrap) */
+    .btn-primary {
+        --bs-btn-bg: var(--primary-color);
+        --bs-btn-border-color: var(--primary-color);
+        --bs-btn-hover-bg: var(--primary-hover);
+        --bs-btn-hover-border-color: var(--primary-hover);
+        --bs-btn-active-bg: var(--primary-active);
+        --bs-btn-active-border-color: var(--primary-active);
+        --bs-btn-disabled-bg: var(--primary-color);
+        --bs-btn-disabled-border-color: var(--primary-color);
+        border-radius: var(--radius-sm);
+    }
+    .btn-outline-primary {
+        --bs-btn-color: var(--primary-color);
+        --bs-btn-border-color: var(--primary-color);
+        --bs-btn-hover-color: #fff;
+        --bs-btn-hover-bg: var(--primary-color);
+        --bs-btn-hover-border-color: var(--primary-color);
+        --bs-btn-active-color: #fff;
+        --bs-btn-active-bg: var(--primary-color);
+        --bs-btn-active-border-color: var(--primary-color);
+        border-radius: var(--radius-sm);
+    }
+    .btn-outline-secondary { border-radius: var(--radius-sm); }
+
+    .card {
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-soft);
+    }
+    .hover-lift { transition: transform .18s ease, box-shadow .18s ease; }
+    .hover-lift:hover { transform: translateY(-3px); box-shadow: var(--shadow-raised); }
+
+    .code-chip {
+        font-size: .75rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        background: var(--bs-primary-bg-subtle, #d4e4f2);
+        border: 1px solid var(--bs-primary-border-subtle, #a9c8e4);
+        border-radius: 8px;
+        padding: .2rem .5rem;
+        line-height: 1;
+        white-space: nowrap;
+    }
+    .badge-cat {
+        background: rgba(108, 117, 125, 0.1);
+        border: 1px solid rgba(108, 117, 125, 0.2);
+        border-radius: 8px;
+        padding: .3rem .6rem;
+        font-size: .78rem;
+        font-weight: 500;
+        color: #495057;
+    }
+
+    /* ===== Cabeçalho do mockup ===== */
+    .page-hero {
+        background: linear-gradient(135deg, #004a8d 0%, #003a6e 100%);
+        color: #fff;
+        padding: 2.5rem 0 2rem;
+        margin-bottom: 2.5rem;
+    }
+    .page-hero .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: .12em;
+        font-size: .72rem;
+        font-weight: 700;
+        color: var(--accent-orange);
+        margin-bottom: .5rem;
+    }
+    .opt-nav .nav-link {
+        color: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 999px;
+        padding: .3rem .9rem;
+        font-size: .85rem;
+        font-weight: 500;
+    }
+    .opt-nav .nav-link:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+
+    .opt-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.1rem;
+        height: 2.1rem;
+        border-radius: 10px;
+        background: var(--primary-color);
+        color: #fff;
+        font-weight: 700;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+    .legend span.legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .82rem;
+        color: #495057;
+        background: #fff;
+        border: 1px solid var(--border-color);
+        border-radius: 999px;
+        padding: .25rem .7rem;
+    }
+    .legend .new-tag {
+        font-size: .62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--accent-orange-text);
+        background: var(--accent-orange-tint);
+        border-radius: 6px;
+        padding: .1rem .3rem;
+    }
+
+    section.mock-section { margin-bottom: 4rem; }
+    .mock-note { max-width: 62rem; }
+
+    /* ===== Opção A — ação principal em destaque ===== */
+    .card-a .cat-line { font-size: .84rem; color: var(--text-muted, #6c757d); }
+    .cat-dot {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--cat, var(--primary-color));
+        margin-right: .35rem;
+        vertical-align: middle;
+    }
+    .card-a .btn-reservar { padding: .5rem 1rem; font-weight: 600; }
+    .sec-row {
+        margin-top: .5rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        background: rgba(0, 0, 0, 0.015);
+        overflow: hidden;
+    }
+    .card-a .sec-btn {
+        flex: 1 1 0;
+        text-align: center;
+        padding: .45rem .5rem;
+        font-size: .84rem;
+        font-weight: 500;
+        color: #495057;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .3rem;
+        transition: color .15s ease, background .15s ease;
+    }
+    .card-a .sec-btn:hover { color: var(--primary-color); background: rgba(0, 74, 141, 0.06); }
+    .card-a .sec-btn + .sec-btn { border-left: 1px solid var(--border-color); }
+
+    /* ===== Opção B — evolução direta do cartão atual ===== */
+    .card-b { border-left: 4px solid var(--cat, var(--primary-color)); }
+    .card-b .btn-acao { flex: 1 1 0; padding-inline: .4rem; white-space: nowrap; }
+
+    /* ===== Opção C — banda azul (hero) ===== */
+    .card-c { overflow: hidden; }
+    .card-c .hero-band {
+        position: relative;
+        background: linear-gradient(135deg, #004a8d 0%, #003a6e 100%);
+        color: #fff;
+        padding: 1.1rem 1.25rem .9rem;
+    }
+    .card-c .hero-band h5 { color: #fff; }
+    .card-c .hero-code {
+        position: absolute;
+        top: 1rem;
+        right: 3.1rem;
+        font-size: .72rem;
+        font-weight: 600;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.16);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        padding: .2rem .5rem;
+        line-height: 1;
+    }
+    .card-c .hero-info {
+        position: absolute;
+        top: .8rem;
+        right: .8rem;
+        width: 1.9rem;
+        height: 1.9rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255, 255, 255, 0.85);
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 50%;
+        font-size: .95rem;
+        text-decoration: none;
+        transition: background .15s ease, color .15s ease;
+    }
+    .card-c .hero-info:hover { background: rgba(255, 255, 255, 0.28); color: #fff; }
+    .card-c .hero-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        font-size: .76rem;
+        color: rgba(255, 255, 255, 0.92);
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        padding: .2rem .6rem;
+    }
+
+    /* ===== Opção D — cartão-lista horizontal ===== */
+    .room-row { border-radius: var(--radius-md); }
+    .icon-tile {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        background: var(--cat-tint, rgba(0, 74, 141, 0.1));
+        color: var(--cat, var(--primary-color));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        flex-shrink: 0;
+    }
+    .room-row .btn-icon-only {
+        width: 2.25rem;
+        padding-inline: 0;
+        flex-shrink: 0;
+    }
+
+    .mock-footer {
+        border-top: 1px solid var(--border-color);
+        color: var(--text-muted, #6c757d);
+        font-size: .85rem;
+    }
+</style>
+</head>
+<body>
+
+<header class="page-hero">
+    <div class="container-xxl">
+        <div class="eyebrow">Mockup estático · não funcional</div>
+        <h1 class="h3 fw-bold mb-2">Redesign dos cartões de sala</h1>
+        <p class="mb-3 text-white-50">Quatro propostas mantendo <strong class="text-white">Detalhes</strong> e
+            <strong class="text-white">Disponibilidade</strong> e adicionando o botão de
+            <strong class="text-white">criar reserva</strong>. Tokens do app: azul Senac #004A8D, laranja #F7941D, raios 10/14/16.</p>
+        <nav class="nav opt-nav gap-2">
+            <a class="nav-link" href="#opcao-a">A · Ação em destaque</a>
+            <a class="nav-link" href="#opcao-b">B · Evolução direta</a>
+            <a class="nav-link" href="#opcao-c">C · Banda azul</a>
+            <a class="nav-link" href="#opcao-d">D · Lista compacta</a>
+        </nav>
+    </div>
+</header>
+
+<main class="container-xxl pb-5">
+
+    <!-- ================= OPÇÃO A ================= -->
+    <section id="opcao-a" class="mock-section">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="opt-pill">A</span>
+            <h2 class="h4 fw-bold mb-0">Ação principal em destaque</h2>
+        </div>
+        <p class="text-muted mock-note">A tarefa nº 1 desta tela é reservar: o botão <strong>Reservar</strong> ocupa o
+            rodapé inteiro como ação sólida primária. <strong>Disponibilidade</strong> e <strong>Detalhes</strong>
+            descem para uma barra secundária compacta e discreta, abaixo dele. A categoria vira um ponto colorido
+            junto à meta, enxugando um badge.</p>
+        <div class="legend d-flex flex-wrap gap-2 mb-4">
+            <span class="legend-item"><i class="bi bi-plus-lg"></i> Reservar <span class="new-tag">novo</span> — botão primário, largura total</span>
+            <span class="legend-item"><i class="bi bi-calendar-week"></i> Disponibilidade — secundária compacta</span>
+            <span class="legend-item"><i class="bi bi-info-circle"></i> Detalhes — secundária compacta</span>
+        </div>
+
+        <div class="row g-4 row-cols-1 row-cols-md-2 row-cols-xl-3">
+            <!-- Cartão A 1 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-a">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="fw-bold mb-0">Cozinha Pedagógica</h5>
+                            <span class="code-chip">100</span>
+                        </div>
+                        <p class="cat-line mb-3">
+                            <span class="cat-dot" style="--cat:#d97706;"></span>Cozinha Pedagógica
+                            <span class="mx-1">·</span><i class="bi bi-people me-1"></i>Cap. 10
+                        </p>
+                        <div class="mt-auto">
+                            <a href="#" class="btn btn-primary w-100 btn-reservar"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <div class="sec-row d-flex">
+                                <a href="#" class="sec-btn"><i class="bi bi-calendar-week"></i> Disponibilidade</a>
+                                <a href="#" class="sec-btn"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão A 2 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-a">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="fw-bold mb-0">Sala de Aula</h5>
+                            <span class="code-chip">103</span>
+                        </div>
+                        <p class="cat-line mb-3">
+                            <span class="cat-dot" style="--cat:#004a8d;"></span>Sala de Aula
+                            <span class="mx-1">·</span><i class="bi bi-people me-1"></i>Cap. 14
+                        </p>
+                        <div class="mt-auto">
+                            <a href="#" class="btn btn-primary w-100 btn-reservar"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <div class="sec-row d-flex">
+                                <a href="#" class="sec-btn"><i class="bi bi-calendar-week"></i> Disponibilidade</a>
+                                <a href="#" class="sec-btn"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão A 3 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-a">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="fw-bold mb-0">Lab. Informática</h5>
+                            <span class="code-chip">104</span>
+                        </div>
+                        <p class="cat-line mb-3">
+                            <span class="cat-dot" style="--cat:#0f766e;"></span>Lab. Informática (30 PCs)
+                            <span class="mx-1">·</span><i class="bi bi-people me-1"></i>Cap. 33
+                        </p>
+                        <div class="mt-auto">
+                            <a href="#" class="btn btn-primary w-100 btn-reservar"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <div class="sec-row d-flex">
+                                <a href="#" class="sec-btn"><i class="bi bi-calendar-week"></i> Disponibilidade</a>
+                                <a href="#" class="sec-btn"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão A 4 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-a">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="fw-bold mb-0">Lab. Infinity</h5>
+                            <span class="code-chip">211</span>
+                        </div>
+                        <p class="cat-line mb-3">
+                            <span class="cat-dot" style="--cat:#0f766e;"></span>Lab. Informática (28 PCs)
+                            <span class="mx-1">·</span><i class="bi bi-people me-1"></i>Cap. 28
+                        </p>
+                        <div class="mt-auto">
+                            <a href="#" class="btn btn-primary w-100 btn-reservar"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <div class="sec-row d-flex">
+                                <a href="#" class="sec-btn"><i class="bi bi-calendar-week"></i> Disponibilidade</a>
+                                <a href="#" class="sec-btn"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão A 5 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-a">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="fw-bold mb-0">Lab. Saúde</h5>
+                            <span class="code-chip">301</span>
+                        </div>
+                        <p class="cat-line mb-3">
+                            <span class="cat-dot" style="--cat:#be185d;"></span>Laboratório de Saúde
+                            <span class="mx-1">·</span><i class="bi bi-people me-1"></i>Cap. 27
+                        </p>
+                        <div class="mt-auto">
+                            <a href="#" class="btn btn-primary w-100 btn-reservar"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <div class="sec-row d-flex">
+                                <a href="#" class="sec-btn"><i class="bi bi-calendar-week"></i> Disponibilidade</a>
+                                <a href="#" class="sec-btn"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão A 6 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-a">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="fw-bold mb-0">Lab. Saúde/Masso/Estética</h5>
+                            <span class="code-chip">302</span>
+                        </div>
+                        <p class="cat-line mb-3">
+                            <span class="cat-dot" style="--cat:#be185d;"></span>Laboratório de Saúde
+                            <span class="mx-1">·</span><i class="bi bi-people me-1"></i>Cap. 26
+                        </p>
+                        <div class="mt-auto">
+                            <a href="#" class="btn btn-primary w-100 btn-reservar"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <div class="sec-row d-flex">
+                                <a href="#" class="sec-btn"><i class="bi bi-calendar-week"></i> Disponibilidade</a>
+                                <a href="#" class="sec-btn"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= OPÇÃO B ================= -->
+    <section id="opcao-b" class="mock-section">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="opt-pill">B</span>
+            <h2 class="h4 fw-bold mb-0">Evolução direta do cartão atual</h2>
+        </div>
+        <p class="text-muted mock-note">Mudança mínima: o terceiro botão entra no rodapé, na ordem
+            <strong>Detalhes · Disponibilidade · Reservar</strong> (da menos para a mais importante), com
+            <strong>Reservar</strong> sólido para se destacar dos dois outline. Faixa lateral na cor da categoria
+            substitui parte do ruído visual e mantém o scan rápido entre cartões.</p>
+        <div class="legend d-flex flex-wrap gap-2 mb-4">
+            <span class="legend-item"><i class="bi bi-info-circle"></i> Detalhes — outline (como hoje)</span>
+            <span class="legend-item"><i class="bi bi-calendar-week"></i> Disponibilidade — outline (como hoje)</span>
+            <span class="legend-item"><i class="bi bi-plus-lg"></i> Reservar <span class="new-tag">novo</span> — sólido primário</span>
+        </div>
+
+        <div class="row g-4 row-cols-1 row-cols-md-2 row-cols-xl-3">
+            <!-- Cartão B 1 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-b" style="--cat:#d97706;">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0 fw-bold">Cozinha Pedagógica</h5>
+                            <span class="code-chip">100</span>
+                        </div>
+                        <p class="text-muted small mb-2">
+                            <i class="bi bi-people me-1"></i> Cap. 10
+                        </p>
+                        <div class="mb-3">
+                            <span class="badge-cat"><i class="bi bi-cup-hot me-1" style="color:#d97706;"></i> Cozinha Pedagógica</span>
+                        </div>
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-acao"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary btn-acao"><i class="bi bi-calendar-week"></i> Disponib.</a>
+                            <a href="#" class="btn btn-sm btn-primary btn-acao"><i class="bi bi-plus-lg"></i> Reservar</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão B 2 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-b" style="--cat:#004a8d;">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0 fw-bold">Sala de Aula</h5>
+                            <span class="code-chip">103</span>
+                        </div>
+                        <p class="text-muted small mb-2">
+                            <i class="bi bi-people me-1"></i> Cap. 14
+                        </p>
+                        <div class="mb-3">
+                            <span class="badge-cat"><i class="bi bi-easel me-1" style="color:#004a8d;"></i> Sala de Aula</span>
+                        </div>
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-acao"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary btn-acao"><i class="bi bi-calendar-week"></i> Disponib.</a>
+                            <a href="#" class="btn btn-sm btn-primary btn-acao"><i class="bi bi-plus-lg"></i> Reservar</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão B 3 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-b" style="--cat:#0f766e;">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0 fw-bold">Lab. Informática</h5>
+                            <span class="code-chip">104</span>
+                        </div>
+                        <p class="text-muted small mb-2">
+                            <i class="bi bi-people me-1"></i> Cap. 33
+                        </p>
+                        <div class="mb-3">
+                            <span class="badge-cat"><i class="bi bi-pc-display me-1" style="color:#0f766e;"></i> Laboratório de Informática (30 PCs)</span>
+                        </div>
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-acao"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary btn-acao"><i class="bi bi-calendar-week"></i> Disponib.</a>
+                            <a href="#" class="btn btn-sm btn-primary btn-acao"><i class="bi bi-plus-lg"></i> Reservar</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão B 4 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-b" style="--cat:#0f766e;">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0 fw-bold">Lab. Infinity</h5>
+                            <span class="code-chip">211</span>
+                        </div>
+                        <p class="text-muted small mb-2">
+                            <i class="bi bi-people me-1"></i> Cap. 28
+                        </p>
+                        <div class="mb-3">
+                            <span class="badge-cat"><i class="bi bi-pc-display me-1" style="color:#0f766e;"></i> Laboratório de Informática (28 PCs)</span>
+                        </div>
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-acao"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary btn-acao"><i class="bi bi-calendar-week"></i> Disponib.</a>
+                            <a href="#" class="btn btn-sm btn-primary btn-acao"><i class="bi bi-plus-lg"></i> Reservar</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão B 5 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-b" style="--cat:#be185d;">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0 fw-bold">Lab. Saúde</h5>
+                            <span class="code-chip">301</span>
+                        </div>
+                        <p class="text-muted small mb-2">
+                            <i class="bi bi-people me-1"></i> Cap. 27
+                        </p>
+                        <div class="mb-3">
+                            <span class="badge-cat"><i class="bi bi-heart-pulse me-1" style="color:#be185d;"></i> Laboratório de Saúde</span>
+                        </div>
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-acao"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary btn-acao"><i class="bi bi-calendar-week"></i> Disponib.</a>
+                            <a href="#" class="btn btn-sm btn-primary btn-acao"><i class="bi bi-plus-lg"></i> Reservar</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão B 6 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-b" style="--cat:#be185d;">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0 fw-bold">Lab. Saúde/Masso/Estética</h5>
+                            <span class="code-chip">302</span>
+                        </div>
+                        <p class="text-muted small mb-2">
+                            <i class="bi bi-people me-1"></i> Cap. 26
+                        </p>
+                        <div class="mb-3">
+                            <span class="badge-cat"><i class="bi bi-heart-pulse me-1" style="color:#be185d;"></i> Laboratório de Saúde</span>
+                        </div>
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-acao"><i class="bi bi-info-circle"></i> Detalhes</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary btn-acao"><i class="bi bi-calendar-week"></i> Disponib.</a>
+                            <a href="#" class="btn btn-sm btn-primary btn-acao"><i class="bi bi-plus-lg"></i> Reservar</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= OPÇÃO C ================= -->
+    <section id="opcao-c" class="mock-section">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="opt-pill">C</span>
+            <h2 class="h4 fw-bold mb-0">Banda azul institucional (hero)</h2>
+        </div>
+        <p class="text-muted mock-note">Card em duas zonas: banda superior em gradiente azul Senac (mesmo padrão dos
+            heroes do app pós-redesign) com nome, código e capacidade; corpo claro com a categoria e as ações.
+            <strong>Detalhes</strong> muda de lugar: vira um botão-ícone circular no canto da banda.
+            <strong>Reservar</strong> e <strong>Disponibilidade</strong> dividem o rodapé, sólido + outline.</p>
+        <div class="legend d-flex flex-wrap gap-2 mb-4">
+            <span class="legend-item"><i class="bi bi-info-circle"></i> Detalhes — ícone no canto da banda</span>
+            <span class="legend-item"><i class="bi bi-plus-lg"></i> Reservar <span class="new-tag">novo</span> — sólido no rodapé</span>
+            <span class="legend-item"><i class="bi bi-calendar-week"></i> Disponibilidade — outline no rodapé</span>
+        </div>
+
+        <div class="row g-4 row-cols-1 row-cols-md-2 row-cols-xl-3">
+            <!-- Cartão C 1 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-c">
+                    <div class="hero-band">
+                        <a href="#" class="hero-info" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        <span class="hero-code">100</span>
+                        <h5 class="fw-bold mb-2">Cozinha Pedagógica</h5>
+                        <div class="d-flex gap-2">
+                            <span class="hero-chip"><i class="bi bi-people"></i> Cap. 10</span>
+                            <span class="hero-chip"><i class="bi bi-cup-hot"></i> Cozinha Pedagógica</span>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-primary flex-fill"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-outline-primary flex-fill"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão C 2 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-c">
+                    <div class="hero-band">
+                        <a href="#" class="hero-info" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        <span class="hero-code">103</span>
+                        <h5 class="fw-bold mb-2">Sala de Aula</h5>
+                        <div class="d-flex gap-2">
+                            <span class="hero-chip"><i class="bi bi-people"></i> Cap. 14</span>
+                            <span class="hero-chip"><i class="bi bi-easel"></i> Sala de Aula</span>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-primary flex-fill"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-outline-primary flex-fill"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão C 3 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-c">
+                    <div class="hero-band">
+                        <a href="#" class="hero-info" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        <span class="hero-code">104</span>
+                        <h5 class="fw-bold mb-2">Lab. Informática</h5>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="hero-chip"><i class="bi bi-people"></i> Cap. 33</span>
+                            <span class="hero-chip"><i class="bi bi-pc-display"></i> Informática (30 PCs)</span>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-primary flex-fill"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-outline-primary flex-fill"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão C 4 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-c">
+                    <div class="hero-band">
+                        <a href="#" class="hero-info" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        <span class="hero-code">211</span>
+                        <h5 class="fw-bold mb-2">Lab. Infinity</h5>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="hero-chip"><i class="bi bi-people"></i> Cap. 28</span>
+                            <span class="hero-chip"><i class="bi bi-pc-display"></i> Informática (28 PCs)</span>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-primary flex-fill"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-outline-primary flex-fill"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão C 5 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-c">
+                    <div class="hero-band">
+                        <a href="#" class="hero-info" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        <span class="hero-code">301</span>
+                        <h5 class="fw-bold mb-2">Lab. Saúde</h5>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="hero-chip"><i class="bi bi-people"></i> Cap. 27</span>
+                            <span class="hero-chip"><i class="bi bi-heart-pulse"></i> Lab. de Saúde</span>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-primary flex-fill"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-outline-primary flex-fill"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cartão C 6 -->
+            <div class="col">
+                <div class="card h-100 hover-lift card-c">
+                    <div class="hero-band">
+                        <a href="#" class="hero-info" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        <span class="hero-code">302</span>
+                        <h5 class="fw-bold mb-2">Lab. Saúde/Masso/Estética</h5>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="hero-chip"><i class="bi bi-people"></i> Cap. 26</span>
+                            <span class="hero-chip"><i class="bi bi-heart-pulse"></i> Lab. de Saúde</span>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="#" class="btn btn-primary flex-fill"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-outline-primary flex-fill"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= OPÇÃO D ================= -->
+    <section id="opcao-d" class="mock-section">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="opt-pill">D</span>
+            <h2 class="h4 fw-bold mb-0">Lista compacta (cartão horizontal)</h2>
+        </div>
+        <p class="text-muted mock-note">Formato de linha para varrer muitas salas sem rolar a página inteira: tile do
+            ícone da categoria à esquerda, nome + meta no meio, ações à direita —
+            <strong>Reservar</strong> sólido, <strong>Disponibilidade</strong> outline e <strong>Detalhes</strong>
+            reduzido a botão-ícone (com tooltip). Em telas pequenas as ações quebram para baixo.</p>
+        <div class="legend d-flex flex-wrap gap-2 mb-4">
+            <span class="legend-item"><i class="bi bi-plus-lg"></i> Reservar <span class="new-tag">novo</span> — sólido à direita</span>
+            <span class="legend-item"><i class="bi bi-calendar-week"></i> Disponibilidade — outline à direita</span>
+            <span class="legend-item"><i class="bi bi-info-circle"></i> Detalhes — ícone com tooltip</span>
+        </div>
+
+        <div class="row g-3">
+            <!-- Linha D 1 -->
+            <div class="col-12">
+                <div class="card room-row hover-lift">
+                    <div class="d-flex flex-wrap align-items-center gap-3 p-3">
+                        <span class="icon-tile" style="--cat:#d97706; --cat-tint:rgba(217,119,6,.12);"><i class="bi bi-cup-hot"></i></span>
+                        <div class="flex-grow-1" style="min-width: 12rem;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <h6 class="mb-0 fw-bold">Cozinha Pedagógica</h6>
+                                <span class="code-chip">100</span>
+                            </div>
+                            <div class="small text-muted">Cozinha Pedagógica · Cap. 10</div>
+                        </div>
+                        <div class="d-flex gap-2 ms-auto">
+                            <a href="#" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-icon-only" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Linha D 2 -->
+            <div class="col-12">
+                <div class="card room-row hover-lift">
+                    <div class="d-flex flex-wrap align-items-center gap-3 p-3">
+                        <span class="icon-tile" style="--cat:#004a8d; --cat-tint:rgba(0,74,141,.1);"><i class="bi bi-easel"></i></span>
+                        <div class="flex-grow-1" style="min-width: 12rem;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <h6 class="mb-0 fw-bold">Sala de Aula</h6>
+                                <span class="code-chip">103</span>
+                            </div>
+                            <div class="small text-muted">Sala de Aula · Cap. 14</div>
+                        </div>
+                        <div class="d-flex gap-2 ms-auto">
+                            <a href="#" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-icon-only" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Linha D 3 -->
+            <div class="col-12">
+                <div class="card room-row hover-lift">
+                    <div class="d-flex flex-wrap align-items-center gap-3 p-3">
+                        <span class="icon-tile" style="--cat:#0f766e; --cat-tint:rgba(15,118,110,.12);"><i class="bi bi-pc-display"></i></span>
+                        <div class="flex-grow-1" style="min-width: 12rem;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <h6 class="mb-0 fw-bold">Lab. Informática</h6>
+                                <span class="code-chip">104</span>
+                            </div>
+                            <div class="small text-muted">Laboratório de Informática (30 PCs) · Cap. 33</div>
+                        </div>
+                        <div class="d-flex gap-2 ms-auto">
+                            <a href="#" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-icon-only" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Linha D 4 -->
+            <div class="col-12">
+                <div class="card room-row hover-lift">
+                    <div class="d-flex flex-wrap align-items-center gap-3 p-3">
+                        <span class="icon-tile" style="--cat:#0f766e; --cat-tint:rgba(15,118,110,.12);"><i class="bi bi-pc-display"></i></span>
+                        <div class="flex-grow-1" style="min-width: 12rem;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <h6 class="mb-0 fw-bold">Lab. Informática</h6>
+                                <span class="code-chip">202</span>
+                            </div>
+                            <div class="small text-muted">Laboratório de Informática (30 PCs) · Cap. 30</div>
+                        </div>
+                        <div class="d-flex gap-2 ms-auto">
+                            <a href="#" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-icon-only" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Linha D 5 -->
+            <div class="col-12">
+                <div class="card room-row hover-lift">
+                    <div class="d-flex flex-wrap align-items-center gap-3 p-3">
+                        <span class="icon-tile" style="--cat:#0f766e; --cat-tint:rgba(15,118,110,.12);"><i class="bi bi-pc-display"></i></span>
+                        <div class="flex-grow-1" style="min-width: 12rem;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <h6 class="mb-0 fw-bold">Lab. Infinity</h6>
+                                <span class="code-chip">211</span>
+                            </div>
+                            <div class="small text-muted">Laboratório de Informática (28 PCs) · Cap. 28</div>
+                        </div>
+                        <div class="d-flex gap-2 ms-auto">
+                            <a href="#" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-icon-only" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Linha D 6 -->
+            <div class="col-12">
+                <div class="card room-row hover-lift">
+                    <div class="d-flex flex-wrap align-items-center gap-3 p-3">
+                        <span class="icon-tile" style="--cat:#be185d; --cat-tint:rgba(190,24,93,.12);"><i class="bi bi-heart-pulse"></i></span>
+                        <div class="flex-grow-1" style="min-width: 12rem;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <h6 class="mb-0 fw-bold">Lab. Saúde</h6>
+                                <span class="code-chip">301</span>
+                            </div>
+                            <div class="small text-muted">Laboratório de Saúde · Cap. 27</div>
+                        </div>
+                        <div class="d-flex gap-2 ms-auto">
+                            <a href="#" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i> Reservar</a>
+                            <a href="#" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-week me-1"></i> Disponibilidade</a>
+                            <a href="#" class="btn btn-sm btn-outline-secondary btn-icon-only" title="Detalhes"><i class="bi bi-info-circle"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= NOTAS ================= -->
+    <section class="mock-section">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="opt-pill"><i class="bi bi-lightbulb"></i></span>
+            <h2 class="h4 fw-bold mb-0">Notas para a decisão</h2>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card h-100"><div class="card-body">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-graph-up me-1 text-primary"></i> Densidade de informação</h6>
+                    <p class="small text-muted mb-0">A grade 3-colunas atual já está no limite para nomes longos
+                        ("Lab. Saúde/Masso/Estética"). A opção D resolve isso melhor; A e B mantêm o mesmo tamanho
+                        de card; C cresce ~40px de altura pela banda.</p>
+                </div></div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100"><div class="card-body">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-hand-index-thumb me-1 text-primary"></i> Hierarquia da ação</h6>
+                    <p class="small text-muted mb-0">Na pesquisa com filtro de datas o usuário já escolheu o período —
+                        reservar é o próximo passo natural. Por isso A e C colocam Reservar como ação sólida primária;
+                        B o mantém discretamente no rodapé de 3 botões.</p>
+                </div></div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100"><div class="card-body">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-check2-circle me-1 text-primary"></i> Contexto de busca</h6>
+                    <p class="small text-muted mb-0">Quando a busca tem filtro de datas, um chip verde
+                        "Disponível no período" pode acompanhar o nome (opcional em qualquer opção). Hoje essa
+                        informação só aparece depois de abrir a Disponibilidade.</p>
+                </div></div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100"><div class="card-body">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-shield-check me-1 text-primary"></i> Permissões</h6>
+                    <p class="small text-muted mb-0">O botão Reservar deve seguir a mesma permissão da criação de
+                        reserva (o grid é compartilhado entre listagem e pesquisa; professores e funcionários
+                        reservam, visualizadores sem permissão não veem o botão).</p>
+                </div></div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="mock-footer pt-4">
+        <p class="mb-1">Mockup estático para escolha do redesign — dados de exemplo copiados da tela real de
+            Pesquisar Salas. Botões apontam para "#"; na implementação:
+            <code>reservations.create?classroom_id=X</code> (novo), <code>classrooms.availability</code> e
+            <code>classrooms.detail</code>.</p>
+        <p class="mb-0 text-muted">Arquivo: docs/mockups/redesign-cartoes-salas.html · referência do design
+            escolhido (opção A) no PR #240.</p>
+    </footer>
+
+</main>
+</body>
+</html>

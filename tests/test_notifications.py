@@ -1286,7 +1286,11 @@ class TestEmailMirror(NotificationsTestCase):
             self.assertEqual(n.send_attempts, 1)
 
     @patch('app.services.mailer.smtplib.SMTP')
-    def test_tentativas_excedidas_saem_da_fila(self, smtp_cls):
+    def test_tentativas_excedidas_sao_arquivadas_fora_da_fila(self, smtp_cls):
+        # Linha no formato anterior à coluna (legado): esgotada, sent_at
+        # nulo, archived_at nulo — a primeira rodada do dreno a arquiva com
+        # o limite REAL da configuração; o aviso segue no sino e o sent_at
+        # fica nulo (nenhum e-mail saiu).
         self._habilitar_smtp()
         notificacao_id = self._notificar(self.ids['professor'])
         with self.app.app_context():
@@ -1298,7 +1302,93 @@ class TestEmailMirror(NotificationsTestCase):
         smtp_inst = smtp_cls.return_value.__enter__.return_value
         smtp_inst.send_message.assert_not_called()
         with self.app.app_context():
-            self.assertIsNone(db.session.get(Notification, notificacao_id).sent_at)
+            n = db.session.get(Notification, notificacao_id)
+            self.assertIsNone(n.sent_at)          # nenhum e-mail saiu
+            self.assertIsNotNone(n.archived_at)   # saiu da fila com carimbo
+        # Rodada seguinte: nada a relatar — a fila do índice ficou enxuta.
+        with self.app.app_context():
+            stats = drenar_fila_email()
+        self.assertEqual(stats['excedidas'], 0)
+        self.assertEqual(stats['pendentes'], 0)
+
+    @patch('app.services.mailer.smtplib.SMTP')
+    def test_esgotamento_na_falha_arquiva_e_nao_reprocessa(self, smtp_cls):
+        # A falha que completa o limite já arquiva na mesma rodada — a
+        # notificação não volta a disputar a fila, nem quando o SMTP volta.
+        self._habilitar_smtp()
+        notificacao_id = self._notificar(self.ids['professor'])
+        smtp_inst = smtp_cls.return_value.__enter__.return_value
+        smtp_inst.send_message.side_effect = Exception('SMTP fora do ar')
+        with self.app.app_context():
+            n = db.session.get(Notification, notificacao_id)
+            n.send_attempts = 9  # a falha desta rodada completa o limite
+            db.session.commit()
+            stats = drenar_fila_email()
+        self.assertEqual(stats['falhas'], 1)
+        self.assertEqual(stats['excedidas'], 1)  # arquivada nesta rodada conta
+        with self.app.app_context():
+            n = db.session.get(Notification, notificacao_id)
+            self.assertEqual(n.send_attempts, 10)
+            self.assertIsNotNone(n.archived_at)
+            self.assertIsNone(n.sent_at)
+        smtp_inst.send_message.side_effect = None
+        smtp_inst.send_message.reset_mock()
+        with self.app.app_context():
+            stats = drenar_fila_email()  # SMTP de volta: não reprocessa
+        self.assertEqual(stats['pendentes'], 0)
+        smtp_inst.send_message.assert_not_called()
+
+    @patch('app.services.mailer.smtplib.SMTP')
+    def test_dry_run_nao_arquiva_esgotadas(self, smtp_cls):
+        self._habilitar_smtp()
+        notificacao_id = self._notificar(self.ids['professor'])
+        with self.app.app_context():
+            db.session.get(Notification, notificacao_id).send_attempts = 10
+            db.session.commit()
+            stats = drenar_fila_email(dry_run=True)
+        self.assertEqual(stats['excedidas'], 1)   # visível no preview
+        smtp_inst = smtp_cls.return_value.__enter__.return_value
+        smtp_inst.send_message.assert_not_called()
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(Notification,
+                                             notificacao_id).archived_at)
+
+    def test_aviso_do_arquivamento_distingue_dry_run_do_real(self):
+        # No dry-run, nada foi arquivado ainda: "seriam arquivadas". Na
+        # rodada real, o carimbo aconteceu: "foram arquivadas".
+        self._habilitar_smtp()
+        notificacao_id = self._notificar(self.ids['professor'])
+        with self.app.app_context():
+            db.session.get(Notification, notificacao_id).send_attempts = 10
+            db.session.commit()
+        runner = self.app.test_cli_runner()
+        preview = runner.invoke(args=['notify-email', '--dry-run'])
+        self.assertEqual(preview.exit_code, 0)
+        self.assertIn('seriam arquivadas', preview.output)
+        real = runner.invoke(args=['notify-email'])
+        self.assertEqual(real.exit_code, 0)
+        self.assertIn('foram arquivadas', real.output)
+        with self.app.app_context():
+            self.assertIsNotNone(db.session.get(Notification,
+                                                notificacao_id).archived_at)
+
+    @patch('app.services.mailer.smtplib.SMTP')
+    def test_arquivada_nao_volta_mesmo_com_limite_maior(self, smtp_cls):
+        # Operador aumenta o MAIL_MAX_ATTEMPTS depois do esgotamento: a
+        # arquivada permanece fora da fila (saiu de vez), sem reenvio.
+        self._habilitar_smtp()
+        notificacao_id = self._notificar(self.ids['professor'])
+        with self.app.app_context():
+            n = db.session.get(Notification, notificacao_id)
+            n.send_attempts = 10
+            n.archived_at = datetime.now(timezone.utc)
+            db.session.commit()
+            self.app.config['MAIL_MAX_ATTEMPTS'] = 15
+            stats = drenar_fila_email()
+        self.assertEqual(stats['pendentes'], 0)
+        self.assertEqual(stats['excedidas'], 0)
+        smtp_inst = smtp_cls.return_value.__enter__.return_value
+        smtp_inst.send_message.assert_not_called()
 
     @patch('app.services.mailer.smtplib.SMTP')
     def test_reenvio_apos_falha_carimba_e_mantem_tentativas(self, smtp_cls):
