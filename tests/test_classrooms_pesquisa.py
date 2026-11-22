@@ -358,6 +358,16 @@ class ClassroomsPesquisaTestCase(unittest.TestCase):
         self.assertIn(f'&amp;date={self._dia(1).isoformat()}"', html)
         self.assertNotIn(f'&amp;date={self._dia(5).isoformat()}"', html)
 
+    def test_reservar_link_data_invalida_cai_no_dia_aplicado(self):
+        # Início inválido: _intervalo_datas filtra pelo dia corrente — o
+        # prefill segue a janela EFETIVAMENTE aplicada, não a URL crua
+        # (mesma regra do banner e do rótulo do PDF). Achado do OCR (#240).
+        self._entrar_como_reservador()
+        response = self.client.get(
+            '/classrooms/search?available_date=nao-e-data&available_period=morning')
+        html = response.get_data(as_text=True)
+        self.assertIn(f'&amp;date={date.today().isoformat()}"', html)
+
     def test_reservar_link_sem_data_em_disponivel_agora(self):
         # "Livre agora" não tem janela de datas: o link abre o formulário
         # sem preencher nada.

@@ -249,20 +249,24 @@ def search():
         # dia único e fim antes do início é exibido na ordem cronológica
         # real. Início inválido é exibido cru (escapado), como sempre foi.
         inicio_str = request.args.get('available_date', '')
+        # Janela EFETIVAMENTE aplicada pelo filtro: início inválido cai no
+        # dia corrente dentro de _intervalo_datas (como sempre) — banner,
+        # chip e atalho do Reservar seguem essa janela real, nunca o valor
+        # cru da URL (mesma regra do rótulo do PDF).
+        ini, fim = _intervalo_datas(request.args)
         if _parse_data_iso(inicio_str):
-            ini, fim = _intervalo_datas(request.args)
             if fim != ini:
                 data_txt = (f"entre <strong>{ini:%d/%m/%Y}</strong> "
                             f"e <strong>{fim:%d/%m/%Y}</strong>")
             else:
                 data_txt = f"em <strong>{ini:%d/%m/%Y}</strong>"
-            # O formulário de criação abre com a data INICIAL NORMALIZADA da
-            # janela pesquisada (fim antes do início é trocado, como no
-            # banner). O fim não cabe numa reserva única — séries seguem
-            # pelo fluxo "Repetir" da primeira reserva criada.
-            prefill_reserva = {'date': f'{ini:%Y-%m-%d}'}
         else:
             data_txt = f"em <strong>{escape(inicio_str)}</strong>"
+        # Atalho do Reservar: o formulário de criação abre com a data
+        # inicial normalizada da janela aplicada. O fim não cabe numa
+        # reserva única — séries seguem pelo fluxo "Repetir" da primeira
+        # reserva criada.
+        prefill_reserva = {'date': f'{ini:%Y-%m-%d}'}
         # Todos os rótulos de período são femininos: o artigo único serve
         # para um período ("a Manhã") ou vários ("a Manhã e Tarde").
         filter_message = (f"Mostrando salas disponíveis {data_txt} "
