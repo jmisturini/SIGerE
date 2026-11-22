@@ -9,10 +9,7 @@ de novo; nada é perdido nem duplicado.
 Um e-mail por destinatário por rodada (digest): várias notificações do mesmo
 usuário vão num único e-mail, em vez de um por aviso. Falhas repetidas
 também não travam a fila: cada notificação conta tentativas (send_attempts)
-e, ao atingir MAIL_MAX_ATTEMPTS, é ARQUIVADA (archived_at) — sai do índice
-parcial da fila sem apagar o aviso do sino e sem tocar no sent_at, que fica
-reservado para envios que de fato saíram. Linhas anteriores à coluna são
-arquivadas pela primeira rodada, com o limite real da configuração.
+e sai da fila ao atingir MAIL_MAX_ATTEMPTS.
 
 O envio exige MAIL_SMTP_HOST e MAIL_FROM configurados (app/config.py); sem
 eles o dreno é no-op — o sistema inteiro funciona sem SMTP, como antes.
@@ -62,21 +59,16 @@ def _montar_digest(user, notificacoes, remetente, base_url):
 
 
 def drenar_fila_email(limite=200, dry_run=False):
-    """Envia os e-mails das notificações pendentes (sent_at nulo e não
-    arquivadas), mais antigas primeiro, até o limite da rodada — agrupadas
-    por destinatário: um e-mail por usuário com todas as notificações dele
-    na rodada. Sem SMTP configurado, não faz nada. Falha no envio de um
-    usuário não trava os demais; as notificações dele contam uma tentativa
-    e, ao atingir MAIL_MAX_ATTEMPTS, são arquivadas (archived_at): saem da
-    fila para sempre, mas seguem na base — o aviso do sino não é apagado e o
-    sent_at, reservado para envios que de fato saíram, segue nulo. Linhas
-    anteriores à coluna (ou de rodadas interrompidas) são arquivadas no
-    começo da rodada, com o limite real da configuração. Falha de
-    conexão/autenticação mantém a fila inteira para a próxima rodada, sem
-    contar tentativas (indisponibilidade de infra não esgota o limite) e sem
-    propagar o erro — o comando corre no timer systemd com outros ExecStarts
-    em seguida. Com dry_run=True nada é enviado nem gravado. Retorna
-    estatísticas para o log do comando."""
+    """Envia os e-mails das notificações pendentes (sent_at nulo), mais
+    antigas primeiro, até o limite da rodada — agrupadas por destinatário:
+    um e-mail por usuário com todas as notificações dele na rodada. Sem SMTP
+    configurado, não faz nada. Falha no envio de um usuário não trava os
+    demais; as notificações dele contam uma tentativa e saem da fila ao
+    atingir MAIL_MAX_ATTEMPTS. Falha de conexão/autenticação mantém a fila
+    inteira para a próxima rodada, sem contar tentativas (indisponibilidade
+    de infra não esgota o limite) e sem propagar o erro — o comando corre no
+    timer systemd com outros ExecStarts em seguida. Com dry_run=True nada é
+    enviado nem gravado. Retorna estatísticas para o log do comando."""
     stats = {'pendentes': 0, 'emails': 0, 'notificacoes': 0,
              'falhas': 0, 'puladas': 0, 'excedidas': 0}
 
@@ -92,37 +84,23 @@ def drenar_fila_email(limite=200, dry_run=False):
     senha = current_app.config.get('MAIL_SMTP_PASSWORD')
     starttls = current_app.config.get('MAIL_SMTP_STARTTLS', True)
     tentativas_max = current_app.config.get('MAIL_MAX_ATTEMPTS', 10)
-    agora = datetime.now(timezone.utc)
-
-    # Esgotadas fora da fila: quem já passou do limite de tentativas é
-    # ARQUIVADO (archived_at) — sai do índice parcial da fila
-    # (idx_notifications_mail_queue) sem apagar o aviso do sino e sem tocar
-    # no sent_at. O dreno mesmo faz o papel das linhas anteriores à coluna:
-    # a migration não conhece o MAIL_MAX_ATTEMPTS do ambiente. UPDATE em
-    # bulk (synchronize_session=False): a primeira rodada após o upgrade
-    # pode ter milhares de linhas históricas — materializá-las em ORM para
-    # carimbar uma a uma alongaria o timer à toa.
-    mortas_q = Notification.query.filter(
-        Notification.sent_at.is_(None),
-        Notification.send_attempts >= tentativas_max,
-        Notification.archived_at.is_(None))
-    if dry_run:
-        stats['excedidas'] = mortas_q.count()
-    else:
-        # rowcount = linhas modificadas: NULL → carimbo sempre muda o valor.
-        stats['excedidas'] = mortas_q.update(
-            {Notification.archived_at: agora}, synchronize_session=False)
-        db.session.commit()
 
     pendentes = (Notification.query
                  .filter(Notification.sent_at.is_(None),
-                         Notification.send_attempts < tentativas_max,
-                         Notification.archived_at.is_(None))
+                         Notification.send_attempts < tentativas_max)
                  .order_by(Notification.created_at.asc(), Notification.id.asc())
                  .limit(limite).all())
     stats['pendentes'] = len(pendentes)
+    # Visibilidade: pendências que já estouraram o limite de tentativas —
+    # ficam na base (para auditoria) e fora da fila.
+    stats['excedidas'] = (Notification.query
+                          .filter(Notification.sent_at.is_(None),
+                                  Notification.send_attempts >= tentativas_max)
+                          .count())
     if not pendentes:
         return stats
+
+    agora = datetime.now(timezone.utc)
 
     # Agrupa por destinatário preservando a ordem cronológica.
     por_usuario = OrderedDict()
@@ -182,14 +160,6 @@ def drenar_fila_email(limite=200, dry_run=False):
                         stats['falhas'] += len(itens)
                         for n in itens:
                             n.send_attempts = (n.send_attempts or 0) + 1
-                            if n.send_attempts >= tentativas_max:
-                                # Esgotou nesta falha: sai da fila de vez —
-                                # o sino segue e o sent_at fica nulo (o
-                                # e-mail nunca saiu). Conta no mesmo aviso
-                                # do sweep: rodadas futuras já não a
-                                # enxergariam em contagem nenhuma.
-                                n.archived_at = agora
-                                stats['excedidas'] += 1
                         continue
                     for n in itens:
                         n.sent_at = agora

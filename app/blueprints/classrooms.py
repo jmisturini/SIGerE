@@ -223,22 +223,11 @@ def search():
     # usuário não selecionou.
     is_filtered = False
     filter_message = ""
-    # Atestado verde por cartão ("contexto da busca"): só nas buscas em que
-    # o filtro GARANTE a disponibilidade de cada sala listada — datas+períodos
-    # ou "livre agora". Filtro só de categoria não atesta nada. O texto nasce
-    # na MESMA cadeia elif do filter_message: se o filtro aplicado foi "agora",
-    # o chip não pode afirmar o período.
-    chip_disponivel = None
-    # Atalho do Reservar: a data pesquisada preenche o formulário de criação
-    # (mesma query do atalho "+ do dia" da Disponibilidade). Não há data no
-    # filtro "livre agora" nem no de categoria.
-    prefill_reserva = None
     texto_vazio = 'Nenhuma sala livre nos períodos e datas selecionados.'
     periodos_marcados = _periodos_filtro(request.args)
     if request.args.get('available_now'):
         is_filtered = True
         filter_message = "Mostrando salas disponíveis agora."
-        chip_disponivel = "Disponível agora"
         texto_vazio = 'Nenhuma sala disponível agora.'
     elif request.args.get('available_date') and periodos_marcados:
         is_filtered = True
@@ -249,15 +238,8 @@ def search():
         # dia único e fim antes do início é exibido na ordem cronológica
         # real. Início inválido é exibido cru (escapado), como sempre foi.
         inicio_str = request.args.get('available_date', '')
-        # Janela EFETIVAMENTE aplicada pelo filtro: início inválido cai no
-        # dia corrente dentro de _intervalo_datas (como sempre). Chip e
-        # atalho do Reservar seguem essa janela real, nunca o valor cru da
-        # URL (mesma regra do rótulo do PDF) — o banner é a única exceção:
-        # com data inválida exibe o valor cru (escapado), para o usuário
-        # reconhecer o que digitou, enquanto o filtro já usou o dia
-        # corrente.
-        ini, fim = _intervalo_datas(request.args)
         if _parse_data_iso(inicio_str):
+            ini, fim = _intervalo_datas(request.args)
             if fim != ini:
                 data_txt = (f"entre <strong>{ini:%d/%m/%Y}</strong> "
                             f"e <strong>{fim:%d/%m/%Y}</strong>")
@@ -265,16 +247,10 @@ def search():
                 data_txt = f"em <strong>{ini:%d/%m/%Y}</strong>"
         else:
             data_txt = f"em <strong>{escape(inicio_str)}</strong>"
-        # Atalho do Reservar: o formulário de criação abre com a data
-        # inicial normalizada da janela aplicada. O fim não cabe numa
-        # reserva única — séries seguem pelo fluxo "Repetir" da primeira
-        # reserva criada.
-        prefill_reserva = {'date': f'{ini:%Y-%m-%d}'}
         # Todos os rótulos de período são femininos: o artigo único serve
         # para um período ("a Manhã") ou vários ("a Manhã e Tarde").
         filter_message = (f"Mostrando salas disponíveis {data_txt} "
                           f"durante a <strong>{periodos_txt}</strong>.")
-        chip_disponivel = "Disponível no período"
     elif request.args.get('category'):
         is_filtered = True
         cat_id = request.args.get('category', type=int)
@@ -297,8 +273,6 @@ def search():
         categories=categories,
         is_filtered=is_filtered,
         filter_message=filter_message,
-        chip_disponivel=chip_disponivel,
-        prefill_reserva=prefill_reserva,
         texto_vazio=texto_vazio,
         selected_category=request.args.get('category', '')
     )
