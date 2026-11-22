@@ -82,7 +82,7 @@
     <div>{{ filter_message | safe }}</div>
 </div>
 
-{{ grid_salas(grouped_rooms, 'Nenhuma sala encontrada', texto_vazio, chip_disponivel=chip_disponivel, prefill_reserva=prefill_reserva, pode_reservar=current_user.can_book) }}
+{{ grid_salas(grouped_rooms, 'Nenhuma sala encontrada', texto_vazio) }}
 {% else %}
 {# Limpa até um filtro ser aplicado: convite à pesquisa no lugar dos cartões #}
 {{ grid_salas({}, 'Pesquise uma sala', 'Aplique os filtros acima para ver as salas da unidade.', 'bi-funnel') }}

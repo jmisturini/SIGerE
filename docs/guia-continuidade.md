@@ -158,10 +158,6 @@ Mudança só de docs pode ir direto por PR sem release.
   `RuntimeDirectoryMode=0755`); sem isso, após reboot o socket some e o serviço morre
   com sintoma idêntico a crash de código. A doc já foi corrigida (v1.31.1), mas o unit
   na VM pode continuar o antigo — corrigir à mão se necessário.
-- **Backup/restauração:** dump diário 03:20 pelo timer `sigere-backup` (7
-  diárias + 4 semanais, upload para bucket S3 quando configurado) e o comando
-  `verify-restore` prova que o snapshot volta. O dia que der ruim, siga o
-  [runbook-restauracao.md](runbook-restauracao.md).
 - A máquina de desenvolvimento usual **não tinha chave SSH** para a VM; diagnóstico
   remoto dependia de acesso pelo console da Oracle.
 

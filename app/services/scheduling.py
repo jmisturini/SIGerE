@@ -6,22 +6,12 @@ checagem de conflito e o INSERT (padrão TOCTOU: duas requisições leem "sala
 livre" simultaneamente e ambas gravam).
 
 Mecanismos de proteção por ambiente:
-- Todos os bancos: lock de processo por (sala, data) e por (docente, data) —
-  serializa a janela checagem→gravação entre threads do mesmo processo.
+- Todos os bancos: lock de processo por (sala, data) — serializa a janela
+  checagem→gravação entre threads do mesmo processo.
 - PostgreSQL: adicionalmente `SELECT ... FOR UPDATE` nas queries de conflito
-  e advisory lock transacional nas duas dimensões, cobrindo múltiplos
-  processos.
+  e advisory lock transacional por (sala, data), cobrindo múltiplos processos.
 - SQLite: o lock de processo é o mecanismo efetivo (o banco já serializa
   escritas entre processos no nível do arquivo).
-
-Ordem de aquisição em TODA gravação DOS FLUXOS WEB (blueprints): primeiro os
-locks de sala, depois os de docente. Quem segura lock de docente nunca espera
-por lock de sala — o ciclo clássico entre as duas dimensões fica impossível.
-
-Comandos CLI que gravam reservas (importação legada, seed de demo, utilitários
-administrativos) NÃO adquirem esses locks — e os locks de processo não
-atravessam processos: são procedimentos offline, que precisam rodar sem
-tráfego concorrente (só os advisory locks do PostgreSQL os cobririam).
 """
 import threading
 from contextlib import contextmanager
@@ -33,10 +23,9 @@ from app.extensions import db
 from app.models import Reservation, Holiday, EVENT_RESERVATION_CANCELLED
 from app.unity_context import current_unity_id
 
-# ── Locks por (sala, data) e por (docente, data) ─────────────────────────────
+# ── Locks por (sala, data) ───────────────────────────────────────────────────
 _slot_locks = {}
-_teacher_locks = {}
-_locks_guard = threading.Lock()
+_slot_locks_guard = threading.Lock()
 
 # Limite do intervalo da repetição de reservas (protege contra lotes enormes
 # de Inserts e contra telas que iterariam milhares de dias).
@@ -48,37 +37,6 @@ def _lock_key(classroom_id, d):
     return (classroom_id, date_str)
 
 
-def _teacher_key(teacher_id, d):
-    date_str = d.isoformat() if hasattr(d, 'isoformat') else str(d)
-    return (teacher_id, date_str)
-
-
-@contextmanager
-def _travar_chaves(keys, tabela_locks, prefixo_advisory):
-    """Corpo comum das duas dimensões de lock: RLocks por chave em ordem
-    canônica (serializa a janela checagem→gravação entre threads do mesmo
-    processo) e, no PostgreSQL, advisory locks transacionais com o prefixo
-    da dimensão (liberados no commit/rollback da transação da requisição)."""
-    def _acquire_all():
-        with _locks_guard:
-            return [tabela_locks.setdefault(k, threading.RLock()) for k in keys]
-
-    acquired = []
-    try:
-        for lock in _acquire_all():
-            lock.acquire()
-            acquired.append(lock)
-        if db.engine.name == 'postgresql':
-            for id_, date_str in keys:
-                db.session.execute(text(
-                    'SELECT pg_advisory_xact_lock(hashtext(:k)::bigint)'),
-                    {'k': f'{prefixo_advisory}:{id_}:{date_str}'})
-        yield
-    finally:
-        for lock in reversed(acquired):
-            lock.release()
-
-
 @contextmanager
 def slot_locks(classroom_id, dates):
     """Context manager: trava todas as (sala, data) envolvidas na operação.
@@ -87,28 +45,27 @@ def slot_locks(classroom_id, dates):
     uma operação em lote cruza datas com outra operação concorrente.
     """
     keys = sorted({_lock_key(classroom_id, d) for d in dates})
-    with _travar_chaves(keys, _slot_locks, 'reserva'):
-        yield
 
+    def _acquire_all():
+        with _slot_locks_guard:
+            return [_slot_locks.setdefault(k, threading.RLock()) for k in keys]
 
-@contextmanager
-def teacher_locks(pares):
-    """Context manager: trava todas as (docente, data) envolvidas na
-    operação — fecha a dimensão docente da corrida TOCTOU: duas gravações
-    simultâneas em salas DIFERENTES, mesmo docente e mesma janela, passavam
-    ambas pela checagem de professor e gravavam sobreposição (ou estouravam
-    o limite diário), pois o slot lock cobre só (sala, data) (#234).
-
-    `pares` são duplas (teacher_id, date); ids falsy (reserva sem docente)
-    são filtrados — sem docente, nada a travar. Mesmo mecanismo e ordem
-    canônica do slot_locks; a chamada vem SEMPRE depois dos locks de sala.
-    """
-    keys = sorted({_teacher_key(t, d) for t, d in pares if t})
-    if not keys:
+    acquired = []
+    try:
+        for lock in _acquire_all():
+            lock.acquire()
+            acquired.append(lock)
+        if db.engine.name == 'postgresql':
+            # Advisory lock por slot: estende a proteção a múltiplos processos
+            # (liberada no commit/rollback da transação da requisição).
+            for classroom_id_, date_str in keys:
+                db.session.execute(text(
+                    'SELECT pg_advisory_xact_lock(hashtext(:k)::bigint)'),
+                    {'k': f'reserva:{classroom_id_}:{date_str}'})
         yield
-        return
-    with _travar_chaves(keys, _teacher_locks, 'docente'):
-        yield
+    finally:
+        for lock in reversed(acquired):
+            lock.release()
 
 
 # ── Validações ───────────────────────────────────────────────────────────────
@@ -132,21 +89,12 @@ def check_conflict(classroom_id, reservation_date, start_time, end_time,
 
 
 def check_teacher_conflict(teacher_id, reservation_date, start_time, end_time,
-                           exclude_id=None, somente_aprovadas=False):
-    """Docente já possui reserva sobreposta no dia?
-
-    Por padrão conta aprovadas E pendentes — a checagem de criação/edição
-    usa as duas: a pendente também é sinal de conflito do docente. A
-    REVALIDAÇÃO na aprovação passa somente_aprovadas=True: contar pendentes
-    bloquearia para sempre duas pendências sobrepostas do mesmo docente
-    (cada aprovação esperaria a outra), então o gate espelha a conferência
-    de sala, que também olha só aprovadas.
-    """
-    status = ['approved'] if somente_aprovadas else ['approved', 'pending']
+                           exclude_id=None):
+    """Docente já possui reserva aprovada/pendente sobreposta no dia?"""
     query = Reservation.query.filter(
         Reservation.teacher_id == teacher_id,
         Reservation.date == reservation_date,
-        Reservation.status.in_(status),
+        Reservation.status.in_(['approved', 'pending']),
         Reservation.start_time < end_time,
         Reservation.end_time > start_time
     )

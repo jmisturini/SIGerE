@@ -106,7 +106,6 @@ def create_app(config_class=Config):
                               unlock_user_command, dump_permissions_command)
     from app.seed_demo import seed_demo_command
     from app.backup import backup_command
-    from app.restore_verify import verify_restore_command
     app.cli.add_command(seed_command)
     app.cli.add_command(seed_admin_command)
     app.cli.add_command(sync_permissions_command)
@@ -115,7 +114,6 @@ def create_app(config_class=Config):
     app.cli.add_command(seed_demo_command)
     app.cli.add_command(import_legacy_command)
     app.cli.add_command(backup_command)
-    app.cli.add_command(verify_restore_command)
     app.cli.add_command(notify_scan_command)
     app.cli.add_command(notify_email_command)
     app.cli.add_command(notify_cleanup_command)

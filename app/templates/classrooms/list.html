@@ -22,5 +22,5 @@
 
 {# A pesquisa por disponibilidade/período/tipo virou página própria:
    classrooms.search. #}
-{{ grid_salas(grouped_rooms, 'Nenhuma sala encontrada', 'Não há salas ativas no sistema.', pode_reservar=current_user.can_book) }}
+{{ grid_salas(grouped_rooms, 'Nenhuma sala encontrada', 'Não há salas ativas no sistema.') }}
 {% endblock %}
