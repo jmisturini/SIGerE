@@ -46,6 +46,11 @@
                         <span class="mx-1">·</span>
                         <span><i class="bi bi-people me-1"></i>Cap. {{ c.capacity }}</span>
                         {% if chip_disponivel %}
+                        {# .chip-disponivel não tem CSS próprio (o visual é
+                           composto pelas utilidades do Bootstrap): existe
+                           como gancho estável para os testes, pois o texto
+                           "Disponível agora" também aparece num comentário
+                           do JS do formulário de filtros. #}
                         <span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle ms-1 chip-disponivel">
                             <i class="bi bi-check-circle me-1"></i> {{ chip_disponivel }}
                         </span>
