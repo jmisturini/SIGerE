@@ -250,9 +250,12 @@ def search():
         # real. Início inválido é exibido cru (escapado), como sempre foi.
         inicio_str = request.args.get('available_date', '')
         # Janela EFETIVAMENTE aplicada pelo filtro: início inválido cai no
-        # dia corrente dentro de _intervalo_datas (como sempre) — banner,
-        # chip e atalho do Reservar seguem essa janela real, nunca o valor
-        # cru da URL (mesma regra do rótulo do PDF).
+        # dia corrente dentro de _intervalo_datas (como sempre). Chip e
+        # atalho do Reservar seguem essa janela real, nunca o valor cru da
+        # URL (mesma regra do rótulo do PDF) — o banner é a única exceção:
+        # com data inválida exibe o valor cru (escapado), para o usuário
+        # reconhecer o que digitou, enquanto o filtro já usou o dia
+        # corrente.
         ini, fim = _intervalo_datas(request.args)
         if _parse_data_iso(inicio_str):
             if fim != ini:
