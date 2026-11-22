@@ -448,8 +448,12 @@ def verify_restore_command(arquivo, destino, tolerancia):
     # normal apaga o próprio; execução morta no meio vaza um banco
     # `*_verificacao_*`, que o operador apaga à mão (DROP DATABASE).
     banco_teste = None
-    pasta_temporaria = tempfile.mkdtemp(prefix='sigere-verify-')
+    pasta_temporaria = None
     try:
+        # Dentro do escopo de limpeza: se o mkdtemp falhar, o finally ainda
+        # remove a pasta_download (o arquivo baixado) — fora dela, o archive
+        # vazaria no filesystem que já está sem espaço (CodeRabbit #243).
+        pasta_temporaria = tempfile.mkdtemp(prefix='sigere-verify-')
         inicio = time.monotonic()
         try:
             if motor == 'sqlite':
@@ -462,7 +466,13 @@ def verify_restore_command(arquivo, destino, tolerancia):
                 # comparar com homônimo do CWD aprovaria backup de outro banco.
                 producao = _linhas_por_tabela_sqlite(_caminho_sqlite(dados))
             else:
-                banco_teste = ((dados['database'] or 'sigere')[:40]
+                # Limite de identificador do PostgreSQL: 63 BYTES — o nome de
+                # produção vem do DATABASE_URL e pode ser UTF-8 (30 'é' = 60
+                # bytes estouram os 40 caracteres), truncando o nome e cortando
+                # o UUID do sufixo; trunca por BYTES reservando o sufixo
+                # completo (CodeRabbit #243).
+                prefixo = (dados['database'] or 'sigere').encode('utf-8')[:38]
+                banco_teste = (prefixo.decode('utf-8', 'ignore')
                                + '_verificacao_' + uuid.uuid4().hex[:8])
                 _restaurar_postgres(dados, caminho_backup, banco_teste)
                 duracao = time.monotonic() - inicio
@@ -477,7 +487,8 @@ def verify_restore_command(arquivo, destino, tolerancia):
                 f'❌ Falha inesperada na verificação: {erro}', fg='red', bold=True))
             raise  # traceback segue no journal — inesperada é bug, precisa investigar
     finally:
-        shutil.rmtree(pasta_temporaria, ignore_errors=True)
+        if pasta_temporaria:
+            shutil.rmtree(pasta_temporaria, ignore_errors=True)
         if pasta_download:
             shutil.rmtree(pasta_download, ignore_errors=True)
         if banco_teste:

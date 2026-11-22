@@ -601,8 +601,23 @@ def edit(reservation_id):
         # abaixo confere): revalida restrições e conflitos já enxergando o
         # estado consolidado (edit + approve concorrentes).
         teacher_id_novo = form.teacher.data if form.teacher.data > 0 else None
-        with slot_locks(classroom_id, [form.date.data]), \
-                teacher_locks([(teacher_id_novo, form.date.data)]):
+        # Sala ORIGEM entra nas travas junto com a DESTINO (chaves originais
+        # capturadas antes de qualquer trava): duas edições que trocam duas
+        # reservas aprovadas de sala no mesmo dia formavam ciclo no FOR
+        # UPDATE do check_conflict — A segura a linha própria (em X) e pede
+        # a de B (em Y); B segura a própria (em Y) e pede a de A (em X).
+        # Ordem canônica por sala, datas ordenadas dentro de cada sala
+        # (mesma regra da série) — achado CodeRabbit #243.
+        chaves_originais = (reservation.classroom_id, reservation.date)
+        por_sala = {}
+        for sala, data in {(reservation.classroom_id, reservation.date),
+                           (classroom_id, form.date.data)}:
+            por_sala.setdefault(sala, set()).add(data)
+        stack = ExitStack()
+        for sala in sorted(por_sala):
+            stack.enter_context(slot_locks(sala, sorted(por_sala[sala])))
+        stack.enter_context(teacher_locks([(teacher_id_novo, form.date.data)]))
+        try:
             # Re-leitura COM row lock: o status lido no gate veio antes do
             # lock — um approve concorrente pode ter commitado approved. Sem
             # a re-leitura, o downgrade abaixo veria status pendente obsoleto
@@ -613,6 +628,28 @@ def edit(reservation_id):
             ).scalar_one_or_none()
             if reservation is None:
                 abort(404)
+            # Rechecagem de chaves: as chaves originais capturadas antes das
+            # travas podem ter mudado (outro edit commitou sala/data antes de
+            # nós pegarmos as travas) — as travas de origem teriam sido
+            # tomadas sobre valores velhos. Aborta para retry.
+            if (reservation.classroom_id, reservation.date) != chaves_originais:
+                flash('A reserva foi editada durante a alteração (sala ou '
+                      'data mudaram) — tente de novo.', 'warning')
+                return render_template('reservations/edit.html',
+                                       form=form, reservation=reservation)
+            # Rechecagem da designação APÓS a re-leitura: um gestor pode ter
+            # trocado o docente entre a checagem pré-travas e aqui — o
+            # formulário ainda carrega o docente velho, e gravá-lo o
+            # restauraria por cima da troca (a regra vale para o docente
+            # ATUAL). (CodeRabbit #243)
+            if current_user.has_explicit_permission('reservation:create_pending'):
+                novo_professor = form.teacher.data if form.teacher.data > 0 else None
+                if novo_professor != reservation.teacher_id \
+                        and novo_professor != current_user.id:
+                    flash('No fluxo de professor, a designação só pode apontar '
+                          'para você mesmo.', 'danger')
+                    return render_template('reservations/edit.html',
+                                           form=form, reservation=reservation)
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
@@ -694,6 +731,8 @@ def edit(reservation_id):
             db.session.commit()
             if downgrade_warranted:
                 db.session.refresh(reservation)  # flashes refletem o final
+        finally:
+            stack.close()
 
         if teacher_conflict and reservation.status == 'pending':
             flash('Reserva atualizada como PENDENTE devido a conflito de professor.', 'warning')
@@ -1357,12 +1396,20 @@ def series_edit(reservation_id):
     travadas = {m.id: (m.classroom_id, m.teacher_id, m.date)
                 for room_targets in by_classroom.values() for m in room_targets}
     with ExitStack() as stack:
-        # Salas em ordem canônica (o dict seguia a ordem dos alvos — dois
-        # fluxos com conjuntos de salas sobrepostos podiam adquirir em
-        # ordens diferentes); docentes por último, sempre depois das salas.
-        for room_id in sorted(by_classroom):
-            stack.enter_context(slot_locks(
-                room_id, [m.date for m in by_classroom[room_id]]))
+        # Salas ORIGEM de cada alvo (chaves travadas, capturadas antes de
+        # qualquer trava) entram junto com as DESTINO (CodeRabbit #243):
+        # série e edit que trocam reservas de sala no mesmo dia formavam o
+        # MESMO ciclo do FOR UPDATE do check_conflict do edit individual.
+        # Ordem canônica por sala, datas ordenadas dentro de cada sala;
+        # docentes por último, sempre depois das salas.
+        por_sala = {}
+        for sala, _, data in travadas.values():
+            por_sala.setdefault(sala, set()).add(data)
+        for room_id, room_targets in by_classroom.items():
+            for m in room_targets:
+                por_sala.setdefault(room_id, set()).add(m.date)
+        for sala in sorted(por_sala):
+            stack.enter_context(slot_locks(sala, sorted(por_sala[sala])))
         stack.enter_context(teacher_locks(
             [(m.teacher_id, m.date)
              for room_targets in by_classroom.values() for m in room_targets]))
@@ -1462,6 +1509,12 @@ def series_edit(reservation_id):
                     update(Reservation)
                     .where(Reservation.id == m.id,
                            Reservation.status != 'cancelled',
+                           # Status lido no CAS também: no SQLite (FOR UPDATE
+                           # ignorado) um approve pode commitar approved no
+                           # intervalo re-leitura→escrita — sem esta chave o
+                           # lote moveria a reserva aprovada para a sala nova
+                           # mantendo o status (CodeRabbit #243).
+                           Reservation.status == m.status,
                            Reservation.classroom_id == travadas[m.id][0],
                            Reservation.teacher_id == travadas[m.id][1],
                            Reservation.date == travadas[m.id][2])

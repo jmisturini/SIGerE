@@ -213,10 +213,20 @@ class TestTeacherLocksUnit(TeacherLocksTestCase):
             b = threading.Thread(target=corpo_b)
             a.start()
             b.start()
-            self.assertTrue(a_entrou.wait(timeout=5))
-            b.join(timeout=5)   # B entra AINDA COM A segurando o lock
-            pode_sair.set()
-            a.join(timeout=5)
+            try:
+                self.assertTrue(a_entrou.wait(timeout=5))
+                b.join(timeout=5)   # B entra AINDA COM A segurando o lock
+                # B tem de ter TERMINADO antes de A soltar: join(timeout)
+                # retorna silencioso no timeout — sem este assert, uma
+                # implementação com chave só de docente (ignorando a data)
+                # faria B bloquear até A sair e o assert final passaria
+                # igual (CodeRabbit #243).
+                self.assertFalse(b.is_alive())
+                self.assertEqual(ordem, ['A dentro', 'B dentro'])
+            finally:
+                pode_sair.set()
+                a.join(timeout=5)
+                b.join(timeout=5)
         self.assertEqual(ordem, ['A dentro', 'B dentro'])
 
     def test_sem_docente_nao_trava_nada(self):
@@ -436,12 +446,18 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
                              'pending')
 
     @patch('app.blueprints.reservations.slot_locks')
-    def test_aprovacao_aborta_se_horarios_mudaram_sob_o_lock(self, mock_slot):
-        # Edição que muda SÓ o horário: sala/docente/data ficam iguais e a
-        # checagem de chaves travadas passa — o CAS do flip (horários no
-        # WHERE) é o que impede aprovar janela que ninguém validou.
+    def test_aprovacao_valida_horario_mudado_sob_o_lock(self, mock_slot):
+        # Edição que muda SÓ o horário ANTES da re-leitura: sala/docente/data
+        # ficam iguais e a checagem de chaves travadas passa — a re-leitura
+        # enxerga o horário novo e VALIDA a janela dele (10:00-11:00, sem
+        # conflito), e o approve prossegue. O UPDATE é TYPED (Core, com
+        # objetos time): texto cru '10:00' difere do binding
+        # '10:00:00.000000' e faria o CAS falhar por FORMATO, não por
+        # mudança (CodeRabbit #243). Mudança ENTRE re-leitura e CAS é o
+        # teste seguinte.
         from contextlib import contextmanager
-        from sqlalchemy import text as sql_text
+        from datetime import time as time_cls
+        from sqlalchemy import update
         real_slot_locks = scheduling.slot_locks
 
         dia = self.dia
@@ -449,26 +465,24 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
         _, id_b = self._criar(dia, self.room2_id)   # nasce PENDENTE: docente
 
         @contextmanager
-        def com_ajuste_de_horario(classroom_id, dates):
-            with real_slot_locks(classroom_id, dates):
-                # Sem commit: identity map obsoleto, e o re-read/CAS (mesma
-                # conexão) enxergam o horário novo.
+        def com_ajuste_de_horario(classroom_id, datas):
+            with real_slot_locks(classroom_id, datas):
+                # Sem commit: o approve comita o flip junto com o horário
+                # novo na MESMA transação — o re-read (populate_existing)
+                # enxerga o update desta mesma conexão.
                 db.session.execute(
-                    sql_text("UPDATE reservations SET start_time = '10:00', "
-                             "end_time = '11:00' WHERE id = :i"),
-                    {'i': id_b})
+                    update(Reservation).where(Reservation.id == id_b)
+                    .values(start_time=time_cls(10, 0), end_time=time_cls(11, 0)))
                 yield
 
         mock_slot.side_effect = com_ajuste_de_horario
         resposta = self.client.post(f'/reservations/{id_b}/approve',
                                     follow_redirects=True)
-        self.assertIn('editada ou cancelada durante a aprovação',
-                      resposta.get_data(as_text=True))
+        self.assertIn('Reserva aprovada.', resposta.get_data(as_text=True))
         with self.app.app_context():
             reserva = db.session.get(Reservation, id_b)
-            self.assertEqual(reserva.status, 'pending')   # CAS rowcount 0
-            # Rollback com a requisição: o horário simulado volta ao original.
-            self.assertEqual(reserva.start_time.strftime('%H:%M'), '09:00')
+            self.assertEqual(reserva.status, 'approved')  # CAS casou 10:00==10:00
+            self.assertEqual(reserva.start_time.strftime('%H:%M'), '10:00')
 
     @patch('app.blueprints.reservations.check_teacher_conflict')
     def test_aprovacao_aborta_se_horario_mudar_entre_releitura_e_cas(self, mock_check):
@@ -480,13 +494,20 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
         real_check = scheduling.check_teacher_conflict
 
         dia = self.dia
+        # O patch cobre o CREATE também (CodeRabbit #243): sem delegar ao
+        # real, o MagicMock fazia AMBAS nascerem pendentes e o cancelamento
+        # abaixo cancelava uma pendente — o cenário declarado (cancelar a
+        # APROVADA) nunca existiu. Delega durante a criação e confere os
+        # status dos fixtures:
+        mock_check.side_effect = real_check
         _, id_a = self._criar(dia, self.room1_id)   # nasce aprovada
         _, id_b = self._criar(dia, self.room2_id)   # nasce PENDENTE: docente
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, id_a).status, 'approved')
+            self.assertEqual(db.session.get(Reservation, id_b).status, 'pending')
         # Cancelada a aprovada: sem conflito de docente, a checagem passa e
         # o fluxo CHEGA ao CAS — o gate de docente não pode mascarar o ramo
-        # rowcount=0 que este teste exercita. (O patch abaixo está ativo
-        # sobre o create também — sem o cancelamento, o MagicMock do create
-        # faria o nascer das reservas depender dele.)
+        # rowcount=0 que este teste exercita.
         self.client.post(f'/reservations/{id_a}/cancel', follow_redirects=True)
 
         def check_com_mudanca_no_meio(*args, **kwargs):

@@ -58,7 +58,9 @@ Oracle Cloud autogerenciada; o bucket S3 é a única cópia fora do servidor.
 cd /var/www/sigere
 
 # 1. Congelar o estado: nada escreve no banco durante a restauração.
-sudo systemctl stop nginx sigere
+#    (guarda: se o stop falhar, a restauração NÃO começa — banco ainda em uso)
+sudo systemctl stop nginx sigere \
+  || { echo '❌ Não conseguiu parar nginx/sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'; exit 1; }
 sudo systemctl status nginx sigere          # ambos inactive (dead)
 
 # 2. Escolher o backup — mais novo primeiro, pelo CARIMBO DO NOME (mtime
@@ -100,7 +102,8 @@ rm -rf "$PASTA_TRABALHO"
 #    ser anterior a uma migration do código atual, e o app atual contra
 #    schema antigo quebra na frente do usuário:
 set -a; source .env; set +a
-venv/bin/flask --app run db upgrade
+venv/bin/flask --app run db upgrade \
+  || { echo '❌ db upgrade falhou — NÃO suba o serviço: app atual contra schema antigo quebra na frente do usuário. nginx e sigere seguem PARADOS até resolver.'; exit 1; }
 # revogações de propósito feitas DEPOIS do snapshot morreram com ele —
 # reaplique e confira SEMPRE, mesmo sem mudança de código, ANTES de abrir o
 # serviço — rota OFFLINE, pois o Painel Admin → Papéis exige o serviço no
@@ -110,7 +113,12 @@ venv/bin/flask --app run db upgrade
 # ANTES de reaplicar as revogações.
 # Falhou aqui? Mantenha nginx e sigere PARADOS até resolver.
 
-# 5. Subir e checar:
+# 5. Subir e checar — GATE (CodeRabbit #243): as revogações acima são
+#    trabalho MANUAL; o bloco inteiro colado não pode subir o serviço sem
+#    a conferência:
+read -r -p 'Revogações reaplicadas e conferidas? Digite CONFIRMO para subir o sigere: ' CONFIRMACAO_PERMISSOES
+[ "$CONFIRMACAO_PERMISSOES" = "CONFIRMO" ] \
+  || { echo '❌ Serviço segue PARADO — confira as permissões (rota OFFLINE) e volte ao passo 5.'; exit 1; }
 sudo systemctl start sigere
 sudo journalctl -u sigere -n 30 --no-pager
 # o gunicorn escuta em socket unix — teste direto nele antes de abrir o nginx:
@@ -127,7 +135,9 @@ venv/bin/flask --app run verify-restore
 ## O dia ruim — SQLite (desenvolvimento/avaliação)
 
 ```bash
-sudo systemctl stop sigere                  # se houver serviço rodando
+sudo systemctl stop sigere \
+  || { echo '❌ Não conseguiu parar o sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'; exit 1; }
+# se houver serviço rodando — confira: status inactive (dead)
 
 # 1. Alvo da restauração = o banco que a DATABASE_URL aponta, com a MESMA
 #    resolução do app (relativo cai na instance/, absoluto fica como está —
@@ -244,7 +254,11 @@ venv/bin/flask --app run db upgrade || {
 # completo na doc de implantação, seção «Atualizando a aplicação»). O
 # `sync-permissions` é que fica condicionado ao código avançado — rode-o
 # ANTES de reaplicar as revogações. O serviço só sobe com as revogações
-# reaplicadas e conferidas:
+# reaplicadas e conferidas — GATE (CodeRabbit #243): o bloco colado não
+# sobe o serviço sem a conferência manual:
+read -r -p 'Revogações reaplicadas e conferidas? Digite CONFIRMO para subir o sigere: ' CONFIRMACAO_PERMISSOES
+[ "$CONFIRMACAO_PERMISSOES" = "CONFIRMO" ] \
+  || { echo '❌ Serviço segue PARADO — confira as permissões e volte ao passo 5.'; exit 1; }
 sudo systemctl start sigere
 ```
 

@@ -538,21 +538,29 @@ def backup_command(destino, dias, no_upload):
 
     click.echo(f'   ✅ Arquivo gerado: {arquivo_gz} ({_tamanho_legivel(arquivo_gz)})')
 
-    antigos, mantidos, falhas = _limpar_locais(
-        cfg['diretorio'], cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
-    if antigos:
-        click.echo(f'   🧹 Retenção local: {mantidos} mantido(s), {len(antigos)} apagado(s) '
-                   f'({cfg["diarias"]} diárias + {cfg["semanais"]} semanais)')
-    if falhas:
-        click.echo(click.style(
-            f'   ⚠️  Retenção incompleta: {falhas} backup(s) não pôde ser apagado(s) — '
-            'a pasta segue com mais do que a política manda.', fg='yellow'))
+    def _retencao_local():
+        """Retenção local DEPOIS do upload (ou nas saídas sem upload): uma
+        correção de relógio pode deixar um backup antigo com carimbo no nome
+        mais novo que o snapshot de agora — o fallback da seleção o manteria
+        em vez do arquivo_gz, e a retenção antes do upload apagaria o
+        próprio arquivo que _enviar_nuvem lê (CodeRabbit #243)."""
+        antigos, mantidos, falhas = _limpar_locais(
+            cfg['diretorio'], cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
+        if antigos:
+            click.echo(f'   🧹 Retenção local: {mantidos} mantido(s), {len(antigos)} apagado(s) '
+                       f'({cfg["diarias"]} diárias + {cfg["semanais"]} semanais)')
+        if falhas:
+            click.echo(click.style(
+                f'   ⚠️  Retenção incompleta: {falhas} backup(s) não pôde ser apagado(s) — '
+                'a pasta segue com mais do que a política manda.', fg='yellow'))
 
     if no_upload:
+        _retencao_local()
         click.echo(click.style('✅ Backup concluído (upload pulado por --no-upload).',
                                fg='green', bold=True))
         return
     if not cfg['bucket']:
+        _retencao_local()
         click.echo(click.style(
             'ℹ️  Backup concluído, apenas local — defina BACKUP_S3_BUCKET no .env '
             'para enviar à nuvem (docs/implantacao-producao.md).', fg='green', bold=True))
@@ -569,6 +577,7 @@ def backup_command(destino, dias, no_upload):
         click.echo(click.style(
             f'❌ Falha inesperada no backup: {erro}', fg='red', bold=True))
         raise  # traceback segue no journal — inesperada é bug, precisa investigar
+    _retencao_local()
     click.echo(f'   ☁️  Enviado para s3://{cfg["bucket"]}/{chave}')
     if removidos:
         click.echo(f'   🧹 Retenção na nuvem: {len(removidos)} objeto(s) antigo(s) apagado(s)')
