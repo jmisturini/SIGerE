@@ -1194,6 +1194,13 @@ class Notification(db.Model):
     # travá-la — falhas de SMTP não são perdidas, só deixam de reprocessar.
     send_attempts = db.Column(db.Integer, nullable=False, default=0,
                               server_default='0')
+    # Saiu da fila do dreno por esgotar MAIL_MAX_ATTEMPTS — carimbo honesto:
+    # nenhum e-mail saiu (sent_at segue nulo). O aviso segue no sino — a linha
+    # não é apagada, só deixa de disputar o índice parcial da fila
+    # (idx_notifications_mail_queue). Linhas anteriores à coluna são
+    # arquivadas pela primeira rodada do dreno, com o limite REAL da
+    # configuração, que a migration não conhece.
+    archived_at = db.Column(db.DateTime)
 
     user = db.relationship('User', backref='notifications')
     reservation = db.relationship('Reservation', backref='notifications')

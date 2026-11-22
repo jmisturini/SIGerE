@@ -17,6 +17,7 @@ from functools import wraps
 
 from flask import Blueprint, abort, g, jsonify, request
 from flask_limiter.errors import RateLimitExceeded
+from sqlalchemy.orm import joinedload
 
 from app.extensions import db, limiter
 from app.models import ApiToken, Classroom, Reservation, Unity
@@ -284,8 +285,25 @@ def _filtered_reservations(unity_id):
 @api_auth
 def list_reservations():
     unity_id = _scoped_unity_id()
-    query = (_filtered_reservations(unity_id)
-             .order_by(Reservation.date, Reservation.start_time, Reservation.id))
+    query = _filtered_reservations(unity_id)
+    # Carga antecipada dos vínculos que o serializer lê por reserva: sem ela,
+    # cada item da página dispara até 8 consultas lazy (até ~4.000 por chamada
+    # com per_page=500). Anônimo só exibe a sala; autenticado carrega o payload
+    # completo. joinedload é seguro aqui — todos os vínculos são
+    # muitos-para-um, não multiplicam linhas sob LIMIT/OFFSET.
+    if g.api_user is None:
+        query = query.options(joinedload(Reservation.classroom))
+    else:
+        query = query.options(
+            joinedload(Reservation.classroom).joinedload(Classroom.category),
+            joinedload(Reservation.unity),
+            joinedload(Reservation.course),
+            joinedload(Reservation.subject),
+            joinedload(Reservation.user),
+            joinedload(Reservation.teacher),
+            joinedload(Reservation.reviewer),
+        )
+    query = query.order_by(Reservation.date, Reservation.start_time, Reservation.id)
 
     page = request.args.get('page', 1, type=int) or 1
     per_page = request.args.get('per_page', PER_PAGE_DEFAULT, type=int) or PER_PAGE_DEFAULT
