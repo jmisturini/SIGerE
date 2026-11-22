@@ -200,7 +200,11 @@ class TestTeacherLocksUnit(TeacherLocksTestCase):
                     teacher_locks([(self.teacher_id, self.dia)]):
                 ordem.append('A dentro')
                 a_entrou.set()
-                pode_sair.wait(timeout=5)
+                # Sem timeout (CodeRabbit #243): com timeout, A podia soltar
+                # o lock antes do assertFalse e o teste passava mesmo com
+                # uma chave que ignorasse a data. O finally abaixo garante
+                # o set() mesmo se um assert falhar.
+                pode_sair.wait()
 
         def corpo_b():
             a_entrou.wait(timeout=5)
@@ -529,6 +533,48 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
         with self.app.app_context():
             self.assertEqual(db.session.get(Reservation, id_b).status,
                              'pending')
+
+    @patch('app.blueprints.reservations.check_teacher_conflict')
+    def test_edicao_de_serie_aborta_se_horario_mudar_entre_releitura_e_cas(self, mock_check):
+        # CAS do lote da série (CodeRabbit #243, follow-up): os horários
+        # LIDOS entram no WHERE — um edit concorrente que commita horário de
+        # um membro entre a re-leitura e a escrita do lote não pode ser
+        # sobrescrito em silêncio (o SQLite ignora o FOR UPDATE e as travas
+        # de thread não cruzam processos).
+        from datetime import time as time_cls
+        from sqlalchemy import update
+        real_check = scheduling.check_teacher_conflict
+
+        dia = self.dia
+        # O patch cobre o CREATE também: delega ao real durante a criação.
+        mock_check.side_effect = real_check
+        _, id_b = self._criar(dia, self.room1_id)   # nasce aprovada
+        with self.app.app_context():
+            reserva = db.session.get(Reservation, id_b)
+            reserva.repeat_group_id = id_b    # série de um único membro
+            db.session.commit()
+            self.assertEqual(reserva.status, 'approved')
+
+        def com_mudanca_no_meio(*args, **kwargs):
+            resultado = real_check(*args, **kwargs)
+            # A edição commita a mudança de horário DEPOIS da re-leitura e
+            # ANTES do CAS do lote (sem commit: visível na mesma conexão,
+            # invisível ao identity map).
+            db.session.execute(
+                update(Reservation).where(Reservation.id == id_b)
+                .values(start_time=time_cls(10, 0), end_time=time_cls(11, 0)))
+            return resultado
+
+        mock_check.side_effect = com_mudanca_no_meio
+        resposta = self.client.post(f'/reservations/{id_b}/series/edit',
+                                    data={'selected': [str(id_b)]},
+                                    follow_redirects=True)
+        self.assertIn('editadas durante a alteração',
+                      resposta.get_data(as_text=True))
+        with self.app.app_context():
+            reserva = db.session.get(Reservation, id_b)
+            self.assertEqual(reserva.status, 'approved')   # CAS rowcount 0
+            self.assertEqual(reserva.start_time.strftime('%H:%M'), '09:00')
 
 
 if __name__ == '__main__':

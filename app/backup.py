@@ -346,7 +346,8 @@ def _tamanho_legivel(caminho):
         tamanho /= 1024
 
 
-def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
+def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None,
+                   proteger=None):
     """Aplica a retenção 7+4 aos arquivos locais `sigere-*.gz`.
 
     Devolve (nomes apagados, quantidade mantida, falhas de exclusão).
@@ -368,6 +369,12 @@ def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
                 os.path.getmtime(caminho))), nome))
 
     manter = _selecionar_manter(registros, agora, diarias, semanais, teto_dias)
+    # O snapshot atual nunca é candidato à exclusão: uma correção regressiva
+    # de relógio pode deixar um backup antigo com carimbo (do nome) mais
+    # novo que o dele, e o fallback "mais recente" da seleção manteria o
+    # antigo em vez dele (CodeRabbit #243, follow-up).
+    if proteger:
+        manter = manter | {proteger}
     removidos = []
     falhas = 0
     for momento, nome in registros:
@@ -430,7 +437,7 @@ def _momento_nuvem(nome, alternativo):
     return momento
 
 
-def _limpar_nuvem(cfg, cliente=None, agora=None):
+def _limpar_nuvem(cfg, cliente=None, agora=None, proteger=None):
     """Aplica a mesma política 7+4 aos objetos de backup do bucket.
 
     Só FILHOS DIRETOS do prefixo com o padrão de nome do próprio comando
@@ -461,6 +468,10 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
     # são únicas; o basename só serviu ao filtro de padrão acima.
     manter = _selecionar_manter(
         registros, agora, cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
+    # Mesma proteção na nuvem: o objeto recém-enviado (chave completa)
+    # nunca é candidato à exclusão (CodeRabbit #243, follow-up).
+    if proteger:
+        manter = manter | {proteger}
     vencidos = [chave for momento, chave in registros if chave not in manter]
     removidos = []
     for inicio in range(0, len(vencidos), 1000):
@@ -538,14 +549,16 @@ def backup_command(destino, dias, no_upload):
 
     click.echo(f'   ✅ Arquivo gerado: {arquivo_gz} ({_tamanho_legivel(arquivo_gz)})')
 
-    def _retencao_local():
+    def _retencao_local(protegido=None):
         """Retenção local DEPOIS do upload (ou nas saídas sem upload): uma
         correção de relógio pode deixar um backup antigo com carimbo no nome
         mais novo que o snapshot de agora — o fallback da seleção o manteria
         em vez do arquivo_gz, e a retenção antes do upload apagaria o
-        próprio arquivo que _enviar_nuvem lê (CodeRabbit #243)."""
+        próprio arquivo que _enviar_nuvem lê (CodeRabbit #243). O snapshot
+        atual é protegido das duas retenções (follow-up do #243)."""
         antigos, mantidos, falhas = _limpar_locais(
-            cfg['diretorio'], cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
+            cfg['diretorio'], cfg['diarias'], cfg['semanais'],
+            cfg['dias_retencao'], proteger=protegido)
         if antigos:
             click.echo(f'   🧹 Retenção local: {mantidos} mantido(s), {len(antigos)} apagado(s) '
                        f'({cfg["diarias"]} diárias + {cfg["semanais"]} semanais)')
@@ -555,12 +568,12 @@ def backup_command(destino, dias, no_upload):
                 'a pasta segue com mais do que a política manda.', fg='yellow'))
 
     if no_upload:
-        _retencao_local()
+        _retencao_local(protegido=os.path.basename(arquivo_gz))
         click.echo(click.style('✅ Backup concluído (upload pulado por --no-upload).',
                                fg='green', bold=True))
         return
     if not cfg['bucket']:
-        _retencao_local()
+        _retencao_local(protegido=os.path.basename(arquivo_gz))
         click.echo(click.style(
             'ℹ️  Backup concluído, apenas local — defina BACKUP_S3_BUCKET no .env '
             'para enviar à nuvem (docs/implantacao-producao.md).', fg='green', bold=True))
@@ -569,7 +582,7 @@ def backup_command(destino, dias, no_upload):
     try:
         cliente = _criar_cliente_s3(cfg)
         chave = _enviar_nuvem(arquivo_gz, cfg, cliente)
-        removidos = _limpar_nuvem(cfg, cliente)
+        removidos = _limpar_nuvem(cfg, cliente, proteger=chave)
     except BackupError as erro:
         click.echo(click.style(f'❌ Falha no backup: {erro}', fg='red', bold=True))
         raise SystemExit(1)
@@ -577,7 +590,7 @@ def backup_command(destino, dias, no_upload):
         click.echo(click.style(
             f'❌ Falha inesperada no backup: {erro}', fg='red', bold=True))
         raise  # traceback segue no journal — inesperada é bug, precisa investigar
-    _retencao_local()
+    _retencao_local(protegido=os.path.basename(arquivo_gz))
     click.echo(f'   ☁️  Enviado para s3://{cfg["bucket"]}/{chave}')
     if removidos:
         click.echo(f'   🧹 Retenção na nuvem: {len(removidos)} objeto(s) antigo(s) apagado(s)')

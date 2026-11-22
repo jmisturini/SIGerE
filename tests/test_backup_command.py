@@ -264,6 +264,37 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertEqual(manter,
                          {'sigere-20261111-032000', 'sigere-20261118-032000'})
 
+    def test_relogio_regressado_protege_o_snapshot_atual(self):
+        # Follow-up do CodeRabbit (#243): BACKUP_DAILY_KEEP=0 + correção
+        # regressiva de relógio — um backup antigo com carimbo NO FUTURO
+        # (25/11) vence o fallback "mais recente" e o snapshot de hoje
+        # (22/11, semana corrente que a semanal pula) sai da seleção. Sem a
+        # proteção do atual, a retenção apagaria o backup recém-gerado
+        # (local e, pós-upload, também o objeto do bucket) e o comando
+        # ainda reportaria sucesso.
+        agora = datetime(2026, 11, 22, 3, 20)
+        registros = [(datetime(2026, 11, 25, 3, 20), 'sigere-20261125-032000'),
+                     (agora, 'sigere-20261122-032000')]
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=0, semanais=4, teto_dias=45)
+        self.assertEqual(manter, {'sigere-20261125-032000'})  # fallback fica com o futuro
+
+        # A proteção do snapshot atual é quem o salva da limpeza:
+        futuro = _arquivo_antigo(self.pasta_backup,
+                                 'sigere-20261125-032000-sqlite.sqlite.gz', 0)
+        os.utime(futuro, (agora.timestamp(), agora.timestamp()))  # mtime é o que importa menos: o carimbo do NOME vence
+        atual = os.path.join(self.pasta_backup,
+                             'sigere-20261122-032000-sqlite.sqlite.gz')
+        with open(atual, 'wb') as fh:
+            fh.write(b'x')
+
+        removidos, mantidos, falhas = modulo_backup._limpar_locais(
+            self.pasta_backup, diarias=0, semanais=4, teto_dias=45,
+            agora=agora, proteger='sigere-20261122-032000-sqlite.sqlite.gz')
+        self.assertEqual(removidos, [])   # nem o futuro (semanal) nem o atual (protegido)
+        self.assertTrue(os.path.exists(futuro))
+        self.assertTrue(os.path.exists(atual))
+
     def test_semanal_nao_vaza_para_semanas_vazias_intermediarias(self):
         # Semanas 43-46 sem nenhum backup e um órfão da semana 41 (38 dias
         # atrás, dentro do teto de 45): não é semanal — o alcance real é o

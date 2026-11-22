@@ -116,10 +116,16 @@ venv/bin/flask --app run db upgrade \
 # 5. Subir e checar — GATE (CodeRabbit #243): as revogações acima são
 #    trabalho MANUAL; o bloco inteiro colado não pode subir o serviço sem
 #    a conferência:
-read -r -p 'Revogações reaplicadas e conferidas? Digite CONFIRMO para subir o sigere: ' CONFIRMACAO_PERMISSOES
-[ "$CONFIRMACAO_PERMISSOES" = "CONFIRMO" ] \
-  || { echo '❌ Serviço segue PARADO — confira as permissões (rota OFFLINE) e volte ao passo 5.'; exit 1; }
+# GATE (CodeRabbit #243): confirmação e start no MESMO comando composto —
+# colando o bloco inteiro, o read não pode consumir a linha seguinte e
+# subir o serviço sem a conferência manual:
+{ if ! read -r -p 'Revogações reaplicadas e conferidas? Digite CONFIRMO para subir o sigere: ' CONFIRMACAO_PERMISSOES \
+       || [ "$CONFIRMACAO_PERMISSOES" != "CONFIRMO" ]; then
+  echo '❌ Serviço segue PARADO — confira as permissões (rota OFFLINE) e volte ao passo 5.'
+  exit 1
+fi
 sudo systemctl start sigere
+}
 sudo journalctl -u sigere -n 30 --no-pager
 # o gunicorn escuta em socket unix — teste direto nele antes de abrir o nginx:
 curl -fsS --unix-socket /run/sigere/sigere.sock -o /dev/null -w '%{http_code}\n' http://localhost/
@@ -221,7 +227,13 @@ else
   # sigere` mostra User=/Group= (na instalação padrão, www-data:www-data);
   # modo 644 (não 600): o timer de backup roda como o dono do repositório
   # (User= da unit sigere-backup) e lê o banco diretamente — 644 é o modo
-  # que a própria instalação produz em operação:
+  # que a própria instalação produz em operação. RISCO RESIDUAL
+  # (CodeRabbit #243): 644 deixa o banco legível por QUALQUER usuário local
+  # que atravesse os diretórios até a instance/ — confira os modos de
+  # /var/www/sigere e da pasta do banco (sem 777, sem world-writable; o
+  # contendo deve pertencer a root ou www-data); para restringir mais,
+  # grupo/ACL entre www-data e o dono do timer sigere-backup exige mudar o
+  # provisionamento — decisão de implantação, fora do escopo do runbook:
   sudo chown www-data:www-data "$BANCO_ATUAL" \
     || { echo "❌ chown falhou — sigere segue PARADO; ajuste dono e permissão à mão — dono/grupo do \`systemctl cat sigere\` (User=/Group=) e modo 644 — e continue do passo 5"; exit 1; }
   sudo chmod 644 "$BANCO_ATUAL" \
@@ -256,10 +268,16 @@ venv/bin/flask --app run db upgrade || {
 # ANTES de reaplicar as revogações. O serviço só sobe com as revogações
 # reaplicadas e conferidas — GATE (CodeRabbit #243): o bloco colado não
 # sobe o serviço sem a conferência manual:
-read -r -p 'Revogações reaplicadas e conferidas? Digite CONFIRMO para subir o sigere: ' CONFIRMACAO_PERMISSOES
-[ "$CONFIRMACAO_PERMISSOES" = "CONFIRMO" ] \
-  || { echo '❌ Serviço segue PARADO — confira as permissões e volte ao passo 5.'; exit 1; }
+# GATE (CodeRabbit #243): confirmação e start no MESMO comando composto —
+# colando o bloco inteiro, o read não pode consumir a linha seguinte e
+# subir o serviço sem a conferência manual:
+{ if ! read -r -p 'Revogações reaplicadas e conferidas? Digite CONFIRMO para subir o sigere: ' CONFIRMACAO_PERMISSOES \
+       || [ "$CONFIRMACAO_PERMISSOES" != "CONFIRMO" ]; then
+  echo '❌ Serviço segue PARADO — confira as permissões e volte ao passo 5.'
+  exit 1
+fi
 sudo systemctl start sigere
+}
 ```
 
 ## Depois de qualquer restauração

@@ -1393,7 +1393,13 @@ def series_edit(reservation_id):
         'reservation:create_pending')
     # Chaves (sala, docente, data) travadas, capturadas antes de qualquer
     # trava — os alvos foram carregados fora delas.
-    travadas = {m.id: (m.classroom_id, m.teacher_id, m.date)
+    # Horários LIDOS entram nas chaves (CodeRabbit #243, follow-up): o CAS
+    # por membro casa sala/docente/data/status E horários — um edit
+    # concorrente que commita horário entre a re-leitura e a escrita (o
+    # SQLite ignora o FOR UPDATE e as travas de thread não cruzam processos)
+    # não pode ser sobrescrito em silêncio.
+    travadas = {m.id: (m.classroom_id, m.teacher_id, m.date,
+                       m.start_time, m.end_time)
                 for room_targets in by_classroom.values() for m in room_targets}
     with ExitStack() as stack:
         # Salas ORIGEM de cada alvo (chaves travadas, capturadas antes de
@@ -1403,7 +1409,7 @@ def series_edit(reservation_id):
         # Ordem canônica por sala, datas ordenadas dentro de cada sala;
         # docentes por último, sempre depois das salas.
         por_sala = {}
-        for sala, _, data in travadas.values():
+        for sala, _, data, _, _ in travadas.values():
             por_sala.setdefault(sala, set()).add(data)
         for room_id, room_targets in by_classroom.items():
             for m in room_targets:
@@ -1444,7 +1450,8 @@ def series_edit(reservation_id):
                       'edição — tente de novo.', 'warning')
                 return redirect(url_for('reservations.series_manage',
                                         reservation_id=res.id))
-        if any((m.classroom_id, m.teacher_id, m.date) != travadas[m.id]
+        if any((m.classroom_id, m.teacher_id, m.date,
+                m.start_time, m.end_time) != travadas[m.id]
                or m.status == 'cancelled'
                for room_targets in by_classroom.values() for m in room_targets):
             flash('As reservas da série foram editadas ou canceladas durante '
@@ -1517,7 +1524,12 @@ def series_edit(reservation_id):
                            Reservation.status == m.status,
                            Reservation.classroom_id == travadas[m.id][0],
                            Reservation.teacher_id == travadas[m.id][1],
-                           Reservation.date == travadas[m.id][2])
+                           Reservation.date == travadas[m.id][2],
+                           # Horários no CAS também (follow-up do #243): o
+                           # lote nunca sobrescreve um edit concorrente que
+                           # commitou entre a re-leitura e a escrita.
+                           Reservation.start_time == travadas[m.id][3],
+                           Reservation.end_time == travadas[m.id][4])
                     .values(**valores))
                 if resultado.rowcount != 1:
                     flash('As reservas da série foram editadas durante a '
