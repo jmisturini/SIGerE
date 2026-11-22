@@ -262,6 +262,130 @@ class ClassroomsPesquisaTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content_type, 'application/pdf')
 
+    # ── Atestado verde dos cartões ("contexto da busca") ──
+    # (asserções pela classe .chip-disponivel: o texto "Disponível agora"
+    # também existe num comentário do JS do formulário de filtros.)
+
+    def test_chip_disponivel_no_periodo_com_datas_e_periodos(self):
+        # O atestado só existe quando o filtro GARANTE a disponibilidade:
+        # datas + períodos.
+        response = self._pesquisar(self._dia(1), None, 'morning')
+        html = response.get_data(as_text=True)
+        self.assertIn('chip-disponivel', html)
+        self.assertIn('Disponível no período', html)
+
+    def test_chip_disponivel_agora(self):
+        response = self.client.get('/classrooms/search?available_now=true')
+        html = response.get_data(as_text=True)
+        self.assertIn('chip-disponivel', html)
+        self.assertIn('Disponível agora', html)
+
+    def test_chip_ausente_em_filtro_so_de_categoria(self):
+        # Categoria não atesta disponibilidade — nenhum atestado no cartão.
+        with self.app.app_context():
+            category_id = db.session.get(Classroom, self.sala1_id).category_id
+        response = self.client.get(f'/classrooms/search?category={category_id}')
+        html = response.get_data(as_text=True)
+        self.assertIn('Sala Um', html)
+        self.assertNotIn('chip-disponivel', html)
+
+    def test_chip_ausente_na_listagem(self):
+        # A vitrine (/classrooms/) não passa por filtro de disponibilidade:
+        # jamais atesta o que não verificou.
+        html = self.client.get('/classrooms/').get_data(as_text=True)
+        self.assertNotIn('chip-disponivel', html)
+
+    # ── Botão Reservar nos cartões ──
+
+    def test_reservar_ausente_sem_a_permissao(self):
+        # Gestor do setUp não tem reservation:create: sem o botão primário,
+        # mas a barra secundária (Disponibilidade/Detalhes) permanece.
+        html = self.client.get('/classrooms/').get_data(as_text=True)
+        self.assertIn('room-card-sec', html)
+        self.assertNotIn('room-card-reservar', html)
+
+    def _entrar_como_reservador(self):
+        """Cria e loga um usuário com reservation:create — o gestor do setUp
+        não pode reservar. Reutilizado pelos testes do botão/link Reservar."""
+        with self.app.app_context():
+            perm = Permission(code='reservation:create',
+                              module='reservation', action='create')
+            db.session.add(perm)
+            db.session.flush()
+            role = Role(name='reservador-teste', label='Reservador Teste',
+                        permissions=[perm])
+            db.session.add(role)
+            db.session.flush()
+            user = User(
+                email='reservador@escola.edu', full_name='Reservador Teste',
+                role='room', profile_type='employee',
+                unities=[db.session.get(Unity, self.unity_id)],
+                role_id=role.id, force_password_change=False,
+                is_active_user=True,
+            )
+            user.set_password(PASSWORD)
+            db.session.add(user)
+            db.session.commit()
+
+        self.client.get('/logout')
+        response = self.client.post('/login', data={'email': 'reservador@escola.edu',
+                                                    'password': PASSWORD},
+                                    follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+
+    def test_reservar_presente_com_a_permissao(self):
+        # Quem pode criar reserva vê o botão primário em todos os cartões.
+        self._entrar_como_reservador()
+        html = self.client.get('/classrooms/').get_data(as_text=True)
+        self.assertIn('room-card-reservar', html)
+        self.assertIn('room-card-sec', html)
+
+    # ── Atalho do Reservar: data pesquisada no formulário de criação ──
+
+    def test_reservar_link_leva_a_data_pesquisada(self):
+        # Href com &amp;: o Jinja escapa o & da query (gotcha de assert).
+        self._entrar_como_reservador()
+        response = self._pesquisar(self._dia(1), self._dia(5), 'morning')
+        html = response.get_data(as_text=True)
+        self.assertIn(f'&amp;date={self._dia(1).isoformat()}"', html)
+
+    def test_reservar_link_intervalo_invertido_usa_a_data_normalizada(self):
+        # O banner troca fim antes do início; o atalho segue o banner —
+        # nunca afirma a data que o filtro não aplicou.
+        self._entrar_como_reservador()
+        response = self._pesquisar(self._dia(5), self._dia(1), 'morning')
+        html = response.get_data(as_text=True)
+        self.assertIn(f'&amp;date={self._dia(1).isoformat()}"', html)
+        self.assertNotIn(f'&amp;date={self._dia(5).isoformat()}"', html)
+
+    def test_reservar_link_sem_data_em_disponivel_agora(self):
+        # "Livre agora" não tem janela de datas: o link abre o formulário
+        # sem preencher nada.
+        self._entrar_como_reservador()
+        html = self.client.get('/classrooms/search?available_now=true').get_data(as_text=True)
+        self.assertIn('room-card-reservar', html)
+        self.assertNotIn('&amp;date=', html)
+
+    def test_reservar_link_sem_data_na_listagem(self):
+        self._entrar_como_reservador()
+        html = self.client.get('/classrooms/').get_data(as_text=True)
+        self.assertIn('room-card-reservar', html)
+        self.assertNotIn('&amp;date=', html)
+
+    def test_destino_do_atalho_preenche_a_data_pesquisada(self):
+        # Fim a fim: o destino do link é a mesma query do atalho "+ do dia"
+        # da Disponibilidade, e o formulário abre com a data preenchida.
+        self._entrar_como_reservador()
+        response = self._pesquisar(self._dia(1), None, 'morning')
+        self.assertIn(f'&amp;date={self._dia(1).isoformat()}"',
+                      response.get_data(as_text=True))
+        destino = self.client.get(
+            f'/reservations/create?classroom_id={self.sala1_id}'
+            f'&date={self._dia(1).isoformat()}')
+        self.assertEqual(destino.status_code, 200)
+        self.assertIn(f'value="{self._dia(1).isoformat()}"',
+                      destino.get_data(as_text=True))
+
 
 class RotuloDisponibilidadePdfTestCase(unittest.TestCase):
     """Rótulo 'Livres...' da meta do PDF: existe só com períodos marcados e

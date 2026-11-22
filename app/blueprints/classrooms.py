@@ -223,11 +223,22 @@ def search():
     # usuário não selecionou.
     is_filtered = False
     filter_message = ""
+    # Atestado verde por cartão ("contexto da busca"): só nas buscas em que
+    # o filtro GARANTE a disponibilidade de cada sala listada — datas+períodos
+    # ou "livre agora". Filtro só de categoria não atesta nada. O texto nasce
+    # na MESMA cadeia elif do filter_message: se o filtro aplicado foi "agora",
+    # o chip não pode afirmar o período.
+    chip_disponivel = None
+    # Atalho do Reservar: a data pesquisada preenche o formulário de criação
+    # (mesma query do atalho "+ do dia" da Disponibilidade). Não há data no
+    # filtro "livre agora" nem no de categoria.
+    prefill_reserva = None
     texto_vazio = 'Nenhuma sala livre nos períodos e datas selecionados.'
     periodos_marcados = _periodos_filtro(request.args)
     if request.args.get('available_now'):
         is_filtered = True
         filter_message = "Mostrando salas disponíveis agora."
+        chip_disponivel = "Disponível agora"
         texto_vazio = 'Nenhuma sala disponível agora.'
     elif request.args.get('available_date') and periodos_marcados:
         is_filtered = True
@@ -245,12 +256,18 @@ def search():
                             f"e <strong>{fim:%d/%m/%Y}</strong>")
             else:
                 data_txt = f"em <strong>{ini:%d/%m/%Y}</strong>"
+            # O formulário de criação abre com a data INICIAL NORMALIZADA da
+            # janela pesquisada (fim antes do início é trocado, como no
+            # banner). O fim não cabe numa reserva única — séries seguem
+            # pelo fluxo "Repetir" da primeira reserva criada.
+            prefill_reserva = {'date': f'{ini:%Y-%m-%d}'}
         else:
             data_txt = f"em <strong>{escape(inicio_str)}</strong>"
         # Todos os rótulos de período são femininos: o artigo único serve
         # para um período ("a Manhã") ou vários ("a Manhã e Tarde").
         filter_message = (f"Mostrando salas disponíveis {data_txt} "
                           f"durante a <strong>{periodos_txt}</strong>.")
+        chip_disponivel = "Disponível no período"
     elif request.args.get('category'):
         is_filtered = True
         cat_id = request.args.get('category', type=int)
@@ -273,6 +290,8 @@ def search():
         categories=categories,
         is_filtered=is_filtered,
         filter_message=filter_message,
+        chip_disponivel=chip_disponivel,
+        prefill_reserva=prefill_reserva,
         texto_vazio=texto_vazio,
         selected_category=request.args.get('category', '')
     )
