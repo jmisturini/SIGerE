@@ -147,19 +147,26 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
       anteriores à semana corrente, dentro da janela real de 4 semanas ISO
       (não "4 semanas preenchidas") — é o que estende o alcance além das
       diárias (até ~35 dias no pior caso).
+    - Carimbo em data FUTURA (relógio do servidor corrigido para trás) não
+      conta para nenhuma cota: não é um dia nem uma semana que já aconteceu,
+      e ocupar uma vaga derrubaria um ponto de restauração real.
     - Rede de segurança: o mais recente dos elegíveis sempre permanece —
       mesmo quando diárias/semanais o deixariam de fora (o recém-gerado cai
-      na semana corrente, que a seleção semanal pula).
+      na semana corrente, que a seleção semanal pula). Pode ser um carimbo
+      futuro: ele continua sendo o mais novo dos elegíveis.
     """
     if teto_dias <= 0:
         return {nome for _, nome in registros}
     corte = agora - timedelta(days=teto_dias)
     elegiveis = [par for par in registros if par[0] >= corte]
     elegiveis.sort(key=lambda par: par[0], reverse=True)
+    # As cotas só enxergam o que já aconteceu (data de calendário <= a de
+    # `agora`); o carimbo futuro segue elegível só para a rede de segurança.
+    em_cota = [par for par in elegiveis if par[0].date() <= agora.date()]
 
     manter = set()
     datas = []
-    for momento, nome in elegiveis:
+    for momento, nome in em_cota:
         dia = momento.date()
         if dia not in datas:
             datas.append(dia)
@@ -181,7 +188,7 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
     else:
         inicio_janela_semanal = None
     semanas = []
-    for momento, nome in elegiveis:
+    for momento, nome in em_cota:
         if inicio_janela_semanal is not None and momento < inicio_janela_semanal:
             break  # elegíveis estão em ordem desc — tudo daqui para trás é velho demais
         semana = momento.isocalendar()[:2]
@@ -194,7 +201,9 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
 
     # O backup mais recente jamais sai — sem isto, BACKUP_DAILY_KEEP=0 com
     # semanais ativas deixaria o recém-gerado de fora (a seleção semanal pula
-    # a semana corrente) e a limpeza — que roda ANTES do upload — o apagaria.
+    # a semana corrente) e a limpeza o apagaria. O mais recente pode ter
+    # carimbo futuro: ele fica de pé aqui, e o recém-gerado fica de pé pela
+    # proteção explícita que as duas retenções recebem (`proteger`).
     if elegiveis:
         manter.add(elegiveis[0][1])
     return manter

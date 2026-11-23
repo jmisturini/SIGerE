@@ -63,13 +63,14 @@ cd /var/www/sigere
 # existente que não para continua ABORTANDO; a CONSULTA das units falhando
 # também ABORTA (não dá para distinguir ausência de falha); unit inexistente
 # (dev) só segue com confirmação explícita de que NADA escreve no banco —
-# o bloco colado inteiro não passa sem digitar:
+# o bloco colado inteiro não passa sem digitar. As units são consultadas UMA
+# vez, com a saída capturada: uma segunda consulta, sem checagem do retorno,
+# podia falhar em silêncio e ser lida como unit ausente:
 if ! sudo systemctl stop nginx sigere 2>/dev/null; then
-  if ! systemctl list-unit-files >/dev/null 2>&1; then
-    echo '❌ Falhou a consulta das units (systemctl) — ABORTE: não é possível distinguir unit ausente de falha do systemctl. Verifique o ambiente.'
-    exit 1
-  fi
-  if systemctl list-unit-files | grep -qE '^(nginx|sigere)\.service'; then
+  UNITS_INSTALADAS="$(systemctl list-unit-files)" \
+    || { echo '❌ Falhou a consulta das units (systemctl) — ABORTE: não é possível distinguir unit ausente de falha do systemctl. Verifique o ambiente.'
+         exit 1; }
+  if grep -qE '^(nginx|sigere)\.service' <<< "$UNITS_INSTALADAS"; then
     echo '❌ Não conseguiu parar nginx/sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'
     exit 1
   fi
@@ -163,13 +164,13 @@ venv/bin/flask --app run verify-restore
 # stop com recuperação para host SEM a unit (CodeRabbit #243): unit
 # existente que não para continua ABORTANDO; a CONSULTA das units falhando
 # também ABORTA; unit inexistente (dev) só segue com confirmação explícita —
-# o bloco colado inteiro não passa sem digitar:
+# o bloco colado inteiro não passa sem digitar. Units consultadas UMA vez,
+# com a saída capturada (mesmo guarda do bloco PostgreSQL):
 if ! sudo systemctl stop sigere 2>/dev/null; then
-  if ! systemctl list-unit-files >/dev/null 2>&1; then
-    echo '❌ Falhou a consulta das units (systemctl) — ABORTE: não é possível distinguir unit ausente de falha do systemctl. Verifique o ambiente.'
-    exit 1
-  fi
-  if systemctl list-unit-files | grep -qE '^sigere\.service'; then
+  UNITS_INSTALADAS="$(systemctl list-unit-files)" \
+    || { echo '❌ Falhou a consulta das units (systemctl) — ABORTE: não é possível distinguir unit ausente de falha do systemctl. Verifique o ambiente.'
+         exit 1; }
+  if grep -qE '^sigere\.service' <<< "$UNITS_INSTALADAS"; then
     echo '❌ Não conseguiu parar o sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'
     exit 1
   fi

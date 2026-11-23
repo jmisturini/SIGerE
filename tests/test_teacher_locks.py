@@ -15,6 +15,8 @@ mesmo docente não podem se bloquear para sempre) e o fluxo de aprovação
 recusa docente sobreposto aprovado concorrentemente.
 """
 import os
+import subprocess
+import sys
 import tempfile
 import threading
 from contextlib import contextmanager
@@ -32,6 +34,30 @@ from app.services.scheduling import check_teacher_conflict, teacher_locks
 
 EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
+
+# Corpo do "outro processo" da edição concorrente (rodado via `python -c`):
+# muda SÓ os horários da reserva e COMMITA, com os valores tipados como o app
+# grava (Core, objetos time — texto cru gravaria outro formato na coluna).
+_EDICAO_CONCURRENTE = """
+import sys
+from datetime import time
+from sqlalchemy import (Column, Integer, MetaData, Table, Time, create_engine,
+                        update)
+from sqlalchemy.orm import Session
+
+reservas = Table(
+    'reservations', MetaData(),
+    Column('id', Integer, primary_key=True),
+    Column('start_time', Time), Column('end_time', Time))
+uri, reserva_id = sys.argv[1], int(sys.argv[2])
+motor = create_engine(uri)
+with Session(motor) as sessao:
+    sessao.execute(
+        update(reservas).where(reservas.c.id == reserva_id)
+        .values(start_time=time(10, 0), end_time=time(11, 0)))
+    sessao.commit()
+motor.dispose()
+"""
 
 
 class TestConfig(Config):
@@ -537,12 +563,13 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
     @patch('app.blueprints.reservations.check_teacher_conflict')
     def test_edicao_de_serie_aborta_se_horario_mudar_entre_releitura_e_cas(self, mock_check):
         # CAS do lote da série (CodeRabbit #243, follow-up): os horários
-        # LIDOS entram no WHERE — um edit concorrente que commita horário de
+        # LIDOS entram no WHERE — um edit concorrente que COMMITA horário de
         # um membro entre a re-leitura e a escrita do lote não pode ser
         # sobrescrito em silêncio (o SQLite ignora o FOR UPDATE e as travas
         # de thread não cruzam processos).
-        from datetime import time as time_cls
-        from sqlalchemy import update
+        # A edição concorrente é OUTRO PROCESSO (follow-up do #243): grava e
+        # commita numa conexão própria — o commit dele não é desfeito pelo
+        # rollback da requisição, como seria um UPDATE na mesma sessão.
         real_check = scheduling.check_teacher_conflict
 
         dia = self.dia
@@ -555,26 +582,34 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
             db.session.commit()
             self.assertEqual(reserva.status, 'approved')
 
-        def com_mudanca_no_meio(*args, **kwargs):
-            resultado = real_check(*args, **kwargs)
-            # A edição commita a mudança de horário DEPOIS da re-leitura e
-            # ANTES do CAS do lote (sem commit: visível na mesma conexão,
-            # invisível ao identity map).
-            db.session.execute(
-                update(Reservation).where(Reservation.id == id_b)
-                .values(start_time=time_cls(10, 0), end_time=time_cls(11, 0)))
-            return resultado
+        def com_edicao_concorrente(*args, **kwargs):
+            # Roda no intervalo re-leitura→CAS do lote (a checagem de docente
+            # fica exatamente aí) e só devolve depois do commit do outro
+            # processo — o sincronismo é determinístico, sem sleep.
+            processo = subprocess.run(
+                [sys.executable, '-c', _EDICAO_CONCURRENTE,
+                 TestConfig.SQLALCHEMY_DATABASE_URI, str(id_b)],
+                capture_output=True, text=True, timeout=60)
+            self.assertEqual(processo.returncode, 0, processo.stderr)
+            return real_check(*args, **kwargs)
 
-        mock_check.side_effect = com_mudanca_no_meio
+        mock_check.side_effect = com_edicao_concorrente
+        # Horários em branco: o lote regrava os horários LIDOS (09:00–10:00,
+        # já velhos) junto com o título novo.
         resposta = self.client.post(f'/reservations/{id_b}/series/edit',
-                                    data={'selected': [str(id_b)]},
+                                    data={'selected': [str(id_b)],
+                                          'title': 'Título do lote'},
                                     follow_redirects=True)
         self.assertIn('editadas durante a alteração',
                       resposta.get_data(as_text=True))
         with self.app.app_context():
             reserva = db.session.get(Reservation, id_b)
+            # O que o outro processo commitou prevalece — o lote não gravou
+            # nada (nem o horário velho, nem o título).
+            self.assertEqual(reserva.start_time.strftime('%H:%M'), '10:00')
+            self.assertEqual(reserva.end_time.strftime('%H:%M'), '11:00')
             self.assertEqual(reserva.status, 'approved')   # CAS rowcount 0
-            self.assertEqual(reserva.start_time.strftime('%H:%M'), '09:00')
+            self.assertEqual(reserva.title, 'Aula de teste')
 
 
 if __name__ == '__main__':
