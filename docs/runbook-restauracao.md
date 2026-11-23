@@ -58,23 +58,31 @@ Oracle Cloud autogerenciada; o bucket S3 é a única cópia fora do servidor.
 cd /var/www/sigere
 
 # 1. Congelar o estado: nada escreve no banco durante a restauração.
-#    (guarda: se o stop falhar, a restauração NÃO começa — banco ainda em uso)
-# stop com recuperação para host SEM as units (CodeRabbit #243): unit
-# existente que não para continua ABORTANDO; a CONSULTA das units falhando
-# também ABORTA (não dá para distinguir ausência de falha); unit inexistente
-# (dev) só segue com confirmação explícita de que NADA escreve no banco —
-# o bloco colado inteiro não passa sem digitar. As units são consultadas UMA
-# vez, com a saída capturada: uma segunda consulta, sem checagem do retorno,
-# podia falhar em silêncio e ser lida como unit ausente:
-if ! sudo systemctl stop nginx sigere 2>/dev/null; then
+#    (guarda: se um stop falhar, a restauração NÃO começa — banco ainda em uso)
+# stop com recuperação para host SEM as units (CodeRabbit #243): cada unit é
+# parada SEPARADAMENTE e avaliada por si — o stop combinado falhava pelo
+# nginx ausente mesmo com o sigere parado, e o aborte geral bloqueava o host
+# que só tem o sigere. Unit EXISTENTE que não para continua ABORTANDO; a
+# CONSULTA das units falhando também ABORTA (não dá para distinguir ausência
+# de falha); unit inexistente (dev) só segue com confirmação explícita de
+# que NADA escreve no banco — o bloco colado inteiro não passa sem digitar.
+# Consulta ÚNICA, com a saída capturada e o retorno checado:
+stop_ok_nginx=0; stop_ok_sigere=0
+sudo systemctl stop nginx 2>/dev/null && stop_ok_nginx=1
+sudo systemctl stop sigere 2>/dev/null && stop_ok_sigere=1
+if [ "$stop_ok_nginx" = 0 ] || [ "$stop_ok_sigere" = 0 ]; then
   UNITS_INSTALADAS="$(systemctl list-unit-files)" \
     || { echo '❌ Falhou a consulta das units (systemctl) — ABORTE: não é possível distinguir unit ausente de falha do systemctl. Verifique o ambiente.'
          exit 1; }
-  if grep -qE '^(nginx|sigere)\.service' <<< "$UNITS_INSTALADAS"; then
-    echo '❌ Não conseguiu parar nginx/sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'
+  if [ "$stop_ok_nginx" = 0 ] && grep -qE '^nginx\.service' <<< "$UNITS_INSTALADAS"; then
+    echo '❌ Não conseguiu parar o nginx — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'
     exit 1
   fi
-  { if ! read -r -p 'Units ausentes (host de dev). NENHUM processo (gunicorn, psql, flask shell) pode escrever no banco? Digite SEGURO para prosseguir: ' CONFIRMACAO_ESCRITORES \
+  if [ "$stop_ok_sigere" = 0 ] && grep -qE '^sigere\.service' <<< "$UNITS_INSTALADAS"; then
+    echo '❌ Não conseguiu parar o sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'
+    exit 1
+  fi
+  { if ! read -r -p 'Unit(s) ausentes (host de dev). NENHUM processo (gunicorn, psql, flask shell) pode escrever no banco? Digite SEGURO para prosseguir: ' CONFIRMACAO_ESCRITORES \
          || [ "$CONFIRMACAO_ESCRITORES" != "SEGURO" ]; then
     echo '❌ ABORTE — confira os processos que podem escrever no banco e recomece do passo 1.'
     exit 1
@@ -105,8 +113,15 @@ ls -l "$PASTA_TRABALHO/restaurado.sql"      # tem de ser maior que zero
 # falhou em qualquer passo acima? PARE — produção intacta, serviços
 # parados; tente outro snapshot.
 
-sudo -u postgres dropdb --if-exists sigere
-sudo -u postgres createdb -O sigere sigere
+# Guarda nos dois (CodeRabbit #243): dropdb barrado por conexão ativa deixa
+# o banco de pé — o createdb falharia por já existir e, sem o guarda, o psql
+# rodaria sobre o banco ANTIGO (erro de SQL no meio do dump deixaria
+# mudanças parciais na produção). Falhou qualquer um dos dois? PARE —
+# produção intacta, serviços parados:
+sudo -u postgres dropdb --if-exists sigere \
+  || { echo "❌ dropdb falhou — o banco pode estar em uso (outra conexão ativa). Restauração NÃO começa; confira quem conecta: sudo -u postgres psql -c 'SELECT pid, application_name FROM pg_stat_activity'"; rm -rf "$PASTA_TRABALHO"; exit 1; }
+sudo -u postgres createdb -O sigere sigere \
+  || { echo "❌ createdb falhou — o banco vazio não foi recriado. Restauração NÃO começa."; rm -rf "$PASTA_TRABALHO"; exit 1; }
 # --no-psqlrc: o ~/.psqlrc do operador não pode desligar o ON_ERROR_STOP
 # (\set ON_ERROR_STOP off nele deixaria restauração pela metade "passar bem").
 psql --no-psqlrc --set=ON_ERROR_STOP=1 -f "$PASTA_TRABALHO/restaurado.sql" \
@@ -146,9 +161,17 @@ venv/bin/flask --app run db upgrade \
 fi
 sudo systemctl start sigere
 }
+# Host SEM a unit sigere (dev): o start acima falha sem efeito — suba à mão
+# com o servidor nativo NO MESMO terminal (o passo 4 já exportou o .env):
+# `python run.py` ou `flask --app run run` (docs/desenvolvimento-debug.md).
+# Sem gunicorn não há socket unix — a verificação é o smoke test no navegador
+# (abaixo), pois o app não tem rota de health.
 sudo journalctl -u sigere -n 30 --no-pager
-# o gunicorn escuta em socket unix — teste direto nele antes de abrir o nginx:
-curl -fsS --unix-socket /run/sigere/sigere.sock -o /dev/null -w '%{http_code}\n' http://localhost/
+# o gunicorn escuta em socket unix — teste direto nele ANTES de abrir o nginx
+# (CodeRabbit #243): curl falhando, o nginx segue FECHADO — abrir o mundo
+# para um app que não responde só empurra o erro para o usuário:
+curl -fsS --unix-socket /run/sigere/sigere.sock -o /dev/null -w '%{http_code}\n' http://localhost/ \
+  || { echo "❌ O sigere não respondeu no socket unix — nginx segue PARADO; confira o journal acima e tente de novo."; exit 1; }
 sudo systemctl start nginx
 # smoke test no navegador: login de um usuário real + abrir cronograma + criar/editar uma reserva.
 
@@ -230,6 +253,15 @@ fi
 # quando existe; se a preservação falhar, PARA antes de qualquer substituição
 # — senão o mv de instalação apagaria o estado ruim antes da análise:
 if [ -e "$BANCO_ATUAL" ]; then
+  # Retry destrutivo (CodeRabbit #243): .bak-dia-ruim de uma restauração
+  # anterior não pode ser sobrescrito — recomeçar o procedimento depois de
+  # uma falha tardia moveria o banco RESTAURADO desta rodada para cima do
+  # estado ruim ORIGINAL, que a análise do desastre exige intacto. PARE e
+  # confira/realoque o .bak anterior antes de prosseguir:
+  if [ -e "$BANCO_ATUAL.bak-dia-ruim" ]; then
+    echo "❌ $BANCO_ATUAL.bak-dia-ruim já existe — preservação de restauração anterior. O mv abaixo o sobrescreveria com o banco desta rodada; confira/realoque o .bak e só então recomece (banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO)."
+    exit 1
+  fi
   mv "$BANCO_ATUAL" "$BANCO_ATUAL.bak-dia-ruim" \
     || { echo "❌ Preservação falhou — banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO"; exit 1; }
 fi
@@ -316,6 +348,10 @@ venv/bin/flask --app run db upgrade || {
 fi
 sudo systemctl start sigere
 }
+# Host SEM a unit sigere (dev): o start acima falha sem efeito — suba à mão
+# com o servidor nativo NO MESMO terminal (o passo 6 já exportou o .env):
+# `python run.py` ou `flask --app run run` (docs/desenvolvimento-debug.md);
+# a verificação é o smoke test no navegador (o app não tem rota de health).
 ```
 
 ## Depois de qualquer restauração
