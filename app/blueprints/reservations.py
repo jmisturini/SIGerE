@@ -614,10 +614,15 @@ def edit(reservation_id):
                            (classroom_id, form.date.data)}:
             por_sala.setdefault(sala, set()).add(data)
         stack = ExitStack()
-        for sala in sorted(por_sala):
-            stack.enter_context(slot_locks(sala, sorted(por_sala[sala])))
-        stack.enter_context(teacher_locks([(teacher_id_novo, form.date.data)]))
         try:
+            # enter_context DENTRO do escopo fechado pelo finally (achado
+            # OCR #243): se uma aquisição levantar (ex.: falha no advisory
+            # lock do PostgreSQL), as já entradas são liberadas pelo
+            # close() — fora dele, os RLocks globais do processo ficariam
+            # retidos para sempre e as (sala, data) travariam.
+            for sala in sorted(por_sala):
+                stack.enter_context(slot_locks(sala, sorted(por_sala[sala])))
+            stack.enter_context(teacher_locks([(teacher_id_novo, form.date.data)]))
             # Re-leitura COM row lock: o status lido no gate veio antes do
             # lock — um approve concorrente pode ter commitado approved. Sem
             # a re-leitura, o downgrade abaixo veria status pendente obsoleto
@@ -1189,16 +1194,11 @@ def repeat_schedule_all(reservation_id):
                     continue
 
             # Mesmas regras de check_schedule_restrictions (domingo, feriado
-            # da unidade e sábado após 18h), com os feriados já pré-carregados.
-            if current_date.weekday() == 6:
-                allowed = False
-            elif current_date in holiday_names:
-                allowed = False
-            elif current_date.weekday() == 5 and (res.start_time >= time(18, 0)
-                                                  or res.end_time > time(18, 0)):
-                allowed = False
-            else:
-                allowed = True
+            # da unidade e sábado após 18h), com os feriados já pré-carregados
+            # — regra ÚNICA, sem cópia local que envelhece (achado OCR #243).
+            allowed, _ = check_schedule_restrictions(
+                current_date, res.start_time, res.end_time,
+                holidays=holiday_names)
 
             if allowed:
                 conflict = current_date in room_dates
