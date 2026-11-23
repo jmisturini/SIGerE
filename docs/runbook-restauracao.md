@@ -60,16 +60,27 @@ cd /var/www/sigere
 # 1. Congelar o estado: nada escreve no banco durante a restauração.
 #    (guarda: se o stop falhar, a restauração NÃO começa — banco ainda em uso)
 # stop com recuperação para host SEM as units (CodeRabbit #243): unit
-# existente que não para continua ABORTANDO; unit inexistente (dev) só
-# segue depois de você conferir que NADA escreve no banco:
+# existente que não para continua ABORTANDO; a CONSULTA das units falhando
+# também ABORTA (não dá para distinguir ausência de falha); unit inexistente
+# (dev) só segue com confirmação explícita de que NADA escreve no banco —
+# o bloco colado inteiro não passa sem digitar:
 if ! sudo systemctl stop nginx sigere 2>/dev/null; then
-  if systemctl list-unit-files 2>/dev/null | grep -qE '^(nginx|sigere)\.service'; then
+  if ! systemctl list-unit-files >/dev/null 2>&1; then
+    echo '❌ Falhou a consulta das units (systemctl) — ABORTE: não é possível distinguir unit ausente de falha do systemctl. Verifique o ambiente.'
+    exit 1
+  fi
+  if systemctl list-unit-files | grep -qE '^(nginx|sigere)\.service'; then
     echo '❌ Não conseguiu parar nginx/sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'
     exit 1
   fi
-  echo '⚠️  Units nginx/sigere não existem neste host — confirme que NENHUM processo (gunicorn, psql, flask shell) pode escrever no banco antes de prosseguir.'
+  { if ! read -r -p 'Units ausentes (host de dev). NENHUM processo (gunicorn, psql, flask shell) pode escrever no banco? Digite SEGURO para prosseguir: ' CONFIRMACAO_ESCRITORES \
+         || [ "$CONFIRMACAO_ESCRITORES" != "SEGURO" ]; then
+    echo '❌ ABORTE — confira os processos que podem escrever no banco e recomece do passo 1.'
+    exit 1
+  fi
+  }
 fi
-sudo systemctl status nginx sigere || true   # ambos inactive (dead) ou inexistente no dev
+sudo systemctl status nginx sigere 2>/dev/null || true   # inactive (dead) ou inexistente no dev
 
 # 2. Escolher o backup — mais novo primeiro, pelo CARIMBO DO NOME (mtime
 #    mente: um snapshot antigo baixado agora do bucket apareceria na frente):
@@ -150,14 +161,24 @@ venv/bin/flask --app run verify-restore
 
 ```bash
 # stop com recuperação para host SEM a unit (CodeRabbit #243): unit
-# existente que não para continua ABORTANDO; unit inexistente (dev) só
-# segue depois de você conferir que NADA escreve no banco:
+# existente que não para continua ABORTANDO; a CONSULTA das units falhando
+# também ABORTA; unit inexistente (dev) só segue com confirmação explícita —
+# o bloco colado inteiro não passa sem digitar:
 if ! sudo systemctl stop sigere 2>/dev/null; then
-  if systemctl list-unit-files 2>/dev/null | grep -qE '^sigere\.service'; then
+  if ! systemctl list-unit-files >/dev/null 2>&1; then
+    echo '❌ Falhou a consulta das units (systemctl) — ABORTE: não é possível distinguir unit ausente de falha do systemctl. Verifique o ambiente.'
+    exit 1
+  fi
+  if systemctl list-unit-files | grep -qE '^sigere\.service'; then
     echo '❌ Não conseguiu parar o sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'
     exit 1
   fi
-  echo '⚠️  Unit sigere não existe neste host — confirme que NENHUM processo (gunicorn, psql, flask shell) pode escrever no banco antes de prosseguir.'
+  { if ! read -r -p 'Unit ausente (host de dev). NENHUM processo (gunicorn, psql, flask shell) pode escrever no banco? Digite SEGURO para prosseguir: ' CONFIRMACAO_ESCRITORES \
+         || [ "$CONFIRMACAO_ESCRITORES" != "SEGURO" ]; then
+    echo '❌ ABORTE — confira os processos que podem escrever no banco e recomece do passo 1.'
+    exit 1
+  fi
+  }
 fi
 # confira: status inactive (dead) ou inexistente no dev
 

@@ -357,6 +357,27 @@ class BackupCommandTestCase(unittest.TestCase):
         # O arquivo local continua intacto — o upload falhou, o backup não.
         self.assertEqual(len(os.listdir(self.pasta_backup)), 1)
 
+    def test_falha_de_nuvem_com_retencao_quebrada_preserva_a_causa_original(self):
+        # Follow-up do CodeRabbit (#243): falha simultânea — a nuvem falha
+        # (BackupError) e a retenção local TAMBÉM levanta (listdir/getmtime
+        # não estão sob o guarda de os.remove). A saída tem de reportar a
+        # CAUSA ORIGINAL (nuvem) com o aviso da retenção — nunca a exceção
+        # da retenção mascarando o SystemExit(1) previsto.
+        antigo = _arquivo_antigo(self.pasta_backup,
+                                 'sigere-20200101-000000-sqlite.sqlite.gz', 30)
+        ambiente = {'BACKUP_S3_BUCKET': 'bucket-sigere'}
+        with mock.patch.dict(os.environ, ambiente), \
+                mock.patch.dict('sys.modules', {'boto3': None}), \
+                mock.patch.object(modulo_backup, '_limpar_locais',
+                                  side_effect=OSError('disco sumiu')):
+            resultado = self._rodar('--dir', self.pasta_backup)
+        self.assertEqual(resultado.exit_code, 1)
+        self.assertIn('boto3', resultado.output)                  # causa original
+        self.assertIn('Retenção local falhou', resultado.output)  # avisada, não mascarante
+        # O snapshot atual segue na pasta para o retry do operador.
+        self.assertEqual(len(os.listdir(self.pasta_backup)), 2)
+        self.assertTrue(os.path.exists(antigo))
+
     def test_retencao_nuvem_so_toca_filhos_diretos_do_prefixo(self):
         # Cópia manual em subpasta (mesmo com basename de backup e vencida)
         # NÃO entra na política — espelho do comportamento da pasta local,

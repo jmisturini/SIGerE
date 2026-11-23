@@ -579,6 +579,19 @@ def backup_command(destino, dias, no_upload):
             'para enviar à nuvem (docs/implantacao-producao.md).', fg='green', bold=True))
         return
 
+    def _retencao_na_falha():
+        """Retenção durante o handler de falha de nuvem, sem mascarar a
+        causa original: _limpar_locais captura só os erros de os.remove —
+        listdir/getmtime podem levantar — e a exceção da retenção não pode
+        substituir a saída prevista da falha de nuvem (CodeRabbit #243)."""
+        try:
+            _retencao_local(protegido=os.path.basename(arquivo_gz))
+        except Exception as falha_retencao:
+            click.echo(click.style(
+                f'   ⚠️  Retenção local falhou no meio da falha de nuvem '
+                f'({falha_retencao}) — a pasta pode estar acima da política; '
+                'verifique manualmente.', fg='yellow'))
+
     try:
         cliente = _criar_cliente_s3(cfg)
         chave = _enviar_nuvem(arquivo_gz, cfg, cliente)
@@ -588,14 +601,13 @@ def backup_command(destino, dias, no_upload):
         # Falha de nuvem não suspende a retenção local: falha prolongada na
         # nuvem criaria um archive novo por execução sem remover vencidos e
         # esgotaria o filesystem (CodeRabbit #243). O protegido (snapshot
-        # atual) fica de pé para o retry do operador; _limpar_locais não
-        # levanta (falhas viram contagem) — a exceção de nuvem preserva.
-        _retencao_local(protegido=os.path.basename(arquivo_gz))
+        # atual) fica de pé para o retry do operador.
+        _retencao_na_falha()
         raise SystemExit(1)
     except Exception as erro:
         click.echo(click.style(
             f'❌ Falha inesperada no backup: {erro}', fg='red', bold=True))
-        _retencao_local(protegido=os.path.basename(arquivo_gz))
+        _retencao_na_falha()
         raise  # traceback segue no journal — inesperada é bug, precisa investigar
     _retencao_local(protegido=os.path.basename(arquivo_gz))
     click.echo(f'   ☁️  Enviado para s3://{cfg["bucket"]}/{chave}')
