@@ -638,6 +638,12 @@ def edit(reservation_id):
             # nós pegarmos as travas) — as travas de origem teriam sido
             # tomadas sobre valores velhos. Aborta para retry.
             if (reservation.classroom_id, reservation.date) != chaves_originais:
+                # Rollback antes de renderizar (achado OCR #243): solta o FOR
+                # UPDATE e os advisory locks na DECISÃO de abortar, não no
+                # teardown — o teardown liberaria tudo, mas só DEPOIS do
+                # template. Idem nos três abortos abaixo (nenhum escreveu
+                # ainda: rollback aqui só libera locks).
+                db.session.rollback()
                 flash('A reserva foi editada durante a alteração (sala ou '
                       'data mudaram) — tente de novo.', 'warning')
                 return render_template('reservations/edit.html',
@@ -651,6 +657,7 @@ def edit(reservation_id):
                 novo_professor = form.teacher.data if form.teacher.data > 0 else None
                 if novo_professor != reservation.teacher_id \
                         and novo_professor != current_user.id:
+                    db.session.rollback()
                     flash('No fluxo de professor, a designação só pode apontar '
                           'para você mesmo.', 'danger')
                     return render_template('reservations/edit.html',
@@ -658,12 +665,14 @@ def edit(reservation_id):
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
+                db.session.rollback()
                 flash(restriction_msg, 'danger')
                 return render_template('reservations/edit.html', form=form, reservation=reservation)
 
             conflict = check_conflict(classroom_id, form.date.data, form.start_time.data,
                                       form.end_time.data, exclude_id=reservation.id)
             if conflict:
+                db.session.rollback()
                 flash(f'Conflito de sala com "{conflict.title}"', 'danger')
                 return render_template('reservations/edit.html', form=form, reservation=reservation)
 
