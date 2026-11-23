@@ -59,9 +59,17 @@ cd /var/www/sigere
 
 # 1. Congelar o estado: nada escreve no banco durante a restauração.
 #    (guarda: se o stop falhar, a restauração NÃO começa — banco ainda em uso)
-sudo systemctl stop nginx sigere \
-  || { echo '❌ Não conseguiu parar nginx/sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'; exit 1; }
-sudo systemctl status nginx sigere          # ambos inactive (dead)
+# stop com recuperação para host SEM as units (CodeRabbit #243): unit
+# existente que não para continua ABORTANDO; unit inexistente (dev) só
+# segue depois de você conferir que NADA escreve no banco:
+if ! sudo systemctl stop nginx sigere 2>/dev/null; then
+  if systemctl list-unit-files 2>/dev/null | grep -qE '^(nginx|sigere)\.service'; then
+    echo '❌ Não conseguiu parar nginx/sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'
+    exit 1
+  fi
+  echo '⚠️  Units nginx/sigere não existem neste host — confirme que NENHUM processo (gunicorn, psql, flask shell) pode escrever no banco antes de prosseguir.'
+fi
+sudo systemctl status nginx sigere || true   # ambos inactive (dead) ou inexistente no dev
 
 # 2. Escolher o backup — mais novo primeiro, pelo CARIMBO DO NOME (mtime
 #    mente: um snapshot antigo baixado agora do bucket apareceria na frente):
@@ -141,9 +149,17 @@ venv/bin/flask --app run verify-restore
 ## O dia ruim — SQLite (desenvolvimento/avaliação)
 
 ```bash
-sudo systemctl stop sigere \
-  || { echo '❌ Não conseguiu parar o sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'; exit 1; }
-# se houver serviço rodando — confira: status inactive (dead)
+# stop com recuperação para host SEM a unit (CodeRabbit #243): unit
+# existente que não para continua ABORTANDO; unit inexistente (dev) só
+# segue depois de você conferir que NADA escreve no banco:
+if ! sudo systemctl stop sigere 2>/dev/null; then
+  if systemctl list-unit-files 2>/dev/null | grep -qE '^sigere\.service'; then
+    echo '❌ Não conseguiu parar o sigere — ABORTE: restaurar com o banco em uso corrompe os dados. Resolva o stop antes de prosseguir.'
+    exit 1
+  fi
+  echo '⚠️  Unit sigere não existe neste host — confirme que NENHUM processo (gunicorn, psql, flask shell) pode escrever no banco antes de prosseguir.'
+fi
+# confira: status inactive (dead) ou inexistente no dev
 
 # 1. Alvo da restauração = o banco que a DATABASE_URL aponta, com a MESMA
 #    resolução do app (relativo cai na instance/, absoluto fica como está —

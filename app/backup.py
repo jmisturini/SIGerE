@@ -585,10 +585,17 @@ def backup_command(destino, dias, no_upload):
         removidos = _limpar_nuvem(cfg, cliente, proteger=chave)
     except BackupError as erro:
         click.echo(click.style(f'❌ Falha no backup: {erro}', fg='red', bold=True))
+        # Falha de nuvem não suspende a retenção local: falha prolongada na
+        # nuvem criaria um archive novo por execução sem remover vencidos e
+        # esgotaria o filesystem (CodeRabbit #243). O protegido (snapshot
+        # atual) fica de pé para o retry do operador; _limpar_locais não
+        # levanta (falhas viram contagem) — a exceção de nuvem preserva.
+        _retencao_local(protegido=os.path.basename(arquivo_gz))
         raise SystemExit(1)
     except Exception as erro:
         click.echo(click.style(
             f'❌ Falha inesperada no backup: {erro}', fg='red', bold=True))
+        _retencao_local(protegido=os.path.basename(arquivo_gz))
         raise  # traceback segue no journal — inesperada é bug, precisa investigar
     _retencao_local(protegido=os.path.basename(arquivo_gz))
     click.echo(f'   ☁️  Enviado para s3://{cfg["bucket"]}/{chave}')

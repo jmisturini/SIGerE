@@ -209,9 +209,10 @@ def check_schedule_restrictions(res_date, start_time, end_time=None,
 
     # 2. Block Holidays (pré-carregados ou consulta)
     if holidays is not None:
-        nome_feriado = holidays.get(res_date)
-        if nome_feriado:
-            return False, f"Reservas não podem ser agendadas em feriados ({nome_feriado})."
+        # Testa MEMBRO (não a verdade do nome): feriado com nome vazio
+        # (importação sem validação) tem de bloquear igual à consulta (CodeRabbit #243).
+        if res_date in holidays:
+            return False, f"Reservas não podem ser agendadas em feriados ({holidays[res_date]})."
     else:
         holiday = Holiday.query.filter_by(date=res_date, is_active=True,
                                           unity_id=unity_id).first()
