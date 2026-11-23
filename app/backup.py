@@ -192,7 +192,11 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
         if inicio_janela_semanal is not None and momento < inicio_janela_semanal:
             break  # elegíveis estão em ordem desc — tudo daqui para trás é velho demais
         semana = momento.isocalendar()[:2]
-        if semana == semana_corrente or semana in semanas:
+        # Semana FUTURA também é pulada (`>=`, não `==`): em_cota já exclui
+        # carimbo adiante pela data, mas o guarda LOCAL mantém a promessa do
+        # docstring valendo por si só — relógio adiantado que cruzou uma
+        # segunda não pode tomar vaga de semana anterior (OCR #243).
+        if semana >= semana_corrente or semana in semanas:
             continue
         if len(semanas) >= semanais:
             break

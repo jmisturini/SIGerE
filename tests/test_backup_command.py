@@ -344,6 +344,40 @@ class BackupCommandTestCase(unittest.TestCase):
                          {f'sigere-202611{dia:02d}-032000' for dia in range(16, 23)}
                          | {'sigere-20261125-032000'})
 
+    def test_carimbo_da_proxima_semana_nao_ocupa_cota_semanal(self):
+        # OCR (#243, rodada do e9a7037): relógio adiantado que CRUZOU uma
+        # segunda — o carimbo futuro cai na semana ISO SEGÜINTE à corrente e,
+        # segundo o apontamento, ocuparia uma das 4 vagas. Não ocupa: em_cota
+        # o exclui pela data (30/11 > 23/11) e semana ISO é monotônica em
+        # relação à data — nada com semana > corrente chega ao loop semanal.
+        # O teste pinna o cenário: vagas = semanas 46-43; o futuro só
+        # sobrevive pela rede de segurança.
+        agora = datetime(2026, 11, 23, 3, 20)  # segunda-feira, semana ISO 47
+        registros = [(datetime(2026, 11, 30, 3, 20), 'sigere-20261130-032000'),  # futuro, semana 48
+                     (agora, 'sigere-20261123-032000'),
+                     (datetime(2026, 11, 16, 3, 20), 'sigere-20261116-032000'),  # semana 46
+                     (datetime(2026, 11, 9, 3, 20), 'sigere-20261109-032000'),   # semana 45
+                     (datetime(2026, 11, 2, 3, 20), 'sigere-20261102-032000'),   # semana 44
+                     (datetime(2026, 10, 26, 3, 20), 'sigere-20261026-032000')]  # semana 43
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=0, semanais=4, teto_dias=45)
+        self.assertEqual(manter,
+                         {'sigere-20261130-032000',                       # rede de segurança
+                          'sigere-20261116-032000', 'sigere-20261109-032000',
+                          'sigere-20261102-032000', 'sigere-20261026-032000'})
+        self.assertNotIn('sigere-20261123-032000', manter)  # semana corrente: sem vaga
+
+        # A limpeza de verdade preserva o ponto de restauração da semana 43:
+        for momento, nome in registros:
+            _arquivo_antigo(self.pasta_backup, nome + '-sqlite.sqlite.gz', 0)
+        removidos, mantidos, falhas = modulo_backup._limpar_locais(
+            self.pasta_backup, diarias=0, semanais=4, teto_dias=45,
+            agora=agora, proteger='sigere-20261123-032000-sqlite.sqlite.gz')
+        self.assertEqual((removidos, falhas), ([], 0))
+        self.assertEqual(mantidos, 6)   # 5 da seleção + o snapshot atual protegido
+        self.assertTrue(os.path.exists(os.path.join(
+            self.pasta_backup, 'sigere-20261026-032000-sqlite.sqlite.gz')))
+
     def test_semanal_nao_vaza_para_semanas_vazias_intermediarias(self):
         # Semanas 43-46 sem nenhum backup e um órfão da semana 41 (38 dias
         # atrás, dentro do teto de 45): não é semanal — o alcance real é o
