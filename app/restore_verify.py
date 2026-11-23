@@ -50,10 +50,6 @@ from app.backup import (BackupError, PADRAO_ARQUIVOS, _criar_cliente_s3,
 TABELAS_ESSENCIAIS = ('users', 'unities', 'classrooms', 'reservations')
 
 
-class RestoreError(Exception):
-    """Falha de verificação com mensagem apresentável ao operador."""
-
-
 def _nome_seguro(identificador):
     """Coloca aspas duplas em identificador SQL (serve em SQLite e PostgreSQL)."""
     return '"' + identificador.replace('"', '""') + '"'

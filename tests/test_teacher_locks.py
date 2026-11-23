@@ -11,8 +11,9 @@ docente nunca espera por sala — ciclo impossível).
 Cobertura: exclusão mútua real entre threads no mesmo (docente, data), datas
 diferentes não se bloqueiam, reserva sem docente não trava nada, a
 revalidação de aprovação conta só aprovadas (duas pendências sobrepostas do
-mesmo docente não podem se bloquear para sempre) e o fluxo de aprovação
-recusa docente sobreposto aprovado concorrentemente.
+mesmo docente não podem se bloquear para sempre), o fluxo de aprovação
+recusa docente sobreposto aprovado concorrentemente e todo aborto dentro de
+um bloco de travas solta o que segurava antes de montar a resposta.
 """
 import os
 import subprocess
@@ -610,6 +611,131 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
             self.assertEqual(reserva.end_time.strftime('%H:%M'), '11:00')
             self.assertEqual(reserva.status, 'approved')   # CAS rowcount 0
             self.assertEqual(reserva.title, 'Aula de teste')
+
+
+class TestAbortosSoltamAsTravas(TeacherLocksTestCase):
+    """Todo aborto DENTRO de um bloco de travas solta o que segurava antes de
+    montar a resposta (rodada do OCR no #243). Até o teardown, o FOR UPDATE
+    das re-leituras e os advisory locks transacionais do PostgreSQL ficavam
+    retidos nos abortos, bloqueando edits/aproves concorrentes nas mesmas
+    chaves; e no edit o `return render_template(...)` era avaliado com o
+    stack ainda aberto (o finally só roda DEPOIS do return), retendo os
+    RLocks de processo durante o template inteiro.
+
+    O SQLite dos testes ignora o FOR UPDATE e não tem advisory lock: o
+    contrato é observado pela chamada de rollback dentro do pedido e pela
+    posse dos RLocks no instante da renderização."""
+
+    def _contando_rollbacks(self):
+        """Registra as chamadas a Session.rollback. O teardown fecha a sessão
+        por remove(), sem passar por rollback() — o que é contado aqui
+        aconteceu dentro do tratamento do pedido."""
+        from sqlalchemy.orm import Session
+        return patch.object(Session, 'rollback', autospec=True,
+                            side_effect=Session.rollback)
+
+    def test_aborto_do_edit_renderiza_depois_de_soltar_as_travas(self):
+        from app.blueprints import reservations as rotas
+        dia = self.dia
+        self._criar(dia, self.room1_id)                       # aprovada
+        _, id_b = self._criar(dia, self.room2_id)             # PENDENTE
+        render_real = rotas.render_template
+        posse = []
+
+        def render_espiao(*args, **kwargs):
+            # Instante da renderização: algum RLock do processo ainda é nosso?
+            # (RLock é reentrante na própria thread — readquirir não prova
+            # nada; a posse é que importa.)
+            posse.append(any(trava._is_owned() for trava in (
+                list(scheduling._slot_locks.values())
+                + list(scheduling._teacher_locks.values()))))
+            return render_real(*args, **kwargs)
+
+        with patch('app.blueprints.reservations.render_template',
+                   side_effect=render_espiao):
+            resposta = self.client.post(f'/reservations/{id_b}/edit',
+                                        data=self._payload(dia, self.room1_id),
+                                        follow_redirects=True)
+        self.assertIn('Conflito de sala', resposta.get_data(as_text=True))
+        self.assertEqual(posse, [False])   # uma renderização, sem trava alguma
+
+    @patch('app.blueprints.reservations.slot_locks')
+    def test_aborto_do_approve_faz_rollback_antes_do_redirect(self, mock_slot):
+        from sqlalchemy import text as sql_text
+        real_slot_locks = scheduling.slot_locks
+        dia = self.dia
+        self._criar(dia, self.room1_id)                       # aprovada
+        _, id_b = self._criar(dia, self.room2_id)             # PENDENTE
+
+        @contextmanager
+        def com_cancelamento_concorrente(classroom_id, dates):
+            with real_slot_locks(classroom_id, dates):
+                db.session.execute(
+                    sql_text("UPDATE reservations SET status = 'cancelled' "
+                             'WHERE id = :i'), {'i': id_b})
+                yield
+
+        mock_slot.side_effect = com_cancelamento_concorrente
+        with self._contando_rollbacks() as rollback:
+            resposta = self.client.post(f'/reservations/{id_b}/approve',
+                                        follow_redirects=True)
+        self.assertIn('mudou de situação', resposta.get_data(as_text=True))
+        self.assertGreaterEqual(rollback.call_count, 1)
+
+    @patch('app.blueprints.reservations.slot_locks')
+    def test_aborto_do_lote_da_serie_faz_rollback_antes_do_redirect(self, mock_slot):
+        from sqlalchemy import text as sql_text
+        real_slot_locks = scheduling.slot_locks
+        dia = self.dia
+        _, id_b = self._criar(dia, self.room1_id)             # aprovada
+        with self.app.app_context():
+            db.session.get(Reservation, id_b).repeat_group_id = id_b
+            db.session.commit()
+
+        @contextmanager
+        def com_cancelamento_concorrente(classroom_id, dates):
+            with real_slot_locks(classroom_id, dates):
+                db.session.execute(
+                    sql_text("UPDATE reservations SET status = 'cancelled' "
+                             'WHERE id = :i'), {'i': id_b})
+                yield
+
+        mock_slot.side_effect = com_cancelamento_concorrente
+        with self._contando_rollbacks() as rollback:
+            resposta = self.client.post(
+                f'/reservations/{id_b}/series/edit',
+                data={'selected': [str(id_b)], 'title': 'Título do lote'},
+                follow_redirects=True)
+        self.assertIn('editadas ou canceladas', resposta.get_data(as_text=True))
+        self.assertGreaterEqual(rollback.call_count, 1)
+        with self.app.app_context():
+            # O rollback do aborto desfaz a escrita da "concorrência".
+            self.assertEqual(db.session.get(Reservation, id_b).status,
+                             'approved')
+
+    def test_aborto_do_create_faz_rollback_antes_de_renderizar(self):
+        dia = self.dia
+        self._criar(dia, self.room1_id)          # aprovada: ocupa a janela
+        with self._contando_rollbacks() as rollback:
+            resposta = self.client.post('/reservations/create',
+                                        data=self._payload(dia, self.room1_id),
+                                        follow_redirects=True)
+        self.assertIn('Conflito de sala', resposta.get_data(as_text=True))
+        self.assertGreaterEqual(rollback.call_count, 1)
+
+    def test_aborto_da_repeticao_unica_faz_rollback_antes_do_redirect(self):
+        dia = self.dia
+        _, id_a = self._criar(dia, self.room1_id)
+        domingo = dia + timedelta(days=(6 - dia.weekday()) % 7)
+        with self._contando_rollbacks() as rollback:
+            resposta = self.client.post(
+                f'/reservations/{id_a}/repeat_schedule',
+                data={'new_date': domingo.isoformat(),
+                      'end_date': domingo.isoformat(),
+                      'same_day': 'true', 'skip_weekend': 'false'},
+                follow_redirects=True)
+        self.assertIn('domingos', resposta.get_data(as_text=True))
+        self.assertGreaterEqual(rollback.call_count, 1)
 
 
 if __name__ == '__main__':
