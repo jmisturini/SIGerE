@@ -183,13 +183,19 @@ if grep -qE '^sigere\.service' <<< "$UNITS_INSTALADAS"; then
   # smoke test no navegador: login de um usuário real + abrir cronograma + criar/editar uma reserva.
 else
   # DEV (sem unit): o servidor nativo OCUPA o terminal em que roda — inicie
-  # em um terminal PRÓPRIO (o passo 4 já exportou o .env):
-  #   python run.py        (ou: flask --app run run — docs/desenvolvimento-debug.md)
+  # em um terminal PRÓPRIO carregando o ambiente ANTES (as exportações do
+  # passo 4 não atravessam terminais, e o app não chama load_dotenv — o
+  # Config lê os.environ direto; CodeRabbit #243):
+  #   cd /var/www/sigere
+  #   set -a; source .env; set +a
+  #   python run.py
+  # (alternativa: `venv/bin/flask --app run run` — o CLI do Flask auto-carrega
+  # o .env, pois python-dotenv está instalado; docs/desenvolvimento-debug.md)
   # e faça o smoke test DE OUTRO terminal/navegador enquanto ele permanece no
   # ar (login real + cronograma + criar/editar reserva) em
   # http://127.0.0.1:5000. Sem gunicorn não há socket unix nem nginx — pule
   # journalctl/curl/socket/nginx: não existem neste host.
-  echo 'ℹ️  Host sem unit sigere (dev): inicie o servidor num terminal próprio (python run.py) e faça o smoke test de outro terminal/navegador em http://127.0.0.1:5000.'
+  echo 'ℹ️  Host sem unit sigere (dev): num terminal próprio faça `set -a; source .env; set +a` e `python run.py`; o smoke test é de outro terminal/navegador em http://127.0.0.1:5000.'
 fi
 
 # 6. Regerar backup imediatamente e conferir o ciclo — a produção agora está
@@ -268,17 +274,25 @@ fi
 #    de destino (sem sidecars, os mv opcionais apenas não fazem nada):
 # o banco atual pode nem existir (host novo, disco formatado) — só preserva
 # quando existe; se a preservação falhar, PARA antes de qualquer substituição
-# — senão o mv de instalação apagaria o estado ruim antes da análise:
-if [ -e "$BANCO_ATUAL" ]; then
-  # Retry destrutivo (CodeRabbit #243): .bak-dia-ruim de uma restauração
-  # anterior não pode ser sobrescrito — recomeçar o procedimento depois de
-  # uma falha tardia moveria o banco RESTAURADO desta rodada para cima do
-  # estado ruim ORIGINAL, que a análise do desastre exige intacto. PARE e
-  # confira/realoque o .bak anterior antes de prosseguir:
-  if [ -e "$BANCO_ATUAL.bak-dia-ruim" ]; then
-    echo "❌ $BANCO_ATUAL.bak-dia-ruim já existe — preservação de restauração anterior. O mv abaixo o sobrescreveria com o banco desta rodada; confira/realoque o .bak e só então recomece (banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO)."
+# — senão o mv de instalação apagaria o estado ruim antes da análise.
+# PRÉ-CHECAGEM de TODOS os destinos antes de QUALQUER mv (CodeRabbit #243):
+# guardas durante o lote moviam o banco/-journal antes de uma colisão
+# posterior no -wal abortar, e o aviso "nada foi movido" não correspondia ao
+# estado real. Colisão em QUALQUER destino com fonte a mover = aborte SEM
+# mover nada — mesmo contrato do guard do .bak-dia-ruim:
+if [ -e "$BANCO_ATUAL" ] && [ -e "$BANCO_ATUAL.bak-dia-ruim" ]; then
+  echo "❌ $BANCO_ATUAL.bak-dia-ruim já existe — preservação de restauração anterior. O mv abaixo o sobrescreveria com o banco desta rodada; confira/realoque o .bak e só então recomece (banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO)."
+  exit 1
+fi
+for sufixo in journal wal shm; do
+  # Retry destrutivo nos sidecars: a fonte órfã (banco atual ausente, -wal
+  # sobrando) com preservação anterior no destino a SOBRESCREVIA:
+  if [ -f "$BANCO_ATUAL-$sufixo" ] && [ -e "$BANCO_ATUAL.bak-dia-ruim-$sufixo" ]; then
+    echo "❌ $BANCO_ATUAL.bak-dia-ruim-$sufixo já existe — preservação de restauração anterior. O mv abaixo a sobrescreveria; confira/realoque e só então recomece (nada foi movido; snapshot extraído preservado em $PASTA_TRABALHO)."
     exit 1
   fi
+done
+if [ -e "$BANCO_ATUAL" ]; then
   mv "$BANCO_ATUAL" "$BANCO_ATUAL.bak-dia-ruim" \
     || { echo "❌ Preservação falhou — banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO"; exit 1; }
 fi
@@ -286,17 +300,9 @@ for sufixo in journal wal shm; do
   # bloco if, não `&& ... || ...`: com `||`, a ausência do sidecar (teste
   # falso) dispararia o ramo de erro. Falha no mv PARA — um -journal/-wal
   # antigo sobrando no nome de destino seria REPRODUZIDO pelo SQLite por
-  # cima das páginas novas:
+  # cima das páginas novas (as colisões de destino já foram barradas na
+  # pré-checagem acima, antes de qualquer mv):
   if [ -f "$BANCO_ATUAL-$sufixo" ]; then
-    # O DESTINO também é protegido (CodeRabbit #243): o guarda do
-    # .bak-dia-ruim fica dentro do `[ -e "$BANCO_ATUAL" ]` — um sidecar
-    # órfão (banco atual ausente, -wal sobrando) com .bak-dia-ruim-$sufixo
-    # de restauração anterior no lugar o SOBRESCREVERIA. Mesmo contrato do
-    # guarda do .bak: PARE e confira/realoque antes de prosseguir:
-    if [ -e "$BANCO_ATUAL.bak-dia-ruim-$sufixo" ]; then
-      echo "❌ $BANCO_ATUAL.bak-dia-ruim-$sufixo já existe — preservação de restauração anterior. O mv abaixo o sobrescreveria; confira/realoque e só então recomece (nada foi movido; snapshot extraído preservado em $PASTA_TRABALHO)."
-      exit 1
-    fi
     mv "$BANCO_ATUAL-$sufixo" "$BANCO_ATUAL.bak-dia-ruim-$sufixo" \
       || { echo "❌ Preservação de $BANCO_ATUAL-$sufixo falhou — banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO"; exit 1; }
   fi
