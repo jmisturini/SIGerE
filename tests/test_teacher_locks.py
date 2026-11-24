@@ -634,18 +634,17 @@ class TestAbortosSoltamAsTravas(TeacherLocksTestCase):
         return patch.object(Session, 'rollback', autospec=True,
                             side_effect=Session.rollback)
 
-    def test_aborto_do_edit_renderiza_depois_de_soltar_as_travas(self):
+    def _renderizando(self, pedido):
+        """Roda `pedido()` com o render_template das rotas de reserva
+        trocado por um espião e devolve (resposta, posse). Cada item de
+        `posse` diz se algum RLock de sala/docente pertencia à thread naquele
+        instante — RLock é reentrante na própria thread, então readquirir não
+        prova nada; a posse é que importa."""
         from app.blueprints import reservations as rotas
-        dia = self.dia
-        self._criar(dia, self.room1_id)                       # aprovada
-        _, id_b = self._criar(dia, self.room2_id)             # PENDENTE
         render_real = rotas.render_template
         posse = []
 
         def render_espiao(*args, **kwargs):
-            # Instante da renderização: algum RLock do processo ainda é nosso?
-            # (RLock é reentrante na própria thread — readquirir não prova
-            # nada; a posse é que importa.)
             posse.append(any(trava._is_owned() for trava in (
                 list(scheduling._slot_locks.values())
                 + list(scheduling._teacher_locks.values()))))
@@ -653,9 +652,17 @@ class TestAbortosSoltamAsTravas(TeacherLocksTestCase):
 
         with patch('app.blueprints.reservations.render_template',
                    side_effect=render_espiao):
-            resposta = self.client.post(f'/reservations/{id_b}/edit',
-                                        data=self._payload(dia, self.room1_id),
-                                        follow_redirects=True)
+            resposta = pedido()
+        return resposta, posse
+
+    def test_aborto_do_edit_renderiza_depois_de_soltar_as_travas(self):
+        dia = self.dia
+        self._criar(dia, self.room1_id)                       # aprovada
+        _, id_b = self._criar(dia, self.room2_id)             # PENDENTE
+        resposta, posse = self._renderizando(lambda: self.client.post(
+            f'/reservations/{id_b}/edit',
+            data=self._payload(dia, self.room1_id),
+            follow_redirects=True))
         self.assertIn('Conflito de sala', resposta.get_data(as_text=True))
         self.assertEqual(posse, [False])   # uma renderização, sem trava alguma
 
@@ -713,15 +720,19 @@ class TestAbortosSoltamAsTravas(TeacherLocksTestCase):
             self.assertEqual(db.session.get(Reservation, id_b).status,
                              'approved')
 
-    def test_aborto_do_create_faz_rollback_antes_de_renderizar(self):
+    def test_aborto_do_create_solta_as_travas_antes_de_renderizar(self):
+        # Mesmo contrato do edit: o create renderiza o formulário de novo no
+        # aborto — o rollback solta os locks do banco e o fechamento do stack
+        # os RLocks de processo, ambos antes do template.
         dia = self.dia
         self._criar(dia, self.room1_id)          # aprovada: ocupa a janela
         with self._contando_rollbacks() as rollback:
-            resposta = self.client.post('/reservations/create',
-                                        data=self._payload(dia, self.room1_id),
-                                        follow_redirects=True)
+            resposta, posse = self._renderizando(lambda: self.client.post(
+                '/reservations/create', data=self._payload(dia, self.room1_id),
+                follow_redirects=True))
         self.assertIn('Conflito de sala', resposta.get_data(as_text=True))
         self.assertGreaterEqual(rollback.call_count, 1)
+        self.assertEqual(posse, [False])
 
     def test_aborto_da_repeticao_unica_faz_rollback_antes_do_redirect(self):
         dia = self.dia

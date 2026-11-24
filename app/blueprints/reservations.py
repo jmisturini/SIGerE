@@ -268,24 +268,36 @@ def create():
         # checagens após o commit da primeira). Ordem única: sala, depois
         # docente.
         teacher_id = form.teacher.data if form.teacher.data > 0 else None
-        with slot_locks(classroom_id, [form.date.data]), \
-                teacher_locks([(teacher_id, form.date.data)]):
+        stack = ExitStack()
+
+        def _abortar(mensagem):
+            """Aborto da seção crítica: solta TUDO antes de montar a resposta
+            (mesmo tratamento do edit). O rollback libera os advisory locks
+            transacionais — e, no aborto de conflito, também o FOR UPDATE que
+            o check_conflict tomou; o stack.close() libera os RLocks de
+            processo — o `return render_template(...)` é avaliado antes do
+            finally, então sem o close explícito o formulário era renderizado
+            com as (sala, data) e (docente, data) ainda retidas (achados do
+            OCR no #243). Nada foi escrito: o rollback só libera. Repetir
+            close() no finally é no-op."""
+            db.session.rollback()
+            flash(mensagem, 'danger')
+            stack.close()
+            return render_template('reservations/create.html', form=form, classrooms=classrooms)
+
+        try:
+            # enter_context dentro do try que fecha o stack: uma aquisição
+            # que levante libera as já entradas (RLocks globais do processo).
+            stack.enter_context(slot_locks(classroom_id, [form.date.data]))
+            stack.enter_context(teacher_locks([(teacher_id, form.date.data)]))
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
-                flash(restriction_msg, 'danger')
-                # Rollback antes de responder (achado do OCR no #243): solta
-                # os advisory locks transacionais — e, no aborto de conflito
-                # abaixo, também o FOR UPDATE que o check_conflict tomou —
-                # na DECISÃO de abortar, não no teardown. Nada foi escrito.
-                db.session.rollback()
-                return render_template('reservations/create.html', form=form, classrooms=classrooms)
+                return _abortar(restriction_msg)
 
             conflict = check_conflict(classroom_id, form.date.data, form.start_time.data, form.end_time.data)
             if conflict:
-                flash(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})', 'danger')
-                db.session.rollback()
-                return render_template('reservations/create.html', form=form, classrooms=classrooms)
+                return _abortar(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})')
 
             is_teacher_conflict = False
             excede_limite_diario = False
@@ -332,6 +344,8 @@ def create():
                 db.session.flush()
                 notificar_sobrecarga_professor(reservation)
             db.session.commit()
+        finally:
+            stack.close()
 
         if is_teacher_conflict:
             flash('Reserva criada como PENDENTE devido a conflito de professor.', 'warning')
