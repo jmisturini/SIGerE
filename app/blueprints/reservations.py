@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, abort, r
 from flask_login import login_required, current_user
 from contextlib import ExitStack
 from sqlalchemy import select, update
+from sqlalchemy.orm.exc import ObjectDeletedError
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm, _PADRAO_TEXTO
@@ -774,7 +775,14 @@ def edit(reservation_id):
                     .values(status='pending'))
             db.session.commit()
             if downgrade_warranted:
-                db.session.refresh(reservation)  # flashes refletem o final
+                try:
+                    db.session.refresh(reservation)  # flashes refletem o final
+                except ObjectDeletedError:
+                    # A linha foi APAGADA no instante pós-commit (achado OCR
+                    # #243): o downgrade já foi persistido — reflete o status
+                    # localmente para os flashes de baixo não relerem a linha
+                    # apagada, o que viraria 500.
+                    reservation.status = 'pending'
         finally:
             stack.close()
 

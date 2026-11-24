@@ -748,6 +748,27 @@ class TestAbortosSoltamAsTravas(TeacherLocksTestCase):
         self.assertIn('domingos', resposta.get_data(as_text=True))
         self.assertGreaterEqual(rollback.call_count, 1)
 
+    def test_downgrade_com_linha_apagada_no_refresh_nao_vira_500(self):
+        # Refresh pós-commit do downgrade (achado OCR #243): a linha apagada
+        # nesse instante levantaria ObjectDeletedError → 500 DEPOIS de o
+        # downgrade já ter sido persistido. Com o except, o status é
+        # refletido localmente e os flashes saem sem tocar o banco.
+        from sqlalchemy.orm import Session
+        from sqlalchemy.orm.exc import ObjectDeletedError
+        dia = self.dia
+        self._criar(dia, self.room1_id)              # aprovada: mesma janela
+        _, id_b = self._criar(dia, self.room2_id)    # docente sobreposto na edição
+        payload = self._payload(dia, self.room2_id)
+        payload['start_time'] = '09:30'
+        payload['end_time'] = '10:30'
+        with patch.object(Session, 'refresh',
+                          side_effect=ObjectDeletedError(None)):
+            resposta = self.client.post(f'/reservations/{id_b}/edit',
+                                        data=payload, follow_redirects=True)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('PENDENTE devido a conflito de professor',
+                      resposta.get_data(as_text=True))
+
 
 if __name__ == '__main__':
     unittest.main()
