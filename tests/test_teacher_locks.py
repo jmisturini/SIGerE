@@ -610,6 +610,17 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
             # self-deadlock — ele nasce assíncrono e o teste prova a outra
             # serialização válida: o approve ganha com os horários que
             # re-leu e a edição só entra DEPOIS do commit.
+            # Prova determinística do bloqueio (CodeRabbit #245): esperar o
+            # UPDATE do filho aparecer em pg_stat_activity com
+            # wait_event_type='Lock' ANTES de devolver o hook — sem isso, o
+            # approve podia commitar antes de o filho terminar de importar
+            # SQLAlchemy e o teste passaria sem exercitar o lock. O poll roda
+            # numa CONEXÃO OBSERVADORA própria: pela conexão que segura o
+            # lock, o pg_stat_activity não refletiu o bloqueio de forma
+            # confiável (enxergava só os background workers); por uma conexão
+            # independente o bloqueio aparece em ~0.5s.
+            import time
+            from sqlalchemy import create_engine, text as sql_text
             escritores = []
 
             def check_com_escritor_bloqueado(*args, **kwargs):
@@ -618,6 +629,25 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
                     [sys.executable, '-c', _EDICAO_CONCURRENTE,
                      TestConfig.SQLALCHEMY_DATABASE_URI, str(id_b)],
                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE))
+                observador = create_engine(TestConfig.SQLALCHEMY_DATABASE_URI)
+                try:
+                    for _ in range(120):
+                        with observador.connect() as c:
+                            bloqueado = c.execute(sql_text(
+                                "SELECT 1 FROM pg_stat_activity "
+                                "WHERE datname = current_database() "
+                                "AND state = 'active' "
+                                "AND wait_event_type = 'Lock'"
+                            )).scalar()
+                        if bloqueado:
+                            break
+                        time.sleep(0.1)
+                    else:
+                        self.fail('em 12s o UPDATE do escritor não apareceu '
+                                  'bloqueado em pg_stat_activity — o row '
+                                  'lock não o alcançou')
+                finally:
+                    observador.dispose()
                 return resultado
 
             mock_check.side_effect = check_com_escritor_bloqueado

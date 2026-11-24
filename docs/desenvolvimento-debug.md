@@ -487,6 +487,13 @@ outro. Para rodar localmente (requer Docker ou qualquer PostgreSQL na 5432):
 docker run --rm -d --name sigere-pg-testes -p 5432:5432 \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sigere_testes postgres:16
 
+# O container sobe em background: espere o Postgres aceitar conexões antes
+# do pytest (o CI tem health-check; localmente, este é o gate).
+for i in $(seq 1 30); do
+  docker exec sigere-pg-testes pg_isready -U postgres >/dev/null 2>&1 && break
+  sleep 1
+done
+
 TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sigere_testes \
   python -m pytest -q tests/test_teacher_locks.py
 
