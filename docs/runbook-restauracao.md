@@ -116,12 +116,16 @@ ls -l "$PASTA_TRABALHO/restaurado.sql"      # tem de ser maior que zero
 # Guarda nos dois (CodeRabbit #243): dropdb barrado por conexão ativa deixa
 # o banco de pé — o createdb falharia por já existir e, sem o guarda, o psql
 # rodaria sobre o banco ANTIGO (erro de SQL no meio do dump deixaria
-# mudanças parciais na produção). Falhou qualquer um dos dois? PARE —
-# produção intacta, serviços parados:
+# mudanças parciais na produção). São mundos diferentes (CodeRabbit #243):
+# dropdb falhou = produção INTACTA; createdb falhou = o banco NÃO EXISTE.
 sudo -u postgres dropdb --if-exists sigere \
-  || { echo "❌ dropdb falhou — o banco pode estar em uso (outra conexão ativa). Restauração NÃO começa; confira quem conecta: sudo -u postgres psql -c 'SELECT pid, application_name FROM pg_stat_activity'"; rm -rf "$PASTA_TRABALHO"; exit 1; }
+  || { echo "❌ dropdb falhou — o banco pode estar em uso (outra conexão ativa). Restauração NÃO começa; produção INTACTA; confira quem conecta: sudo -u postgres psql -c 'SELECT pid, application_name FROM pg_stat_activity'"; rm -rf "$PASTA_TRABALHO"; exit 1; }
+# A PARTIR DAQUI A PRODUÇÃO NÃO EXISTE MAIS — o dropdb acima a apagou. Se o
+# createdb falhar, sigere e nginx seguem PARADOS e o caminho de volta é
+# RECRIAR o banco e RODAR DE NOVO este bloco de restauração (CodeRabbit
+# #243) — nada de "segue intacta":
 sudo -u postgres createdb -O sigere sigere \
-  || { echo "❌ createdb falhou — o banco vazio não foi recriado. Restauração NÃO começa."; rm -rf "$PASTA_TRABALHO"; exit 1; }
+  || { echo "❌ createdb falhou — o banco de produção NÃO EXISTE (o dropdb acima o apagou). Sigere e nginx seguem PARADOS: recree com 'sudo -u postgres createdb -O sigere sigere' e rode este bloco de restauração de novo (passo 2 em diante) antes de subir qualquer serviço."; rm -rf "$PASTA_TRABALHO"; exit 1; }
 # --no-psqlrc: o ~/.psqlrc do operador não pode desligar o ON_ERROR_STOP
 # (\set ON_ERROR_STOP off nele deixaria restauração pela metade "passar bem").
 psql --no-psqlrc --set=ON_ERROR_STOP=1 -f "$PASTA_TRABALHO/restaurado.sql" \
@@ -161,19 +165,32 @@ venv/bin/flask --app run db upgrade \
 fi
 sudo systemctl start sigere
 }
-# Host SEM a unit sigere (dev): o start acima falha sem efeito — suba à mão
-# com o servidor nativo NO MESMO terminal (o passo 4 já exportou o .env):
-# `python run.py` ou `flask --app run run` (docs/desenvolvimento-debug.md).
-# Sem gunicorn não há socket unix — a verificação é o smoke test no navegador
-# (abaixo), pois o app não tem rota de health.
-sudo journalctl -u sigere -n 30 --no-pager
-# o gunicorn escuta em socket unix — teste direto nele ANTES de abrir o nginx
-# (CodeRabbit #243): curl falhando, o nginx segue FECHADO — abrir o mundo
-# para um app que não responde só empurra o erro para o usuário:
-curl -fsS --unix-socket /run/sigere/sigere.sock -o /dev/null -w '%{http_code}\n' http://localhost/ \
-  || { echo "❌ O sigere não respondeu no socket unix — nginx segue PARADO; confira o journal acima e tente de novo."; exit 1; }
-sudo systemctl start nginx
-# smoke test no navegador: login de um usuário real + abrir cronograma + criar/editar uma reserva.
+# Subida e checagem DIVERGEM por host (CodeRabbit #243): com a unit, journal
+# + socket + nginx; SEM a unit (dev), o socket unix não existe e o servidor
+# nativo OCUPA o terminal — os passos de produção abaixo abortariam à toa.
+# Consulta capturada UMA vez, com o retorno checado (mesmo padrão do passo 1):
+UNITS_INSTALADAS="$(systemctl list-unit-files)" \
+  || { echo '❌ Falhou a consulta das units (systemctl) — ABORTE: não é possível decidir o caminho de subida. Verifique o ambiente.'
+       exit 1; }
+if grep -qE '^sigere\.service' <<< "$UNITS_INSTALADAS"; then
+  sudo journalctl -u sigere -n 30 --no-pager
+  # o gunicorn escuta em socket unix — teste direto nele ANTES de abrir o nginx
+  # (CodeRabbit #243): curl falhando, o nginx segue FECHADO — abrir o mundo
+  # para um app que não responde só empurra o erro para o usuário:
+  curl -fsS --unix-socket /run/sigere/sigere.sock -o /dev/null -w '%{http_code}\n' http://localhost/ \
+    || { echo "❌ O sigere não respondeu no socket unix — nginx segue PARADO; confira o journal acima e tente de novo."; exit 1; }
+  sudo systemctl start nginx
+  # smoke test no navegador: login de um usuário real + abrir cronograma + criar/editar uma reserva.
+else
+  # DEV (sem unit): o servidor nativo OCUPA o terminal em que roda — inicie
+  # em um terminal PRÓPRIO (o passo 4 já exportou o .env):
+  #   python run.py        (ou: flask --app run run — docs/desenvolvimento-debug.md)
+  # e faça o smoke test DE OUTRO terminal/navegador enquanto ele permanece no
+  # ar (login real + cronograma + criar/editar reserva) em
+  # http://127.0.0.1:5000. Sem gunicorn não há socket unix nem nginx — pule
+  # journalctl/curl/socket/nginx: não existem neste host.
+  echo 'ℹ️  Host sem unit sigere (dev): inicie o servidor num terminal próprio (python run.py) e faça o smoke test de outro terminal/navegador em http://127.0.0.1:5000.'
+fi
 
 # 6. Regerar backup imediatamente e conferir o ciclo — a produção agora está
 #    saudável, então a comparação contra ela é válida de novo:
@@ -271,6 +288,15 @@ for sufixo in journal wal shm; do
   # antigo sobrando no nome de destino seria REPRODUZIDO pelo SQLite por
   # cima das páginas novas:
   if [ -f "$BANCO_ATUAL-$sufixo" ]; then
+    # O DESTINO também é protegido (CodeRabbit #243): o guarda do
+    # .bak-dia-ruim fica dentro do `[ -e "$BANCO_ATUAL" ]` — um sidecar
+    # órfão (banco atual ausente, -wal sobrando) com .bak-dia-ruim-$sufixo
+    # de restauração anterior no lugar o SOBRESCREVERIA. Mesmo contrato do
+    # guarda do .bak: PARE e confira/realoque antes de prosseguir:
+    if [ -e "$BANCO_ATUAL.bak-dia-ruim-$sufixo" ]; then
+      echo "❌ $BANCO_ATUAL.bak-dia-ruim-$sufixo já existe — preservação de restauração anterior. O mv abaixo o sobrescreveria; confira/realoque e só então recomece (nada foi movido; snapshot extraído preservado em $PASTA_TRABALHO)."
+      exit 1
+    fi
     mv "$BANCO_ATUAL-$sufixo" "$BANCO_ATUAL.bak-dia-ruim-$sufixo" \
       || { echo "❌ Preservação de $BANCO_ATUAL-$sufixo falhou — banco atual NÃO substituído; snapshot extraído preservado em $PASTA_TRABALHO"; exit 1; }
   fi
