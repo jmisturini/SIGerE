@@ -6,6 +6,14 @@ on:
   push:
     branches: [main, dev]
 
+# Pushes sucessivos ao mesmo ref empilham runs (o do PostgreSQL orquestra um
+# serviço e é o mais longo) — o run novo cancela o anterior do mesmo grupo.
+# O github.ref separa o contexto de pull_request (refs/pull/N/merge) do push
+# de branch (refs/heads/...), então um nunca cancela o outro.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # O job só precisa ler o repositório — sem isso, o GITHUB_TOKEN recebe as
 # permissões padrão do repo.
 permissions:
@@ -24,6 +32,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
+          cache: 'pip'
 
       - name: Instala dependências
         run: |
@@ -42,6 +51,10 @@ jobs:
   # SQLite pulam sozinhos aqui).
   testes-postgres:
     runs-on: ubuntu-latest
+    # Serviço PostgreSQL + testes de concorrência com travas: um travamento
+    # (lock nunca liberado, serviço sem health) não pode reter o runner até
+    # o limite global.
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -65,6 +78,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
+          cache: 'pip'
 
       - name: Instala dependências
         run: |
