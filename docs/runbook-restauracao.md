@@ -181,6 +181,16 @@ if grep -qE '^sigere\.service' <<< "$UNITS_INSTALADAS"; then
     || { echo "❌ O sigere não respondeu no socket unix — nginx segue PARADO; confira o journal acima e tente de novo."; exit 1; }
   sudo systemctl start nginx
   # smoke test no navegador: login de um usuário real + abrir cronograma + criar/editar uma reserva.
+  # GATE (CodeRabbit #243): o MESMO portão do ramo dev — o curl só atesta o
+  # socket, não a aplicação; o backup do passo 6 roda a retenção, e um
+  # snapshot antigo na borda da janela poderia sair antes de o smoke test
+  # confirmar a aplicação restaurada. Colado, o bloco não passa sem digitar:
+  { if ! read -r -p 'Smoke test OK? Digite CONFIRMO para gerar o backup: ' CONFIRMACAO_SMOKE \
+         || [ "$CONFIRMACAO_SMOKE" != "CONFIRMO" ]; then
+    echo '❌ Backup adiado — faça o smoke test e rode o passo 6 de novo.'
+    exit 1
+  fi
+  }
 else
   # DEV (sem unit): o servidor nativo OCUPA o terminal em que roda — inicie
   # em um terminal PRÓPRIO carregando o ambiente ANTES (as exportações do
