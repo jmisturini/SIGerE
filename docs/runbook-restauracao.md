@@ -198,14 +198,14 @@ else
   # Config lê os.environ direto; CodeRabbit #243):
   #   cd /var/www/sigere
   #   set -a; source .env; set +a
-  #   python run.py
+  #   venv/bin/python run.py
   # (alternativa: `venv/bin/flask --app run run` — o CLI do Flask auto-carrega
   # o .env, pois python-dotenv está instalado; docs/desenvolvimento-debug.md)
   # e faça o smoke test DE OUTRO terminal/navegador enquanto ele permanece no
   # ar (login real + cronograma + criar/editar reserva) em
   # http://127.0.0.1:5000. Sem gunicorn não há socket unix nem nginx — pule
   # journalctl/curl/socket/nginx: não existem neste host.
-  echo 'ℹ️  Host sem unit sigere (dev): num terminal próprio faça `set -a; source .env; set +a` e `python run.py`; o smoke test é de outro terminal/navegador em http://127.0.0.1:5000.'
+  echo 'ℹ️  Host sem unit sigere (dev): num terminal próprio faça `set -a; source .env; set +a` e `venv/bin/python run.py`; o smoke test é de outro terminal/navegador em http://127.0.0.1:5000.'
   # GATE (CodeRabbit #243): o backup do passo 6 roda a retenção — um
   # snapshot antigo na borda da janela poderia sair antes de o smoke test
   # confirmar a aplicação restaurada. Colado, o bloco não passa sem digitar:
