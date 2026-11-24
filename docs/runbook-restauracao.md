@@ -400,9 +400,11 @@ fi
 sudo systemctl start sigere
 }
 # Host SEM a unit sigere (dev): o start acima falha sem efeito — suba à mão
-# com o servidor nativo NO MESMO terminal (o passo 6 já exportou o .env):
-# `python run.py` ou `flask --app run run` (docs/desenvolvimento-debug.md);
-# a verificação é o smoke test no navegador (o app não tem rota de health).
+# com o servidor nativo NO MESMO terminal (o passo 6 já exportou o .env — o
+# venv, porém, NÃO fica ativo: use os caminhos dele explicitamente):
+# `venv/bin/python run.py` ou `venv/bin/flask --app run run`
+# (docs/desenvolvimento-debug.md); a verificação é o smoke test no navegador
+# (o app não tem rota de health).
 ```
 
 ## Depois de qualquer restauração
