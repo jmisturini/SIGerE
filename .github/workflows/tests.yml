@@ -32,3 +32,46 @@ jobs:
 
       - name: Roda a suíte de testes
         run: python -m pytest -q
+
+  # Integração com o PostgreSQL de produção (#239): FOR UPDATE, advisory
+  # locks e o CAS das rotas de reserva só são reais lá — o SQLite do job
+  # acima os ignora. Escopo restrito à suíte de concorrência
+  # (tests/test_teacher_locks.py), que é a que exercita esses caminhos; o
+  # escritor concorrente roda em OUTRO processo conectado ao mesmo banco
+  # via TEST_DATABASE_URL (os testes que abrem janelas que só existem no
+  # SQLite pulam sozinhos aqui).
+  testes-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sigere_testes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Não deixa o token do checkout gravado em .git/config enquanto
+          # pip/pytest executam código de terceiros.
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Instala dependências
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Roda os testes de concorrência no PostgreSQL
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sigere_testes
+        run: python -m pytest -q tests/test_teacher_locks.py
