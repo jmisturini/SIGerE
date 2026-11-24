@@ -196,6 +196,15 @@ else
   # http://127.0.0.1:5000. Sem gunicorn não há socket unix nem nginx — pule
   # journalctl/curl/socket/nginx: não existem neste host.
   echo 'ℹ️  Host sem unit sigere (dev): num terminal próprio faça `set -a; source .env; set +a` e `python run.py`; o smoke test é de outro terminal/navegador em http://127.0.0.1:5000.'
+  # GATE (CodeRabbit #243): o backup do passo 6 roda a retenção — um
+  # snapshot antigo na borda da janela poderia sair antes de o smoke test
+  # confirmar a aplicação restaurada. Colado, o bloco não passa sem digitar:
+  { if ! read -r -p 'Smoke test OK? Digite CONFIRMO para gerar o backup: ' CONFIRMACAO_SMOKE \
+         || [ "$CONFIRMACAO_SMOKE" != "CONFIRMO" ]; then
+    echo '❌ Backup adiado — faça o smoke test e rode o passo 6 de novo.'
+    exit 1
+  fi
+  }
 fi
 
 # 6. Regerar backup imediatamente e conferir o ciclo — a produção agora está

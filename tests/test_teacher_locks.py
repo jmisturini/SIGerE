@@ -749,25 +749,41 @@ class TestAbortosSoltamAsTravas(TeacherLocksTestCase):
         self.assertGreaterEqual(rollback.call_count, 1)
 
     def test_downgrade_com_linha_apagada_no_refresh_nao_vira_500(self):
-        # Refresh pós-commit do downgrade (achado OCR #243): a linha apagada
-        # nesse instante levantaria ObjectDeletedError → 500 DEPOIS de o
-        # downgrade já ter sido persistido. Com o except, o status é
-        # refletido localmente e os flashes saem sem tocar o banco.
+        # Refresh pós-commit do downgrade (CodeRabbit #243): a linha apagada
+        # nesse instante levanta InvalidRequestError em SQLAlchemy 2.0.54
+        # (NÃO ObjectDeletedError — subclasse que o refresh não emite). O
+        # except responde flash + redirect pela lista sem ler atributos da
+        # instância expirada. A exclusão é REAL, via segunda conexão, e o
+        # refresh chamado é o real (nitpick da mesma review): o teste exercita
+        # o SELECT de linha ausente e a expiração de verdade.
+        from sqlalchemy import create_engine, text
         from sqlalchemy.orm import Session
-        from sqlalchemy.orm.exc import ObjectDeletedError
         dia = self.dia
         self._criar(dia, self.room1_id)              # aprovada: mesma janela
         _, id_b = self._criar(dia, self.room2_id)    # docente sobreposto na edição
         payload = self._payload(dia, self.room2_id)
         payload['start_time'] = '09:30'
         payload['end_time'] = '10:30'
+        uri = TestConfig.SQLALCHEMY_DATABASE_URI
+        real_refresh = Session.refresh
+
+        def refresh_com_apagagem(instancia, *args, **kwargs):
+            motor = create_engine(uri)
+            try:
+                with motor.begin() as c:
+                    c.execute(text('DELETE FROM reservations WHERE id = :i'),
+                              {'i': id_b})
+            finally:
+                motor.dispose()
+            # db.session é scoped_session — o refresh real quer a Session concreta
+            return real_refresh(db.session(), instancia, *args, **kwargs)
+
         with patch.object(Session, 'refresh',
-                          side_effect=ObjectDeletedError(None)):
+                          side_effect=refresh_com_apagagem):
             resposta = self.client.post(f'/reservations/{id_b}/edit',
                                         data=payload, follow_redirects=True)
         self.assertEqual(resposta.status_code, 200)
-        self.assertIn('PENDENTE devido a conflito de professor',
-                      resposta.get_data(as_text=True))
+        self.assertIn('removida em seguida', resposta.get_data(as_text=True))
 
 
 if __name__ == '__main__':

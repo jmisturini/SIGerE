@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, abort, r
 from flask_login import login_required, current_user
 from contextlib import ExitStack
 from sqlalchemy import select, update
-from sqlalchemy.orm.exc import ObjectDeletedError
+from sqlalchemy.exc import InvalidRequestError
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm, _PADRAO_TEXTO
@@ -777,12 +777,16 @@ def edit(reservation_id):
             if downgrade_warranted:
                 try:
                     db.session.refresh(reservation)  # flashes refletem o final
-                except ObjectDeletedError:
-                    # A linha foi APAGADA no instante pós-commit (achado OCR
-                    # #243): o downgrade já foi persistido — reflete o status
-                    # localmente para os flashes de baixo não relerem a linha
-                    # apagada, o que viraria 500.
-                    reservation.status = 'pending'
+                except InvalidRequestError:
+                    # Linha APAGADA no instante pós-commit (CodeRabbit #243):
+                    # o refresh sem linha levanta InvalidRequestError em 2.0.54
+                    # (ObjectDeletedError é subclasse e NÃO é o que sai daqui).
+                    # A instância expirou — não ler atributos dela (status,
+                    # data e id releriam a linha apagada): responde flash +
+                    # redirect pela LISTA, usando o id da rota.
+                    flash('O downgrade foi aplicado, mas a reserva foi removida '
+                          'em seguida por outra operação.', 'warning')
+                    return redirect(url_for('reservations.my_reservations'))
         finally:
             stack.close()
 
