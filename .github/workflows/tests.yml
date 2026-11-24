@@ -52,8 +52,9 @@ jobs:
   # acima os ignora. Escopo restrito à suíte de concorrência
   # (tests/test_teacher_locks.py), que é a que exercita esses caminhos; o
   # escritor concorrente roda em OUTRO processo conectado ao mesmo banco
-  # via TEST_DATABASE_URL (os testes que abrem janelas que só existem no
-  # SQLite pulam sozinhos aqui).
+  # via TEST_DATABASE_URL. A suíte se adapta ao backend por branch
+  # condicional (self.motor_postgres, no setUp e nos testes) e os 2 testes
+  # cujas janelas só existem no SQLite pulam aqui com o motivo no log.
   testes-postgres:
     runs-on: ubuntu-latest
     # Serviço PostgreSQL + testes de concorrência com travas: um travamento
