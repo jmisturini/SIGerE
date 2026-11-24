@@ -402,7 +402,13 @@ def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None,
             falhas += 1
             continue
         removidos.append(nome)
-    return sorted(removidos), len(manter), falhas
+    # "Mantidos" no resumo é o que FICOU na pasta, não só o que a política
+    # escolheu: um arquivo que falhou na exclusão continua fisicamente
+    # presente (o aviso de falhas sai separado) e precisa entrar na conta;
+    # a interseção com os registros desconta um `proteger` que não veio da
+    # listagem. (OCR #243)
+    mantidos = len({nome for _, nome in registros} & manter) + falhas
+    return sorted(removidos), mantidos, falhas
 
 
 def _criar_cliente_s3(cfg):

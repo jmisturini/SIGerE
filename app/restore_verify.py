@@ -180,9 +180,25 @@ def _restaurar_sqlite(arquivo_gz, destino):
             f'Backup corrompido ou ilegível ({arquivo_gz}): {erro}') from erro
 
 
+def _importar_psycopg2():
+    """Driver do PostgreSQL com falha de ambiente apresentável: sem ele a
+    verificação é impossível, e um driver ausente é condição PREVISÍVEL —
+    ImportError vira BackupError com instrução de instalação, em vez de
+    escapar como traceback cru no "falha inesperada" (mesmo tratamento do
+    psql ausente e do boto3 no backup). (OCR #243)"""
+    try:
+        import psycopg2
+    except ImportError as erro:
+        raise BackupError(
+            "O pacote 'psycopg2' não está instalado — rode 'pip install "
+            "psycopg2-binary' no ambiente (necessário para verificar uma "
+            'DATABASE_URL PostgreSQL).') from erro
+    return psycopg2
+
+
 def _conectar_postgres(parametros, banco):
     """Conexão crua (psycopg2) com o servidor do DATABASE_URL."""
-    import psycopg2
+    psycopg2 = _importar_psycopg2()
     acesso = {chave: valor for chave, valor in (
         ('host', parametros['host']),
         ('port', parametros['port']),
@@ -198,7 +214,7 @@ def _conectar_postgres(parametros, banco):
 
 def _criar_banco_postgres(parametros, banco_teste):
     """Cria o banco descartável da verificação (recria se sobrou de falha)."""
-    import psycopg2
+    psycopg2 = _importar_psycopg2()
     try:
         conexao = _conectar_postgres(parametros, parametros['database'])
         try:
@@ -336,7 +352,7 @@ def _linhas_por_tabela_sqlite(caminho):
 
 def _linhas_por_tabela_postgres(parametros, banco):
     """Mapa {tabela: linhas} do schema public de um banco no servidor."""
-    import psycopg2
+    psycopg2 = _importar_psycopg2()
     try:
         conexao = _conectar_postgres(parametros, banco)
         try:

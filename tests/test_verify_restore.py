@@ -16,6 +16,7 @@ import gzip
 import os
 import shutil
 import sqlite3
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -295,6 +296,20 @@ class VerifyRestoreTestCase(unittest.TestCase):
         self.assertNotEqual(resultado.exit_code, 0)
         self.assertIn('Falha inesperada na verificação', resultado.output)
         self.assertIn('psycopg2 ausente', resultado.output)
+
+    def test_driver_psycopg2_ausente_vira_mensagem_apresentavel(self):
+        # OCR (#243): driver ausente é condição de ambiente PREVISÍVEL —
+        # tem de virar BackupError com instrução de instalação (mesmo
+        # tratamento do psql ausente e do boto3), não "falha inesperada"
+        # com traceback.
+        with mock.patch.dict(sys.modules, {'psycopg2': None}):
+            with self.app.app_context():
+                with self.assertRaises(modulo_verificar.BackupError) as saida:
+                    modulo_verificar._conectar_postgres(
+                        {'host': 'localhost', 'port': '5432', 'user': 'u',
+                         'password': 'p', 'sslmode': 'disable',
+                         'database': 'sigere'}, 'banco_teste')
+        self.assertIn('psycopg2-binary', str(saida.exception))
 
     def test_mais_recente_nuvem_usa_o_carimbo_do_nome(self):
         # Objeto antigo re-enviado hoje (LastModified fresco) não deve ganhar

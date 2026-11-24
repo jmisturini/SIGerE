@@ -344,6 +344,38 @@ class BackupCommandTestCase(unittest.TestCase):
                          {f'sigere-202611{dia:02d}-032000' for dia in range(16, 23)}
                          | {'sigere-20261125-032000'})
 
+    def test_mantidos_reflete_o_que_ficou_na_pasta(self):
+        # OCR (#243): o "N mantido(s)" do resumo conta o que FICOU na pasta —
+        # um arquivo que falhou na exclusão continua fisicamente presente (o
+        # aviso de falhas sai separado) e ficava fora da conta.
+        antigo = _arquivo_antigo(self.pasta_backup,
+                                 'sigere-20200101-000000-sqlite.sqlite.gz', 0)
+        travado = _arquivo_antigo(self.pasta_backup,
+                                  'sigere-20200102-000000-sqlite.sqlite.gz', 0)
+        nome_atual = 'sigere-20261122-032000-sqlite.sqlite.gz'
+        atual = os.path.join(self.pasta_backup, nome_atual)
+        with open(atual, 'wb') as fh:
+            fh.write(b'x')
+        agora = datetime(2026, 11, 22, 3, 20)
+
+        real_remove = os.remove
+
+        def remove_com_falha(caminho):
+            if os.path.basename(caminho) == 'sigere-20200102-000000-sqlite.sqlite.gz':
+                raise PermissionError(13, 'travado (simulado)')
+            return real_remove(caminho)
+
+        with mock.patch.object(modulo_backup.os, 'remove', remove_com_falha):
+            removidos, mantidos, falhas = modulo_backup._limpar_locais(
+                self.pasta_backup, diarias=1, semanais=0, teto_dias=45,
+                agora=agora, proteger=nome_atual)
+
+        self.assertEqual(removidos, ['sigere-20200101-000000-sqlite.sqlite.gz'])
+        self.assertEqual((falhas, mantidos), (1, 2))  # ficaram: o travado + o protegido
+        self.assertFalse(os.path.exists(antigo))
+        self.assertTrue(os.path.exists(travado))
+        self.assertTrue(os.path.exists(atual))
+
     def test_carimbo_da_proxima_semana_nao_ocupa_cota_semanal(self):
         # OCR (#243, rodada do e9a7037): relógio adiantado que CRUZOU uma
         # segunda — o carimbo futuro cai na semana ISO SEGÜINTE à corrente e,
