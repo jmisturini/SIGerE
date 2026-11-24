@@ -50,10 +50,6 @@ from app.backup import (BackupError, PADRAO_ARQUIVOS, _criar_cliente_s3,
 TABELAS_ESSENCIAIS = ('users', 'unities', 'classrooms', 'reservations')
 
 
-class RestoreError(Exception):
-    """Falha de verificação com mensagem apresentável ao operador."""
-
-
 def _nome_seguro(identificador):
     """Coloca aspas duplas em identificador SQL (serve em SQLite e PostgreSQL)."""
     return '"' + identificador.replace('"', '""') + '"'
@@ -184,9 +180,25 @@ def _restaurar_sqlite(arquivo_gz, destino):
             f'Backup corrompido ou ilegível ({arquivo_gz}): {erro}') from erro
 
 
+def _importar_psycopg2():
+    """Driver do PostgreSQL com falha de ambiente apresentável: sem ele a
+    verificação é impossível, e um driver ausente é condição PREVISÍVEL —
+    ImportError vira BackupError com instrução de instalação, em vez de
+    escapar como traceback cru no "falha inesperada" (mesmo tratamento do
+    psql ausente e do boto3 no backup). (OCR #243)"""
+    try:
+        import psycopg2
+    except ImportError as erro:
+        raise BackupError(
+            "O pacote 'psycopg2' não está instalado — rode 'pip install "
+            "psycopg2-binary' no ambiente (necessário para verificar uma "
+            'DATABASE_URL PostgreSQL).') from erro
+    return psycopg2
+
+
 def _conectar_postgres(parametros, banco):
     """Conexão crua (psycopg2) com o servidor do DATABASE_URL."""
-    import psycopg2
+    psycopg2 = _importar_psycopg2()
     acesso = {chave: valor for chave, valor in (
         ('host', parametros['host']),
         ('port', parametros['port']),
@@ -202,7 +214,7 @@ def _conectar_postgres(parametros, banco):
 
 def _criar_banco_postgres(parametros, banco_teste):
     """Cria o banco descartável da verificação (recria se sobrou de falha)."""
-    import psycopg2
+    psycopg2 = _importar_psycopg2()
     try:
         conexao = _conectar_postgres(parametros, parametros['database'])
         try:
@@ -340,7 +352,7 @@ def _linhas_por_tabela_sqlite(caminho):
 
 def _linhas_por_tabela_postgres(parametros, banco):
     """Mapa {tabela: linhas} do schema public de um banco no servidor."""
-    import psycopg2
+    psycopg2 = _importar_psycopg2()
     try:
         conexao = _conectar_postgres(parametros, banco)
         try:
@@ -448,8 +460,12 @@ def verify_restore_command(arquivo, destino, tolerancia):
     # normal apaga o próprio; execução morta no meio vaza um banco
     # `*_verificacao_*`, que o operador apaga à mão (DROP DATABASE).
     banco_teste = None
-    pasta_temporaria = tempfile.mkdtemp(prefix='sigere-verify-')
+    pasta_temporaria = None
     try:
+        # Dentro do escopo de limpeza: se o mkdtemp falhar, o finally ainda
+        # remove a pasta_download (o arquivo baixado) — fora dela, o archive
+        # vazaria no filesystem que já está sem espaço (CodeRabbit #243).
+        pasta_temporaria = tempfile.mkdtemp(prefix='sigere-verify-')
         inicio = time.monotonic()
         try:
             if motor == 'sqlite':
@@ -462,7 +478,13 @@ def verify_restore_command(arquivo, destino, tolerancia):
                 # comparar com homônimo do CWD aprovaria backup de outro banco.
                 producao = _linhas_por_tabela_sqlite(_caminho_sqlite(dados))
             else:
-                banco_teste = ((dados['database'] or 'sigere')[:40]
+                # Limite de identificador do PostgreSQL: 63 BYTES — o nome de
+                # produção vem do DATABASE_URL e pode ser UTF-8 (30 'é' = 60
+                # bytes estouram os 40 caracteres), truncando o nome e cortando
+                # o UUID do sufixo; trunca por BYTES reservando o sufixo
+                # completo (CodeRabbit #243).
+                prefixo = (dados['database'] or 'sigere').encode('utf-8')[:38]
+                banco_teste = (prefixo.decode('utf-8', 'ignore')
                                + '_verificacao_' + uuid.uuid4().hex[:8])
                 _restaurar_postgres(dados, caminho_backup, banco_teste)
                 duracao = time.monotonic() - inicio
@@ -477,7 +499,8 @@ def verify_restore_command(arquivo, destino, tolerancia):
                 f'❌ Falha inesperada na verificação: {erro}', fg='red', bold=True))
             raise  # traceback segue no journal — inesperada é bug, precisa investigar
     finally:
-        shutil.rmtree(pasta_temporaria, ignore_errors=True)
+        if pasta_temporaria:
+            shutil.rmtree(pasta_temporaria, ignore_errors=True)
         if pasta_download:
             shutil.rmtree(pasta_download, ignore_errors=True)
         if banco_teste:

@@ -769,7 +769,8 @@ class RoomCategoryForm(BaseForm):
         _validar_texto(field, 'Abreviação')
 
     def validate_color(self, field):
-        if field.data and not re.match(r'^#[0-9a-fA-F]{6}$', field.data):
+        # Padrão único com o modelo (RoomCategory.PADRAO_COR).
+        if field.data and not RoomCategory.PADRAO_COR.match(field.data):
             raise ValidationError('A cor deve estar no formato hexadecimal #rrggbb.')
 
 

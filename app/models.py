@@ -812,10 +812,17 @@ class RoomCategory(db.Model):
     # Fallbacks visuais para categorias cadastradas antes de cor/ícone existirem
     DEFAULT_COLOR = '#004a8d'
     DEFAULT_ICON = 'bi-tag'
+    # Único formato de cor que o cadastro aceita e o modelo devolve: hex
+    # #rrggbb. O valor vai para atributos `style` do totem, do dashboard e
+    # dos cartões de sala — e o dashboard acrescenta o alfa no próprio texto
+    # ('{{ cor }}1f'), que só fecha com os 6 dígitos. O formulário valida por
+    # aqui; `display_color` é a última linha para valor gravado fora dele
+    # (dado legado, edição direta no banco — OCR #243).
+    PADRAO_COR = re.compile(r'^#[0-9a-fA-F]{6}$')
 
     @property
     def display_color(self):
-        return self.color or self.DEFAULT_COLOR
+        return self.color if self.PADRAO_COR.match(self.color or '') else self.DEFAULT_COLOR
 
     @property
     def display_icon(self):

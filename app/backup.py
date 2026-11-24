@@ -147,19 +147,26 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
       anteriores à semana corrente, dentro da janela real de 4 semanas ISO
       (não "4 semanas preenchidas") — é o que estende o alcance além das
       diárias (até ~35 dias no pior caso).
+    - Carimbo em data FUTURA (relógio do servidor corrigido para trás) não
+      conta para nenhuma cota: não é um dia nem uma semana que já aconteceu,
+      e ocupar uma vaga derrubaria um ponto de restauração real.
     - Rede de segurança: o mais recente dos elegíveis sempre permanece —
       mesmo quando diárias/semanais o deixariam de fora (o recém-gerado cai
-      na semana corrente, que a seleção semanal pula).
+      na semana corrente, que a seleção semanal pula). Pode ser um carimbo
+      futuro: ele continua sendo o mais novo dos elegíveis.
     """
     if teto_dias <= 0:
         return {nome for _, nome in registros}
     corte = agora - timedelta(days=teto_dias)
     elegiveis = [par for par in registros if par[0] >= corte]
     elegiveis.sort(key=lambda par: par[0], reverse=True)
+    # As cotas só enxergam o que já aconteceu (data de calendário <= a de
+    # `agora`); o carimbo futuro segue elegível só para a rede de segurança.
+    em_cota = [par for par in elegiveis if par[0].date() <= agora.date()]
 
     manter = set()
     datas = []
-    for momento, nome in elegiveis:
+    for momento, nome in em_cota:
         dia = momento.date()
         if dia not in datas:
             datas.append(dia)
@@ -181,11 +188,15 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
     else:
         inicio_janela_semanal = None
     semanas = []
-    for momento, nome in elegiveis:
+    for momento, nome in em_cota:
         if inicio_janela_semanal is not None and momento < inicio_janela_semanal:
             break  # elegíveis estão em ordem desc — tudo daqui para trás é velho demais
         semana = momento.isocalendar()[:2]
-        if semana == semana_corrente or semana in semanas:
+        # Semana FUTURA também é pulada (`>=`, não `==`): em_cota já exclui
+        # carimbo adiante pela data, mas o guarda LOCAL mantém a promessa do
+        # docstring valendo por si só — relógio adiantado que cruzou uma
+        # segunda não pode tomar vaga de semana anterior (OCR #243).
+        if semana >= semana_corrente or semana in semanas:
             continue
         if len(semanas) >= semanais:
             break
@@ -194,7 +205,9 @@ def _selecionar_manter(registros, agora, diarias, semanais, teto_dias):
 
     # O backup mais recente jamais sai — sem isto, BACKUP_DAILY_KEEP=0 com
     # semanais ativas deixaria o recém-gerado de fora (a seleção semanal pula
-    # a semana corrente) e a limpeza — que roda ANTES do upload — o apagaria.
+    # a semana corrente) e a limpeza o apagaria. O mais recente pode ter
+    # carimbo futuro: ele fica de pé aqui, e o recém-gerado fica de pé pela
+    # proteção explícita que as duas retenções recebem (`proteger`).
     if elegiveis:
         manter.add(elegiveis[0][1])
     return manter
@@ -346,7 +359,8 @@ def _tamanho_legivel(caminho):
         tamanho /= 1024
 
 
-def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
+def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None,
+                   proteger=None):
     """Aplica a retenção 7+4 aos arquivos locais `sigere-*.gz`.
 
     Devolve (nomes apagados, quantidade mantida, falhas de exclusão).
@@ -368,6 +382,12 @@ def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
                 os.path.getmtime(caminho))), nome))
 
     manter = _selecionar_manter(registros, agora, diarias, semanais, teto_dias)
+    # O snapshot atual nunca é candidato à exclusão: uma correção regressiva
+    # de relógio pode deixar um backup antigo com carimbo (do nome) mais
+    # novo que o dele, e o fallback "mais recente" da seleção manteria o
+    # antigo em vez dele (CodeRabbit #243, follow-up).
+    if proteger:
+        manter = manter | {proteger}
     removidos = []
     falhas = 0
     for momento, nome in registros:
@@ -382,7 +402,13 @@ def _limpar_locais(diretorio, diarias, semanais, teto_dias, agora=None):
             falhas += 1
             continue
         removidos.append(nome)
-    return sorted(removidos), len(manter), falhas
+    # "Mantidos" no resumo é o que FICOU na pasta, não só o que a política
+    # escolheu: um arquivo que falhou na exclusão continua fisicamente
+    # presente (o aviso de falhas sai separado) e precisa entrar na conta;
+    # a interseção com os registros desconta um `proteger` que não veio da
+    # listagem. (OCR #243)
+    mantidos = len({nome for _, nome in registros} & manter) + falhas
+    return sorted(removidos), mantidos, falhas
 
 
 def _criar_cliente_s3(cfg):
@@ -430,7 +456,7 @@ def _momento_nuvem(nome, alternativo):
     return momento
 
 
-def _limpar_nuvem(cfg, cliente=None, agora=None):
+def _limpar_nuvem(cfg, cliente=None, agora=None, proteger=None):
     """Aplica a mesma política 7+4 aos objetos de backup do bucket.
 
     Só FILHOS DIRETOS do prefixo com o padrão de nome do próprio comando
@@ -461,6 +487,10 @@ def _limpar_nuvem(cfg, cliente=None, agora=None):
     # são únicas; o basename só serviu ao filtro de padrão acima.
     manter = _selecionar_manter(
         registros, agora, cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
+    # Mesma proteção na nuvem: o objeto recém-enviado (chave completa)
+    # nunca é candidato à exclusão (CodeRabbit #243, follow-up).
+    if proteger:
+        manter = manter | {proteger}
     vencidos = [chave for momento, chave in registros if chave not in manter]
     removidos = []
     for inicio in range(0, len(vencidos), 1000):
@@ -538,37 +568,67 @@ def backup_command(destino, dias, no_upload):
 
     click.echo(f'   ✅ Arquivo gerado: {arquivo_gz} ({_tamanho_legivel(arquivo_gz)})')
 
-    antigos, mantidos, falhas = _limpar_locais(
-        cfg['diretorio'], cfg['diarias'], cfg['semanais'], cfg['dias_retencao'])
-    if antigos:
-        click.echo(f'   🧹 Retenção local: {mantidos} mantido(s), {len(antigos)} apagado(s) '
-                   f'({cfg["diarias"]} diárias + {cfg["semanais"]} semanais)')
-    if falhas:
-        click.echo(click.style(
-            f'   ⚠️  Retenção incompleta: {falhas} backup(s) não pôde ser apagado(s) — '
-            'a pasta segue com mais do que a política manda.', fg='yellow'))
+    def _retencao_local(protegido=None):
+        """Retenção local DEPOIS do upload (ou nas saídas sem upload): uma
+        correção de relógio pode deixar um backup antigo com carimbo no nome
+        mais novo que o snapshot de agora — o fallback da seleção o manteria
+        em vez do arquivo_gz, e a retenção antes do upload apagaria o
+        próprio arquivo que _enviar_nuvem lê (CodeRabbit #243). O snapshot
+        atual é protegido das duas retenções (follow-up do #243)."""
+        antigos, mantidos, falhas = _limpar_locais(
+            cfg['diretorio'], cfg['diarias'], cfg['semanais'],
+            cfg['dias_retencao'], proteger=protegido)
+        if antigos:
+            click.echo(f'   🧹 Retenção local: {mantidos} mantido(s), {len(antigos)} apagado(s) '
+                       f'({cfg["diarias"]} diárias + {cfg["semanais"]} semanais)')
+        if falhas:
+            click.echo(click.style(
+                f'   ⚠️  Retenção incompleta: {falhas} backup(s) não pôde ser apagado(s) — '
+                'a pasta segue com mais do que a política manda.', fg='yellow'))
 
     if no_upload:
+        _retencao_local(protegido=os.path.basename(arquivo_gz))
         click.echo(click.style('✅ Backup concluído (upload pulado por --no-upload).',
                                fg='green', bold=True))
         return
     if not cfg['bucket']:
+        _retencao_local(protegido=os.path.basename(arquivo_gz))
         click.echo(click.style(
             'ℹ️  Backup concluído, apenas local — defina BACKUP_S3_BUCKET no .env '
             'para enviar à nuvem (docs/implantacao-producao.md).', fg='green', bold=True))
         return
 
+    def _retencao_na_falha():
+        """Retenção durante o handler de falha de nuvem, sem mascarar a
+        causa original: _limpar_locais captura só os erros de os.remove —
+        listdir/getmtime podem levantar — e a exceção da retenção não pode
+        substituir a saída prevista da falha de nuvem (CodeRabbit #243)."""
+        try:
+            _retencao_local(protegido=os.path.basename(arquivo_gz))
+        except Exception as falha_retencao:
+            click.echo(click.style(
+                f'   ⚠️  Retenção local falhou no meio da falha de nuvem '
+                f'({falha_retencao}) — a pasta pode estar acima da política; '
+                'verifique manualmente.', fg='yellow'))
+
     try:
         cliente = _criar_cliente_s3(cfg)
         chave = _enviar_nuvem(arquivo_gz, cfg, cliente)
-        removidos = _limpar_nuvem(cfg, cliente)
+        removidos = _limpar_nuvem(cfg, cliente, proteger=chave)
     except BackupError as erro:
         click.echo(click.style(f'❌ Falha no backup: {erro}', fg='red', bold=True))
+        # Falha de nuvem não suspende a retenção local: falha prolongada na
+        # nuvem criaria um archive novo por execução sem remover vencidos e
+        # esgotaria o filesystem (CodeRabbit #243). O protegido (snapshot
+        # atual) fica de pé para o retry do operador.
+        _retencao_na_falha()
         raise SystemExit(1)
     except Exception as erro:
         click.echo(click.style(
             f'❌ Falha inesperada no backup: {erro}', fg='red', bold=True))
+        _retencao_na_falha()
         raise  # traceback segue no journal — inesperada é bug, precisa investigar
+    _retencao_local(protegido=os.path.basename(arquivo_gz))
     click.echo(f'   ☁️  Enviado para s3://{cfg["bucket"]}/{chave}')
     if removidos:
         click.echo(f'   🧹 Retenção na nuvem: {len(removidos)} objeto(s) antigo(s) apagado(s)')

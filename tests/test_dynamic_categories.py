@@ -120,6 +120,23 @@ class DynamicCategoriesTestCase(unittest.TestCase):
             self.assertEqual(cat.display_icon, RoomCategory.DEFAULT_ICON)
             self.assertEqual(cat.totem_window_label, 'Período atual')
 
+    def test_cor_fora_do_formato_cai_no_padrao(self):
+        """Defesa em profundidade (OCR #243): o formulário já reprova o
+        formato, mas um valor gravado fora dele (dado legado, edição direta
+        no banco) não pode chegar aos atributos `style` do totem, do
+        dashboard e dos cartões — `display_color` devolve o padrão."""
+        with self.app.app_context():
+            cat = db.session.get(RoomCategory, self.sem_estilo_id)
+            for ruim in ('verde', '#fff', '#004a8', 'red; } body {'):
+                with self.subTest(color=ruim):
+                    cat.color = ruim
+                    self.assertEqual(cat.display_color, RoomCategory.DEFAULT_COLOR)
+            # O que já é #rrggbb segue intacto, em maiúsculas ou minúsculas.
+            for boa in ('#198754', '#ABCDEF'):
+                with self.subTest(color=boa):
+                    cat.color = boa
+                    self.assertEqual(cat.display_color, boa)
+
     # ── Totem ────────────────────────────────────────────────────────────
 
     def test_totem_exibe_categoria_cadastrada_sem_codigo(self):
@@ -132,6 +149,17 @@ class DynamicCategoriesTestCase(unittest.TestCase):
         self.assertIn('Aula de Vôlei', page)
         self.assertIn('bi-trophy', page)
         self.assertIn('#198754', page)
+
+    def test_totem_nao_emite_cor_fora_do_formato(self):
+        """Cor gravada fora do formato não chega ao `style` do totem: sai o
+        padrão do sistema no lugar."""
+        with self.app.app_context():
+            db.session.get(RoomCategory, self.quadra_id).color = 'red; } body {'
+            db.session.commit()
+
+        page = self.client.get('/totem/').data.decode('utf-8')
+        self.assertNotIn('red; } body {', page)
+        self.assertIn(RoomCategory.DEFAULT_COLOR, page)
 
     def test_totem_ignora_categoria_sem_espaco_na_unidade(self):
         """Categoria sem sala na unidade do totem não gera bloco vazio."""

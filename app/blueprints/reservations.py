@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, abort, r
 from flask_login import login_required, current_user
 from contextlib import ExitStack
 from sqlalchemy import select, update
+from sqlalchemy.exc import InvalidRequestError
 from app.models import (Reservation, Classroom, User, Course, Subject, Holiday,
                         NotificationGroup, ReservationNotificationConfig)
 from app.forms import ReservationForm, _PADRAO_TEXTO
@@ -268,18 +269,36 @@ def create():
         # checagens após o commit da primeira). Ordem única: sala, depois
         # docente.
         teacher_id = form.teacher.data if form.teacher.data > 0 else None
-        with slot_locks(classroom_id, [form.date.data]), \
-                teacher_locks([(teacher_id, form.date.data)]):
+        stack = ExitStack()
+
+        def _abortar(mensagem):
+            """Aborto da seção crítica: solta TUDO antes de montar a resposta
+            (mesmo tratamento do edit). O rollback libera os advisory locks
+            transacionais — e, no aborto de conflito, também o FOR UPDATE que
+            o check_conflict tomou; o stack.close() libera os RLocks de
+            processo — o `return render_template(...)` é avaliado antes do
+            finally, então sem o close explícito o formulário era renderizado
+            com as (sala, data) e (docente, data) ainda retidas (achados do
+            OCR no #243). Nada foi escrito: o rollback só libera. Repetir
+            close() no finally é no-op."""
+            db.session.rollback()
+            flash(mensagem, 'danger')
+            stack.close()
+            return render_template('reservations/create.html', form=form, classrooms=classrooms)
+
+        try:
+            # enter_context dentro do try que fecha o stack: uma aquisição
+            # que levante libera as já entradas (RLocks globais do processo).
+            stack.enter_context(slot_locks(classroom_id, [form.date.data]))
+            stack.enter_context(teacher_locks([(teacher_id, form.date.data)]))
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
-                flash(restriction_msg, 'danger')
-                return render_template('reservations/create.html', form=form, classrooms=classrooms)
+                return _abortar(restriction_msg)
 
             conflict = check_conflict(classroom_id, form.date.data, form.start_time.data, form.end_time.data)
             if conflict:
-                flash(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})', 'danger')
-                return render_template('reservations/create.html', form=form, classrooms=classrooms)
+                return _abortar(f'Conflito de sala com "{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - {conflict.end_time.strftime("%H:%M")})')
 
             is_teacher_conflict = False
             excede_limite_diario = False
@@ -326,6 +345,8 @@ def create():
                 db.session.flush()
                 notificar_sobrecarga_professor(reservation)
             db.session.commit()
+        finally:
+            stack.close()
 
         if is_teacher_conflict:
             flash('Reserva criada como PENDENTE devido a conflito de professor.', 'warning')
@@ -601,8 +622,47 @@ def edit(reservation_id):
         # abaixo confere): revalida restrições e conflitos já enxergando o
         # estado consolidado (edit + approve concorrentes).
         teacher_id_novo = form.teacher.data if form.teacher.data > 0 else None
-        with slot_locks(classroom_id, [form.date.data]), \
-                teacher_locks([(teacher_id_novo, form.date.data)]):
+        # Sala ORIGEM entra nas travas junto com a DESTINO (chaves originais
+        # capturadas antes de qualquer trava): duas edições que trocam duas
+        # reservas aprovadas de sala no mesmo dia formavam ciclo no FOR
+        # UPDATE do check_conflict — A segura a linha própria (em X) e pede
+        # a de B (em Y); B segura a própria (em Y) e pede a de A (em X).
+        # Ordem canônica por sala, datas ordenadas dentro de cada sala
+        # (mesma regra da série) — achado CodeRabbit #243.
+        chaves_originais = (reservation.classroom_id, reservation.date)
+        por_sala = {}
+        for sala, data in {(reservation.classroom_id, reservation.date),
+                           (classroom_id, form.date.data)}:
+            por_sala.setdefault(sala, set()).add(data)
+        stack = ExitStack()
+
+        def _abortar(mensagem, categoria):
+            """Aborto da seção crítica: solta TUDO antes de montar a resposta.
+
+            O rollback libera o FOR UPDATE e os advisory locks transacionais;
+            o stack.close() libera os RLocks de processo — o `return
+            render_template(...)` é avaliado ANTES do finally, então sem o
+            close explícito as (sala, data) e (docente, data) ficavam
+            retidas durante o template inteiro (achados do OCR no #243).
+            Nenhum aborto escreveu: o rollback só libera. `mensagem` chega
+            montada — depois do rollback os objetos expiram, e reler um
+            deles aqui reabriria a janela de "linha sumiu" que o aborto
+            acabou de detectar. Repetir close() no finally é no-op."""
+            db.session.rollback()
+            flash(mensagem, categoria)
+            stack.close()
+            return render_template('reservations/edit.html',
+                                   form=form, reservation=reservation)
+
+        try:
+            # enter_context DENTRO do escopo fechado pelo finally (achado
+            # OCR #243): se uma aquisição levantar (ex.: falha no advisory
+            # lock do PostgreSQL), as já entradas são liberadas pelo
+            # close() — fora dele, os RLocks globais do processo ficariam
+            # retidos para sempre e as (sala, data) travariam.
+            for sala in sorted(por_sala):
+                stack.enter_context(slot_locks(sala, sorted(por_sala[sala])))
+            stack.enter_context(teacher_locks([(teacher_id_novo, form.date.data)]))
             # Re-leitura COM row lock: o status lido no gate veio antes do
             # lock — um approve concorrente pode ter commitado approved. Sem
             # a re-leitura, o downgrade abaixo veria status pendente obsoleto
@@ -612,18 +672,40 @@ def edit(reservation_id):
                 .with_for_update().execution_options(populate_existing=True)
             ).scalar_one_or_none()
             if reservation is None:
+                # Linha apagada entre o load e o lock: o rollback solta os
+                # advisory locks antes da página de erro (o aborto levanta, e
+                # o finally fecha o stack).
+                db.session.rollback()
                 abort(404)
+            # Rechecagem de chaves: as chaves originais capturadas antes das
+            # travas podem ter mudado (outro edit commitou sala/data antes de
+            # nós pegarmos as travas) — as travas de origem teriam sido
+            # tomadas sobre valores velhos. Aborta para retry.
+            if (reservation.classroom_id, reservation.date) != chaves_originais:
+                return _abortar('A reserva foi editada durante a alteração (sala '
+                                'ou data mudaram) — tente de novo.', 'warning')
+            # Rechecagem da designação APÓS a re-leitura: um gestor pode ter
+            # trocado o docente entre a checagem pré-travas e aqui — o
+            # formulário ainda carrega o docente velho, e gravá-lo o
+            # restauraria por cima da troca (a regra vale para o docente
+            # ATUAL). (CodeRabbit #243)
+            if current_user.has_explicit_permission('reservation:create_pending'):
+                novo_professor = form.teacher.data if form.teacher.data > 0 else None
+                if novo_professor != reservation.teacher_id \
+                        and novo_professor != current_user.id:
+                    return _abortar('No fluxo de professor, a designação só pode '
+                                    'apontar para você mesmo.', 'danger')
             allowed, restriction_msg = check_schedule_restrictions(
                 form.date.data, form.start_time.data, form.end_time.data)
             if not allowed:
-                flash(restriction_msg, 'danger')
-                return render_template('reservations/edit.html', form=form, reservation=reservation)
+                return _abortar(restriction_msg, 'danger')
 
             conflict = check_conflict(classroom_id, form.date.data, form.start_time.data,
                                       form.end_time.data, exclude_id=reservation.id)
             if conflict:
-                flash(f'Conflito de sala com "{conflict.title}"', 'danger')
-                return render_template('reservations/edit.html', form=form, reservation=reservation)
+                # A mensagem é montada AQUI, sob lock e antes do rollback —
+                # depois dele a reserva conflitante expira.
+                return _abortar(f'Conflito de sala com "{conflict.title}"', 'danger')
 
             # Valores-alvo calculados antes de atribuir: a comparação diz se
             # a edição muda algum dado da reserva — reenviar o formulário
@@ -693,7 +775,20 @@ def edit(reservation_id):
                     .values(status='pending'))
             db.session.commit()
             if downgrade_warranted:
-                db.session.refresh(reservation)  # flashes refletem o final
+                try:
+                    db.session.refresh(reservation)  # flashes refletem o final
+                except InvalidRequestError:
+                    # Linha APAGADA no instante pós-commit (CodeRabbit #243):
+                    # o refresh sem linha levanta InvalidRequestError em 2.0.54
+                    # (ObjectDeletedError é subclasse e NÃO é o que sai daqui).
+                    # A instância expirou — não ler atributos dela (status,
+                    # data e id releriam a linha apagada): responde flash +
+                    # redirect pela LISTA, usando o id da rota.
+                    flash('O downgrade foi aplicado, mas a reserva foi removida '
+                          'em seguida por outra operação.', 'warning')
+                    return redirect(url_for('reservations.my_reservations'))
+        finally:
+            stack.close()
 
         if teacher_conflict and reservation.status == 'pending':
             flash('Reserva atualizada como PENDENTE devido a conflito de professor.', 'warning')
@@ -790,6 +885,20 @@ def approve(reservation_id):
         sala_no_lock = reservation.classroom_id
         docente_no_lock = reservation.teacher_id
         data_no_lock = reservation.date
+
+        def _abortar(mensagem, categoria='warning'):
+            """Aborto da seção crítica: o rollback solta o FOR UPDATE da
+            re-leitura e os advisory locks transacionais ANTES de responder
+            (achado do OCR no #243) — até o teardown eles ficavam retidos,
+            bloqueando edits/aproves concorrentes nas mesmas chaves. Nenhum
+            aborto escreveu: o rollback só libera. `mensagem` chega montada
+            (os objetos expiram no rollback) e o redirect usa o id da rota,
+            não o de um objeto que pode ter sido apagado."""
+            db.session.rollback()
+            flash(mensagem, categoria)
+            return redirect(url_for('reservations.detail',
+                                    reservation_id=reservation_id))
+
         # Aprovar revalida o conflito de sala dentro da seção crítica:
         # enquanto a reserva estava pendente outra pode ter sido aprovada
         # sobre a mesma janela (ou estar sendo aprovada em paralelo).
@@ -807,34 +916,30 @@ def approve(reservation_id):
                 .with_for_update().execution_options(populate_existing=True)
             ).scalar_one_or_none()
             if reservation is None:
-                # Excluída permanentemente entre o load e o lock.
+                # Excluída permanentemente entre o load e o lock: o rollback
+                # solta os advisory locks antes da página de erro.
+                db.session.rollback()
                 abort(404)
             # O gate de pendência roda antes do lock: um cancelamento pode
             # ter commitado nesse intervalo — sem a rechecagem, uma reserva
             # cancelada voltaria a approved.
             if reservation.status != 'pending':
-                flash('A reserva mudou de situação durante a aprovação.',
-                      'warning')
-                return redirect(url_for('reservations.detail',
-                                        reservation_id=reservation.id))
+                return _abortar('A reserva mudou de situação durante a aprovação.')
             if (reservation.classroom_id, reservation.teacher_id,
                     reservation.date) != (sala_no_lock, docente_no_lock,
                                           data_no_lock):
-                flash('A reserva foi editada durante a aprovação '
-                      '(docente, sala ou data mudaram) — tente de novo.',
-                      'warning')
-                return redirect(url_for('reservations.detail',
-                                        reservation_id=reservation.id))
+                return _abortar('A reserva foi editada durante a aprovação '
+                                '(docente, sala ou data mudaram) — tente de novo.')
             conflict = check_conflict(
                 reservation.classroom_id, reservation.date,
                 reservation.start_time, reservation.end_time,
                 exclude_id=reservation.id)
             if conflict:
-                flash(f'Não é possível aprovar: a sala já possui a reserva aprovada '
-                      f'"{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - '
-                      f'{conflict.end_time.strftime("%H:%M")}) nesta janela. '
-                      f'A reserva permanece PENDENTE.', 'danger')
-                return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+                return _abortar(
+                    f'Não é possível aprovar: a sala já possui a reserva aprovada '
+                    f'"{conflict.title}" ({conflict.start_time.strftime("%H:%M")} - '
+                    f'{conflict.end_time.strftime("%H:%M")}) nesta janela. '
+                    f'A reserva permanece PENDENTE.', 'danger')
             # Revalidação docente (mesma razão da de sala): enquanto a reserva
             # estava pendente, outra do mesmo docente pode ter sido APROVADA
             # sobreposta (outra sala — o slot lock não cruzava). Somente
@@ -847,11 +952,11 @@ def approve(reservation_id):
                     reservation.start_time, reservation.end_time,
                     exclude_id=reservation.id, somente_aprovadas=True)
             if conflito_docente:
-                flash(f'Não é possível aprovar: o docente já possui a reserva aprovada '
-                      f'"{conflito_docente.title}" ({conflito_docente.start_time.strftime("%H:%M")} - '
-                      f'{conflito_docente.end_time.strftime("%H:%M")}) sobreposta nesta janela. '
-                      f'A reserva permanece PENDENTE.', 'danger')
-                return redirect(url_for('reservations.detail', reservation_id=reservation.id))
+                return _abortar(
+                    f'Não é possível aprovar: o docente já possui a reserva aprovada '
+                    f'"{conflito_docente.title}" ({conflito_docente.start_time.strftime("%H:%M")} - '
+                    f'{conflito_docente.end_time.strftime("%H:%M")}) sobreposta nesta janela. '
+                    f'A reserva permanece PENDENTE.', 'danger')
             # Flip atômico (compare-and-set): o UPDATE só toca a linha se
             # status e campos de conflito — INCLUSIVE horários — continuarem
             # EXATAMENTE os valores travados. No PostgreSQL o row lock já
@@ -871,10 +976,8 @@ def approve(reservation_id):
                        Reservation.end_time == reservation.end_time)
                 .values(status='approved', reviewed_by=current_user.id))
             if resultado.rowcount != 1:
-                flash('A reserva foi editada ou cancelada durante a aprovação '
-                      '— tente de novo.', 'warning')
-                return redirect(url_for('reservations.detail',
-                                        reservation_id=reservation.id))
+                return _abortar('A reserva foi editada ou cancelada durante a aprovação '
+                                '— tente de novo.')
             # Espelha o CAS no objeto: as notificações abaixo leem o estado.
             reservation.status = 'approved'
             # Auditoria: registra quem aprovou (coluna antes nunca preenchida)
@@ -1007,6 +1110,18 @@ def repeat_schedule(reservation_id):
         return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
 
     excede_limite_diario = False
+
+    def _abortar(mensagem):
+        """Aborto da repetição dentro das travas: o rollback solta os advisory
+        locks transacionais — e, quando o aborto vem de um conflito, também o
+        FOR UPDATE que o check_conflict tomou — ANTES de responder; mesmo
+        tratamento dos outros escritores (achado do OCR no #243). Nada foi
+        escrito: só libera. O redirect usa o id da rota — o objeto expira no
+        rollback."""
+        db.session.rollback()
+        flash(mensagem, 'danger')
+        return redirect(url_for('reservations.repeat_view', reservation_id=reservation_id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+
     # Sala, depois docente (ordem única): a repetição leva o docente da
     # origem para a nova data — sem o lock, outra gravação em sala diferente
     # para o mesmo docente passaria pela checagem no meio.
@@ -1014,13 +1129,11 @@ def repeat_schedule(reservation_id):
             teacher_locks([(res.teacher_id, new_date)]):
         allowed, msg = check_schedule_restrictions(new_date, res.start_time, res.end_time)
         if not allowed:
-            flash(msg, 'danger')
-            return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+            return _abortar(msg)
 
         conflict = check_conflict(res.classroom_id, new_date, res.start_time, res.end_time)
         if conflict:
-            flash(f'Conflito de sala em {new_date}.', 'danger')
-            return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+            return _abortar(f'Conflito de sala em {new_date}.')
 
         # Conflito de docente — mesma regra do lote de repetição, que recusa
         # a data: a janela já ocupada para o docente em OUTRA sala não pode
@@ -1028,10 +1141,8 @@ def repeat_schedule(reservation_id):
         # só tinha sala e limite diário).
         if res.teacher_id and check_teacher_conflict(
                 res.teacher_id, new_date, res.start_time, res.end_time) is not None:
-            flash(f'Docente já possui reserva sobreposta em '
-                  f'{new_date.strftime("%d/%m/%Y")} — repetição não criada.',
-                  'danger')
-            return redirect(url_for('reservations.repeat_view', reservation_id=res.id, end_date=end_date_str, same_day=same_day, skip_weekend=skip_weekend))
+            return _abortar(f'Docente já possui reserva sobreposta em '
+                            f'{new_date.strftime("%d/%m/%Y")} — repetição não criada.')
 
         # Série de repetição: origem e geradas compartilham o mesmo grupo.
         # Carga docente: se a repetição leva o professor além do limite
@@ -1150,16 +1261,11 @@ def repeat_schedule_all(reservation_id):
                     continue
 
             # Mesmas regras de check_schedule_restrictions (domingo, feriado
-            # da unidade e sábado após 18h), com os feriados já pré-carregados.
-            if current_date.weekday() == 6:
-                allowed = False
-            elif current_date in holiday_names:
-                allowed = False
-            elif current_date.weekday() == 5 and (res.start_time >= time(18, 0)
-                                                  or res.end_time > time(18, 0)):
-                allowed = False
-            else:
-                allowed = True
+            # da unidade e sábado após 18h), com os feriados já pré-carregados
+            # — regra ÚNICA, sem cópia local que envelhece (achado OCR #243).
+            allowed, _ = check_schedule_restrictions(
+                current_date, res.start_time, res.end_time,
+                holidays=holiday_names)
 
             if allowed:
                 conflict = current_date in room_dates
@@ -1354,15 +1460,43 @@ def series_edit(reservation_id):
         'reservation:create_pending')
     # Chaves (sala, docente, data) travadas, capturadas antes de qualquer
     # trava — os alvos foram carregados fora delas.
-    travadas = {m.id: (m.classroom_id, m.teacher_id, m.date)
+    # Horários LIDOS entram nas chaves (CodeRabbit #243, follow-up): o CAS
+    # por membro casa sala/docente/data/status E horários — um edit
+    # concorrente que commita horário entre a re-leitura e a escrita (o
+    # SQLite ignora o FOR UPDATE e as travas de thread não cruzam processos)
+    # não pode ser sobrescrito em silêncio.
+    travadas = {m.id: (m.classroom_id, m.teacher_id, m.date,
+                       m.start_time, m.end_time)
                 for room_targets in by_classroom.values() for m in room_targets}
+
+    def _abortar(mensagem):
+        """Aborto do lote dentro das travas: o rollback solta os FOR UPDATE
+        das re-leituras e os advisory locks transacionais ANTES de responder
+        (achado do OCR no #243) e descarta o que o lote já tinha gravado — o
+        aborto é do lote inteiro, como o teardown já fazia, só que na
+        decisão de abortar. O redirect usa o id da rota: depois do rollback
+        `res` expira, e reler um objeto que pode ser o próprio alvo apagado
+        reabriria a janela que o aborto acabou de detectar."""
+        db.session.rollback()
+        flash(mensagem, 'warning')
+        return redirect(url_for('reservations.series_manage',
+                                reservation_id=reservation_id))
+
     with ExitStack() as stack:
-        # Salas em ordem canônica (o dict seguia a ordem dos alvos — dois
-        # fluxos com conjuntos de salas sobrepostos podiam adquirir em
-        # ordens diferentes); docentes por último, sempre depois das salas.
-        for room_id in sorted(by_classroom):
-            stack.enter_context(slot_locks(
-                room_id, [m.date for m in by_classroom[room_id]]))
+        # Salas ORIGEM de cada alvo (chaves travadas, capturadas antes de
+        # qualquer trava) entram junto com as DESTINO (CodeRabbit #243):
+        # série e edit que trocam reservas de sala no mesmo dia formavam o
+        # MESMO ciclo do FOR UPDATE do check_conflict do edit individual.
+        # Ordem canônica por sala, datas ordenadas dentro de cada sala;
+        # docentes por último, sempre depois das salas.
+        por_sala = {}
+        for sala, _, data, _, _ in travadas.values():
+            por_sala.setdefault(sala, set()).add(data)
+        for room_id, room_targets in by_classroom.items():
+            for m in room_targets:
+                por_sala.setdefault(room_id, set()).add(m.date)
+        for sala in sorted(por_sala):
+            stack.enter_context(slot_locks(sala, sorted(por_sala[sala])))
         stack.enter_context(teacher_locks(
             [(m.teacher_id, m.date)
              for room_targets in by_classroom.values() for m in room_targets]))
@@ -1393,18 +1527,15 @@ def series_edit(reservation_id):
                 select(Reservation).where(Reservation.id == m.id)
                 .with_for_update().execution_options(populate_existing=True)
             ).scalar_one_or_none() is None:
-                flash('As reservas da série foram alteradas durante a '
-                      'edição — tente de novo.', 'warning')
-                return redirect(url_for('reservations.series_manage',
-                                        reservation_id=res.id))
-        if any((m.classroom_id, m.teacher_id, m.date) != travadas[m.id]
+                return _abortar('As reservas da série foram alteradas durante a '
+                                'edição — tente de novo.')
+        if any((m.classroom_id, m.teacher_id, m.date,
+                m.start_time, m.end_time) != travadas[m.id]
                or m.status == 'cancelled'
                for room_targets in by_classroom.values() for m in room_targets):
-            flash('As reservas da série foram editadas ou canceladas durante '
-                  'a alteração (docente, sala ou data mudaram) — tente de '
-                  'novo.', 'warning')
-            return redirect(url_for('reservations.series_manage',
-                                    reservation_id=res.id))
+            return _abortar('As reservas da série foram editadas ou canceladas durante '
+                            'a alteração (docente, sala ou data mudaram) — tente de '
+                            'novo.')
         for room_targets in by_classroom.values():
             for m in room_targets:
                 start = new_start or m.start_time
@@ -1462,15 +1593,24 @@ def series_edit(reservation_id):
                     update(Reservation)
                     .where(Reservation.id == m.id,
                            Reservation.status != 'cancelled',
+                           # Status lido no CAS também: no SQLite (FOR UPDATE
+                           # ignorado) um approve pode commitar approved no
+                           # intervalo re-leitura→escrita — sem esta chave o
+                           # lote moveria a reserva aprovada para a sala nova
+                           # mantendo o status (CodeRabbit #243).
+                           Reservation.status == m.status,
                            Reservation.classroom_id == travadas[m.id][0],
                            Reservation.teacher_id == travadas[m.id][1],
-                           Reservation.date == travadas[m.id][2])
+                           Reservation.date == travadas[m.id][2],
+                           # Horários no CAS também (follow-up do #243): o
+                           # lote nunca sobrescreve um edit concorrente que
+                           # commitou entre a re-leitura e a escrita.
+                           Reservation.start_time == travadas[m.id][3],
+                           Reservation.end_time == travadas[m.id][4])
                     .values(**valores))
                 if resultado.rowcount != 1:
-                    flash('As reservas da série foram editadas durante a '
-                          'alteração — tente de novo.', 'warning')
-                    return redirect(url_for('reservations.series_manage',
-                                            reservation_id=res.id))
+                    return _abortar('As reservas da série foram editadas durante a '
+                                    'alteração — tente de novo.')
                 updated.append(m)
         db.session.commit()
 

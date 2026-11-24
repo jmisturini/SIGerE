@@ -66,12 +66,14 @@
                             <i class="bi bi-plus-lg me-1"></i> Reservar
                         </a>
                         {% endif %}
+                        {# Espaço ícone–texto vem do `gap` do .room-card-sec-btn —
+                           `me-1` no ícone dobraria o espaçamento. #}
                         <div class="room-card-sec d-flex">
                             <a href="{{ url_for('classrooms.availability', classroom_id=c.id) }}" class="room-card-sec-btn">
-                                <i class="bi bi-calendar-week me-1"></i> Disponibilidade
+                                <i class="bi bi-calendar-week"></i> Disponibilidade
                             </a>
                             <a href="{{ url_for('classrooms.detail', classroom_id=c.id) }}" class="room-card-sec-btn">
-                                <i class="bi bi-info-circle me-1"></i> Detalhes
+                                <i class="bi bi-info-circle"></i> Detalhes
                             </a>
                         </div>
                     </div>

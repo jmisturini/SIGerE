@@ -185,9 +185,15 @@ def teacher_exceeds_daily_limit(teacher_id, reservation_date, exclude_id=None):
                                       exclude_id) >= TEACHER_DAILY_RESERVATION_LIMIT
 
 
-def check_schedule_restrictions(res_date, start_time, end_time=None):
+def check_schedule_restrictions(res_date, start_time, end_time=None,
+                                holidays=None):
     """Regras de calendário: domingos, feriados cadastrados na unidade e
-    sábado após 18:00 (o fim da reserva também deve caber até 18:00)."""
+    sábado após 18:00 (o fim da reserva também deve caber até 18:00).
+
+    `holidays` é opcional: {data: nome} de feriados ATIVOS pré-carregados
+    (o repeat em lote os pré-carrega para não consultar o banco por data);
+    sem ele, o feriado da unidade é consultado aqui.
+    """
     unity_id = current_unity_id()  # feriados são cadastrados por unidade
     if isinstance(res_date, str):
         try:
@@ -201,11 +207,17 @@ def check_schedule_restrictions(res_date, start_time, end_time=None):
     if weekday == 6:
         return False, "Reservas não podem ser agendadas aos domingos."
 
-    # 2. Block Holidays (Query Database)
-    holiday = Holiday.query.filter_by(date=res_date, is_active=True,
-                                      unity_id=unity_id).first()
-    if holiday:
-        return False, f"Reservas não podem ser agendadas em feriados ({holiday.name})."
+    # 2. Block Holidays (pré-carregados ou consulta)
+    if holidays is not None:
+        # Testa MEMBRO (não a verdade do nome): feriado com nome vazio
+        # (importação sem validação) tem de bloquear igual à consulta (CodeRabbit #243).
+        if res_date in holidays:
+            return False, f"Reservas não podem ser agendadas em feriados ({holidays[res_date]})."
+    else:
+        holiday = Holiday.query.filter_by(date=res_date, is_active=True,
+                                          unity_id=unity_id).first()
+        if holiday:
+            return False, f"Reservas não podem ser agendadas em feriados ({holiday.name})."
 
     # 3. Block Saturday Nights (after 18:00 — início OU término após 18h)
     if weekday == 5:
