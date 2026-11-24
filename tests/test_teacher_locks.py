@@ -14,6 +14,13 @@ revalidação de aprovação conta só aprovadas (duas pendências sobrepostas d
 mesmo docente não podem se bloquear para sempre), o fluxo de aprovação
 recusa docente sobreposto aprovado concorrentemente e todo aborto dentro de
 um bloco de travas solta o que segurava antes de montar a resposta.
+
+As duas ordens da corrida edit↔approve são validadas com escritas de
+verdade de conexões independentes (#239): o escritor concorrente é um
+OUTRO PROCESSO (engine própria, commit real) — no SQLite ele entra na
+janela porque o FOR UPDATE é ignorado; no PostgreSQL (TEST_DATABASE_URL,
+job de integração do CI) o row lock da re-leitura fecha a mesma janela e
+a serialização esperada é outra — cada backend prova o seu contrato.
 """
 import os
 import subprocess
@@ -60,6 +67,34 @@ with Session(motor) as sessao:
 motor.dispose()
 """
 
+# Corpo do "outro processo" do flip do approve (rodado via `python -c`):
+# replica o CAS da aprovação (pending→approved) e COMMITA numa conexão
+# própria — o commit não é desfeito pelo rollback da requisição que estiver
+# a caminho. O CAS no status garante que o flip só existe se a reserva
+# ainda estava pendente (rowcount != 1 aborta o processo com mensagem).
+_APROVACAO_CONCURRENTE = """
+import sys
+from sqlalchemy import (Column, Integer, MetaData, String, Table,
+                        create_engine, update)
+from sqlalchemy.orm import Session
+
+reservas = Table(
+    'reservations', MetaData(),
+    Column('id', Integer, primary_key=True),
+    Column('status', String))
+uri, reserva_id = sys.argv[1], int(sys.argv[2])
+motor = create_engine(uri)
+with Session(motor) as sessao:
+    resultado = sessao.execute(
+        update(reservas).where(reservas.c.id == reserva_id,
+                               reservas.c.status == 'pending')
+        .values(status='approved'))
+    sessao.commit()
+    if resultado.rowcount != 1:
+        sys.exit(f'CAS do flip casou {resultado.rowcount} linha(s)')
+motor.dispose()
+"""
+
 
 class TestConfig(Config):
     SECRET_KEY = 'chave-de-teste-nao-usar-o-valor-dev'
@@ -74,9 +109,18 @@ class TeacherLocksTestCase(unittest.TestCase):
         # (nenhum teste segura lock além do próprio corpo).
         scheduling._slot_locks.clear()
         scheduling._teacher_locks.clear()
-        fd, self.db_path = tempfile.mkstemp(suffix='.db')
-        os.close(fd)
-        TestConfig.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + self.db_path.replace('\\', '/')
+        # TEST_DATABASE_URL aponta para o PostgreSQL efêmero do job de
+        # integração (#239): lá FOR UPDATE e advisory locks são reais — o
+        # que muda a serialização esperada nas janelas de corrida. Sem a
+        # var, tempfile SQLite como no resto da suíte.
+        self.motor_postgres = bool(os.environ.get('TEST_DATABASE_URL'))
+        if self.motor_postgres:
+            self.db_path = None
+            TestConfig.SQLALCHEMY_DATABASE_URI = os.environ['TEST_DATABASE_URL']
+        else:
+            fd, self.db_path = tempfile.mkstemp(suffix='.db')
+            os.close(fd)
+            TestConfig.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + self.db_path.replace('\\', '/')
 
         self.app = create_app(TestConfig)
         self.app.config['SESSION_COOKIE_SECURE'] = False
@@ -145,11 +189,28 @@ class TeacherLocksTestCase(unittest.TestCase):
     def tearDown(self):
         with self.app.app_context():
             db.session.remove()
+            if self.motor_postgres:
+                # Banco compartilhado entre os casos do job: derruba o
+                # schema para o próximo caso nascer limpo (o create_all do
+                # setUp recria tudo — inclusive as sequences).
+                db.drop_all()
             db.engine.dispose()
-        for suffix in ('', '-wal', '-shm'):
-            path = self.db_path + suffix
-            if os.path.exists(path):
-                os.remove(path)
+        if self.db_path:
+            for suffix in ('', '-wal', '-shm'):
+                path = self.db_path + suffix
+                if os.path.exists(path):
+                    os.remove(path)
+
+    def _rodar_escritor(self, script, *args):
+        """Roda um escritor concorrente em OUTRO processo (engine própria)
+        e só devolve depois do commit dele — o sincronismo é determinístico,
+        sem sleep (#239: escritas de verdade de duas conexões independentes;
+        o rollback da requisição em curso jamais desfaz esse commit)."""
+        processo = subprocess.run(
+            [sys.executable, '-c', script, TestConfig.SQLALCHEMY_DATABASE_URI,
+             *(str(a) for a in args)],
+            capture_output=True, text=True, timeout=60)
+        self.assertEqual(processo.returncode, 0, processo.stderr)
 
     def _payload(self, dia, room_id):
         return {
@@ -517,11 +578,12 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
 
     @patch('app.blueprints.reservations.check_teacher_conflict')
     def test_aprovacao_aborta_se_horario_mudar_entre_releitura_e_cas(self, mock_check):
-        # Ordem REVERSA da janela (a do teste anterior muda antes da
-        # re-leitura): a mudança entra ENTRE a re-leitura com row lock e o
-        # CAS — interceptada na checagem de docente, que roda nesse exato
+        # Ordem 1 da corrida edit↔approve (a do teste anterior muda antes
+        # da re-leitura): a mudança entra ENTRE a re-leitura com row lock e
+        # o CAS — interceptada na checagem de docente, que roda nesse exato
         # intervalo. O CAS condicionado aos horários é o que pega.
-        from sqlalchemy import text as sql_text
+        # A edição é OUTRO PROCESSO com conexão própria (#239): grava e
+        # commita de verdade — o rollback da requisição não a desfaz.
         real_check = scheduling.check_teacher_conflict
 
         dia = self.dia
@@ -541,15 +603,46 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
         # rowcount=0 que este teste exercita.
         self.client.post(f'/reservations/{id_a}/cancel', follow_redirects=True)
 
+        if self.motor_postgres:
+            # O row lock da re-leitura (FOR UPDATE real) segura o escritor
+            # até o commit do approve: a janela re-leitura→CAS está FECHADA
+            # aqui, e esperar o subprocesso dentro da requisição seria
+            # self-deadlock — ele nasce assíncrono e o teste prova a outra
+            # serialização válida: o approve ganha com os horários que
+            # re-leu e a edição só entra DEPOIS do commit.
+            escritores = []
+
+            def check_com_escritor_bloqueado(*args, **kwargs):
+                resultado = real_check(*args, **kwargs)
+                escritores.append(subprocess.Popen(
+                    [sys.executable, '-c', _EDICAO_CONCURRENTE,
+                     TestConfig.SQLALCHEMY_DATABASE_URI, str(id_b)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE))
+                return resultado
+
+            mock_check.side_effect = check_com_escritor_bloqueado
+            resposta = self.client.post(f'/reservations/{id_b}/approve',
+                                        follow_redirects=True)
+            self.assertIn('Reserva aprovada.', resposta.get_data(as_text=True))
+            erro = escritores[0].communicate(timeout=60)[1]
+            self.assertEqual(escritores[0].returncode, 0, erro.decode())
+            with self.app.app_context():
+                reserva = db.session.get(Reservation, id_b)
+                self.assertEqual(reserva.status, 'approved')
+                # O edit serializou DEPOIS do approve: os horários dele
+                # vencem no estado final sem nunca terem passado por cima
+                # da transação do approve.
+                self.assertEqual(reserva.start_time.strftime('%H:%M'), '10:00')
+                self.assertEqual(reserva.end_time.strftime('%H:%M'), '11:00')
+            return
+
+        # SQLite: FOR UPDATE é ignorado e os SELECT do pysqlite são
+        # autocommit (sem snapshot no intervalo) — o escritor commita
+        # SINCRONAMENTE na janela re-leitura→CAS e o CAS condicionado aos
+        # horários LIDOS casa 0 linhas: é ele quem fecha a janela aqui.
         def check_com_mudanca_no_meio(*args, **kwargs):
             resultado = real_check(*args, **kwargs)
-            # A edição comita a mudança de horário DEPOIS da re-leitura e
-            # ANTES do CAS (sem commit: visível na mesma conexão, invisível
-            # ao identity map).
-            db.session.execute(
-                sql_text("UPDATE reservations SET start_time = '10:00', "
-                         "end_time = '11:00' WHERE id = :i"),
-                {'i': id_b})
+            self._rodar_escritor(_EDICAO_CONCURRENTE, id_b)
             return resultado
 
         mock_check.side_effect = check_com_mudanca_no_meio
@@ -558,11 +651,26 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
         self.assertIn('editada ou cancelada durante a aprovação',
                       resposta.get_data(as_text=True))
         with self.app.app_context():
-            self.assertEqual(db.session.get(Reservation, id_b).status,
-                             'pending')
+            reserva = db.session.get(Reservation, id_b)
+            self.assertEqual(reserva.status, 'pending')
+            # O commit do outro processo sobrevive ao rollback do abort:
+            # o horário real é o do escritor externo (a simulação de mesma
+            # conexão rollbackava junto e não provava isso).
+            self.assertEqual(reserva.start_time.strftime('%H:%M'), '10:00')
+            self.assertEqual(reserva.end_time.strftime('%H:%M'), '11:00')
 
     @patch('app.blueprints.reservations.check_teacher_conflict')
     def test_edicao_de_serie_aborta_se_horario_mudar_entre_releitura_e_cas(self, mock_check):
+        if self.motor_postgres:
+            # No PostgreSQL o FOR UPDATE é real: as re-leituras do lote
+            # seguram row locks e o escritor SÍNCRONO desta janela
+            # deadlockaria com a própria requisição (o subprocesso espera o
+            # commit; a requisição espera o subprocesso). A janela que este
+            # teste abre só existe no SQLite — lá o CAS do lote é quem
+            # fecha o intervalo; no PostgreSQL ele é redundância do row
+            # lock (a serialização é provada pelo teste do approve acima).
+            self.skipTest('a janela re-leitura→CAS com escritor externo '
+                          'só existe no SQLite')
         # CAS do lote da série (CodeRabbit #243, follow-up): os horários
         # LIDOS entram no WHERE — um edit concorrente que COMMITA horário de
         # um membro entre a re-leitura e a escrita do lote não pode ser
@@ -584,14 +692,10 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
             self.assertEqual(reserva.status, 'approved')
 
         def com_edicao_concorrente(*args, **kwargs):
-            # Roda no intervalo re-leitura→CAS do lote (a checagem de docente
-            # fica exatamente aí) e só devolve depois do commit do outro
-            # processo — o sincronismo é determinístico, sem sleep.
-            processo = subprocess.run(
-                [sys.executable, '-c', _EDICAO_CONCURRENTE,
-                 TestConfig.SQLALCHEMY_DATABASE_URI, str(id_b)],
-                capture_output=True, text=True, timeout=60)
-            self.assertEqual(processo.returncode, 0, processo.stderr)
+            # Roda no intervalo re-leitura→CAS do lote (a checagem de
+            # docente fica exatamente aí) e só devolve depois do commit do
+            # outro processo — o sincronismo é determinístico, sem sleep.
+            self._rodar_escritor(_EDICAO_CONCURRENTE, id_b)
             return real_check(*args, **kwargs)
 
         mock_check.side_effect = com_edicao_concorrente
@@ -611,6 +715,105 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
             self.assertEqual(reserva.end_time.strftime('%H:%M'), '11:00')
             self.assertEqual(reserva.status, 'approved')   # CAS rowcount 0
             self.assertEqual(reserva.title, 'Aula de teste')
+
+
+class TestEdicaoRebaixaFlipDoApprove(TeacherLocksTestCase):
+    """Ordem 2 da corrida edit↔approve (#239): o flip pending→approved
+    commitado por OUTRO processo durante a edição não sobrevive a um
+    conflito de docente que a edição detecta. O UPDATE condicional dentro
+    da transação da edição (WHERE status='approved' → pending) é o que
+    fecha a janela no SQLite; no PostgreSQL o row lock da re-leitura já
+    serializa — o flush da própria edição rebaixa e o UPDATE condicional
+    casa 0 linhas (no-op documentado no código)."""
+
+    def _fixtures(self):
+        """A aprovada na sala 1 e a PENDENTE na sala 2, mesmo docente e
+        mesma janela: editar a pendente reencontra o conflito de docente
+        (downgrade garantido) e o flip concorrente tem o que rebaixar."""
+        dia = self.dia
+        _, id_a = self._criar(dia, self.room1_id)   # nasce aprovada
+        _, id_b = self._criar(dia, self.room2_id)   # nasce PENDENTE: docente
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, id_a).status,
+                             'approved')
+            self.assertEqual(db.session.get(Reservation, id_b).status,
+                             'pending')
+        return id_b
+
+    def _payload_edicao(self, dia):
+        payload = self._payload(dia, self.room2_id)
+        payload['title'] = 'Título editado'
+        return payload
+
+    @patch('app.blueprints.reservations.slot_locks')
+    def test_edicao_rebaixa_flip_commitado_antes_da_releitura(self, mock_slot):
+        # O flip entra ENTRE os locks e a re-leitura: sem row lock ainda,
+        # o commit do outro processo é incondicional NOS DOIS backends. A
+        # re-leitura (populate_existing) já vê approved e a própria edição
+        # rebaixa — o flip não materializa sobreposição aprovada.
+        from contextlib import contextmanager
+        real_slot_locks = scheduling.slot_locks
+
+        dia = self.dia
+        id_b = self._fixtures()
+
+        @contextmanager
+        def com_flip_concorrente(classroom_id, dates):
+            with real_slot_locks(classroom_id, dates):
+                self._rodar_escritor(_APROVACAO_CONCURRENTE, id_b)
+                yield
+
+        mock_slot.side_effect = com_flip_concorrente
+        resposta = self.client.post(f'/reservations/{id_b}/edit',
+                                    data=self._payload_edicao(dia),
+                                    follow_redirects=True)
+        self.assertIn('Reserva atualizada como PENDENTE devido a conflito '
+                      'de professor.', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            # O flip realmente aconteceu (CAS rowcount 1, garantido pelo
+            # _rodar_escritor) e a edição o reverteu: pendente é o final.
+            self.assertEqual(db.session.get(Reservation, id_b).status,
+                             'pending')
+
+    @patch('app.blueprints.reservations.check_conflict')
+    def test_edicao_rebaixa_flip_commitado_entre_releitura_e_downgrade(self, mock_conflict):
+        if self.motor_postgres:
+            # A janela estreita não existe no PostgreSQL: o row lock da
+            # re-leitura segura o flip até o commit da edição — lá a
+            # sessão releria approved e o ramo ORM dispararia (o UPDATE
+            # condicional é no-op documentado). A branch que este teste
+            # cobre só se abre no SQLite.
+            self.skipTest('no PostgreSQL o row lock fecha a janela '
+                          're-leitura→downgrade; a branch só se abre no '
+                          'SQLite')
+        real_conflict = scheduling.check_conflict
+
+        dia = self.dia
+        # O patch cobre o CREATE também: delega ao real durante a criação.
+        mock_conflict.side_effect = real_conflict
+        id_b = self._fixtures()
+
+        def com_flip_no_meio(*args, **kwargs):
+            resultado = real_conflict(*args, **kwargs)
+            # Depois da re-leitura, antes da decisão do downgrade: o
+            # commit do outro processo torna 'approved' NA BASE, mas o
+            # identity map desta sessão segue com o 'pending' lido sob o
+            # lock — o sincronismo é determinístico (o pysqlite só abre
+            # transação no primeiro DML, que ainda não aconteceu).
+            self._rodar_escritor(_APROVACAO_CONCURRENTE, id_b)
+            return resultado
+
+        mock_conflict.side_effect = com_flip_no_meio
+        resposta = self.client.post(f'/reservations/{id_b}/edit',
+                                    data=self._payload_edicao(dia),
+                                    follow_redirects=True)
+        self.assertIn('Reserva atualizada como PENDENTE devido a conflito '
+                      'de professor.', resposta.get_data(as_text=True))
+        with self.app.app_context():
+            reserva = db.session.get(Reservation, id_b)
+            # Sem o UPDATE condicional, o estado final aqui seria APPROVED
+            # (o ramo ORM não viu o flip): quem rebaixou foi o Core.
+            self.assertEqual(reserva.status, 'pending')
 
 
 class TestAbortosSoltamAsTravas(TeacherLocksTestCase):
