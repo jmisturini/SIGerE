@@ -67,6 +67,10 @@ cd /var/www/sigere
 # de falha); unit inexistente (dev) só segue com confirmação explícita de
 # que NADA escreve no banco — o bloco colado inteiro não passa sem digitar.
 # Consulta ÚNICA, com a saída capturada e o retorno checado:
+# Colagem em terminal (verificação em VM real, threads 8/31 do #243): rode
+# `sudo -v` ANTES de colar o bloco — em terminal sem bracketed paste, o sudo
+# do meio do bloco consome as linhas seguintes como tentativas de senha (o
+# guard segue falhando fechado, mas o operador se atrapalha).
 stop_ok_nginx=0; stop_ok_sigere=0
 sudo systemctl stop nginx 2>/dev/null && stop_ok_nginx=1
 sudo systemctl stop sigere 2>/dev/null && stop_ok_sigere=1
@@ -230,7 +234,8 @@ venv/bin/flask --app run verify-restore
 # existente que não para continua ABORTANDO; a CONSULTA das units falhando
 # também ABORTA; unit inexistente (dev) só segue com confirmação explícita —
 # o bloco colado inteiro não passa sem digitar. Units consultadas UMA vez,
-# com a saída capturada (mesmo guarda do bloco PostgreSQL):
+# com a saída capturada (mesmo guarda do bloco PostgreSQL). Colagem em
+# terminal: rode `sudo -v` ANTES de colar (mesma razão do bloco PostgreSQL):
 if ! sudo systemctl stop sigere 2>/dev/null; then
   UNITS_INSTALADAS="$(systemctl list-unit-files)" \
     || { echo '❌ Falhou a consulta das units (systemctl) — ABORTE: não é possível distinguir unit ausente de falha do systemctl. Verifique o ambiente.'
