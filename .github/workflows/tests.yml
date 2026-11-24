@@ -60,7 +60,10 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:16
+        # Patch pinnado (16.16, a versão que a tag 16 resolvia quando o job
+        # entrou): atualização de imagem não pode mudar o comportamento do
+        # banco por baixo dos testes de travas — OCR #245.
+        image: postgres:16.16
         env:
           # Trust auth (sem senha): o banco é EFÊMERO e só acessível na
           # localhost do próprio runner — não há segredo para proteger nem
