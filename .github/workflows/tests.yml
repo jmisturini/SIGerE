@@ -7,12 +7,14 @@ on:
     branches: [main, dev]
 
 # Pushes sucessivos ao mesmo ref empilham runs (o do PostgreSQL orquestra um
-# serviço e é o mais longo) — o run novo cancela o anterior do mesmo grupo.
-# O github.ref separa o contexto de pull_request (refs/pull/N/merge) do push
-# de branch (refs/heads/...), então um nunca cancela o outro.
+# serviço e é o mais longo). Cancela SÓ no contexto de pull_request: em
+# main/dev o run de um push é o registro definitivo e não pode ser
+# descartado por um push seguinte (OCR #245). O github.ref separa o
+# contexto de pull_request (refs/pull/N/merge) do push de branch
+# (refs/heads/...), então um nunca cancela o outro.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # O job só precisa ler o repositório — sem isso, o GITHUB_TOKEN recebe as
 # permissões padrão do repo.
