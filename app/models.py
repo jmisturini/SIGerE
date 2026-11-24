@@ -812,10 +812,17 @@ class RoomCategory(db.Model):
     # Fallbacks visuais para categorias cadastradas antes de cor/ícone existirem
     DEFAULT_COLOR = '#004a8d'
     DEFAULT_ICON = 'bi-tag'
+    # Único formato de cor que o cadastro aceita e o modelo devolve: hex
+    # #rrggbb. O valor vai para atributos `style` do totem, do dashboard e
+    # dos cartões de sala — e o dashboard acrescenta o alfa no próprio texto
+    # ('{{ cor }}1f'), que só fecha com os 6 dígitos. O formulário valida por
+    # aqui; `display_color` é a última linha para valor gravado fora dele
+    # (dado legado, edição direta no banco — OCR #243).
+    PADRAO_COR = re.compile(r'^#[0-9a-fA-F]{6}$')
 
     @property
     def display_color(self):
-        return self.color or self.DEFAULT_COLOR
+        return self.color if self.PADRAO_COR.match(self.color or '') else self.DEFAULT_COLOR
 
     @property
     def display_icon(self):
@@ -1194,6 +1201,13 @@ class Notification(db.Model):
     # travá-la — falhas de SMTP não são perdidas, só deixam de reprocessar.
     send_attempts = db.Column(db.Integer, nullable=False, default=0,
                               server_default='0')
+    # Saiu da fila do dreno por esgotar MAIL_MAX_ATTEMPTS — carimbo honesto:
+    # nenhum e-mail saiu (sent_at segue nulo). O aviso segue no sino — a linha
+    # não é apagada, só deixa de disputar o índice parcial da fila
+    # (idx_notifications_mail_queue). Linhas anteriores à coluna são
+    # arquivadas pela primeira rodada do dreno, com o limite REAL da
+    # configuração, que a migration não conhece.
+    archived_at = db.Column(db.DateTime)
 
     user = db.relationship('User', backref='notifications')
     reservation = db.relationship('Reservation', backref='notifications')

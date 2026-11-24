@@ -2,7 +2,8 @@
 
 Cobre:
 - geração de snapshot SQLite válido (integridade e conteúdo) com a CLI;
-- retenção local de arquivos antigos (e preservação de estranhos à pasta);
+- política de retenção avô/pai/filho (7 diárias + 4 semanais, com teto de
+  idade) local e na nuvem, e preservação de arquivos estranhos à pasta;
 - upload e retenção na nuvem com cliente S3 falso (sem rede, sem boto3);
 - interpretação das DATABASE_URL SQLite e PostgreSQL.
 """
@@ -103,6 +104,43 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertEqual(resultado.exit_code, 0, resultado.output)
         self.assertIn('apenas local', resultado.output)
 
+    def test_variavel_de_retencao_invalida_erro_claro(self):
+        # BACKUP_DAILY_KEEP com lixo no .env: mensagem apresentável, sem
+        # ValueError cru.
+        with mock.patch.dict(os.environ, {'BACKUP_DAILY_KEEP': 'sete'}):
+            resultado = self._rodar('--dir', self.pasta_backup)
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('BACKUP_DAILY_KEEP', resultado.output)
+        self.assertIn('não é um número inteiro', resultado.output)
+        self.assertNotIn('Traceback', resultado.output)
+
+    def test_variavel_de_retencao_negativa_erro_claro(self):
+        # Negativo é erro de digitação: sem o aviso, desativaria o nível em
+        # silêncio e sobraria só o "mais recente" da rede de segurança.
+        with mock.patch.dict(os.environ, {'BACKUP_DAILY_KEEP': '-3'}):
+            resultado = self._rodar('--dir', self.pasta_backup)
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('é negativo — precisa ser >= 0', resultado.output)
+        self.assertNotIn('Traceback', resultado.output)
+
+    def test_keep_days_negativo_e_rejeitado(self):
+        # Na CLI vale o mesmo contrato: --keep-days negativo cairia no teto
+        # <= 0 e desligaria toda a retenção em silêncio — o click reprova
+        # antes de qualquer efeito.
+        resultado = self._rodar('--keep-days', '-1', '--dir', self.pasta_backup)
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('--keep-days', resultado.output)
+
+    def test_falha_inesperada_no_dump_vira_mensagem(self):
+        # Bug do comando ou ambiente fora do previsto: mensagem para o
+        # operador + código 1 — não traceback cru sem rótulo.
+        with mock.patch.object(modulo_backup, '_dump_sqlite',
+                               side_effect=RuntimeError('bug do comando')):
+            resultado = self._rodar('--no-upload', '--dir', self.pasta_backup)
+        self.assertNotEqual(resultado.exit_code, 0)
+        self.assertIn('Falha inesperada no backup', resultado.output)
+        self.assertIn('bug do comando', resultado.output)
+
     # ── Retenção local ─────────────────────────────────────────────────────
 
     def test_retencao_remove_apenas_backups_antigos(self):
@@ -119,20 +157,286 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertFalse(os.path.exists(antigo))
         self.assertTrue(os.path.exists(recente))
         self.assertTrue(os.path.exists(estranho))
-        self.assertIn('Retenção local: 1', resultado.output)
+        # Mantidos: o recém-gerado e o de 2099; apagado: o de 2020.
+        self.assertIn('Retenção local: 2 mantido(s), 1 apagado(s)', resultado.output)
+
+    # ── Política de retenção (7 diárias + 4 semanais + teto) ───────────────
+
+    def test_selecao_guarda_sete_diarias_e_quatro_semanais(self):
+        # 18/11/2026 é uma quarta-feira (semana ISO 47: dom 15 termina a semana 46).
+        agora = datetime(2026, 11, 18, 3, 20)
+        registros = []
+        for dias_atras in range(30, -1, -1):
+            momento = agora - timedelta(days=dias_atras)
+            registros.append((momento, momento.strftime('sigere-%Y%m%d-%H%M%S')))
+
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=7, semanais=4, teto_dias=45)
+
+        # Diárias: tudo de 12 a 18/11 — inclusive o domingo 15/11, que também
+        # é o "mais novo" da semana 46 (contado uma só vez) → 7 + 3 = 10.
+        esperados = {f'sigere-202611{dia:02d}-032000' for dia in range(12, 19)}
+        esperados |= {'sigere-20261025-032000', 'sigere-20261101-032000',
+                      'sigere-20261108-032000'}
+        self.assertEqual(manter, esperados)
+        # Um dia dentro da semana 46, mas fora das janelas, não sobrevive.
+        self.assertNotIn('sigere-20261111-032000', manter)
+
+    def test_teto_de_idade_apaga_ate_semanal(self):
+        agora = datetime(2026, 11, 18, 3, 20)
+        velho = (agora - timedelta(days=60), 'sigere-20260919-032000')
+
+        self.assertEqual(
+            modulo_backup._selecionar_manter([velho], agora, 7, 4, 45), set())
+        # Teto 0 desliga a retenção inteira — contrato antigo do
+        # `--keep-days 0` preservado: até velhos de 100 dias permanecem.
+        antigos = []
+        for dias in (60, 100):
+            momento = agora - timedelta(days=dias)
+            antigos.append((momento, momento.strftime('sigere-%Y%m%d-032000')))
+        self.assertEqual(
+            modulo_backup._selecionar_manter(
+                antigos, agora, diarias=7, semanais=4, teto_dias=0),
+            {nome for _, nome in antigos})
+
+    def test_rede_de_seguranca_mantem_o_mais_recente_sem_politica(self):
+        # Diárias e semanais zeradas sob teto ativo nunca apagam tudo —
+        # inclusive o backup recém-gerado, que já está na pasta.
+        agora = datetime(2026, 11, 18, 3, 20)
+        registros = []
+        for dias in range(3):
+            momento = agora - timedelta(days=dias)
+            registros.append((momento, momento.strftime('sigere-%Y%m%d-032000')))
+
+        self.assertEqual(
+            modulo_backup._selecionar_manter(
+                registros, agora, diarias=0, semanais=0, teto_dias=45),
+            {'sigere-20261118-032000'})
+
+    def test_caminho_sqlite_relativo_resolve_na_instance(self):
+        # Mesma resolução do Flask-SQLAlchemy: relativo cai na pasta
+        # instance/ — backup e verificação leem o arquivo que o app escreve.
+        with self.app.app_context():
+            self.assertEqual(
+                modulo_backup._caminho_sqlite('/absoluto/x.db'), '/absoluto/x.db')
+            relativo = modulo_backup._caminho_sqlite('relativo.db')
+        self.assertTrue(os.path.isabs(relativo))
+        self.assertTrue(relativo.endswith(
+            os.path.join('instance', 'relativo.db')))
+
+    def test_momento_vem_do_carimbo_do_nome(self):
+        self.assertEqual(
+            modulo_backup._momento_de('sigere-20260117-032033-postgres.sql.gz',
+                                      datetime(2000, 1, 1)),
+            datetime(2026, 1, 17, 3, 20, 33))
+        # Sem carimbo no nome, cai no mtime informado.
+        self.assertEqual(
+            modulo_backup._momento_de('outro.gz', datetime(2000, 1, 1)),
+            datetime(2000, 1, 1))
+        # Carimbo impossível (30 de fevereiro) não derruba o comando —
+        # cai no mtime em vez de ValueError.
+        self.assertEqual(
+            modulo_backup._momento_de('sigere-20260230-032033-postgres.sql.gz',
+                                      datetime(2000, 1, 1)),
+            datetime(2000, 1, 1))
+
+    def test_momento_nuvem_devolve_naive_no_calendario_local(self):
+        consciente = datetime(2026, 11, 15, 23, 30, tzinfo=timezone.utc)
+        resultado = modulo_backup._momento_nuvem('outro.gz', consciente)
+        self.assertIsNone(resultado.tzinfo)
+        self.assertEqual(resultado, consciente.astimezone().replace(tzinfo=None))
+        # Carimbo do nome vence e já é local — janelas idênticas às da pasta.
+        self.assertEqual(
+            modulo_backup._momento_nuvem('sigere-20260117-032033-postgres.sql.gz',
+                                         consciente),
+            datetime(2026, 1, 17, 3, 20, 33))
+
+    def test_selecao_semanal_sozinha_mantem_o_recem_gerado(self):
+        # BACKUP_DAILY_KEEP=0: a seleção semanal pula a semana corrente —
+        # sem a proteção do "mais recente", o snapshot recém-gerado seria
+        # apagado pela retenção e o comando terminaria sem backup novo.
+        agora = datetime(2026, 11, 18, 3, 20)  # quarta-feira, semana ISO 47
+        semana_passada = datetime(2026, 11, 11, 3, 20)
+        manter = modulo_backup._selecionar_manter(
+            [(semana_passada, 'sigere-20261111-032000'),
+             (agora, 'sigere-20261118-032000')],
+            agora, diarias=0, semanais=4, teto_dias=45)
+        self.assertEqual(manter,
+                         {'sigere-20261111-032000', 'sigere-20261118-032000'})
+
+    def test_relogio_regressado_protege_o_snapshot_atual(self):
+        # Follow-up do CodeRabbit (#243): BACKUP_DAILY_KEEP=0 + correção
+        # regressiva de relógio — um backup antigo com carimbo NO FUTURO
+        # (25/11) vence o fallback "mais recente" e o snapshot de hoje
+        # (22/11, semana corrente que a semanal pula) sai da seleção. Sem a
+        # proteção do atual, a retenção apagaria o backup recém-gerado
+        # (local e, pós-upload, também o objeto do bucket) e o comando
+        # ainda reportaria sucesso.
+        agora = datetime(2026, 11, 22, 3, 20)
+        registros = [(datetime(2026, 11, 25, 3, 20), 'sigere-20261125-032000'),
+                     (agora, 'sigere-20261122-032000')]
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=0, semanais=4, teto_dias=45)
+        self.assertEqual(manter, {'sigere-20261125-032000'})  # fallback fica com o futuro
+
+        # A proteção do snapshot atual é quem o salva da limpeza:
+        futuro = _arquivo_antigo(self.pasta_backup,
+                                 'sigere-20261125-032000-sqlite.sqlite.gz', 0)
+        os.utime(futuro, (agora.timestamp(), agora.timestamp()))  # mtime é o que importa menos: o carimbo do NOME vence
+        atual = os.path.join(self.pasta_backup,
+                             'sigere-20261122-032000-sqlite.sqlite.gz')
+        with open(atual, 'wb') as fh:
+            fh.write(b'x')
+
+        removidos, mantidos, falhas = modulo_backup._limpar_locais(
+            self.pasta_backup, diarias=0, semanais=4, teto_dias=45,
+            agora=agora, proteger='sigere-20261122-032000-sqlite.sqlite.gz')
+        self.assertEqual(removidos, [])   # nem o futuro (semanal) nem o atual (protegido)
+        self.assertTrue(os.path.exists(futuro))
+        self.assertTrue(os.path.exists(atual))
+
+    def test_carimbo_futuro_nao_ocupa_cota_semanal(self):
+        # Fora do diff (CodeRabbit #243, 3ª rodada): um backup com carimbo NO
+        # FUTURO (relógio corrigido para trás) não é uma semana ISO anterior à
+        # corrente — ocupando uma das 4 vagas, derrubava a semana mais antiga
+        # da janela (25/10, 4ª semana antes da corrente, dentro do teto).
+        agora = datetime(2026, 11, 22, 3, 20)  # domingo, semana ISO 47
+        registros = [(datetime(2026, 11, 25, 3, 20), 'sigere-20261125-032000'),   # futuro
+                     (agora, 'sigere-20261122-032000'),
+                     (datetime(2026, 11, 15, 3, 20), 'sigere-20261115-032000'),  # semana 46
+                     (datetime(2026, 11, 8, 3, 20), 'sigere-20261108-032000'),   # semana 45
+                     (datetime(2026, 11, 1, 3, 20), 'sigere-20261101-032000'),   # semana 44
+                     (datetime(2026, 10, 25, 3, 20), 'sigere-20261025-032000')]  # semana 43
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=0, semanais=4, teto_dias=45)
+        # Semanais = as 4 semanas ISO anteriores (43-46); o futuro só sobrevive
+        # pela rede de segurança do "mais recente".
+        self.assertEqual(manter,
+                         {'sigere-20261125-032000',
+                          'sigere-20261115-032000',
+                          'sigere-20261108-032000',
+                          'sigere-20261101-032000',
+                          'sigere-20261025-032000'})
+
+        # E a limpeza de verdade não apaga o 25/10:
+        for momento, nome in registros:
+            _arquivo_antigo(self.pasta_backup, nome + '-sqlite.sqlite.gz', 0)
+        removidos, mantidos, falhas = modulo_backup._limpar_locais(
+            self.pasta_backup, diarias=0, semanais=4, teto_dias=45,
+            agora=agora, proteger='sigere-20261122-032000-sqlite.sqlite.gz')
+        self.assertEqual((removidos, falhas), ([], 0))
+        self.assertEqual(mantidos, 6)   # 5 da seleção + o snapshot atual protegido
+        self.assertTrue(os.path.exists(os.path.join(
+            self.pasta_backup, 'sigere-20261025-032000-sqlite.sqlite.gz')))
+
+    def test_carimbo_futuro_nao_ocupa_cota_diaria(self):
+        # Mesmo carimbo futuro na cota DIÁRIA: ele tomava o lugar do 7º dia
+        # real — o backup de 16/11 saía da seleção em favor de uma data que
+        # ainda não aconteceu.
+        agora = datetime(2026, 11, 22, 3, 20)
+        registros = [(datetime(2026, 11, 25, 3, 20), 'sigere-20261125-032000')]  # futuro
+        registros += [(datetime(2026, 11, dia, 3, 20), f'sigere-202611{dia:02d}-032000')
+                      for dia in range(16, 23)]
+
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=7, semanais=0, teto_dias=45)
+        self.assertEqual(manter,
+                         {f'sigere-202611{dia:02d}-032000' for dia in range(16, 23)}
+                         | {'sigere-20261125-032000'})
+
+    def test_mantidos_reflete_o_que_ficou_na_pasta(self):
+        # OCR (#243): o "N mantido(s)" do resumo conta o que FICOU na pasta —
+        # um arquivo que falhou na exclusão continua fisicamente presente (o
+        # aviso de falhas sai separado) e ficava fora da conta.
+        antigo = _arquivo_antigo(self.pasta_backup,
+                                 'sigere-20200101-000000-sqlite.sqlite.gz', 0)
+        travado = _arquivo_antigo(self.pasta_backup,
+                                  'sigere-20200102-000000-sqlite.sqlite.gz', 0)
+        nome_atual = 'sigere-20261122-032000-sqlite.sqlite.gz'
+        atual = os.path.join(self.pasta_backup, nome_atual)
+        with open(atual, 'wb') as fh:
+            fh.write(b'x')
+        agora = datetime(2026, 11, 22, 3, 20)
+
+        real_remove = os.remove
+
+        def remove_com_falha(caminho):
+            if os.path.basename(caminho) == 'sigere-20200102-000000-sqlite.sqlite.gz':
+                raise PermissionError(13, 'travado (simulado)')
+            return real_remove(caminho)
+
+        with mock.patch.object(modulo_backup.os, 'remove', remove_com_falha):
+            removidos, mantidos, falhas = modulo_backup._limpar_locais(
+                self.pasta_backup, diarias=1, semanais=0, teto_dias=45,
+                agora=agora, proteger=nome_atual)
+
+        self.assertEqual(removidos, ['sigere-20200101-000000-sqlite.sqlite.gz'])
+        self.assertEqual((falhas, mantidos), (1, 2))  # ficaram: o travado + o protegido
+        self.assertFalse(os.path.exists(antigo))
+        self.assertTrue(os.path.exists(travado))
+        self.assertTrue(os.path.exists(atual))
+
+    def test_carimbo_da_proxima_semana_nao_ocupa_cota_semanal(self):
+        # OCR (#243, rodada do e9a7037): relógio adiantado que CRUZOU uma
+        # segunda — o carimbo futuro cai na semana ISO SEGÜINTE à corrente e,
+        # segundo o apontamento, ocuparia uma das 4 vagas. Não ocupa: em_cota
+        # o exclui pela data (30/11 > 23/11) e semana ISO é monotônica em
+        # relação à data — nada com semana > corrente chega ao loop semanal.
+        # O teste pinna o cenário: vagas = semanas 46-43; o futuro só
+        # sobrevive pela rede de segurança.
+        agora = datetime(2026, 11, 23, 3, 20)  # segunda-feira, semana ISO 47
+        registros = [(datetime(2026, 11, 30, 3, 20), 'sigere-20261130-032000'),  # futuro, semana 48
+                     (agora, 'sigere-20261123-032000'),
+                     (datetime(2026, 11, 16, 3, 20), 'sigere-20261116-032000'),  # semana 46
+                     (datetime(2026, 11, 9, 3, 20), 'sigere-20261109-032000'),   # semana 45
+                     (datetime(2026, 11, 2, 3, 20), 'sigere-20261102-032000'),   # semana 44
+                     (datetime(2026, 10, 26, 3, 20), 'sigere-20261026-032000')]  # semana 43
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=0, semanais=4, teto_dias=45)
+        self.assertEqual(manter,
+                         {'sigere-20261130-032000',                       # rede de segurança
+                          'sigere-20261116-032000', 'sigere-20261109-032000',
+                          'sigere-20261102-032000', 'sigere-20261026-032000'})
+        self.assertNotIn('sigere-20261123-032000', manter)  # semana corrente: sem vaga
+
+        # A limpeza de verdade preserva o ponto de restauração da semana 43:
+        for momento, nome in registros:
+            _arquivo_antigo(self.pasta_backup, nome + '-sqlite.sqlite.gz', 0)
+        removidos, mantidos, falhas = modulo_backup._limpar_locais(
+            self.pasta_backup, diarias=0, semanais=4, teto_dias=45,
+            agora=agora, proteger='sigere-20261123-032000-sqlite.sqlite.gz')
+        self.assertEqual((removidos, falhas), ([], 0))
+        self.assertEqual(mantidos, 6)   # 5 da seleção + o snapshot atual protegido
+        self.assertTrue(os.path.exists(os.path.join(
+            self.pasta_backup, 'sigere-20261026-032000-sqlite.sqlite.gz')))
+
+    def test_semanal_nao_vaza_para_semanas_vazias_intermediarias(self):
+        # Semanas 43-46 sem nenhum backup e um órfão da semana 41 (38 dias
+        # atrás, dentro do teto de 45): não é semanal — o alcance real é o
+        # intervalo das 4 semanas ISO anteriores, não "4 semanas preenchidas".
+        agora = datetime(2026, 11, 18, 3, 20)  # quarta-feira, semana ISO 47
+        registros = [(datetime(2026, 11, dia, 3, 20),
+                      f'sigere-202611{dia:02d}-032000') for dia in range(12, 19)]
+        registros.append((datetime(2026, 10, 11, 3, 20), 'sigere-20261011-032000'))
+
+        manter = modulo_backup._selecionar_manter(
+            registros, agora, diarias=7, semanais=4, teto_dias=45)
+        self.assertEqual(manter,
+                         {f'sigere-202611{dia:02d}-032000' for dia in range(12, 19)})
 
     # ── Upload e retenção na nuvem (cliente S3 falso) ──────────────────────
 
     def test_upload_e_retencao_nuvem_com_cliente_falso(self):
         antigo_nuvem = {
             'Key': 'sigere/sigere-20200101-000000-postgres.sql.gz',
-            'LastModified': datetime.now(timezone.utc) - timedelta(days=30),
+            'LastModified': datetime.now(timezone.utc) - timedelta(days=90),
         }
         recente_nuvem = {
             'Key': 'sigere/sigere-20990101-000000-postgres.sql.gz',
             'LastModified': datetime.now(timezone.utc) - timedelta(days=1),
         }
         falso_cliente = mock.Mock()
+        falso_cliente.delete_objects.return_value = {'Errors': []}
         paginador = mock.Mock()
         paginador.paginate.return_value = [{'Contents': [antigo_nuvem, recente_nuvem]}]
         falso_cliente.get_paginator.return_value = paginador
@@ -167,6 +471,79 @@ class BackupCommandTestCase(unittest.TestCase):
         self.assertIn('boto3', resultado.output)
         # O arquivo local continua intacto — o upload falhou, o backup não.
         self.assertEqual(len(os.listdir(self.pasta_backup)), 1)
+
+    def test_falha_de_nuvem_com_retencao_quebrada_preserva_a_causa_original(self):
+        # Follow-up do CodeRabbit (#243): falha simultânea — a nuvem falha
+        # (BackupError) e a retenção local TAMBÉM levanta (listdir/getmtime
+        # não estão sob o guarda de os.remove). A saída tem de reportar a
+        # CAUSA ORIGINAL (nuvem) com o aviso da retenção — nunca a exceção
+        # da retenção mascarando o SystemExit(1) previsto.
+        antigo = _arquivo_antigo(self.pasta_backup,
+                                 'sigere-20200101-000000-sqlite.sqlite.gz', 30)
+        ambiente = {'BACKUP_S3_BUCKET': 'bucket-sigere'}
+        with mock.patch.dict(os.environ, ambiente), \
+                mock.patch.dict('sys.modules', {'boto3': None}), \
+                mock.patch.object(modulo_backup, '_limpar_locais',
+                                  side_effect=OSError('disco sumiu')):
+            resultado = self._rodar('--dir', self.pasta_backup)
+        self.assertEqual(resultado.exit_code, 1)
+        self.assertIn('boto3', resultado.output)                  # causa original
+        self.assertIn('Retenção local falhou', resultado.output)  # avisada, não mascarante
+        # O snapshot atual segue na pasta para o retry do operador.
+        self.assertEqual(len(os.listdir(self.pasta_backup)), 2)
+        self.assertTrue(os.path.exists(antigo))
+
+    def test_retencao_nuvem_so_toca_filhos_diretos_do_prefixo(self):
+        # Cópia manual em subpasta (mesmo com basename de backup e vencida)
+        # NÃO entra na política — espelho do comportamento da pasta local,
+        # que não desce em subpastas. Vencido de verdade é o filho direto.
+        # agora naive local — mesmo calendário dos momentos normalizados
+        agora = datetime(2026, 11, 18, 12, 0)
+        conteudo = [
+            {'Key': 'sigere/sigere-20261118-032000-postgres.sql.gz',
+             'LastModified': agora},
+            {'Key': 'sigere/2025/sigere-20250101-032000-postgres.sql.gz',
+             'LastModified': agora - timedelta(days=300)},
+            {'Key': 'sigere/sigere-20250101-032000-postgres.sql.gz',
+             'LastModified': agora - timedelta(days=300)},
+        ]
+        falso_cliente = mock.Mock()
+        falso_cliente.delete_objects.return_value = {'Errors': []}
+        paginador = mock.Mock()
+        paginador.paginate.return_value = [{'Contents': conteudo}]
+        falso_cliente.get_paginator.return_value = paginador
+        cfg = {'bucket': 'bucket-sigere', 'prefixo': 'sigere', 'diarias': 7,
+               'semanais': 4, 'dias_retencao': 45}
+
+        removidos = modulo_backup._limpar_nuvem(cfg, cliente=falso_cliente,
+                                                agora=agora)
+        self.assertEqual(removidos,
+                         ['sigere/sigere-20250101-032000-postgres.sql.gz'])
+
+    def test_retencao_nuvem_nao_conta_falha_como_removida(self):
+        # Object lock/permissão recusam a exclusão: a chave volta em Errors
+        # mesmo com Quiet — não pode entrar nos removidos nem passar calada.
+        agora = datetime(2026, 11, 18, 12, 0)
+        chave_vencida = 'sigere/sigere-20250101-032000-postgres.sql.gz'
+        falso_cliente = mock.Mock()
+        paginador = mock.Mock()
+        paginador.paginate.return_value = [{'Contents': [
+            {'Key': chave_vencida, 'LastModified': agora - timedelta(days=300)}]}]
+        falso_cliente.get_paginator.return_value = paginador
+        falso_cliente.delete_objects.return_value = {
+            'Errors': [{'Key': chave_vencida, 'Code': 'AccessDenied',
+                        'Message': 'Access Denied'}]}
+        cfg = {'bucket': 'bucket-sigere', 'prefixo': 'sigere', 'diarias': 7,
+               'semanais': 4, 'dias_retencao': 45}
+
+        with mock.patch.object(modulo_backup.click, 'echo') as eco:
+            removidos = modulo_backup._limpar_nuvem(cfg, cliente=falso_cliente,
+                                                    agora=agora)
+        self.assertEqual(removidos, [])
+        avisos = [str(chamada.args[0]) for chamada in eco.call_args_list
+                  if chamada.args]
+        self.assertTrue(any('não foram apagados no bucket' in aviso
+                            for aviso in avisos))
 
     # ── Interpretação da DATABASE_URL ──────────────────────────────────────
 
