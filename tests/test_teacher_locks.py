@@ -105,6 +105,31 @@ with Session(motor) as sessao:
 motor.dispose()
 """
 
+# Corpo do "outro processo" da troca de docente (rodado via `python -c`):
+# troca o docente da reserva e COMMITA numa conexão própria — a edição
+# independente da janela LOAD→re-leitura do approve (CodeRabbit na release
+# #246): o commit externo sobrevive ao rollback da requisição, o que a
+# simulação de mesma conexão (sem commit) não podia provar.
+_TROCA_DOCENTE_CONCURRENTE = """
+import sys
+from sqlalchemy import (Column, Integer, MetaData, Table, create_engine,
+                        update)
+from sqlalchemy.orm import Session
+
+reservas = Table(
+    'reservations', MetaData(),
+    Column('id', Integer, primary_key=True),
+    Column('teacher_id', Integer))
+uri, reserva_id, docente = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+motor = create_engine(uri)
+with Session(motor) as sessao:
+    sessao.execute(
+        update(reservas).where(reservas.c.id == reserva_id)
+        .values(teacher_id=docente))
+    sessao.commit()
+motor.dispose()
+"""
+
 
 class TestConfig(Config):
     SECRET_KEY = 'chave-de-teste-nao-usar-o-valor-dev'
@@ -507,6 +532,64 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
             self.assertEqual(db.session.get(Reservation, id_b).status,
                              'pending')
         self.client.post(f'/reservations/{id_a}/cancel', follow_redirects=True)
+        self.client.post(f'/reservations/{id_b}/approve', follow_redirects=True)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Reservation, id_b).status,
+                             'approved')
+
+    @patch('app.blueprints.reservations.slot_locks')
+    def test_aprovacao_aborta_com_troca_de_docente_commitada_antes_da_releitura(self, mock_slot):
+        # A MESMA janela LOAD→re-leitura do teste acima, agora com escrita
+        # independente de verdade (CodeRabbit na release #246): um OUTRO
+        # PROCESSO troca o docente DEPOIS do load (que capturou as chaves do
+        # lock) e antes da re-leitura — o commit é incondicional nos dois
+        # backends (ainda não há row lock nem advisory que o escritor
+        # respeite). O gate de chave vê o docente novo e aborta — e o commit
+        # externo SOBREVIVE ao rollback do abort: a persistência é o que a
+        # simulação de mesma conexão jamais pôde provar.
+        from contextlib import contextmanager
+        from app.models import User as UserModel
+        real_slot_locks = scheduling.slot_locks
+
+        with self.app.app_context():
+            unity = db.session.get(Unity, self.unity_id)
+            professor3 = UserModel(
+                email='professor3@escola.edu', full_name='Professor Costa',
+                role='room', profile_type='teacher', unities=[unity],
+                force_password_change=False, is_active_user=True)
+            professor3.set_password(PASSWORD)
+            db.session.add(professor3)
+            db.session.commit()
+            teacher3_id = professor3.id
+
+        dia = self.dia
+        _, id_a = self._criar(dia, self.room1_id)   # nasce aprovada
+        _, id_b = self._criar(dia, self.room2_id)   # nasce PENDENTE: docente
+
+        @contextmanager
+        def com_troca_commitada(classroom_id, dates):
+            with real_slot_locks(classroom_id, dates):
+                self._rodar_escritor(_TROCA_DOCENTE_CONCURRENTE, id_b,
+                                     teacher3_id)
+                yield
+
+        mock_slot.side_effect = com_troca_commitada
+        resposta = self.client.post(f'/reservations/{id_b}/approve',
+                                    follow_redirects=True)
+        self.assertIn('editada durante a aprovação',
+                      resposta.get_data(as_text=True))
+        with self.app.app_context():
+            reserva = db.session.get(Reservation, id_b)
+            self.assertEqual(reserva.status, 'pending')   # não aprovou
+            # O commit do outro processo sobrevive ao rollback do abort —
+            # o docente REAL é o trocado (o teste de mesma conexão mostra
+            # o docente original aqui, porque o UPDATE dele rollbackava).
+            self.assertEqual(reserva.teacher_id, teacher3_id)
+
+        # Retry com o estado consolidado: o docente novo não tem aprovadas
+        # sobrepostas — a aprovação passa de primeira (o CAS casa com as
+        # chaves que a re-leitura viu).
+        mock_slot.side_effect = None
         self.client.post(f'/reservations/{id_b}/approve', follow_redirects=True)
         with self.app.app_context():
             self.assertEqual(db.session.get(Reservation, id_b).status,
