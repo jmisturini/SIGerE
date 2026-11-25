@@ -487,15 +487,24 @@ outro. Para rodar localmente (requer Docker ou qualquer PostgreSQL na 5432):
 docker run --rm -d --name sigere-pg-testes -p 5432:5432 \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sigere_testes postgres:16
 
-# O container sobe em background: espere o Postgres aceitar conexões antes
-# do pytest (o CI tem health-check; localmente, este é o gate).
+# O container sobe em background: espere o Postgres aceitar conexões TCP
+# antes do pytest (o CI tem health-check; localmente, este é o gate).
+# O -h 127.0.0.1 é obrigatório: sem ele o pg_isready confere o socket
+# Unix, que responde durante a inicialização ANTES de o servidor final
+# aceitar TCP — e é por TCP que o pytest conecta (follow-up CodeRabbit).
+# Esgotado o prazo, o pytest NÃO roda: o if é o portão de falha.
+pronto=0
 for i in $(seq 1 30); do
-  docker exec sigere-pg-testes pg_isready -U postgres >/dev/null 2>&1 && break
+  docker exec sigere-pg-testes pg_isready -h 127.0.0.1 -U postgres \
+    >/dev/null 2>&1 && { pronto=1; break; }
   sleep 1
 done
-
-TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sigere_testes \
-  python -m pytest -q tests/test_teacher_locks.py
+if [ "$pronto" != 1 ]; then
+  echo 'Postgres não ficou pronto em 30s — pytest não rodou; confira o container.'
+else
+  TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sigere_testes \
+    python -m pytest -q tests/test_teacher_locks.py
+fi
 
 docker stop sigere-pg-testes
 ```

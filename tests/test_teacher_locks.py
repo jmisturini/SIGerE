@@ -43,6 +43,11 @@ from app.services.scheduling import check_teacher_conflict, teacher_locks
 EMAIL = 'gestor@escola.edu'
 PASSWORD = 'SenhaForte123'
 
+# application_name da sessão do escritor no PostgreSQL: identifica o filho
+# na pg_stat_activity — a prova do bloqueio não pode casar com QUALQUER
+# sessão esperando lock (follow-up do CodeRabbit #245).
+_APP_NAME_EDICAO = 'sigere-corrida-edicao'
+
 # Corpo do "outro processo" da edição concorrente (rodado via `python -c`):
 # muda SÓ os horários da reserva e COMMITA, com os valores tipados como o app
 # grava (Core, objetos time — texto cru gravaria outro formato na coluna).
@@ -58,14 +63,19 @@ reservas = Table(
     Column('id', Integer, primary_key=True),
     Column('start_time', Time), Column('end_time', Time))
 uri, reserva_id = sys.argv[1], int(sys.argv[2])
-motor = create_engine(uri)
+# O application_name é do PostgreSQL: no SQLite o pysqlite recusa o kwarg
+# e o MESMO script também atende os casos da janela do backend local.
+motor = create_engine(
+    uri,
+    connect_args=({'application_name': '%s'}
+                  if uri.startswith('postgresql') else {}))
 with Session(motor) as sessao:
     sessao.execute(
         update(reservas).where(reservas.c.id == reserva_id)
         .values(start_time=time(10, 0), end_time=time(11, 0)))
     sessao.commit()
 motor.dispose()
-"""
+""" % _APP_NAME_EDICAO
 
 # Corpo do "outro processo" do flip do approve (rodado via `python -c`):
 # replica o CAS da aprovação (pending→approved) e COMMITA numa conexão
@@ -611,20 +621,28 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
             # serialização válida: o approve ganha com os horários que
             # re-leu e a edição só entra DEPOIS do commit.
             # Prova determinística do bloqueio (CodeRabbit #245): esperar o
-            # UPDATE do filho aparecer em pg_stat_activity com
-            # wait_event_type='Lock' ANTES de devolver o hook — sem isso, o
-            # approve podia commitar antes de o filho terminar de importar
-            # SQLAlchemy e o teste passaria sem exercitar o lock. O poll roda
-            # numa CONEXÃO OBSERVADORA própria: pela conexão que segura o
-            # lock, o pg_stat_activity não refletiu o bloqueio de forma
-            # confiável (enxergava só os background workers); por uma conexão
-            # independente o bloqueio aparece em ~0.5s.
+            # UPDATE do filho aparecer BLOQUEADO em pg_stat_activity antes
+            # de devolver o hook — sem isso, o approve podia commitar antes
+            # de o filho terminar de importar SQLAlchemy e o teste passaria
+            # sem exercitar o lock. O filho é identificado pelo
+            # application_name próprio e a conferência exige que o PID da
+            # conexão do approve esteja em pg_blocking_pids dele: "alguma
+            # sessão bloqueada no banco" não prova nada — outro waiter
+            # satisfaria a consulta (follow-up do bot, rodada 2). O poll
+            # roda numa CONEXÃO OBSERVADORA própria: pela conexão que
+            # segura o lock, o pg_stat_activity não refletiu o bloqueio de
+            # forma confiável (enxergava só os background workers); por uma
+            # conexão independente o bloqueio aparece em ~0.5s.
             import time
             from sqlalchemy import create_engine, text as sql_text
             escritores = []
 
             def check_com_escritor_bloqueado(*args, **kwargs):
                 resultado = real_check(*args, **kwargs)
+                # PID da conexão da requisição — é ela quem segura o row
+                # lock; psycopg2 expõe o backend PID da transação corrente.
+                pid_aprovacao = db.session().connection().connection \
+                    .get_backend_pid()
                 escritores.append(subprocess.Popen(
                     [sys.executable, '-c', _EDICAO_CONCURRENTE,
                      TestConfig.SQLALCHEMY_DATABASE_URI, str(id_b)],
@@ -636,16 +654,23 @@ class TestAprovacaoRevalidaDocente(TeacherLocksTestCase):
                             bloqueado = c.execute(sql_text(
                                 "SELECT 1 FROM pg_stat_activity "
                                 "WHERE datname = current_database() "
+                                "AND application_name = :escritor "
                                 "AND state = 'active' "
-                                "AND wait_event_type = 'Lock'"
-                            )).scalar()
+                                "AND wait_event_type = 'Lock' "
+                                "AND pg_blocking_pids(pid) "
+                                "    @> ARRAY[:pid]::integer[]"
+                            ), {'escritor': _APP_NAME_EDICAO,
+                                'pid': pid_aprovacao}).scalar()
                         if bloqueado:
                             break
                         time.sleep(0.1)
                     else:
-                        self.fail('em 12s o UPDATE do escritor não apareceu '
-                                  'bloqueado em pg_stat_activity — o row '
-                                  'lock não o alcançou')
+                        self.fail('em 12s o UPDATE do escritor '
+                                  f'(application_name={_APP_NAME_EDICAO}) '
+                                  'não apareceu bloqueado pelo approve '
+                                  f'(pid {pid_aprovacao}) em '
+                                  'pg_stat_activity — o row lock não o '
+                                  'alcançou')
                 finally:
                     observador.dispose()
                 return resultado
