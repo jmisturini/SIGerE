@@ -43,8 +43,9 @@ jobs:
 
       - name: Instala dependências
         run: |
-          pip install -r requirements.txt
-          pip install pytest
+          # pytest vem do requirements-dev.txt (fonte única da versão —
+          # o pip install ad hoc ficava fora da chave do cache, OCR #246)
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Roda a suíte de testes
         run: python -m pytest -q
@@ -97,8 +98,9 @@ jobs:
 
       - name: Instala dependências
         run: |
-          pip install -r requirements.txt
-          pip install pytest
+          # pytest vem do requirements-dev.txt (fonte única da versão —
+          # o pip install ad hoc ficava fora da chave do cache, OCR #246)
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Roda os testes de concorrência no PostgreSQL
         env:
