@@ -7,14 +7,15 @@ on:
     branches: [main, dev]
 
 # Pushes sucessivos ao mesmo ref empilham runs (o do PostgreSQL orquestra um
-# serviço e é o mais longo). Cancela SÓ no contexto de pull_request. Em
-# main/dev: o run EM ANDAMENTO nunca é cancelado; um run PENDENTE pode ser
-# substituído pelo push mais novo (padrão do GitHub, "latest wins" — o
-# estado final é o que fica testado, e os commits do push substituído
-# estão contidos no mais novo). O github.ref separa o contexto de
-# pull_request (refs/pull/N/merge) do push de branch (refs/heads/...).
+# serviço e é o mais longo). Cancela SÓ no contexto de pull_request: o push
+# novo ao PR cancela o run em andamento dele (grupo compartilhado). Em
+# main/dev cada run ganha grupo PRÓPRIO (github.run_id) — nenhum run é
+# cancelado ou substituído: cada push tem resultado próprio, e eles rodam
+# em PARALELO, sujeitos aos limites de runner da conta (CodeRabbit #245,
+# follow-up da rodada 2). Sem cancelamento, o GitHub só substituiria runs
+# PENDENTES do MESMO grupo — com grupo por run_id não há o que substituir.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # O job só precisa ler o repositório — sem isso, o GITHUB_TOKEN recebe as
