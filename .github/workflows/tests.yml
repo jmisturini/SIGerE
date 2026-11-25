@@ -40,6 +40,11 @@ jobs:
         with:
           python-version: '3.14'
           cache: 'pip'
+          # A chave padrão só cobre requirements.txt — sem isto, mudança
+          # em requirements-dev.txt reusaria cache velho (CodeRabbit #246)
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Instala dependências
         run: |
@@ -95,6 +100,11 @@ jobs:
         with:
           python-version: '3.14'
           cache: 'pip'
+          # A chave padrão só cobre requirements.txt — sem isto, mudança
+          # em requirements-dev.txt reusaria cache velho (CodeRabbit #246)
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Instala dependências
         run: |
