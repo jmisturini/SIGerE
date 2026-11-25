@@ -6,6 +6,18 @@ on:
   push:
     branches: [main, dev]
 
+# Pushes sucessivos ao mesmo ref empilham runs (o do PostgreSQL orquestra um
+# serviço e é o mais longo). Cancela SÓ no contexto de pull_request: o push
+# novo ao PR cancela o run em andamento dele (grupo compartilhado). Em
+# main/dev cada run ganha grupo PRÓPRIO (github.run_id) — nenhum run é
+# cancelado ou substituído: cada push tem resultado próprio, e eles rodam
+# em PARALELO, sujeitos aos limites de runner da conta (CodeRabbit #245,
+# follow-up da rodada 2). Sem cancelamento, o GitHub só substituiria runs
+# PENDENTES do MESMO grupo — com grupo por run_id não há o que substituir.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # O job só precisa ler o repositório — sem isso, o GITHUB_TOKEN recebe as
 # permissões padrão do repo.
 permissions:
@@ -14,6 +26,9 @@ permissions:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    # Mesmo contrato do job abaixo: um pytest pendurado não pode reter o
+    # runner até o limite global da conta.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,11 +39,80 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
+          cache: 'pip'
+          # A chave padrão só cobre requirements.txt — sem isto, mudança
+          # em requirements-dev.txt reusaria cache velho (CodeRabbit #246)
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Instala dependências
         run: |
-          pip install -r requirements.txt
-          pip install pytest
+          # pytest vem do requirements-dev.txt (fonte única da versão —
+          # o pip install ad hoc ficava fora da chave do cache, OCR #246)
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Roda a suíte de testes
         run: python -m pytest -q
+
+  # Integração com o PostgreSQL de produção (#239): FOR UPDATE, advisory
+  # locks e o CAS das rotas de reserva só são reais lá — o SQLite do job
+  # acima os ignora. Escopo restrito à suíte de concorrência
+  # (tests/test_teacher_locks.py), que é a que exercita esses caminhos; o
+  # escritor concorrente roda em OUTRO processo conectado ao mesmo banco
+  # via TEST_DATABASE_URL. A suíte se adapta ao backend por branch
+  # condicional (self.motor_postgres, no setUp e nos testes) e os 2 testes
+  # cujas janelas só existem no SQLite pulam aqui com o motivo no log.
+  testes-postgres:
+    runs-on: ubuntu-latest
+    # Serviço PostgreSQL + testes de concorrência com travas: um travamento
+    # (lock nunca liberado, serviço sem health) não pode reter o runner até
+    # o limite global.
+    timeout-minutes: 15
+    services:
+      postgres:
+        # Patch pinnado (16.16, a versão que a tag 16 resolvia quando o job
+        # entrou): atualização de imagem não pode mudar o comportamento do
+        # banco por baixo dos testes de travas — OCR #245.
+        image: postgres:16.16
+        env:
+          # Trust auth (sem senha): o banco é EFÊMERO e só acessível na
+          # localhost do próprio runner — não há segredo para proteger nem
+          # credencial em texto plano no repo. POSTGRES_DB cria o banco já
+          # pronto para a TEST_DATABASE_URL do passo abaixo.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: sigere_testes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Não deixa o token do checkout gravado em .git/config enquanto
+          # pip/pytest executam código de terceiros.
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+          # A chave padrão só cobre requirements.txt — sem isto, mudança
+          # em requirements-dev.txt reusaria cache velho (CodeRabbit #246)
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Instala dependências
+        run: |
+          # pytest vem do requirements-dev.txt (fonte única da versão —
+          # o pip install ad hoc ficava fora da chave do cache, OCR #246)
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Roda os testes de concorrência no PostgreSQL
+        env:
+          TEST_DATABASE_URL: postgresql://postgres@localhost:5432/sigere_testes
+        run: python -m pytest -q tests/test_teacher_locks.py
