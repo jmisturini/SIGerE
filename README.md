@@ -41,7 +41,7 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 
 - 🏛️ **Reservas de espaços físicos** — salas de aula, auditórios, laboratórios de informática/saúde, cozinhas
 - 👨‍🏫 **Cronogramas de professores** com detecção automática de conflitos de horário
-- 💰 **Financeiro** — horas extras docentes (lançamento, consulta com filtros e exportação da planilha de pagamento)
+- 💰 **Financeiro/RH** — horas extras docentes, Vale Alimentação e Adicional Noturno (lançamento, consulta com filtros e exportação da planilha de pagamento)
 - 🏥 **RH — Vale Transporte** (formulário público do pedido, conferência e correção pelo RH em "Pedidos VT", relatório do período e exportação das planilhas de pagamento)
 - 🔔 **Notificações** — avisos no sino quando uma atividade reservada se aproxima da data (opt-in por reserva, com marcos de antecedência e destinatários — usuários e grupos — definidos na própria reserva)
 - 🍳 **Cozinha** — fichas técnicas (.docx), preparações e requisição de compra
@@ -50,7 +50,9 @@ O **SIGerE** é um sistema web desenvolvido em **Flask** para instituições edu
 - 🌐 **Portal público** com cronograma do dia e busca de aula para alunos
 - 🏢 **Multi-unidade** — dados isolados por unidade educacional (salas, reservas, cursos, feriados, cozinha); o mesmo usuário pode atuar em várias unidades e alterna a unidade ativa pelo topo
 
-O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissões granulares, tema claro/escuro persistente, exportação de relatórios em PDF/Excel, layout responsivo (mobile/tablet/desktop) e seed opcional de dados de demonstração.
+O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissões granulares, tema claro/escuro persistente, exportação de relatórios em PDF/Excel, layout responsivo (mobile/tablet/desktop) e seed opcional de dados de demonstração. A barra lateral é organizada em **hubs** — Salas e Reservas, Financeiro/RH, Cozinha e Painel Admin —, cada um abrindo em cards-portais para as telas da seção.
+
+**Operação:** o banco tem backup comprimido com retenção avô/pai/filho, upload opcional para nuvem S3-compatível e um comando (`verify-restore`) que prova que o backup volta; o passo a passo do dia que der ruim está em [`docs/runbook-restauracao.md`](docs/runbook-restauracao.md).
 
 **Primeira implantação:** após o `seed-admin`, o painel do super-admin exibe um **checklist de configuração inicial** (unidade, categorias, salas, professores, funcionários, cursos/disciplinas e feriados) — cada passo confere dados reais do banco, marca o que já existe e some quando a implantação está completa.
 
@@ -58,19 +60,27 @@ O sistema possui **controle de acesso baseado em papéis (RBAC)** com permissõe
 
 ## 📸 Capturas de Tela
 
-Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis em [`docs/screenshots/`](docs/screenshots/).
+Telas do sistema na v1.44.0, em 1920×1080 com tema escuro e o cenário de demonstração (`flask seed-demo`) — disponíveis em [`docs/screenshots/`](docs/screenshots/).
 
-| Painel (resumo do dia) | Calendário com filtros |
+| Painel (resumo do dia) | Agenda com filtros |
 |---|---|
-| ![Painel com o resumo das reservas do dia](docs/screenshots/02-dashboard.png) | ![Calendário com filtros de reserva](docs/screenshots/03-calendario.png) |
+| ![Painel com o resumo das reservas do dia](docs/screenshots/02-dashboard.png) | ![Agenda com filtros de reserva](docs/screenshots/03-calendario.png) |
 
-| Lista de Reservas | Disponibilidade mensal da sala |
+| Todas as Reservas | Disponibilidade mensal da sala |
 |---|---|
-| ![Lista de todas as reservas com situações](docs/screenshots/04-reservas.png) | ![Disponibilidade mensal da sala](docs/screenshots/05-disponibilidade-sala.png) |
+| ![Lista de todas as reservas com situações](docs/screenshots/04-reservas.png) | ![Disponibilidade mensal da sala, com feriados marcados e o atalho de reserva por dia](docs/screenshots/05-disponibilidade-sala.png) |
 
-| Totem digital (TV de corredor) | Portal público |
+| Salas (vitrine por andar) | Pesquisar Salas (intervalo de datas e períodos) |
 |---|---|
-| ![Totem de ocupação de salas com clima](docs/screenshots/06-totem.png) | ![Cronograma público do dia](docs/screenshots/08-portal-cronograma.png) |
+| ![Cartões das salas agrupados por andar](docs/screenshots/11-salas.png) | ![Pesquisa de salas com intervalo de datas e períodos aplicados](docs/screenshots/12-pesquisar-salas.png) |
+
+| Hub Salas e Reservas | Hub Financeiro/RH |
+|---|---|
+| ![Central de Salas e Reservas com os cards de Salas, Reservas e Relatórios](docs/screenshots/13-hub-salas-e-reservas.png) | ![Central Financeiro/RH com os cards de Hora Extra, Vale-Transporte, Vale Alimentação e Adicional Noturno](docs/screenshots/14-hub-financeiro-rh.png) |
+
+| Totem digital (TV de corredor) | Cronograma público do dia |
+|---|---|
+| ![Totem de ocupação de salas com clima](docs/screenshots/06-totem.png) | ![Cronograma público do dia por período, com o selo Agora](docs/screenshots/08-portal-cronograma.png) |
 
 | API de Reservas (JSON) | Quadro de porta para tablet (app de exemplo) |
 |---|---|
@@ -81,7 +91,15 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 
 | Login | Home pública |
 |---|---|
-| ![Tela de login](docs/screenshots/01-login.png) | ![Home pública](docs/screenshots/07-portal-home.png) |
+| ![Tela de login](docs/screenshots/01-login.png) | ![Home pública com busca de aula, cronograma do dia e login](docs/screenshots/07-portal-home.png) |
+
+| Hub Cozinha | Relatório Geral |
+|---|---|
+| ![Central da Cozinha com os cards de Ficha Técnica, Preparações e Compras](docs/screenshots/15-hub-cozinha.png) | ![Relatório Geral de Salas e Reservas com indicadores e gráficos](docs/screenshots/16-relatorio-geral.png) |
+
+| Painel Administrativo | |
+|---|---|
+| ![Painel Administrativo com os cards das áreas de administração](docs/screenshots/17-painel-admin.png) | |
 
 </details>
 
@@ -108,8 +126,10 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - **Gerenciamento de série:** edite ou cancele/exclua em lote as reservas geradas por uma repetição (horário, sala, título — com validação de conflito por data) na opção **"Gerenciar Série"** da reserva ou da tela de repetição
 - **Auto-aprovação:** reservas sem conflitos são aprovadas instantaneamente
 - **Reservas passadas são registro:** com a data anterior a hoje, o detalhe fica somente leitura (sem repetir, cancelar, editar ou excluir) e as rotas recusam as alterações — inclusive para administradores
+- **Atalho de reserva por dia:** nas visões de semana e mês da Disponibilidade da sala, cada dia reservável tem um **"+"** que abre a criação de reserva com a sala e a data já preenchidas; domingos e feriados ativos da unidade aparecem com uma faixa com o nome e sem o atalho (sala inativa e datas passadas também não oferecem o atalho)
+- **Fila de pendências a um clique:** quem aprova vê no Painel e no hub Salas e Reservas um atalho para as reservas pendentes
 - **Ciclo de vida:** aprovar, cancelar (status `cancelled` mantém histórico) e excluir permanentemente (admins)
-- **Filtros de disponibilidade:** salas disponíveis agora, em data/período específico ou por categoria
+- **Filtros de disponibilidade:** salas disponíveis agora, em data/período específico ou por categoria — na página **Pesquisar Salas** (ver [Gestão de Salas e Categorias](#-gestão-de-salas-e-categorias))
 - **Compartilhar reserva:** botão no detalhe gera mensagem enxuta e amigável (sala, curso, disciplina, professor, data/hora por extenso e descrição/finalidade) para enviar por **e-mail** ou **WhatsApp** — abre o programa de e-mail (`mailto:`) ou o WhatsApp (`wa.me`) do próprio usuário, sem configuração de SMTP no servidor; mensagem editável antes do envio e opção de copiar. Não aparece em reservas passadas nem canceladas
 
 ### 🏛️ Gestão de Salas e Categorias
@@ -118,7 +138,10 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - **Categorias padrão da seed:** Sala de Aula (`SA`), Auditório (`AU`), Cozinha (`CO`), Laboratório de Informática (`LI`), Laboratório de Saúde (`LS`) e Quadra de Esportes (`QE`)
 - **Código automático:** geração de códigos no formato `SA101`, `AU101`, `LI105`, `LS301` (sigla da categoria + número da sala)
 - **Atributos da sala:** capacidade, andar, bloco, número e quantidade de computadores
-- **Visualização mensal:** calendário de ocupação por sala com navegação entre meses
+- **Página "Salas" como vitrine** (`/classrooms`): apenas os cartões das salas agrupados por andar, com os botões Relatório e Adicionar Sala
+- **Pesquisar Salas** (`/classrooms/search`): card ao lado de "Salas" no hub Salas e Reservas — o bloco de filtros da antiga listagem virou uma busca própria, com o resultado em cartões abaixo dos filtros e o **Exportar PDF** no topo; a página fica limpa até um filtro ser aplicado. Links antigos da listagem com filtro continuam válidos e redirecionam para a pesquisa com os mesmos critérios
+- **Pesquisa por intervalo de datas:** além do dia único, "Disponível de / até" aceita um intervalo — a sala precisa estar livre nos períodos marcados em **todos os dias** do intervalo; a data final vazia vale dia único, datas invertidas são trocadas e o relatório exportado descreve o intervalo no cabeçalho. Sem período marcado, as datas não filtram
+- **Visualização mensal:** calendário de ocupação por sala com navegação entre semanas e meses
 - **Exportação:** PDF (landscape A4) da listagem e da disponibilidade mensal
 - **Ativação/desativação** de salas e categorias sem exclusão
 
@@ -126,6 +149,8 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - **Perfis distintos:**
   - **Professor:** departamento, matrícula, unidade
   - **Funcionário:** setor, função, unidade, com opção de "também atuar como professor"
+- **Troca de perfil na edição:** Professor ↔ Funcionário depois do cadastro, para acompanhar a mudança de função dentro da instituição — os campos de vínculo se ajustam ao novo tipo (professor grava Departamento; funcionário grava Setor e Função, com a marcação "Também cadastrar como Professor" para quem continua lecionando), os campos do perfil anterior são zerados e o papel legado acompanha o perfil. As listas de professores (reservas, agenda, relatórios, Hora Extra, Vale Alimentação, Adicional Noturno e busca pública) refletem a troca na hora
+- **Formulário em seções rotuladas:** Identificação, Vínculo e Lotação, Acesso e Permissões — a Situação do acesso sai do meio do formulário e vai para o cartão **"Acesso e bloqueio"**, que aparece para qualquer operador em modo edição com o badge de três estados (Bloqueada, Inativa, Acesso liberado) e dica de onde desbloquear; tentativas e horário do bloqueio ficam visíveis apenas a quem tem `user:lock`
 - **Busca e filtros:** filtrar usuários por nome ou tipo de perfil, com paginação
 - **Reset de senha pelo admin:** gera uma senha temporária aleatória (exibida uma única vez) e força a troca no próximo login
 - **Segurança:** forçar troca de senha no primeiro login ou após reset administrativo
@@ -160,7 +185,7 @@ Telas do sistema com os dados de demonstração (`flask seed`) — disponíveis 
 - Adaptação automática ao tema claro/escuro
 
 ### 📊 Relatórios (`/relatorios`)
-Menu próprio na barra lateral, logo depois da Agenda, com as duas visões (acesso ligado a `reservation:read_all`); ambos com botão **Imprimir / PDF** na própria página:
+Cards no hub **Salas e Reservas**, com as duas visões (acesso ligado a `reservation:read_all`); ambos com botão **Imprimir / PDF** na própria página:
 - **Relatório Geral (`/relatorios/geral`):** panorama gerencial das reservas da unidade no período escolhido (padrão: mês corrente) — indicadores (reservas aprovadas, horas reservadas, salas utilizadas, docentes envolvidos), gráficos (status, período do dia, dia da semana, horas por sala), ocupação por sala com participação percentual, reservas por curso, carga por docente e o quadro **"Professores e cursos"** com duas abas: *Professores por curso* (total do curso e horas de cada professor) e *Cursos por professor* (carga total do professor e quanto cada curso contribuiu)
 - **Relatório Personalizado (`/relatorios/personalizado`):** monte a própria relação de reservas combinando **período** (datas), **status** (aprovadas/pendentes/canceladas), **sala**, **professor**, **curso**, **disciplina**, **período do dia** (manhã/tarde/noite), **busca no título**, **ordenação** (crescente/decrescente) e **agrupamento** por data, sala, professor, curso, disciplina ou sem agrupamento — faixas de grupo com contagem e horas somadas, KPIs do filtro (reservas, horas, salas e professores diferentes) e descrição dos filtros aplicados sob o título; impressão em paisagem
 - A URL antiga `/reservations/relatorio` continua viva e redireciona para o Relatório Geral preservando os filtros
@@ -175,24 +200,37 @@ Menu próprio na barra lateral, logo depois da Agenda, com as duas visões (aces
 - **Varredura agendada:** comando idempotente `flask --app run notify-scan` (systemd timer a cada 15 minutos em produção; `--dry-run` para prévia)
 - **Cancelamento automático de pendências:** comando idempotente `flask --app run autocancel-pendentes` (mesmo timer do `notify-scan`; `--dry-run` para prévia) cancela a reserva pendente que não foi aprovada até 1 hora antes do horário agendado — inclui pendências cujo início já passou — e avisa o criador com o motivo
 
-### 💰 Financeiro
-- **Horas Extras:** com nível de ensino, valor hora, turno e dias selecionados no calendário (gravados apenas como dia, separados por vírgula — o mês/ano vêm do Mês Base)
+### 💰 Financeiro/RH (`/financeiro-rh`)
+Os módulos financeiros e de RH vivem num hub único da barra lateral — Hora Extra, Vale-Transporte, Vale Alimentação e Adicional Noturno —, com cards-portais que só mostram os caminhos permitidos para quem acessa. As URLs antigas `/financeiro` e `/rh` redirecionam para cá.
+
+#### Hora Extra (`/payments/overtime`)
+- **Horas Extras:** com nível de ensino, valor hora, turno e dias selecionados no calendário (gravados apenas como dia, separados por vírgula — o mês/ano vêm do Mês Base); o **Tipo de Curso é texto livre** (até 60 caracteres), sem catálogo
 - **Regras de negócio:**
-  - Janela de lançamento: do dia 21 do mês anterior ao dia 20 do mês de referência (o Mês Base segue essa janela)
+  - Janela de lançamento: do dia 21 do mês anterior ao dia 20 do mês de referência (o Mês Base segue essa janela); o pagamento acontece no mês seguinte ao de referência
   - O gestor pode **fechar o mês** ("Fechar Mês"); fechado, o mês fica somente leitura para lançamento, edição e exclusão
+- **Dica do Mês de Referência:** abaixo do campo, uma frase por linha informa o intervalo de lançamento e o mês de pagamento; as opções do seletor seguem a janela 20→20
 - **Consulta:** filtro de Mês Base em caixa de seleção (meses já lançados + mês atual, abrindo no mês atual, com opção "Todos os meses") combinado com filtro por professor
 - **Código Orçamentário:** máscara automática com pontos — `xx.xx.xxxx.x` (9 dígitos) ou `xx.xx.xxxx.xx.xxxx` (14 dígitos), aplicada no cadastro e na exportação
 - **Exportação Excel:** planilha formatada com modelo pré-definido (`base_pagamento_extra.xlsx`), filtrável por mês e/ou professor
+- **Professor gravado é preservado:** na edição, o professor do lançamento permanece selecionável mesmo que a conta tenha deixado de ser professor (troca de perfil ou desativação) — salvar sem mexer no seletor não reatribui o lançamento
+
+#### Vale Alimentação — Professores (`/payments/meal-allowance`)
+- **Lançamentos:** um registro por professor e mês de referência, com a quantidade de dias trabalhados, na mesma página de consulta (filtro por mês e professor)
+- **Listar Professores dos Agendamentos:** importa um lançamento para cada professor com reserva aprovada no mês escolhido — os dias são a quantidade de datas distintas com aula (duas aulas no mesmo dia contam uma vez); quem já possui lançamento no mês é mantido, então repetir não duplica
+- **Edição e limpeza:** correção e exclusão individuais, e limpeza de todos os lançamentos da unidade (independente do filtro da listagem)
+- **Exportação Excel:** planilha `vale_alimentacao_professores.xlsx`, uma linha por professor
+- **Permissões:** `meal:read`, `meal:create`, `meal:edit`, `meal:delete`
 
 ### 🏥 RH — Vale Transporte (`/vt`)
-Módulo no bloco **RH** do menu lateral (o Financeiro concentra apenas a Hora Extra). O ciclo do mês tem duas pontas: o **colaborador responde o formulário público** e o **RH confere, corrige e exporta** em Pedidos VT:
-- **Formulário público (`/vt/pedido`):** sem login, o colaborador informa o e-mail e clica em **Buscar** — conta ativa é apenas confirmada na tela (primeiro nome e vínculo) e nome, matrícula e vínculo são preenchidos pelo cadastro no envio (quem já está logado no sistema chega com os próprios dados preenchidos; e-mail sem conta, os campos ficam livres para digitação) —, se deseja VT no mês e, para cada empresa de ônibus usada (1 ou 2), a tarifa vigente, o trajeto (Somente Volta ou Ida e Volta) e o número de vales necessários; link por unidade (`/vt/pedido?unity=<id>`), com data de fechamento opcional que encerra o preenchimento
-- **Pedidos VT (`/vt/pedidos`):** listagem das respostas da unidade com botão **"Copiar link do formulário"**, filtros (busca por nome/e-mail/matrícula, vínculo, deseja VT, ordenação, esconder não optantes com valor R$ 0,00), correção individual de qualquer campo e exclusão de pedidos inválidos
+Módulo do hub **Financeiro/RH**. O ciclo do mês tem duas pontas: o **colaborador responde o formulário público** e o **RH confere, corrige e exporta** em Pedidos VT:
+- **Formulário público (`/vt/pedido`):** sem login, o colaborador informa o e-mail e clica em **Buscar** — conta ativa é apenas confirmada na tela (nome curto e vínculo) e nome completo e matrícula são preenchidos pelo cadastro no envio (quem já está logado no sistema chega com os próprios dados preenchidos; e-mail sem conta, os campos ficam livres para digitação) —, se deseja VT no mês e, para cada empresa de ônibus usada (1 ou 2), a tarifa vigente, o trajeto (Somente Volta ou Ida e Volta) e o número de vales necessários; link por unidade (`/vt/pedido?unity=<id>`), com data de fechamento opcional que encerra o preenchimento
+- **Busca com o mínimo do cadastro:** o **Buscar** informa se o e-mail pertence a uma conta ativa e mostra só o nome curto (primeiro nome e inicial do sobrenome, ex.: "Ana S.") e o vínculo; nome completo e matrícula não saem do servidor e são preenchidos pelo cadastro apenas no envio do pedido. A existência da conta, portanto, é revelada a quem consulta — o que o formulário evita é entregar o cadastro completo; visitante logado com e-mail divergente do campo segue pela busca normal
+- **Pedidos VT (`/vt/pedidos`):** listagem das respostas da unidade com botão **"Copiar link do formulário"**, filtros (busca por nome/e-mail/matrícula, vínculo, deseja VT, ordenação, esconder não optantes com valor R$ 0,00), correção individual de qualquer campo — quem corrige (`vt:edit`) digita exatamente o que deve ser gravado, sem sobrescrita pelo cadastro — e exclusão de pedidos inválidos
 - **Planilha de pagamento:** exportação Excel por grupo — Todos os grupos, Técnico-Administrativo ou Professores — preenchendo o modelo `planilha_base_vt.xlsx` (Matrícula, Nome e Valor Total a partir da linha 5, máximo de 72 linhas por arquivo); inclui apenas Optante "Sim" com passes maior que zero; a coluna UO e a tabela de códigos de unidades do modelo são preservadas intactas
 - **Relatório (`/vt/relatorio`):** indicadores do período (pedidos recebidos, adesão dos optantes, vales necessários, investimento estimado), gráficos (deseja VT, optantes por vínculo, trajetos, investimento por empresa), resumo por empresa de ônibus e conferência do RH (e-mails e matrículas repetidas), com versão para imprimir/PDF
 - **Administração:** cadastro de **Empresas de Ônibus** com tarifas (pares identificação + valor, ex.: "Patamar 3" + `7,24`) e **Configurações do Pedido VT** (números base de vales por trajeto e data de fechamento) — ambos no Painel Admin e usados pelo formulário público
 
-### 🌙 RH — Adicional Noturno (`/adicional-noturno`)
+### 🌙 Adicional Noturno — Professores (`/adicional-noturno`)
 Adaptação web do gerador local "Gerador-Ad-Noturno-SENAC-FL": o formulário replica as colunas da planilha **"Adicional Noturno Professores"** (Matrícula, Professor, Adicional Noturno Sim/Não, Horas/Aula, Minutos e Unidade) e a exportação preenche a planilha de pagamento no modelo `planilha_base_an.xlsx` ("TABELA PARA PAGAMENTO ADICIONAL NOTURNO PROFESSOR"):
 - **Lançamentos (`/adicional-noturno`):** formulário e listagem na mesma página, com mês de referência (cada lançamento fica no mês escolhido e o filtro mostra um mês por vez), referência dos códigos UO das unidades do Senac SC e correção individual (editar/excluir, `an:edit` / `an:delete`)
 - **Importação da planilha:** upload do arquivo `.xlsx` no modelo "Adicional Noturno Professores" — as colunas são localizadas pelo cabeçalho da primeira linha (Matrícula, Professor, Adicional Noturno, Horas/Aula, Minutos e Unidade) e cada linha com matrícula e professor vira um lançamento no mês selecionado; quem já possui lançamento no mês é mantido, então reimportar não duplica
@@ -201,6 +239,7 @@ Adaptação web do gerador local "Gerador-Ad-Noturno-SENAC-FL": o formulário re
 - **Permissões:** `an:read`, `an:create`, `an:edit`, `an:delete`, `an:export`
 
 ### 🍳 Cozinha (`/kitchen`)
+Módulo do hub **Cozinha** (`/cozinha`), que reúne os cards de Fichas Técnicas, Preparações e Compras — a criação da ficha e o upload dos arquivos também podem ser feitos direto do hub.
 - **Ficha Técnica:** envio de múltiplos arquivos `.docx` de fichas técnicas operacionais de uma vez; o sistema lê o conteúdo do modelo em tabelas (nome da preparação, equipamentos, utensílios, tempo de preparo, rendimento, tabela única de insumos com especificações/quantidade/unidade, modo de preparo e notas técnicas — observações, alergênicos e referências) e um botão **Salvar Ficha Técnica** gera a preparação; também é possível **criar a ficha manualmente** pelo botão "Criar Ficha Técnica", no mesmo modelo
 - **Preparações:** cada ficha salva gera uma receita visualizável em **cards ou lista** (à escolha do usuário, persistida no navegador), com busca por nome; a visualização completa traz equipamentos, utensílios, tempo, rendimento, ingredientes por preparação (especificação, quantidade e unidade), modo de preparo geral, alergênicos, observações e referências; os ingredientes podem ser **editados e ativados/desativados** — desativados, ficam de fora da requisição de compra; há **recálculo das quantidades por porções desejadas** (base = menor rendimento informado, ex.: "4 a 6 porções" usa 4) com prévia instantânea e botão **Salvar quantidades**, que persiste a escala na preparação — a partir daí a exibição e a requisição de compra usam os novos valores, com "Restaurar originais" para voltar ao rendimento da ficha — e **edição de todos os campos da preparação**
 - **Compras:** seleção de múltiplas preparações e **soma dos ingredientes por similaridade** (acentos, plurais e parênteses normalizados), com conversão automática de unidades (g→KG, ml→L, un→UN) e exportação da **requisição de compra em Excel** preenchendo o modelo `app/static/templates_excel/base_planilha_compras.xlsx` ("REQUISIÇÃO DE COMPRA - GASTRONOMIA", com aba de centros de custo); a coluna OBSERVAÇÃO é exportada em branco, com as linhas da grade, para ser preenchida posteriormente
@@ -217,7 +256,11 @@ Adaptação web do gerador local "Gerador-Ad-Noturno-SENAC-FL": o formulário re
 
 ### 🎨 UI/UX
 - **Aparência:** um único seletor na barra superior reúne o tema claro/escuro e a cor da interface (Azul Senac padrão, Verde, Turquesa, Roxo, Rosa, Vermelho, Laranja ou Grafite), com escolha persistida no `localStorage`
+- **Hubs de navegação:** a barra lateral achatada reúne as telas em três hubs — Salas e Reservas, Financeiro/RH e Cozinha — além do Painel Admin; cada hub abre um bloco de conteúdos por vez (cards-portais), e os itens que não aparecem para quem não tem permissão somem sozinhos. As antigas centrais separadas de Financeiro e RH foram fundidas
 - **Menu lateral contrátil:** botão no cabeçalho alterna entre expandido e modo compacto de ícones (desktop), com preferência salva no navegador; clicar num grupo com submenu reexpande o menu
+- **Login e landing coesos:** as duas telas compartilham o mesmo formulário, com caixa única para os campos
+- **Mobile:** o menu lateral tem backdrop e fecha ao tocar fora ou com ESC; a unidade ativa e a trilha aparecem na barra superior do celular, onde também é possível trocar de unidade
+- **Tema escuro completo:** tabelas, trilha de progresso, campo de arquivo e modal de disponibilidade acompanham o modo escuro
 - **Design responsivo:** Bootstrap 5, todas as páginas adaptadas a mobile, tablet e desktop
 - **Interface em Português:** todo o sistema localizado para pt-BR
 - **Paginação** reutilizável em listagens (`_pagination.html`)
@@ -240,7 +283,7 @@ Adaptação web do gerador local "Gerador-Ad-Noturno-SENAC-FL": o formulário re
 | **Relatórios** | FPDF2 (PDF), OpenPyXL (Excel) |
 | **Rate limiting** | Flask-Limiter |
 | **Produção** | Gunicorn (WSGI) + Nginx (proxy/TLS) |
-| **Backup** | Comando `flask backup` (SQLite/PostgreSQL, gzip + retenção) com upload para nuvem S3-compatível e agendamento por systemd timer/cron |
+| **Backup** | Comando `flask backup` (SQLite/PostgreSQL, gzip + retenção avô/pai/filho) com upload para nuvem S3-compatível; `flask verify-restore` prova que o backup volta; agendamento por systemd timer/cron |
 | **APIs Externas** | [Open-Meteo](https://open-meteo.com/) (clima), [BrasilAPI](https://brasilapi.com.br/) (feriados), [Nominatim/OpenStreetMap](https://nominatim.org/) (geocodificação) |
 
 ---
@@ -254,6 +297,8 @@ Guias detalhados disponíveis no diretório [`docs/`](docs/):
 | 📘 [Manual do Usuário](docs/manual-do-usuario.pdf) | Operação do sistema para todos os perfis: acesso, reservas, notificações, salas, calendário, portal público, totem, financeiro (hora extra), RH (Vale-Transporte, Vale Alimentação e Adicional Noturno), cozinha, administração (incluindo auditoria) e API |
 | 🛠️ [Desenvolvimento e Debug](docs/desenvolvimento-debug.md) | Ambiente na sua máquina: modo debug (`FLASK_DEBUG`), banco local, migrações, testes, depuração e erros comuns |
 | 🚢 [Implantação em Produção](docs/implantacao-producao.md) | Servidor real: PostgreSQL, Redis, Gunicorn + systemd, Nginx, HTTPS, atualização, backup e solução de problemas |
+| 🚑 [Runbook de restauração](docs/runbook-restauracao.md) | O dia que der ruim: como restaurar o banco em PostgreSQL e SQLite, quanto tempo leva e o que se perde |
+| 🧭 [Guia de continuidade](docs/guia-continuidade.md) | O projeto em 60 segundos: ambiente, fluxo de branches/PRs, ciclo de release, produção e decisões de design já tomadas |
 | 📡 [API de Reservas](docs/api-reservas.md) | Uso da API REST de leitura para apps externos: autenticação, parâmetros, exemplos e FAQ |
 | 🗂️ [Permissões e Papéis](docs/permissoes.md) | Catálogo completo de permissões e matriz papel × permissão (gerado por `docs/gerar_permissoes.py`) |
 | 📦 [Migração do sistema legado](docs/migracao-legado.md) | Importação *one-shot* do banco antigo (Django/MySQL) para o SIGERE |
@@ -271,10 +316,15 @@ Guias detalhados disponíveis no diretório [`docs/`](docs/):
 
 ### Setup interativo (atalho)
 
-O script abaixo guia toda a instalação com perguntas — ambiente virtual, dependências,
-geração do `.env` (SECRET_KEY e banco de dados), schema, população inicial (implantação
-real, demonstração ou migração do legado), unidades do Senac SC e, opcionalmente, a
-subida do servidor. É seguro rodá-lo mais de uma vez (etapas já feitas são reaproveitadas):
+O script abaixo é o atalho para o dia a dia do sistema, com três modos escolhidos no início:
+
+| Modo | O que faz |
+|------|-----------|
+| **Instalação completa** | Máquina nova, do zero: ambiente virtual, dependências, geração do `.env` (SECRET_KEY e banco de dados SQLite/PostgreSQL, com Redis para o rate limit), schema, população inicial (implantação real, demonstração ou migração do legado), unidades do Senac SC e, opcionalmente, a subida do servidor de desenvolvimento |
+| **Atualizar o sistema** | Nova versão do código, dependências, migrações e permissões |
+| **Restaurar um backup** | Devolve o banco a partir de um snapshot local (SQLite ou PostgreSQL) |
+
+É seguro rodá-lo mais de uma vez (etapas já feitas são reaproveitadas):
 
 ```bash
 python setup_interativo.py
@@ -334,7 +384,29 @@ A aplicação estará disponível em: **http://localhost:5000**
 
 > **Unidades do Senac SC:** para cadastrar as unidades educacionais reais (extraídas do portal https://portal.sc.senac.br/unidades), execute `flask --app run seed-unidades` — cria as unidades ausentes e atualiza endereço/telefone das existentes a partir de `docs/unidades-senac-sc.json`. O comando é idempotente e pode ser executado mais de uma vez.
 
-> **Atualizando uma instalação existente:** após `git pull`, execute `flask --app run db upgrade` (aplica migrações de schema novas) e `flask --app run sync-permissions` (permissões de módulos novos).
+> **Atualizando uma instalação existente:** após `git pull`, execute `flask --app run db upgrade` (aplica migrações de schema novas) e `flask --app run sync-permissions` (permissões de módulos novos) — ou rode `python setup_interativo.py` e escolha **Atualizar o sistema**.
+
+### Comandos de manutenção (CLI)
+
+Todos na forma `flask --app run <comando>`; comandos de manutenção não exigem `SECRET_KEY` nem `FLASK_DEBUG`.
+
+| Comando | Para quê |
+|---------|----------|
+| `db upgrade` / `db migrate` | Aplicar / gerar migrações de schema (Flask-Migrate) |
+| `seed-admin` | Implantação real: cria apenas o administrador, com senha definida por você |
+| `seed` | Administrador com senha aleatória + pergunta sobre dados de demonstração |
+| `seed-demo` | Cenário de demonstração completo (só em modo desenvolvimento) |
+| `seed-unidades` | Cadastra as unidades do Senac SC (idempotente) |
+| `sync-permissions` | Atualiza papéis e permissões de módulos novos |
+| `import-legacy` | Importação *one-shot* do banco legado (Django/MySQL) |
+| `unlock-user` | Destrave de emergência de conta bloqueada (registrado na auditoria) |
+| `backup` | Snapshot comprimido do banco, retenção e upload para a nuvem |
+| `verify-restore` | Restaura o backup mais recente num banco descartável e confere as tabelas e a contagem de linhas |
+| `notify-scan` | Gera os avisos de notificação (agendado a cada 15 minutos em produção) |
+| `notify-email` / `notify-cleanup` | Envia o espelho dos avisos por e-mail / apaga notificações lidas antigas |
+| `autocancel-pendentes` | Cancela reserva pendente sem aprovação até 1 hora antes do início |
+
+`notify-scan`, `notify-email`, `notify-cleanup` e `autocancel-pendentes` aceitam `--dry-run` para prévia.
 
 ---
 
@@ -374,11 +446,16 @@ export SECRET_KEY="sua-chave-secreta-forte-aqui"
 export DATABASE_URL="postgresql://user:pass@localhost/sigere"
 export RATELIMIT_STORAGE_URI="redis://localhost:6379/0"   # com múltiplos workers
 export BACKUP_S3_BUCKET=""                                # opcional: bucket S3-compatível para o `flask backup`
+export BACKUP_DAILY_KEEP="7"                              # backup: quantas datas recentes manter
+export BACKUP_WEEKLY_KEEP="4"                             # backup: quantas semanas ISO anteriores guardar (1 backup por semana)
+export BACKUP_RETENTION_DAYS="45"                         # backup: teto de idade (0 = manter tudo)
 ```
 
 > **Obrigatório em produção:** sem `SECRET_KEY` definida (fora do modo debug), a aplicação se recusa a iniciar. Além disso, os cookies de sessão recebem o atributo `Secure` automaticamente quando `FLASK_DEBUG != true` — sirva a aplicação atrás de HTTPS.
 >
-> **Backup:** `flask --app run backup` gera o snapshot comprimido do banco com retenção automática e, com `BACKUP_S3_BUCKET` definido, envia para a nuvem e limpa os vencidos — guia completo (agendamento, restauração, provedores) em [docs/implantacao-producao.md](docs/implantacao-producao.md).
+> **Backup:** `flask --app run backup` gera o snapshot comprimido do banco e, com `BACKUP_S3_BUCKET` definido, envia para a nuvem. A retenção é **avô/pai/filho**: ficam os backups das 7 datas mais recentes (`BACKUP_DAILY_KEEP`) mais o mais novo de cada uma das 4 semanas ISO anteriores (`BACKUP_WEEKLY_KEEP`) — cerca de 35 dias de alcance com poucos arquivos —, e `BACKUP_RETENTION_DAYS` é o teto de idade (nada mais velho sobrevive, nem semanal). A política vale para a pasta local e para os objetos do bucket. Guia completo (agendamento, restauração, provedores) em [docs/implantacao-producao.md](docs/implantacao-producao.md).
+>
+> **A prova de que o backup volta:** `flask --app run verify-restore` restaura o backup mais recente — baixado da nuvem quando `BACKUP_S3_BUCKET` está definido, então é a cópia fora do servidor que é testada — num banco descartável separado da produção (`<nome>_verificacao`, apagado ao final) e confere toda tabela e a contagem de linhas (`--tolerancia N` aceita desvio; padrão zero). Imprime o tempo de restauração medido e termina com código 1 quando o backup não volta; no PostgreSQL o usuário do banco precisa de `CREATEDB`. O timer diário documentado roda o `verify-restore` logo após o backup.
 
 ### Configurar localização do clima (Totem e portal)
 
@@ -577,7 +654,7 @@ venv/bin/flask --app run sync-permissions
 ### Fluxo típico de reserva
 
 1. **Login** com uma conta de Professor ou Administrador
-2. Acesse **Salas** e filtre por disponibilidade
+2. Acesse **Salas e Reservas → Pesquisar Salas** e filtre por disponibilidade
 3. Clique em **Reservar** ou acesse **Minhas Reservas → Nova Reserva**
 4. Preencha sala, data, horário, curso, disciplina e professor
 5. O sistema verifica conflitos e o perfil de quem cria automaticamente:
@@ -612,10 +689,12 @@ Administradores com permissão `unity:switch` (ou `*`) veem o **seletor de unida
 
 ### Exportar relatórios
 
-- **Salas:** `/classrooms/export_pdf` (PDF)
-- **Disponibilidade mensal:** `/classrooms/<id>/export_availability` (PDF)
+- **Salas:** `/classrooms/export_pdf` (PDF — botão **Exportar PDF** da Pesquisar Salas, com os filtros da tela)
+- **Disponibilidade da sala:** `/classrooms/<id>/export_availability` (PDF; descreve o intervalo de datas no cabeçalho)
 - **Aulas do calendário:** `/calendar/export_pdf` (PDF, com os filtros da tela: datas, período, sala, professor, curso e disciplina)
 - **Horas extras:** `/payments/export/overtime` (Excel)
+- **Vale Alimentação:** `/payments/meal-allowance/export` (Excel, com os filtros de mês/professor da tela)
+- **Adicional Noturno:** `/adicional-noturno/exportar` (Excel, modelo `planilha_base_an.xlsx`)
 - **Vale Transporte:** `/vt/pedidos/exportar-pagamento?group=tecnico|professores` (Excel, modelo `planilha_base_vt.xlsx`; sem `group`, exporta todos os grupos)
 - **Requisição de compra:** `/kitchen/compras/export` (Excel, via seleção de preparações)
 
@@ -636,6 +715,10 @@ SIGerE/
 │   ├── permissoes.md          # Catálogo de permissões gerado por gerar_permissoes.py
 │   ├── migracao-legado.md     # Migração one-shot do sistema legado (Django/MySQL)
 │   ├── backlog-seguranca.md   # Ideias de endurecimento de segurança pendentes
+│   ├── runbook-restauracao.md # Passo a passo para restaurar o banco no dia que der ruim
+│   ├── guia-continuidade.md   # Projeto em 60 segundos: ambiente, fluxo de PRs, release, produção
+│   ├── apresentacao/          # Apresentação do sistema (HTML/PDF)
+│   ├── mockups/               # Mockups de redesign (referência)
 │   ├── manual-do-usuario.pdf  # Manual do usuário (gerado por gerar_manual.py)
 │   └── screenshots/           # Imagens exibidas no README
 ├── examples/                  # Apps de exemplo consumindo a API (quadro de sala para tablet)
@@ -651,10 +734,11 @@ SIGerE/
     ├── permissions.py         # Decoradores de controle de acesso por permissão
     ├── unity_context.py       # Contexto multi-unidade (unidade ativa, seletor, escopo de queries)
     ├── utils.py               # Utilitários compartilhados (trilha de auditoria)
-    ├── commands.py            # CLI (seed, seed-admin, sync-permissions, unlock-user…) e catálogo de permissões/papéis
+    ├── commands.py            # CLI (seed, seed-admin, sync-permissions, unlock-user, notify-*, autocancel-pendentes…) e catálogo de permissões/papéis
     ├── seed_demo.py           # Cenário de demonstração completo (flask seed-demo)
     ├── legacy_import.py       # Importação do banco legado (flask import-legacy)
-    ├── backup.py              # Backup do banco (flask backup: gzip, retenção, S3)
+    ├── backup.py              # Backup do banco (flask backup: gzip, retenção avô/pai/filho, S3)
+    ├── restore_verify.py      # Prova de que o backup volta (flask verify-restore)
     ├── version.py             # APP_VERSION e histórico de releases (tela /changelog)
     │
     ├── services/              # Lógica de negócio compartilhada
@@ -666,9 +750,9 @@ SIGerE/
     │
     ├── blueprints/            # Um módulo (ou subpacote) por funcionalidade
     │   ├── auth.py            # Autenticação (login, logout, troca de senha)
-    │   ├── main.py            # Dashboard, novidades (/changelog) e troca de unidade ativa
+    │   ├── main.py            # Dashboard, hubs de navegação, novidades (/changelog) e troca de unidade ativa
     │   ├── admin.py           # Painel admin (usuários, salas, categorias, cursos, feriados, papéis, unidades, tokens, auditoria)
-    │   ├── classrooms.py      # Salas: listagem, detalhes, disponibilidade e exportação
+    │   ├── classrooms.py      # Salas: vitrine, pesquisa com filtros, detalhes, disponibilidade e exportação
     │   ├── reservations.py    # Reservas: CRUD, aprovações, repetição, séries e conflitos
     │   ├── schedule.py        # Calendário de reservas, API JSON de eventos e exportação em PDF
     │   ├── relatorios.py      # Relatório Geral e Relatório Personalizado
@@ -698,13 +782,15 @@ SIGerE/
         ├── calendar.html      # Calendário de reservas com filtros
         ├── changelog.html     # Tela de novidades (/changelog)
         ├── totem.html         # Interface do quiosque
+        ├── _acesso_macros.html, _cabecalho.html, _form_login.html  # Macros de acesso, cabeçalho de tela e formulário de login
+        ├── hubs/              # Centrais de seção (Salas e Reservas, Financeiro/RH, Cozinha)
         ├── _pagination.html   # Macro de paginação reutilizável
         ├── _aula_macros.html  # Macros compartilhadas das telas de aula/cronograma
         ├── auth/              # Login, troca de senha
         ├── admin/             # Dashboard admin, usuários, salas, categorias, cursos, disciplinas, feriados, papéis, unidades, auditoria
         ├── classrooms/        # Listagem, detalhes, disponibilidade mensal
         ├── reservations/      # Criar, editar, detalhes, minhas reservas, repetição, séries
-        ├── payments/          # Formulário e listagem de horas extras
+        ├── payments/          # Hora Extra e Vale Alimentação (formulários e listagens)
         ├── vt/                # Vale Transporte: pedido público, pedidos VT, edição e relatório
         ├── an/                # Adicional Noturno: lançamentos e edição
         ├── notifications/     # Sino, centro de notificações e grupos
@@ -939,6 +1025,7 @@ matriz completa papel × permissão é gerada em [docs/permissoes.md](docs/permi
 - **Limite de upload** de 16 MB (`MAX_CONTENT_LENGTH`)
 - **Fichas técnicas fora de `static/`:** armazenadas em `instance/uploads/` e servidas apenas pela rota autenticada de download
 - **Escapagem de dados dinâmicos** em mensagens renderizadas com `|safe` (anti-XSS)
+- **Formulário público de VT com o mínimo de dados:** a busca por e-mail revela se existe conta ativa com aquele endereço e devolve apenas o nome curto e o vínculo — nome completo e matrícula só são preenchidos pelo servidor no envio do pedido (com limite de 30 consultas por minuto por IP)
 - **Rate limiting no login** (5 tentativas por minuto por IP, via Flask-Limiter) com aviso amigável ao exceder
 - **API do calendário protegida:** intervalo de datas obrigatório e login exigido, evitando consultas sem limite
 - **API de reservas com mínimo de dados anônimo:** sem token expõe apenas data, horário, sala e título de reservas aprovadas; acesso completo via Bearer token gerado no painel admin (permissão `api:manage`), armazenado como hash SHA-256 com revogação imediata, erros em JSON e rate limiting por IP
